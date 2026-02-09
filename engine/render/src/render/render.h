@@ -58,7 +58,7 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
-    typedef struct Light*                   HLight;
+    typedef struct LightPrototype*          HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
@@ -204,9 +204,9 @@ namespace dmRender
         uint32_t                           m_ElementIndex;
     };
 
-    struct LightParams
+    struct LightPrototypeParams
     {
-        LightParams();
+        LightPrototypeParams();
 
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
@@ -458,14 +458,17 @@ namespace dmRender
     float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
 
     /** Lights
-     * TODO: Description
+     * A light prototype is essentially the data that represents the light and has a set of basic parameters,
+     * such as color, range and whatnot. A light 'instance' on the other hand is what exists in the game world,
+     * and is the basis for what's being written into the light buffer. It has a position and a rotation (direction),
+     * and in the future it is likely that a light instance can override certain parameters of the light prototype.
+     * A light prototype can be used across many light instances, and must live as long as the lights live.
      */
-    HLight         NewLight(HRenderContext render_context, const LightParams& params);
-    void           DeleteLight(HRenderContext render_context, HLight light);
-
-    HLightInstance NewLightInstance(HRenderContext render_context, HLight light_prototype);
-    void           DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
-    void           SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
+    void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
+    HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
+    void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {

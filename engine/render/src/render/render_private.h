@@ -273,7 +273,7 @@ namespace dmRender
         uint8_t          m_Enabled    : 1;
     };
 
-    struct Light
+    struct LightPrototype
     {
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
@@ -286,10 +286,10 @@ namespace dmRender
 
     struct LightInstance
     {
-        dmVMath::Point3  m_Position;
-        dmVMath::Vector3 m_Direction;
-        const Light*     m_LightPrototype;
-        uint16_t         m_LightBufferIndex;
+        dmVMath::Point3       m_Position;
+        dmVMath::Vector3      m_Direction;
+        const LightPrototype* m_LightPrototype;
+        uint16_t              m_LightBufferIndex;
     };
 
     // CPU-mapped representation of a light in STD140 layout

@@ -81,7 +81,7 @@ namespace dmGameSystem
 
         light->m_Instance      = params.m_Instance;
         light->m_LightResource = (LightResource*) params.m_Resource;
-        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, light->m_LightResource->m_Light);
+        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, light->m_LightResource->m_LightPrototype);
 
         world->m_Components.Push(light);
         *params.m_UserData = (uintptr_t) light;

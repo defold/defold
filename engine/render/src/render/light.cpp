@@ -33,7 +33,7 @@ namespace dmRender
     // Light prototype
     ////////////////////////////////
 
-    LightParams::LightParams()
+    LightPrototypeParams::LightPrototypeParams()
     : m_Type(LIGHT_TYPE_POINT)
     , m_Color(1.0f, 1.0f, 1.0f, 1.0f)
     , m_Direction(0.0f, 0.0f, -1.0f)
@@ -44,30 +44,30 @@ namespace dmRender
     {
     }
 
-    HLight NewLight(HRenderContext render_context, const LightParams& params)
+    HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params)
     {
-        Light* l = new Light;
-        memset(l, 0, sizeof(Light));
-        l->m_Type = params.m_Type;
-        l->m_Color = params.m_Color;
-        l->m_Intensity = params.m_Intensity;
-        l->m_Direction = params.m_Direction;
-        l->m_Range = params.m_Range;
-        l->m_InnerConeAngle = params.m_InnerConeAngle;
-        l->m_OuterConeAngle = params.m_OuterConeAngle;
-        return l;
+        LightPrototype* lp = new LightPrototype;
+        memset(lp, 0, sizeof(LightPrototype));
+        lp->m_Type = params.m_Type;
+        lp->m_Color = params.m_Color;
+        lp->m_Intensity = params.m_Intensity;
+        lp->m_Direction = params.m_Direction;
+        lp->m_Range = params.m_Range;
+        lp->m_InnerConeAngle = params.m_InnerConeAngle;
+        lp->m_OuterConeAngle = params.m_OuterConeAngle;
+        return lp;
     }
 
-    void DeleteLight(HRenderContext render_context, HLight light)
+    void DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
     {
-        delete light;
+        delete light_prototype;
     }
 
     ////////////////////////////////
     // Light instance
     ////////////////////////////////
 
-    HLightInstance NewLightInstance(HRenderContext render_context, HLight light_prototype)
+    HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
         if (render_context->m_RenderLightsIndices.Remaining() == 0)
         {

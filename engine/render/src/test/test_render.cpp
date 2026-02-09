@@ -1804,6 +1804,22 @@ TEST_F(dmRenderTest, FontMapSetup)
     dmRender::DeleteFontMap(font);
 }
 
+TEST_F(dmRenderTest, LightBufferTest)
+{
+    dmRender::LightPrototypeParams light_params;
+    dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(m_Context, light_params);
+
+    dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
+
+    dmVMath::Point3 p0;
+    dmVMath::Quat r0;
+    dmRender::SetLightInstance(m_Context, light0, p0, r0);
+
+    dmRender::DeleteLightInstance(m_Context, light0);
+
+    dmRender::DeleteLightPrototype(m_Context, light_prototype);
+}
+
 TEST(Constants, Constant)
 {
     dmhash_t original_name_hash = dmHashString64("test_constant");

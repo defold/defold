@@ -73,7 +73,7 @@ namespace dmGameSystem
         *out = dmVMath::Vector3(v4.getX(), v4.getY(), v4.getZ());
     }
 
-    static void DDFToLightParams(const dmGameSystemDDF::LightDesc* light_desc, dmRender::LightParams& params)
+    static void DDFToLightParams(const dmGameSystemDDF::LightDesc* light_desc, dmRender::LightPrototypeParams& params)
     {
         if (light_desc == 0x0)
             return;
@@ -120,10 +120,10 @@ namespace dmGameSystem
 
         light_resource->m_DDF = (dmGameSystemDDF::LightDesc*) params->m_PreloadData;
 
-        dmRender::LightParams light_params;
+        dmRender::LightPrototypeParams light_params;
         DDFToLightParams(light_resource->m_DDF, light_params);
 
-        light_resource->m_Light = dmRender::NewLight(render_context, light_params);
+        light_resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, light_params);
 
         dmResource::SetResource(params->m_Resource, light_resource);
 
@@ -134,8 +134,8 @@ namespace dmGameSystem
     {
         if (resource->m_DDF != 0x0)
             dmDDF::FreeMessage(resource->m_DDF);
-        if (resource->m_Light)
-            dmRender::DeleteLight(render_context, resource->m_Light);
+        if (resource->m_LightPrototype)
+            dmRender::DeleteLightPrototype(render_context, resource->m_LightPrototype);
     }
 
     dmResource::Result ResLightDestroy(const dmResource::ResourceDestroyParams* params)

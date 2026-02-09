@@ -24,7 +24,7 @@ namespace dmGameSystem
 {
     struct LightResource
     {
-        dmRender::HLight            m_Light;
+        dmRender::HLightPrototype   m_LightPrototype;
         dmGameSystemDDF::LightDesc* m_DDF;
     };
 
