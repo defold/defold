@@ -61,10 +61,10 @@
     nil
 
     (re-find #"[#:]" id)
-    (format "%s should not contain special URL symbols such as '#' or ':'" name)
+    (localization/message "error.property-contains-url-prohibited-characters" {"property" name})
 
     (or (= (first id) \space) (= (last id) \space))
-    (format "%s should not start or end with a space symbol" name)))
+    (localization/message "error.property-cannot-start-or-end-with-space" {"property" name})))
 
 (defn prop-negative? [v name]
   (when (< v 0)
