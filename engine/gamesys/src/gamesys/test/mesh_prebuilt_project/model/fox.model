@@ -1,0 +1,13 @@
+mesh: "/model/fox.gltf"
+skeleton: "/model/fox.gltf"
+animations: "/model/fox.gltf"
+default_animation: "Run"
+name: "fox"
+materials {
+  name: "fox_material"
+  material: "/builtins/materials/model_skinned.material"
+  textures {
+    sampler: "tex0"
+    texture: "/model/fox_texture.png"
+  }
+}
