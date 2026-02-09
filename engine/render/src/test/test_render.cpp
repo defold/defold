@@ -1804,18 +1804,21 @@ TEST_F(dmRenderTest, FontMapSetup)
     dmRender::DeleteFontMap(font);
 }
 
-TEST_F(dmRenderTest, LightBufferTest)
+TEST_F(dmRenderTest, LightBufferTestSimple)
 {
     dmRender::LightPrototypeParams light_params;
     dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(m_Context, light_params);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
 
-    dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
+    {
+        dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
+        ASSERT_NE((dmRender::HLightInstance)0, light0);
 
-    dmVMath::Point3 p0;
-    dmVMath::Quat r0;
-    dmRender::SetLightInstance(m_Context, light0, p0, r0);
-
-    dmRender::DeleteLightInstance(m_Context, light0);
+        dmVMath::Point3 p0;
+        dmVMath::Quat r0;
+        dmRender::SetLightInstance(m_Context, light0, p0, r0);
+        dmRender::DeleteLightInstance(m_Context, light0);
+    }
 
     dmRender::DeleteLightPrototype(m_Context, light_prototype);
 }

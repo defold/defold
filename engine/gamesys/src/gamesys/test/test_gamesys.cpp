@@ -5720,6 +5720,19 @@ TEST_F(MaterialTest, TestUniformBuffersLayout)
     dmResource::Release(m_Factory, material_res);
 }
 
+TEST_F(MaterialTest, TestLightBuffer)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**)&material_res);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    ASSERT_TRUE(material_res->m_Material->m_HasLightBuffer);
+    ASSERT_EQ(32, material_res->m_Material->m_LightBufferLightsCount);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 #endif // !defined(DM_PLATFORM_VENDOR)
 
 TEST_F(ComponentTest, GetSetCollisionShape)

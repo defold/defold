@@ -139,6 +139,7 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
+    dmGameSystem::LightContext m_LightContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
@@ -684,7 +685,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
-                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext, &m_LightContext));
 
     dmGameObject::SortComponentTypes(m_Register);
 
