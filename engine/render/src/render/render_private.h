@@ -339,7 +339,6 @@ namespace dmRender
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
 
-        uint16_t                    m_MaxLightCount;
         uint16_t                    m_LightBufferDirtyStart;
         uint16_t                    m_LightBufferDirtyEnd;
 
@@ -401,7 +400,7 @@ namespace dmRender
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Lights
-    void InitializeLightBuffer(HRenderContext render_context, uint32_t max_light_count);
+    void InitializeLightData(HRenderContext render_context);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
 
     // Exposed here for unit testing

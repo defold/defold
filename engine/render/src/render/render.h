@@ -174,7 +174,6 @@ namespace dmRender
         uint32_t                        m_MaxRenderTargets;
         uint32_t                        m_ShaderProgramDescSize;
         uint32_t                        m_MaxCharacters;
-        uint32_t                        m_MaxLightCount;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count

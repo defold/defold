@@ -163,7 +163,7 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
-        InitializeLightBuffer(context, params.m_MaxLightCount);
+        InitializeLightData(context);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);

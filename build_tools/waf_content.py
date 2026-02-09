@@ -82,7 +82,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
 
             # Handle map<key, value> fields
             if field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type and field.message_type.GetOptions().map_entry:
-                # Map fields are represented as a Mapping (MapContainer) in Python.
+                # Map fields are represented as a Mapping (MapContainer)
                 if isinstance(value, Mapping):
                     entry_desc = field.message_type
                     key_field = entry_desc.fields_by_name.get('key')
