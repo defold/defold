@@ -204,7 +204,7 @@ namespace dmGameSystem
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
         }
 
-        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, sender, functionref);
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, sender, functionref);
         if (dmRig::RESULT_ANIM_NOT_FOUND == result)
         {
             dmLogError("'%s:%s#%s' has no animation named '%s'",
@@ -356,7 +356,7 @@ namespace dmGameSystem
         }
 
 
-        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, sender, functionref);
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, sender, functionref);
         if (dmRig::RESULT_ANIM_NOT_FOUND == result)
         {
             dmLogError("'%s:%s#%s' has no animation named '%s'",

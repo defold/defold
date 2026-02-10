@@ -2510,9 +2510,9 @@ namespace dmGameSystem
         component->m_ReHash = 1;
     }
 
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, uint32_t playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, int functionref)
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, int functionref)
     {
-        dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate);
+        dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, anim_id, playback, blend_duration, offset, playback_rate);
         if (dmRig::RESULT_OK == result)
         {
             component->m_Listener = listener;

@@ -41,7 +41,7 @@ namespace dmGameSystem
      * @param world [type: HModelWorld] Model world.
      * @param component [type: HModelComponent] Model component.
      * @param anim_id [type: dmhash_t] Animation to play.
-     * @param playback [type: uint32_t] Playback mode.
+     * @param playback [type: dmRig::RigPlayback] Playback mode.
      * @param blend_duration [type: float] Duration of a linear blend between the current and new animation.
      * @param offset [type: float] The normalized initial value of the animation cursor when the animation starts playing.
      * @param playback_rate [type: float] The rate with which the animation will be played. Must be positive.
@@ -49,7 +49,7 @@ namespace dmGameSystem
      * @param functionref [type: int] Optional Lua function reference to call with play events.
      * @return result [type: dmRig::Result] Result of the operation.
      */
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, uint32_t playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, int functionref);
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, int functionref);
 }
 
 #endif // DMSDK_GAMESYS_MODEL_H
