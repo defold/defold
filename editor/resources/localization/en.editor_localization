@@ -2243,6 +2243,7 @@ error.property-resource-not-found = {property} "{resource}" could not be found
 error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" refers to missing path "{path}"
 error.resource-assignment-not-of-type = {property} "{resource}" is not of type {type}
 error.resource-assignment-not-found = {property} "{resource}" could not be found
+error.material-not-defined-in-mesh = "{material}" is not defined in the Mesh. Use the "Clear Override" command from the label's context menu to remove the property.
 error.material-expects-paged-atlas = The Material expects a paged Atlas, but the selected {property} is not paged
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}
