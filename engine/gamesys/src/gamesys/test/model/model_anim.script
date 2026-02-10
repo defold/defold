@@ -18,15 +18,10 @@ play_anim_done = false
 
 local function test_play_anim(self)
     model.play_anim("#fox", "Run", go.PLAYBACK_ONCE_FORWARD, {}, function(self, message_id, message, sender)
-        print("play cb", message_id)
         if message_id == hash("model_animation_done") then
             play_anim_done = true
         end
     end)
-end
-
-function update(self, dt)
-    print("update", dt, "cursor", go.get("#fox", "cursor"))
 end
 
 function init(self)
