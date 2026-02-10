@@ -7,6 +7,7 @@ context:
                 "ComponentTypeMesh",
                 "ComponentTypeScript",
                 "ComponentTypeSound",
+                "ComponentTypeLight",
                 "CrashExt",
                 "DefaultSoundDevice",
                 "LiveUpdateExt",

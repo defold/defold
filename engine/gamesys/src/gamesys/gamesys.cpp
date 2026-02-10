@@ -181,8 +181,7 @@ namespace dmGameSystem
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 ModelContext* model_context,
                                                 LabelContext* label_context,
-                                                TilemapContext* tilemap_context,
-                                                LightContext* light_context)
+                                                TilemapContext* tilemap_context)
     {
         HResourceType type;
         dmGameObject::ComponentType component_type;
@@ -301,13 +300,7 @@ namespace dmGameSystem
                 0, 0,
                 0);
 
-        REGISTER_COMPONENT_TYPE("lightc", 1000, light_context,
-                CompLightNewWorld, CompLightDeleteWorld,
-                CompLightCreate, CompLightDestroy, 0, 0, CompLightAddToUpdate, CompLightGetComponent,
-                0, CompLightLateUpdate, 0, 0, 0, CompLightOnMessage, 0,
-                0, 0, 0,
-                0, 0,
-                1);
+        // prio 1000: comp_light.cpp
 
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,

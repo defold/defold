@@ -20,6 +20,24 @@
 
 namespace dmGameSystem
 {
+    enum LightParseResult
+    {
+        LIGHT_PARSE_RESULT_OK = 0,
+        LIGHT_PARSE_RESULT_KEY_NOT_FOUND = -1,
+        LIGHT_PARSE_RESULT_INVALID_TYPE = -2,
+    };
+
+    static const char* ParseResultToStr(LightParseResult res)
+    {
+        switch(res)
+        {
+            case LIGHT_PARSE_RESULT_KEY_NOT_FOUND: return "LIGHT_PARSE_RESULT_KEY_NOT_FOUND";
+            case LIGHT_PARSE_RESULT_INVALID_TYPE: return "LIGHT_PARSE_RESULT_INVALID_TYPE";
+            default:break;
+        }
+        return "<unknown error>";
+    }
+
     static const dmStructDDF::Struct::FieldsEntry* FindField(const dmStructDDF::Struct* s, const char* key)
     {
         if (!s)
@@ -33,27 +51,29 @@ namespace dmGameSystem
         return 0x0;
     }
 
-    static void GetNumber(const dmStructDDF::Struct* s, const char* key, float* out)
-    {
-        const dmStructDDF::Struct::FieldsEntry* f = FindField(s, key);
-        if (f)
-        {
-            *out = (float) f->m_Value->m_Kind.m_NumberValue;
-        }
-    }
-
-    static void GetVector4(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector4* out)
+    static LightParseResult GetNumber(const dmStructDDF::Struct* s, const char* key, float* out)
     {
         const dmStructDDF::Struct::FieldsEntry* f = FindField(s, key);
         if (!f)
         {
-            return;
+            return LIGHT_PARSE_RESULT_KEY_NOT_FOUND;
+        }
+        *out = (float) f->m_Value->m_Kind.m_NumberValue;
+        return LIGHT_PARSE_RESULT_OK;
+    }
+
+    static LightParseResult GetVector4(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector4* out)
+    {
+        const dmStructDDF::Struct::FieldsEntry* f = FindField(s, key);
+        if (!f)
+        {
+            return LIGHT_PARSE_RESULT_KEY_NOT_FOUND;
         }
 
         dmStructDDF::ListValue* list = f->m_Value->m_Kind.m_ListValue;
         if (!list || list->m_Values.m_Count < 3)
         {
-            return;
+            return LIGHT_PARSE_RESULT_INVALID_TYPE;
         }
 
         float r = (float) list->m_Values[0].m_Kind.m_NumberValue;
@@ -64,13 +84,19 @@ namespace dmGameSystem
                     : 1.0f;
 
         *out = dmVMath::Vector4(r, g, b, a);
+        return LIGHT_PARSE_RESULT_OK;
     }
 
-    static void GetVector3(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector3* out)
+    static LightParseResult GetVector3(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector3* out)
     {
         dmVMath::Vector4 v4;
-        GetVector4(s, key, &v4);
-        *out = dmVMath::Vector3(v4.getX(), v4.getY(), v4.getZ());
+        LightParseResult res = GetVector4(s, key, &v4);
+        if (res != LIGHT_PARSE_RESULT_OK)
+        {
+            return res;
+        }
+        *out = v4.getXYZ();
+        return LIGHT_PARSE_RESULT_OK;
     }
 
     static void DDFToLightParams(const dmGameSystemDDF::LightDesc* light_desc, dmRender::LightPrototypeParams& params)
@@ -79,10 +105,18 @@ namespace dmGameSystem
             return;
 
         const dmStructDDF::Struct* data = &light_desc->m_Data;
+        LightParseResult res = LIGHT_PARSE_RESULT_OK;
+
+    #define HANDLE_LIGHT_PARSE_RES(lbl, r) \
+        if (res != LIGHT_PARSE_RESULT_OK) \
+            dmLogError("Error parsing light data for %s: error=%s", lbl, ParseResultToStr(r));
 
         // Shared properties
-        GetVector4(data, "color", &params.m_Color);
-        GetNumber(data, "intensity", &params.m_Intensity);
+        res = GetVector4(data, "color", &params.m_Color);
+        HANDLE_LIGHT_PARSE_RES("color", res);
+
+        res = GetNumber(data, "intensity", &params.m_Intensity);
+        HANDLE_LIGHT_PARSE_RES("intensity", res);
 
         const dmStructDDF::Struct::FieldsEntry* type_field = FindField(data, "type");
         if (type_field)
@@ -93,22 +127,28 @@ namespace dmGameSystem
                 if (strcmp(type_str, "directional") == 0)
                 {
                     params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
-                    GetVector3(data, "direction", &params.m_Direction);
+                    res = GetVector3(data, "direction", &params.m_Direction);
+                    HANDLE_LIGHT_PARSE_RES("directional.direction", res);
                 }
                 else if (strcmp(type_str, "point") == 0)
                 {
                     params.m_Type = dmRender::LIGHT_TYPE_POINT;
-                    GetNumber(data, "range", &params.m_Range);
+                    res = GetNumber(data, "range", &params.m_Range);
+                    HANDLE_LIGHT_PARSE_RES("point.range", res);
                 }
                 else if (strcmp(type_str, "spot") == 0)
                 {
                     params.m_Type = dmRender::LIGHT_TYPE_SPOT;
-                    GetNumber(data, "range", &params.m_Range);
-                    GetNumber(data, "inner_cone_angle", &params.m_InnerConeAngle);
-                    GetNumber(data, "outer_cone_angle", &params.m_OuterConeAngle);
+                    res = GetNumber(data, "range", &params.m_Range);
+                    HANDLE_LIGHT_PARSE_RES("spot.range",res);
+                    res = GetNumber(data, "inner_cone_angle", &params.m_InnerConeAngle);
+                    HANDLE_LIGHT_PARSE_RES("spot.inner_cone_angle", res);
+                    res = GetNumber(data, "outer_cone_angle", &params.m_OuterConeAngle);
+                    HANDLE_LIGHT_PARSE_RES("spot.outer_cone_angle", res);
                 }
             }
         }
+    #undef HANDLE_LIGHT_PARSE_RES
     }
 
     dmResource::Result ResLightCreate(const dmResource::ResourceCreateParams* params)
@@ -118,22 +158,22 @@ namespace dmGameSystem
 
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
 
-        light_resource->m_DDF = (dmGameSystemDDF::LightDesc*) params->m_PreloadData;
+        dmGameSystemDDF::LightDesc* ddf = (dmGameSystemDDF::LightDesc*) params->m_PreloadData;
 
         dmRender::LightPrototypeParams light_params;
-        DDFToLightParams(light_resource->m_DDF, light_params);
+        DDFToLightParams(ddf, light_params);
 
         light_resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, light_params);
 
         dmResource::SetResource(params->m_Resource, light_resource);
+
+        dmDDF::FreeMessage(ddf);
 
         return dmResource::RESULT_OK;
     }
 
     static inline void ReleaseResources(dmResource::HFactory factory, dmRender::HRenderContext render_context, LightResource* resource)
     {
-        if (resource->m_DDF != 0x0)
-            dmDDF::FreeMessage(resource->m_DDF);
         if (resource->m_LightPrototype)
             dmRender::DeleteLightPrototype(render_context, resource->m_LightPrototype);
     }
@@ -149,7 +189,7 @@ namespace dmGameSystem
 
     dmResource::Result ResLightPreload(const dmResource::ResourcePreloadParams* params)
     {
-        dmGameSystemDDF::LightDesc *ddf;
+        dmGameSystemDDF::LightDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
@@ -162,9 +202,9 @@ namespace dmGameSystem
 
     dmResource::Result ResLightRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        LightResource tmp_light_resource = {};
+        dmGameSystemDDF::LightDesc* ddf;
 
-        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tmp_light_resource.m_DDF);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -173,7 +213,12 @@ namespace dmGameSystem
         LightResource* light_resource = (LightResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         ReleaseResources(params->m_Factory, render_context, light_resource);
-        *light_resource = tmp_light_resource;
+
+        dmRender::LightPrototypeParams light_params;
+        DDFToLightParams(ddf, light_params);
+        light_resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, light_params);
+
+        dmDDF::FreeMessage(ddf);
 
         return dmResource::RESULT_OK;
     }

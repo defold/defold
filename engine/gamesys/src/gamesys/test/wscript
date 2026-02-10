@@ -62,6 +62,7 @@ def build(bld):
                         'ComponentTypeMesh',
                         'ComponentTypeScript',
                         'ComponentTypeSound',
+                        'ComponentTypeLight',
                         'ResourceProviderFile',
                         'ResourceTypeAnim',
                         'ResourceTypeAnimationSet',

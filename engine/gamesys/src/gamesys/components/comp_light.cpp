@@ -31,13 +31,24 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    struct LightContext
+    {
+        LightContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmRender::HRenderContext    m_RenderContext;
+        dmResource::HFactory        m_Factory;
+        uint32_t                    m_MaxLightCount;
+    };
+
     struct LightComponent
     {
         dmGameObject::HInstance  m_Instance;
         LightResource*           m_LightResource;
         dmRender::HLightInstance m_LightInstance;
         uint16_t                 m_AddedToUpdate : 1;
-        uint16_t                 m_Padding : 15;
+        uint16_t                                 : 15;
     };
 
     struct LightWorld
@@ -148,4 +159,41 @@ namespace dmGameSystem
     {
         return dmGameObject::UPDATE_RESULT_OK;
     }
+
+    static dmGameObject::Result CompLightTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        LightContext* light_context = new LightContext;
+        light_context->m_Factory = ctx->m_Factory;
+        light_context->m_RenderContext = *(dmRender::HRenderContext*) ctx->m_Contexts.Get(dmHashString64("render"));
+        light_context->m_MaxLightCount = dmConfigFile::GetInt(ctx->m_Config, "light.max_count", 32);
+
+        ComponentTypeSetPrio(type, 1000);
+
+        ComponentTypeSetContext(type, light_context);
+        ComponentTypeSetNewWorldFn(type, CompLightNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompLightDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompLightCreate);
+        ComponentTypeSetDestroyFn(type, CompLightDestroy);
+        ComponentTypeSetAddToUpdateFn(type, CompLightAddToUpdate);
+        ComponentTypeSetLateUpdateFn(type, CompLightLateUpdate);
+        ComponentTypeSetOnMessageFn(type, CompLightOnMessage);
+        ComponentTypeSetGetFn(type, CompLightGetComponent);
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompLightTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        LightContext* light_context = (LightContext*)dmGameObject::ComponentTypeGetContext(type);
+        if (!light_context)
+        {
+            // if the initialization process failed (e.g. unit tests)
+            return dmGameObject::RESULT_OK;
+        }
+
+        delete light_context;
+        return dmGameObject::RESULT_OK;
+    }
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeLight, "lightc", dmGameSystem::CompLightTypeCreate, dmGameSystem::CompLightTypeDestroy);
