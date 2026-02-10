@@ -2222,6 +2222,7 @@ error.unknown-source = Unknown source
 error.unspecified-property = "{property}" must be specified
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting
 error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in the specified buffer
+error.tile-map.tiles-outside-tile-source-range = Tile map uses tiles outside the range of this tile source ({count} tiles in source, but a tile with index {index} is used in tile map)
 error.property-contains-url-prohibited-characters = "{property}" should not contain special URL symbols such as "#" or ":"
 error.property-cannot-start-or-end-with-space = "{property}" should not start or end with a space character
 error.property-cannot-be-negative = "{property}" cannot be negative
