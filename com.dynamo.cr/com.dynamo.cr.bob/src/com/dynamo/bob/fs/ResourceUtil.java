@@ -113,18 +113,43 @@ public class ResourceUtil {
         minifySupport.remove(ext);
     }
 
+    /**
+     * Minify a resource path into a hashed bucket layout.
+     *
+     * Return value expectations:
+     * - If minification is disabled, the input path is returned unchanged.
+     * - If the path suffix is not in the minify support set, the input path is returned unchanged.
+     * - If minification is enabled and the suffix is supported, the path is replaced with a hashed bucket path
+     *   that preserves the original suffix (e.g. ".spc", ".materialc", ".texturesetc").
+     *
+     * Leading "/" expectations:
+     * - For non-build paths (not starting with buildDirectory), the returned minified path is forced to start with "/".
+     * - For build output paths (starting with buildDirectory), the returned minified path starts with buildDirectory
+     *   and does not include a leading "/".
+     * - If minification is disabled or unsupported for the suffix, non-build paths still get a leading "/".
+     *   Build output paths are returned unchanged.
+     *
+     */
     public static String minifyPath(String path) {
+        if (path == null || path.length() == 0) {
+            return path;
+        }
+        boolean isBuildPath = buildDirectory != null && buildDirectory.length() > 0 && path.startsWith(buildDirectory);
         if (!minifyPathEnabled) {
+            if (!isBuildPath && path.charAt(0) != '/') {
+                return "/" + path;
+            }
             return path;
         }
 
         String suffix = getSuffix(path);
         if (!minifySupport.contains(suffix)) {
+            if (!isBuildPath && path.charAt(0) != '/') {
+                return "/" + path;
+            }
             return path;
         }
 
-
-        boolean isBuildPath = buildDirectory != null ? path.startsWith(buildDirectory) : false;
         if (isBuildPath) {
             path = path.substring(buildDirectory.length());
         }
