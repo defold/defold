@@ -112,9 +112,9 @@
   (when (and val-set (not (val-set v)))
     message))
 
-(defn prop-anim-missing? [animation anim-ids]
+(defn prop-anim-missing? [animation anim-ids in]
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
-    (format "'%s' could not be found in the specified image" animation)))
+    (localization/message "error.animation-not-found" {"animation" animation "property" in})))
 
 (defn prop-anim-missing-in? [animation anim-data in]
   (when-not (contains? anim-data animation)

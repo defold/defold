@@ -68,6 +68,9 @@
 (def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
 
 (def particlefx-ext "particlefx")
+(def image-message (localization/message "property.image"))
+(def material-message (localization/message "property.material"))
+(def animation-message (localization/message "property.particlefx.animation"))
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -828,8 +831,8 @@
 
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
   (let [is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))]
-    (or (prop-resource-error :fatal _node-id :material material "Material")
-        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
+    (or (prop-resource-error :fatal _node-id :material material material-message)
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count image-message))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties
@@ -889,15 +892,15 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
-                                  (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
+                                  (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
 
   (property animation g/Str ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :animation))
             (dynamic tooltip (properties/tooltip-dynamic :particlefx :animation))
             (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
                              (when tile-source
-                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
+                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation animation-message)
+                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)))))
             (dynamic edit-type (g/fnk [anim-ids]
                                       (let [vals (seq anim-ids)]
                                         (properties/->choicebox vals)))))
@@ -918,7 +921,7 @@
                                  {:type resource/Resource
                                   :ext ["material"]}))
             (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
-                             (prop-resource-error :fatal _node-id :material material "Material")
+                             (prop-resource-error :fatal _node-id :material material material-message)
                              (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
@@ -973,10 +976,10 @@
   (input emitter-indices g/Any)
   (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
   (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count material-shader texture-page-count animation anim-ids dep-build-targets]
-                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
+                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source image-message)
                                                             (validate-material _node-id material material-max-page-count material-shader texture-page-count)
-                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
-                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation animation-message)
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)]
                                                            (remove nil?)
                                                            (seq))]
                                       (g/error-aggregate errors))
