@@ -777,8 +777,12 @@
             [rx ry rz] (math/quat->euler (:rotation current-camera))
             yaw (+ ry (* smooth-dx look-sensitivity))
             pitch (max -86.0 (min 86.0 (+ rx (* smooth-dy look-sensitivity))))
-            new-rotation (math/euler->quat [pitch yaw rz])]
-        [(assoc current-camera :rotation new-rotation)
+            new-rotation (math/euler->quat [pitch yaw rz])
+            focus-distance (.length (doto (Vector4d. ^Point3d (:position current-camera))
+                                      (.sub (:focus-point current-camera))))
+            new-camera (assoc current-camera :rotation new-rotation)
+            new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
+        [(assoc new-camera :rotation new-rotation :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0))
          (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
 
@@ -789,24 +793,25 @@
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
-  (let [delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
-                          (.sub (:focus-point camera)))
-        length (.length delta)
-        speed-mult (Math/log (+ 1.0 length))
-        final-speed (* speed (Math/pow length 0.95) 0.2)]
-    (.scale target-dir final-speed))
+  (let [focus-distance (.length (doto (Vector4d. ^Point3d (:position camera))
+                          (.sub (:focus-point camera))))
+        speed-mult (Math/log (+ 1.0 focus-distance))
+        final-speed (* speed (Math/pow focus-distance 0.95) 0.2)]
+    (.scale target-dir final-speed)
 
-  (let [vel (:velocity free-camera) 
-        diff (doto (Vector3d. target-dir) (.sub vel))]
-    (.scale diff (* acceleration dt))
-    (.add vel diff)
-    (when (= (.length target-dir) 0.0)
-      (.scale vel (Math/exp (* (- damping) dt))))
+    (let [vel (:velocity free-camera)
+          diff (doto (Vector3d. target-dir) (.sub vel))]
+      (.scale diff (* acceleration dt))
+      (.add vel diff)
+      (when (= (.length target-dir) 0.0)
+        (.scale vel (Math/exp (* (- damping) dt))))
 
-    (if (> (.length vel) 0.001)
-      (let [offset (doto (Vector3d. vel) (.scale dt))]
-        (camera-move camera (.x offset) (.y offset) (.z offset)))
-      camera)))
+      (if (> (.length vel) 0.001)
+        (let [offset (doto (Vector3d. vel) (.scale dt))
+              new-camera (camera-move camera (.x offset) (.y offset) (.z offset))
+              new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
+          (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
+        camera))))
 
 (defn- lerp [a b t]
   (let [d (- b a)]
