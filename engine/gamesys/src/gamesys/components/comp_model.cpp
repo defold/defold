@@ -2537,25 +2537,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor != 0x0)
         {
-            if (params.m_Message->m_Id == dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash)
-            {
-                dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::ModelPlayAnimation*)params.m_Message->m_Data;
-
-                dmRig::Result rig_result = dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate);
-                if (dmRig::RESULT_OK == rig_result)
-                {
-                    component->m_Listener = params.m_Message->m_Sender;
-                    component->m_FunctionRef = params.m_Message->m_UserData2;
-                } else if (dmRig::RESULT_ANIM_NOT_FOUND == rig_result) {
-                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
-                    dmLogError("'%s:%s#%s' has no animation named '%s'",
-                            dmMessage::GetSocketName(receiver.m_Socket),
-                            dmHashReverseSafe64(receiver.m_Path),
-                            dmHashReverseSafe64(receiver.m_Fragment),
-                            dmHashReverseSafe64(ddf->m_AnimationId));
-                }
-            }
-            else if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
+            if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
             }

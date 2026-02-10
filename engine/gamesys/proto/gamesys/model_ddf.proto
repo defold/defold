@@ -59,16 +59,6 @@ message SetTexture
     required uint32 texture_unit = 2;
 }
 
-message ModelPlayAnimation
-{
-    required uint64 animation_id = 1;
-    // matches dmGameObject::Playback in gameobject.h
-    required uint32 playback = 2;
-    optional float blend_duration = 3 [default = 0.0];
-    optional float offset = 4 [default = 0.0];
-    optional float playback_rate = 5 [default = 1.0];
-}
-
 message ModelCancelAnimation
 {
 }
