@@ -35,6 +35,9 @@ namespace dmGameSystem
     typedef struct ModelWorld* HModelWorld;
     typedef struct ModelComponent* HModelComponent;
 
+
+    typedef void (*FModelAnimationCallback)(void* user_ctx, dmRig::RigEventType event, void* event_data);
+
     /*# 
      * Play a model animation.
      * @name CompModelPlayAnimation
@@ -46,10 +49,11 @@ namespace dmGameSystem
      * @param offset [type: float] The normalized initial value of the animation cursor when the animation starts playing.
      * @param playback_rate [type: float] The rate with which the animation will be played. Must be positive.
      * @param listener [type: dmMessage::URL] Optional URL to send play events to.
-     * @param functionref [type: int] Optional Lua function reference to call with play events.
+     * @param callback [type: FModelAnimationCallback] Optional function callback to send play events to.
+     * @param callback_ctx [type: void*] Optional function callback context (only when callback is set)
      * @return result [type: dmRig::Result] Result of the operation.
      */
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, int functionref);
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, FModelAnimationCallback callback, void* callback_ctx);
 }
 
 #endif // DMSDK_GAMESYS_MODEL_H

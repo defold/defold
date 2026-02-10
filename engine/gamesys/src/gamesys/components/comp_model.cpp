@@ -133,7 +133,8 @@ namespace dmGameSystem
         ModelResource*              m_Resource;
         dmRig::HRigInstance         m_RigInstance;
         dmMessage::URL              m_Listener;
-        int                         m_FunctionRef;
+        FModelAnimationCallback     m_Callback;
+        void*                       m_CallbackContext;
         HComponentRenderConstants   m_RenderConstants;
         TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         MaterialResource*           m_Material; // Override material
@@ -362,6 +363,12 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)user_data1;
 
+        if (component->m_Callback)
+        {
+            component->m_Callback(component->m_CallbackContext, event_type, event_data);
+            return;
+        }
+
         dmMessage::URL sender;
         dmMessage::URL receiver = component->m_Listener;
         switch (event_type) {
@@ -382,13 +389,12 @@ namespace dmGameSystem
 
                 uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
+                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, 0, descriptor, &message, data_size, 0);
                 dmMessage::ResetURL(&component->m_Listener);
                 if (result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Could not send animation_done to listener.");
                 }
-
                 break;
             }
             default:
@@ -1072,7 +1078,8 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
-        component->m_FunctionRef = 0;
+        component->m_Callback = 0;
+        component->m_CallbackContext = 0;
         component->m_RenderConstants = 0;
 
         // Create GO<->bone representation
@@ -2510,13 +2517,14 @@ namespace dmGameSystem
         component->m_ReHash = 1;
     }
 
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, int functionref)
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, FModelAnimationCallback callback, void* callback_ctx)
     {
         dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, anim_id, playback, blend_duration, offset, playback_rate);
         if (dmRig::RESULT_OK == result)
         {
             component->m_Listener = listener;
-            component->m_FunctionRef = functionref;
+            component->m_Callback = callback;
+            component->m_CallbackContext = callback_ctx;
         }
         return result;
     }
