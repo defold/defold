@@ -758,7 +758,7 @@
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (def ^:private acceleration 12.0)
-(def ^:private look-smoothing 0.35)
+(def ^:private look-smoothing 0.45)
 
 (defn look [current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
   (let [raw-dx (if cursor-lock-pos
@@ -785,11 +785,16 @@
 (def ^:private damping 8.0)
 
 (defn wasd-move
-  [camera free-camera target-dir speed dt]
+  [camera-node camera free-camera target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
-  (.scale target-dir speed)
+  (let [delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
+                          (.sub (:focus-point camera)))
+        length (.length delta)
+        speed-mult (Math/log (+ 1.0 length))
+        final-speed (* speed (Math/pow length 0.95) 0.2)]
+    (.scale target-dir final-speed))
 
   (let [vel (:velocity free-camera) 
         diff (doto (Vector3d. target-dir) (.sub vel))]

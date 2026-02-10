@@ -1079,7 +1079,7 @@
    nil))
 
 
-(def ^:private camera-speed 633.0)
+(def ^:private camera-speed 5.0)
 (def ^:private camera-speed-boost 3.0)
 (def ^:private camera-speed-precision 0.35)
 
@@ -1129,7 +1129,7 @@
               (= key a-key) (.sub target-dir right)
               (= key q-key) (.sub target-dir up)
               (= key e-key) (.add target-dir up)))
-        final-camera (c/wasd-move camera-after-look free-camera target-dir speed dt)]
+        final-camera (c/wasd-move camera-node camera-after-look free-camera target-dir speed dt)]
     (g/set-property! camera-node :free-camera free-camera)
     (when (not= final-camera current-camera)
       (set-camera! camera-node current-camera final-camera false))
