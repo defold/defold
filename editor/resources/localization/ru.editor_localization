@@ -2189,6 +2189,9 @@ quick-help.start-or-attach-debugger = Запустить отладчик
 # Error Messages
 error.assigned-image-has-internal-errors = Назначенное изображение содержит внутренние ошибки
 error.sampler-not-defined-in-material = «{sampler}» не определён в материале. Используйте команду «Сбросить переопределение» в контекстном меню имени свойства, чтобы удалить свойство. Если этот сэмплер необходим для шейдера, добавьте отсутствующий сэмплер в материал.
+error.sound.invalid-ogg-file = Некорректный Ogg-файл
+error.sound.invalid-ogg-file-details = Некорректный Ogg-файл (oggz-validate):\n{output}
+error.sound.could-not-read-audio-file = Не удалось прочитать аудиофайл «{resource}»
 error.unknown-source = Неизвестный источник
 error.unspecified-property = Свойство «{property}» должно быть указано
 error.mesh.stream-must-be-specified-for-world-vertex-space = Свойство «{property}» должно быть указано при использовании материала с параметром «Vertex Space», установленным в world-space

@@ -2215,6 +2215,9 @@ quick-help.start-or-attach-debugger = Start or Attach Debugger
 # Error Messages
 error.assigned-image-has-internal-errors = The assigned Image has internal errors
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
+error.sound.invalid-ogg-file = Invalid Ogg file
+error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
+error.sound.could-not-read-audio-file = Couldn't read audio file {resource}
 error.unknown-source = Unknown source
 error.unspecified-property = "{property}" must be specified
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting
