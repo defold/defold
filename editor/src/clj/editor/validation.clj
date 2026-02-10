@@ -121,11 +121,8 @@
     (localization/message "error.animation-not-found" {"animation" animation "property" in})))
 
 (defn prop-outside-range? [[min max] v name]
-  (let [tmpl (if (integer? min)
-               "'%s' must be between %d and %d"
-               "'%s' must be between %f and %f")]
-    (when (not (<= min v max))
-      (util/format* tmpl name min max))))
+  (when-not (<= min v max)
+    (localization/message "error.property-must-be-between" {"property" name "min" min "max" max})))
 
 (defn prop-minimum-check? [min v name]
   (when (< v min)
