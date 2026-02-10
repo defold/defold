@@ -760,8 +760,7 @@
 (def ^:private acceleration 12.0)
 (def ^:private look-smoothing 0.35)
 
-(defn look
-  [current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
+(defn look [current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
   (let [raw-dx (if cursor-lock-pos
                  (- (first cursor-lock-pos) (first cursor-pos))
                  (first cursor-pos))

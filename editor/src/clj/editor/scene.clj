@@ -1130,7 +1130,7 @@
               (= key q-key) (.sub target-dir up)
               (= key e-key) (.add target-dir up)))
         final-camera (c/wasd-move camera-after-look free-camera target-dir speed dt)]
-    (g/set-property camera-node :free-camera free-camera)
+    (g/set-property! camera-node :free-camera free-camera)
     (when (not= final-camera current-camera)
       (set-camera! camera-node current-camera final-camera false))
     (when (and is-secondary-button cursor-lock-pos)
@@ -1643,7 +1643,7 @@
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
-(defn- attempt-run-arrow-key-commands! [^KeyEvent event]
+(defn- attempt-handle-arrow-key-commands! [^KeyEvent event]
   (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
     ::unhandled
     (condp = (.getCode event)
@@ -1732,7 +1732,7 @@
         ;; Because of that, such key presses will not reach the workbench view and
         ;; will not trigger the commands as might be expected
         (let [current-input (g/node-value view-id :input-state)]
-          (when (or (not= ::unhandled (attempt-run-arrow-key-commands! e))
+          (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
                     (contains? (:mouse-buttons current-input) :secondary))
             (.consume e)))))))
 
