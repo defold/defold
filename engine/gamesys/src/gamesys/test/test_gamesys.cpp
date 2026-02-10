@@ -307,21 +307,28 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
 static bool UpdateAndWaitUntilDone(
     dmGameSystem::ScriptLibContext&    scriptlibcontext,
     dmGameObject::HCollection          collection,
-    const dmGameObject::UpdateContext* update_context,
+    dmGameObject::UpdateContext*       update_context,
     bool                               ignore_script_update_fail,
     const char*                        tests_done_key,
     uint32_t                           timeout_seconds = 1)
 {
     uint64_t timeout = timeout_seconds * 1000000; // microseconds
     uint64_t stop_time = dmTime::GetMonotonicTime() + timeout;
+    uint64_t frame_time = dmTime::GetMonotonicTime();
     bool tests_done = false;
     while (!tests_done)
     {
-        if (dmTime::GetMonotonicTime() >= stop_time)
+        uint64_t now = dmTime::GetMonotonicTime();
+        if (now >= stop_time)
         {
             dmLogError("Test timed out after %f seconds", timeout / 1000000.0f);
             break;
         }
+
+        // calculate dt and pass that via the update context
+        float dt = (float)((now - frame_time) / 1000000.0);
+        update_context->m_DT = dt;
+        frame_time = now;
 
         dmJobThread::Update(scriptlibcontext.m_JobThread, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
@@ -5755,7 +5762,7 @@ TEST_F(SysTest, LoadBufferSync)
 static bool RunTestLoadBufferASync(int test_n,
     dmGameSystem::ScriptLibContext& scriptlibcontext,
     dmGameObject::HCollection collection,
-    const dmGameObject::UpdateContext* update_context,
+    dmGameObject::UpdateContext* update_context,
     bool ignore_script_update_fail)
 {
     char buffer[256];
