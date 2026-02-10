@@ -81,6 +81,7 @@
 (def tile-map-layer-icon "icons/32/Icons_42-Layers.png")
 (def ^:private material-message (localization/message "property.material"))
 (def ^:private tile-source-message (localization/message "property.tile-map.tile-source"))
+(def ^:private z-message (localization/message "property.tile-map.layer.z"))
 
 
 ;; manipulating cells
@@ -523,7 +524,8 @@
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
-            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z))
+            (dynamic error (g/fnk [_node-id z]
+                             (validation/prop-error :warning _node-id :z validation/prop-1-1? z z-message)))
             (dynamic label (properties/label-dynamic :tile-map.layer :z))
             (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :z)))
 

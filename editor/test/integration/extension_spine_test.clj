@@ -14,7 +14,6 @@
 
 (ns integration.extension-spine-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
@@ -285,9 +284,8 @@
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
                           (is (= :resource (:type error-item-of-parent-resource)))
-                          (is (string/starts-with?
-                                (:message error-item-of-faulty-node)
-                                (str "The file '" error-resource-path "' could not be loaded")))))]
+                          (is (= (localization/message "error.resource-not-loaded" {"resource" error-resource-path "error" "irrelevant"})
+                                 (localization/vary-message-variables (:message error-item-of-faulty-node) assoc "error" "irrelevant")))))]
                 (is (invalid-content-error? "/main/main.collection" (test-util/build-error! main-collection)))
                 (is (invalid-content-error? "/main/main.gui" (test-util/build-error! main-gui))))))
           ;; Before unloading the project, generate the content for a migrated

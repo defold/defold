@@ -149,10 +149,3 @@
   (-> kw
       name
       format-name))
-
-(defmacro prop-error-fnk
-  [severity f property]
-  (let [name-kw# (keyword property)
-        name# (keyword->name name-kw#)]
-    `(g/fnk [~'_node-id ~property]
-            (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))

@@ -60,7 +60,7 @@
 
 (defn- as-missing-file-error-info
   [value]
-  (let [pattern #"\bfile '(.*?)' could not be found\b"
+  (let [pattern #"\"(.*?)\" could not be found"
         message (test-util/localization (g/error-message value))]
     (if-some [[_ proj-path] (re-find pattern message)]
       (make-missing-file-error-info proj-path)
@@ -82,7 +82,7 @@
 
 (defn- as-broken-symlink-error-info
   [value]
-  (let [pattern #"\bsymlink '(.*?)' refers to missing path '(.*?)'"
+  (let [pattern #"\bSymlink \"(.*?)\" refers to missing path \"(.*?)\""
         message (test-util/localization (g/error-message value))]
     (if-some [[_ proj-path target-path] (re-find pattern message)]
       (make-broken-symlink-error-info proj-path (path/of target-path))
