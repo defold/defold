@@ -14,8 +14,9 @@
 
 (ns editor.resource-io
   (:require [clojure.java.io :as io]
-            [editor.resource :as resource]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
+            [editor.resource :as resource]
             [util.path :as path])
   (:import [java.io FileNotFoundException]))
 
@@ -24,12 +25,10 @@
 
 (defn file-not-found-error [node-id label severity resource]
   (let [symlink-target-pathname (some-> resource path/symlink-target path/absolute str)
+        path (resource/proj-path resource)
         message (if symlink-target-pathname
-                  (format "The symlink '%s' refers to missing path '%s'."
-                          (resource/proj-path resource)
-                          symlink-target-pathname)
-                  (format "The file '%s' could not be found."
-                          (resource/proj-path resource)))
+                  (localization/message "error.resource-is-a-broken-symlink" {"resource" path "path" symlink-target-pathname})
+                  (localization/message "error.resource-not-found" {"resource" path}))
         user-data (cond-> {:type :file-not-found
                            :resource resource}
                           symlink-target-pathname (assoc :symlink-target-pathname symlink-target-pathname))]
@@ -40,14 +39,10 @@
 
 (defn invalid-content-error [node-id label severity resource exception]
   (g/->error node-id label severity nil
-             (format "The file '%s' could not be loaded%s"
-                     (resource/proj-path resource)
-                     (if-some [message (ex-message exception)]
-                       (str ": " message)
-                       "."))
-             {:type :invalid-content
-              :resource resource
-              :exception exception}))
+             (localization/message "error.resource-not-loaded"
+                                   {"resource" (resource/proj-path resource)
+                                    "error" (or (ex-message exception) "none")})
+             {:type :invalid-content :resource resource :exception exception}))
 
 (defmacro with-error-translation
   "Perform body, translate io exceptions to g/errors"
