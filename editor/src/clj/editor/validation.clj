@@ -18,7 +18,6 @@
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.util :as util]
             [util.coll :as coll]
             [util.path :as path]))
 
@@ -127,17 +126,11 @@
 
 (defn prop-minimum-check? [min v name]
   (when (< v min)
-    (let [tmpl (if (integer? min)
-                 "'%s' must be at least %d"
-                 "'%s' must be at least %f")]
-      (util/format* tmpl name min))))
+    (localization/message "error.property-must-be-at-least" {"property" name "min" min})))
 
 (defn prop-maximum-check? [max v name]
   (when (> v max)
-    (let [tmpl (if (integer? max)
-                 "'%s' must be at most %d"
-                 "'%s' must be at most %f")]
-      (util/format* tmpl name max))))
+    (localization/message "error.property-must-be-at-most" {"property" name "max" max})))
 
 (defn prop-collision-shape-conflict? [shapes collision-shape]
   (when (and collision-shape (not (empty? shapes)))
