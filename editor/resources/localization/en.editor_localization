@@ -2236,6 +2236,7 @@ error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
+error.blend-mode-add-alpha-replaced = "{old}" has been replaced by "{new}"
 error.duplicate-instance-id = "{id}" is in use by another instance
 error.non-unique-ids = The following ids are not unique: {ids}
 error.only-components-allowed = Only components are allowed for "{property}". "{ext}" is not a component.

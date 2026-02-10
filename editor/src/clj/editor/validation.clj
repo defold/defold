@@ -29,8 +29,9 @@
      (when (= ~field :blend-mode-add-alpha)
        (let [options# (protobuf/enum-values ~pb-blend-type)
              options# (zipmap (map first options#) (map (comp :display-name second) options#))]
-         (format "\"%s\" has been replaced by \"%s\"",
-                 (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
+         (localization/message "error.blend-mode-add-alpha-replaced"
+                               {"old" (options# :blend-mode-add-alpha)
+                                "new" (options# :blend-mode-add)})))))
 
 (defn format-ext-message [ext]
   (if (coll? ext)

@@ -925,7 +925,7 @@
                              (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic tooltip (validation/blend-mode-tip blend-mode Particle$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$BlendMode))))
 
   (property particle-orientation g/Keyword (default (protobuf/default Particle$Emitter :particle-orientation))
