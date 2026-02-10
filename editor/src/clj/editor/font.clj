@@ -543,9 +543,8 @@
       (try
         (font-gen/generate pb-msg font font-resource-resolver)
         (catch Exception error
-          (let [message (localization/message "error.font-bitmap-generation-failed" {"error" (.getMessage error)})]
-            (log/error :msg message :exception error)
-            (g/->error _node-id :font :fatal font message))))))
+          (log/error :msg (str "Failed to generate bitmap from Font. " (.getMessage error)) :exception error)
+          (g/->error _node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" (.getMessage error)}))))))
 
 (defn- make-font-resource-resolver [font resource-map]
   (let [base-path (resource/parent-proj-path (resource/proj-path font))]
