@@ -76,6 +76,7 @@ def build(bld):
                         'ResourceTypeScript',
                         'ResourceTypeTTF',
                         'ResourceTypeFont',
+                        'ResourceTypeLight',
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt',

@@ -69,14 +69,21 @@ namespace dmRender
 
     HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
+        const uint32_t lights_to_add = 32;
+
         if (render_context->m_RenderLightsIndices.Remaining() == 0)
         {
-            render_context->m_RenderLightsIndices.SetCapacity(render_context->m_RenderLightsIndices.Capacity() + 4);
+            render_context->m_RenderLightsIndices.SetCapacity(render_context->m_RenderLightsIndices.Capacity() + lights_to_add);
         }
-
         if (render_context->m_RenderLights.Full())
         {
-            render_context->m_RenderLights.Allocate(4);
+            render_context->m_RenderLights.Allocate(lights_to_add);
+        }
+        uint32_t scratch_size = render_context->m_RenderLightsIndices.Capacity();
+        if (render_context->m_LightBufferScratch.Capacity() < scratch_size)
+        {
+            render_context->m_LightBufferScratch.SetCapacity(scratch_size);
+            render_context->m_LightBufferScratch.SetSize(scratch_size);
         }
 
         LightInstance* light_instance      = new LightInstance;
@@ -84,13 +91,6 @@ namespace dmRender
         light_instance->m_Direction        = light_prototype->m_Direction;
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
-
-        uint32_t scratch_size = light_instance->m_LightBufferIndex+1;
-        if (scratch_size > render_context->m_LightBufferScratch.Capacity())
-        {
-            render_context->m_LightBufferScratch.SetCapacity(scratch_size);
-            render_context->m_LightBufferScratch.SetSize(scratch_size);
-        }
 
         CommitLightInstance(render_context, light_instance);
         CommitLightCount(render_context);
@@ -164,10 +164,16 @@ namespace dmRender
         dmGraphics::ShaderResourceMember   light_members[4];
         dmGraphics::ShaderResourceTypeInfo light_types[2];
 
+        // Ensure all fields (including bitfields) are initialized
+        memset(light_buffer_members, 0, sizeof(light_buffer_members));
+        memset(light_members, 0, sizeof(light_members));
+        memset(light_types, 0, sizeof(light_types));
+
         // lights_count (vec4)
         light_buffer_members[0].m_Name                 = (char*)"lights_count";
         light_buffer_members[0].m_NameHash             = dmHashString64("lights_count");
         light_buffer_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_buffer_members[0].m_Type.m_UseTypeIndex  = 0;
         light_buffer_members[0].m_ElementCount         = 1;
         // lights
         light_buffer_members[1].m_Name                 = (char*)"lights";
@@ -181,21 +187,25 @@ namespace dmRender
         light_members[0].m_Name                 = (char*)"position";
         light_members[0].m_NameHash             = dmHashString64("position");
         light_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[0].m_Type.m_UseTypeIndex  = 0;
         light_members[0].m_ElementCount         = 1;
         // vec4 color
         light_members[1].m_Name                 = (char*)"color";
         light_members[1].m_NameHash             = dmHashString64("color");
         light_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[1].m_Type.m_UseTypeIndex  = 0;
         light_members[1].m_ElementCount         = 1;
         // vec4 direction (xyz: direction, w: range)
         light_members[2].m_Name                 = (char*)"direction_range";
         light_members[2].m_NameHash             = dmHashString64("direction_range");
         light_members[2].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[2].m_Type.m_UseTypeIndex  = 0;
         light_members[2].m_ElementCount         = 1;
         // vec4 params (x: type, y: intensity, z: innerConeAngle, w: outerConeAngle)
         light_members[3].m_Name                 = (char*)"params";
         light_members[3].m_NameHash             = dmHashString64("params");
         light_members[3].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[3].m_Type.m_UseTypeIndex  = 0;
         light_members[3].m_ElementCount         = 1;
 
         // LightBuffer (index 1)

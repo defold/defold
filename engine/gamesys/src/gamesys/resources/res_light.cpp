@@ -222,4 +222,21 @@ namespace dmGameSystem
 
         return dmResource::RESULT_OK;
     }
+
+    static ResourceResult RegisterResourceType_Light(HResourceTypeContext ctx, HResourceType type)
+    {
+        void* render_context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
+        assert(render_context);
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                                     type,
+                                                     render_context,
+                                                     ResLightPreload,
+                                                     ResLightCreate,
+                                                     0,
+                                                     ResLightDestroy,
+                                                     ResLightRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeLight, "lightc", dmGameSystem::RegisterResourceType_Light, 0);
+

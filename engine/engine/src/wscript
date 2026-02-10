@@ -72,7 +72,7 @@ def build(bld):
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
                              'ResourceTypeOgg', 'ResourceTypeOpus', 'ResourceTypeWav',
-                             'ResourceTypeFont','ResourceTypeTTF',
+                             'ResourceTypeFont', 'ResourceTypeLight', 'ResourceTypeTTF',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight']
 

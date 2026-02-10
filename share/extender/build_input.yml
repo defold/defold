@@ -30,6 +30,7 @@ context:
                 "ResourceTypeScript",
                 "ResourceTypeTTF",
                 "ResourceTypeWav",
+                "ResourceTypeLight",
                 "ScriptBox2DExt",
                 "ScriptFont",
                 "ScriptHttp",
