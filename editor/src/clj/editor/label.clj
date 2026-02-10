@@ -284,7 +284,6 @@
             (dynamic label (properties/label-dynamic :label :pivot))
             (dynamic tooltip (properties/tooltip-dynamic :label :pivot)))
   (property blend-mode g/Any (default (protobuf/default Label$LabelDesc :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
   (property line-break g/Bool (default (protobuf/default Label$LabelDesc :line-break))
             (dynamic label (properties/label-dynamic :label :line-break))
