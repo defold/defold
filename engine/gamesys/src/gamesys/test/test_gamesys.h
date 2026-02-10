@@ -668,6 +668,7 @@ void GamesysTest<T>::SetUp()
     m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
     m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
     m_Contexts.Put(dmHashString64("fontc"), m_RenderContext);
+    m_Contexts.Put(dmHashString64("lightc"), m_RenderContext);
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
