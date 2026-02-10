@@ -526,7 +526,7 @@
                              (validate-material _node-id material))))
 
   (property blend-mode g/Any (default (protobuf/default Sprite$SpriteDesc :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
+            (dynamic tooltip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))
             (dynamic label (properties/label-dynamic :sprite :size-mode))

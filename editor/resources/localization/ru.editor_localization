@@ -2209,6 +2209,7 @@ error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is =
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = Некорректный depth/stencil-буфер: высота больше нуля, но ширина равна нулю
 error.collision-object-shape-dimensions-must-be-greater-than-zero = Все размеры должны быть больше нуля
 error.collision-object-has-no-shapes = В объекте коллизий нет форм
+error.collision-shape-conflict = Нельзя одновременно использовать встроенные формы и свойство «Форма столкновения». Удалите что-то одно.
 error.collision-object-shape-not-supported-in-physics = Формы «{shape}» не поддерживаются в физике {physics}
 error.texture-profiles.format-not-supported-by-texture-compressor = Компрессор текстур не поддерживает формат текстуры
 error.texture-profiles.preset-not-supported-by-texture-compressor = Компрессор текстур не поддерживает пресет текстуры

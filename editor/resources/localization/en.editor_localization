@@ -2235,6 +2235,7 @@ error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is =
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = Incorrect depth/stencil attachment: height is greater than zero, but width is zero
 error.collision-object-shape-dimensions-must-be-greater-than-zero = All dimensions must be greater than zero
 error.collision-object-has-no-shapes = Collision Object has no shapes
+error.collision-shape-conflict = Cannot combine embedded shapes with a referenced Collision Shape. Remove one of them.
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics
 error.texture-profiles.format-not-supported-by-texture-compressor = Texture format is not supported by the texture compressor
 error.texture-profiles.preset-not-supported-by-texture-compressor = Texture preset is not supported by the texture compressor
