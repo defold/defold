@@ -1,0 +1,75 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+package com.dynamo.discovery;
+
+import java.util.Collections;
+import java.util.Map;
+
+public class MDNSServiceInfo {
+
+    public final long expires;
+    public final String id;
+    public final String instanceName;
+    public final String serviceName;
+    public final String host;
+    public final String address;
+    public final String localAddress;
+    public final int port;
+    public final String logPort;
+    public final Map<String, String> txt;
+
+    public MDNSServiceInfo(long expires,
+                           String id,
+                           String instanceName,
+                           String serviceName,
+                           String host,
+                           String address,
+                           String localAddress,
+                           int port,
+                           String logPort,
+                           Map<String, String> txt) {
+        this.expires = expires;
+        this.id = id;
+        this.instanceName = instanceName;
+        this.serviceName = serviceName;
+        this.host = host;
+        this.address = address;
+        this.localAddress = localAddress;
+        this.port = port;
+        this.logPort = logPort;
+        this.txt = Collections.unmodifiableMap(txt);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = serviceName.hashCode();
+        result = 31 * result + address.hashCode();
+        result = 31 * result + port;
+        result = 31 * result + txt.hashCode();
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other instanceof MDNSServiceInfo) {
+            MDNSServiceInfo s = (MDNSServiceInfo) other;
+            return serviceName.equals(s.serviceName)
+                    && address.equals(s.address)
+                    && port == s.port
+                    && txt.equals(s.txt);
+        }
+        return false;
+    }
+}
