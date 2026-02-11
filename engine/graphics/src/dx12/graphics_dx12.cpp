@@ -30,7 +30,7 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include <platform/platform_window_win32.h>
 
@@ -80,7 +80,7 @@ namespace dmGraphics
         m_Height                  = params.m_Height;
         m_UseValidationLayers     = params.m_UseValidationLayers;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
     }
 
     static HContext DX12NewContext(const ContextParams& params)
@@ -541,7 +541,7 @@ namespace dmGraphics
         factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
         context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
-        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupSupportedTextureFormats(context);
 
@@ -754,7 +754,7 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
 
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
         }
     }
@@ -763,7 +763,7 @@ namespace dmGraphics
     {
     }
 
-    static dmPlatform::HWindow DX12GetWindow(HContext _context)
+    static HWindow DX12GetWindow(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
         return context->m_Window;
@@ -791,7 +791,7 @@ namespace dmGraphics
     {
         assert(_context);
         DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
@@ -801,7 +801,7 @@ namespace dmGraphics
     {
         assert(_context);
         DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }

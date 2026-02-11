@@ -162,7 +162,7 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
-    dmPlatform::HWindow   m_Window;
+    HWindow               m_Window;
     dmGraphics::HContext  m_GraphicsContext;
     HJobContext           m_JobContext;
 
@@ -710,21 +710,22 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = &g_EngineCtx;
     engine->m_Window = dmPlatform::NewWindow();
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width                  = 512;
     window_params.m_Height                 = 512;
     window_params.m_Title                  = "Graphics Test App";
-    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
     }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);

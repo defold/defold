@@ -22,7 +22,7 @@
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 namespace dmGraphics
 {
@@ -154,7 +154,7 @@ namespace dmGraphics
         OpenGLContext(const ContextParams& params);
 
         SetTextureAsyncState    m_SetTextureAsyncState;
-        dmPlatform::HWindow     m_Window;
+        HWindow                 m_Window;
         HJobContext             m_JobContext;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;

@@ -127,12 +127,13 @@ namespace dmFontView
 
             context->m_Window = dmPlatform::NewWindow();
 
-            dmPlatform::WindowParams window_params = {};
+            WindowCreateParams window_params;
+            WindowCreateParamsInitialize(&window_params);
             window_params.m_Width            = 960;
             window_params.m_Height           = 540;
             window_params.m_Title            = "FontView";
             window_params.m_ContextAlphabits = 8;
-            window_params.m_GraphicsApi      = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+            window_params.m_GraphicsApi      = WINDOW_GRAPHICS_API_VULKAN;
 
             dmPlatform::OpenWindow(context->m_Window, window_params);
 

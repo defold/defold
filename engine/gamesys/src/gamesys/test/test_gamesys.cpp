@@ -1867,14 +1867,15 @@ TEST_F(FontTest, ScriptAddRemoveFont)
 
 TEST_F(WindowTest, MouseLock)
 {
-    dmPlatform::WindowParams window_params = {};
-    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
 
     dmHID::NewContextParams hid_params = {};
     dmHID::HContext hid_context = dmHID::NewContext(hid_params);
     dmHID::Init(hid_context);
 
-    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
     dmHID::SetWindow(hid_context, window);
 

@@ -22,7 +22,7 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 namespace dmGraphics
 {
@@ -232,7 +232,7 @@ namespace dmGraphics
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
-        dmPlatform::HWindow                m_Window;
+        HWindow                            m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;

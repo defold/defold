@@ -59,7 +59,7 @@ class dmGuiScriptTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmHID::HContext m_HidContext;
     dmGui::HContext m_Context;
     dmGui::RenderSceneParams m_RenderParams;
@@ -68,10 +68,11 @@ public:
 
     void SetUp() override
     {
-        dmPlatform::WindowParams window_params = {};
+        WindowCreateParams window_params;
+        WindowCreateParamsInitialize(&window_params);
         window_params.m_Width                  = 2;
         window_params.m_Height                 = 2;
-        window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+        window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, window_params);
@@ -1488,18 +1489,18 @@ TEST_F(dmGuiScriptTest, TestKeyboardFunctions)
     result = dmGui::InitScene(scene);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    ASSERT_TRUE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+    ASSERT_TRUE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD));
 
     result = dmGui::UpdateScene(scene, 1.0f / 60);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
-    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD));
 
     dmGui::DeleteScene(scene);
 

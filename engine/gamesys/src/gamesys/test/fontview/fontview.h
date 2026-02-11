@@ -19,7 +19,7 @@
 
 #include <resource/resource.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include <graphics/graphics.h>
 
@@ -41,7 +41,7 @@ namespace dmFontView
         dmHID::HContext m_HidContext;
         dmRender::HFontMap m_FontMap;
         dmRender::HRenderContext m_RenderContext;
-        dmPlatform::HWindow m_Window;
+        HWindow m_Window;
         uint32_t m_ScreenWidth;
         uint32_t m_ScreenHeight;
     };

@@ -94,7 +94,7 @@ public:
     dmScript::HContext m_ScriptContext;
     lua_State* L;
     dmMessage::URL m_DefaultURL;
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_ConfigFile;
     dmGraphics::HContext m_GraphicsContext;
@@ -115,7 +115,8 @@ protected:
 
         m_HttpResponseCount = 0;
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
 
