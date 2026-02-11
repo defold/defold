@@ -582,6 +582,9 @@ pane.build-errors = 构建错误
 pane.search-results = 查找结果
 pane.breakpoints = 断点
 
+# Assets
+
+
 # Console
 
 console.button.clear = 清除
@@ -761,6 +764,7 @@ menu.view = 视图
 menu.help = 帮助
 
 # Commands
+
 
 command.file.new = 新建…
 command.file.new.option.any-file = 文件
@@ -1449,6 +1453,7 @@ resource.type.vp = 顶点程序
 resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Zig 对象标记
+
 
 # Forms
 
