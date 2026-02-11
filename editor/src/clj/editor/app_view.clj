@@ -1352,7 +1352,7 @@
                :command :run.set-instance-count
                :check true
                :user-data {:instance-count i}})
-            (range 1 5))))
+            (range 1 (inc system/max-engine-instance-count)))))
   (run [prefs user-data]
     (let [count (:instance-count user-data)]
       (prefs/set! prefs [:run :instance-count] count)))
