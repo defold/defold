@@ -1,6 +1,26 @@
-id: "test"
-type: 0
-intensity: 0.0
-color { x: 0.0 y: 0.0 z: 0.0 }
-range: 0.0
-decay: 0.0
+data {
+  fields {
+    key: "id"
+    value { string_value: "test" }
+  }
+  fields {
+    key: "type"
+    value { string_value: "point" }
+  }
+  fields {
+    key: "intensity"
+    value { number_value: 0.0 }
+  }
+  fields {
+    key: "color"
+    value { list_value { values { number_value: 0.0 } values { number_value: 0.0 } values { number_value: 0.0 } values { number_value: 1.0 } } }
+  }
+  fields {
+    key: "range"
+    value { number_value: 0.0 }
+  }
+  fields {
+    key: "decay"
+    value { number_value: 0.0 }
+  }
+}

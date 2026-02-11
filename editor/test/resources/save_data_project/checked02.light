@@ -1,13 +1,38 @@
-id: "checked_light"
-type: SPOT
-intensity: 1.0
-color {
-  x: 1.0
-  y: 1.0
-  z: 1.0
+data {
+  fields {
+    key: "id"
+    value { string_value: "checked_light" }
+  }
+  fields {
+    key: "type"
+    value { string_value: "spot" }
+  }
+  fields {
+    key: "intensity"
+    value { number_value: 1.0 }
+  }
+  fields {
+    key: "color"
+    value { list_value { values { number_value: 1.0 } values { number_value: 1.0 } values { number_value: 1.0 } values { number_value: 1.0 } } }
+  }
+  fields {
+    key: "range"
+    value { number_value: 1.0 }
+  }
+  fields {
+    key: "decay"
+    value { number_value: 1.0 }
+  }
+  fields {
+    key: "inner_cone_angle"
+    value { number_value: 1.0 }
+  }
+  fields {
+    key: "outer_cone_angle"
+    value { number_value: 1.0 }
+  }
+  fields {
+    key: "drop_off"
+    value { number_value: 1.0 }
+  }
 }
-range: 1.0
-decay: 1.0
-cone_angle: 1.0
-penumbra_angle: 1.0
-drop_off: 1.0
