@@ -992,7 +992,7 @@
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
+  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 40.0 10.0 true))
 
 ;; TODO: We have to check whether any other settings popup is already open
 (defn show-settings! [app-view ^Parent owner prefs]

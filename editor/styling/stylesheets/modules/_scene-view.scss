@@ -140,15 +140,17 @@
             -fx-padding: 12px;
 
             &.wider {
-                -fx-pref-width: 250px;
+                -fx-pref-width: 260px;
             }
 
             HBox {
                 -fx-pref-height: 28px;
+                -fx-alignment: center-left;
             }
 
             .label {
-                -fx-pref-width: 80px;
+                -fx-pref-width: 120px;
+                -fx-padding: 1px;
             }
 
             .text-input {
