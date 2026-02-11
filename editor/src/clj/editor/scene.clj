@@ -1089,7 +1089,8 @@
         current-camera (g/node-value camera-node :local-camera)
         prefs (g/node-value camera-node :prefs)
         {:keys [mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} current-input
-        is-secondary-button (contains? mouse-buttons :secondary)
+        is-secondary-button (or (contains? mouse-buttons :secondary)
+                                (g/node-value camera-node :free-camera-mode))
         shift (contains? modifiers :shift)
         alt (contains? modifiers :alt)
         speed (* camera-speed
@@ -1169,8 +1170,7 @@
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))
           (when-let [input-state (g/node-value node-id :input-state)]
-            (when (contains? (:mouse-buttons input-state) :secondary)
-              (update-free-camera! image-view input-state node-id dt)))))
+            (update-free-camera! image-view input-state node-id dt))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
           (advance-user-data-component!
@@ -1433,6 +1433,22 @@
                  (g/node-value :camera-type evaluation-context)
                  (= :perspective))))
 
+(handler/defhandler :scene.free-camera-mode :workbench
+  (run [app-view]
+    (let [scene-view (active-scene-view app-view)]
+      (when-let [tab-content (loop [current (.getParent (g/node-value scene-view :image-view))]
+                               (when current
+                                 (if (.contains (.getStyleClass current) "tab-content-area")
+                                   current
+                                   (recur (.getParent current)))))]
+        (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
+      (let [[screen-x screen-y] (:cursor-pos (g/node-value scene-view :input-state))]
+        (g/set-property! (view->camera scene-view) :cursor-type :none)
+        (g/update-property! scene-view :input-state assoc :cursor-lock-pos [screen-x screen-y]))
+      (some-> scene-view
+              (view->camera)
+              (g/set-property! :free-camera-mode true)))))
+
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
   (g/set-property! app-view :manip-space manip-space))
@@ -1692,6 +1708,7 @@
                                                                  current
                                                                  (recur (.getParent current)))))]
                                       (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
+                                    (g/set-property! (view->camera view-id) :free-camera-mode false)
                                     (g/update-property! view-id :input-state assoc :cursor-lock-pos nil))
                                   (g/update-property! view-id :input-state update :mouse-buttons disj (:button action))
                                   (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
@@ -1733,21 +1750,33 @@
       (ui/event-handler e
         (when @process-events?
           (let [code (.getCode e)
-                action (i/action-from-jfx e)]
+                action (i/action-from-jfx e)
+                current-input (g/node-value view-id :input-state)
+                is-secondary (contains? (:mouse-buttons current-input) :secondary)]
             (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                       (filter action)
-                                                       set))
+                                                                           (filter action)
+                                                                           set))
+            (when (and (= code KeyCode/ESCAPE)
+                       (not is-secondary))
+              (g/set-property! (view->camera view-id) :free-camera-mode false)
+              (g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
+              (g/set-property! (view->camera view-id) :cursor-type :default)
+              (when-let [tab-content (loop [current (.getParent image-view)]
+                                       (when current
+                                         (if (.contains (.getStyleClass current) "tab-content-area")
+                                           current
+                                           (recur (.getParent current)))))]
+                (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false)))
             (when (or (.isLetterKey code)
                       (.isDigitKey code))
-              (g/update-property! view-id :input-state update :pressed-keys conj code))))
-        ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
-        ;; would be consumed by the TabPane and will trigger next/prev tab selection.
-        ;; Because of that, such key presses will not reach the workbench view and
-        ;; will not trigger the commands as might be expected
-        (let [current-input (g/node-value view-id :input-state)]
-          (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
-                    (contains? (:mouse-buttons current-input) :secondary))
-            (.consume e)))))))
+              (g/update-property! view-id :input-state update :pressed-keys conj code))
+            ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
+            ;; would be consumed by the TabPane and will trigger next/prev tab selection.
+            ;; Because of that, such key presses will not reach the workbench view and
+            ;; will not trigger the commands as might be expected
+            (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
+                      is-secondary)
+              (.consume e))))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)

@@ -747,6 +747,7 @@
   (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble :look}))
   (property cursor-type g/Keyword)
+  (property free-camera-mode g/Bool)
   (property free-camera g/Any (default {:velocity (Vector3d. 0.0 0.0 0.0)
                                         :angular-velocity (Quat4d. 0.0 0.0 0.0 1.0)
                                         :smoothed-look-delta [0.0 0.0]}))
