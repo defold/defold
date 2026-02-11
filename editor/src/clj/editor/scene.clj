@@ -1174,7 +1174,7 @@
               (when (and (or (contains? (:mouse-buttons input-state) :secondary)
                              (g/node-value camera :free-camera-mode))
                          (= :perspective (:type (g/node-value camera :local-camera))))
-                (update-free-camera! image-view input-state node-id dt)))))))
+                (update-free-camera! image-view input-state node-id dt))))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
           (advance-user-data-component!
