@@ -202,6 +202,7 @@
                      1.0 10000.0
                      (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
                      (Vector4d. 0.0 0.0 0.0 1.0)
+                     0.0
                      filter-fn))))
 
 (s/defn set-extents :- Camera
@@ -234,7 +235,8 @@
     (.transform ^Matrix4d (geom/invert view-matrix) position)
     (assoc camera
       :position position
-      :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
+      :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0)
+      :focus-distance (.distance position center))))
 
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
@@ -586,6 +588,7 @@
     (assoc camera
       :type :perspective
       :position cam-pos
+      :focus-distance focus-distance
       :fov-x (* fov-y-deg aspect)
       :fov-y fov-y-deg)))
 
@@ -758,7 +761,7 @@
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (def ^:private acceleration 12.0)
-(def ^:private look-smoothing 0.45)
+(def ^:private look-smoothing 0.55)
 
 (defn look [current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
   (let [raw-dx (if cursor-lock-pos
@@ -778,11 +781,12 @@
             yaw (+ ry (* smooth-dx look-sensitivity))
             pitch (max -86.0 (min 86.0 (+ rx (* smooth-dy look-sensitivity))))
             new-rotation (math/euler->quat [pitch yaw rz])
-            focus-distance (.length (doto (Vector4d. ^Point3d (:position current-camera))
-                                      (.sub (:focus-point current-camera))))
+            focus-distance (:focus-distance current-camera)
             new-camera (assoc current-camera :rotation new-rotation)
-            new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
-        [(assoc new-camera :rotation new-rotation :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0))
+            new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
+            new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
+        ;; NOTE: Do not set the :focus-distance because floating point rounding errors accumulate
+        [(assoc new-camera :rotation new-rotation :focus-point new-focus)
          (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
 
@@ -793,10 +797,9 @@
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
-  (let [focus-distance (.length (doto (Vector4d. ^Point3d (:position camera))
-                          (.sub (:focus-point camera))))
+  (let [focus-distance (:focus-distance camera)
         speed-mult (Math/log (+ 1.0 focus-distance))
-        final-speed (* speed (Math/pow focus-distance 0.95) 0.2)]
+        final-speed (* speed focus-distance 0.1)]
     (.scale target-dir final-speed)
 
     (let [vel (:velocity free-camera)
@@ -851,6 +854,7 @@
                       (lerp (:fov-x from) (:fov-x to) t)
                       (lerp (:fov-y from) (:fov-y to) t)
                       fp
+                      (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
                       filter-fn))))
 
 (defn scale-factor [camera viewport]

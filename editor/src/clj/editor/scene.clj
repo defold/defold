@@ -1423,6 +1423,7 @@
                  (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
+         (println "me")
          (set-camera-type! view
                            (case (g/node-value view :camera-type)
                              :orthographic :perspective

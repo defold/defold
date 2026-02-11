@@ -298,6 +298,7 @@
    ^double fov-x  :- s/Num
    ^double fov-y  :- s/Num
    focus-point    :- Vector4d
+   focus-distance :- s/Num
    filter-fn      :- Runnable]
   Position
   (position [this] position)
