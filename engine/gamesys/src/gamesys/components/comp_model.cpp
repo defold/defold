@@ -132,7 +132,6 @@ namespace dmGameSystem
         Matrix4                     m_World;
         ModelResource*              m_Resource;
         dmRig::HRigInstance         m_RigInstance;
-        dmMessage::URL              m_Listener;
         FModelAnimationCallback     m_Callback;
         void*                       m_CallbackContext;
         HComponentRenderConstants   m_RenderConstants;
