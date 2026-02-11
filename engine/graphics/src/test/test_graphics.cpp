@@ -59,7 +59,7 @@ public:
 
     struct CloseData
     {
-        bool m_ShouldClose;
+        int m_ShouldClose;
     };
 
     HJobContext                 m_JobContext;
@@ -76,7 +76,7 @@ public:
         data->m_Height = height;
     }
 
-    static bool OnWindowClose(void* user_data)
+    static int OnWindowClose(void* user_data)
     {
         CloseData* data = (CloseData*)user_data;
         return data->m_ShouldClose;

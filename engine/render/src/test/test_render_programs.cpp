@@ -20,6 +20,7 @@
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <script/script.h>
+#include <platform/window.hpp>
 
 #include "render/render.h"
 #include "render/render_private.h"

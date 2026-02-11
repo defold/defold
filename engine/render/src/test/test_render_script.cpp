@@ -26,6 +26,8 @@
 #include "render/font/font_renderer.h"
 #include "render/font/font_glyphbank.h"
 #include "font/font.h"
+#include <platform/window.hpp>
+
 #include <dmsdk/font/fontcollection.h>
 
 #include "render/render_ddf.h"

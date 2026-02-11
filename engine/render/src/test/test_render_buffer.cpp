@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <testmain/testmain.h>
+#include <platform/window.hpp>
 
 #include "render/render.h"
 #include "render/render_private.h"

@@ -780,11 +780,11 @@ struct StorageBufferTest : ITest
 };
 #endif
 
-static bool OnWindowClose(void* user_data)
+static int OnWindowClose(void* user_data)
 {
     EngineCtx* engine = (EngineCtx*) user_data;
     engine->m_WindowClosed = 1;
-    return true;
+    return 1;
 }
 
 static void* EngineCreate(int argc, char** argv)
@@ -810,10 +810,10 @@ static void* EngineCreate(int argc, char** argv)
         window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     }
 
-    dmPlatform::PlatformResult pr = dmPlatform::OpenWindow(engine->m_Window, window_params);
-    if (dmPlatform::PLATFORM_RESULT_OK != pr)
+    WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
+    if (WINDOW_RESULT_OK != wr)
     {
-        dmLogError("Failed to open window: %d", pr);
+        dmLogError("Failed to open window: %d", wr);
         return 0;
     }
 

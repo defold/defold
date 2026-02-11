@@ -28,6 +28,7 @@
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <extension/extension.hpp>
+#include <platform/window.hpp>
 
 static int g_HttpPort = 9001;
 char g_HttpAddress[128] = "localhost";

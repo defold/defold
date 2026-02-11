@@ -262,12 +262,12 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
     }
 
-    static bool OnWindowClose(void* user_data)
+    static int OnWindowClose(void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
         // Never allow closing the window here, clean up and then close manually
-        return false;
+        return 0;
     }
 
     static void Dispatch(dmMessage::Message *message_object, void* user_ptr);

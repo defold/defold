@@ -20,6 +20,7 @@
 #include <dlib/buffer.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>
+#include <platform/window.hpp>
 
 #include <sound/sound.h>
 #include <gameobject/component.h>

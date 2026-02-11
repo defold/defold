@@ -15,7 +15,6 @@
 #ifndef DMSDK_PLATFORM_WINDOW_H
 #define DMSDK_PLATFORM_WINDOW_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -28,7 +27,6 @@ extern "C" {
  *
  * @document
  * @name Platform Window
- * @namespace dmPlatform
  * @language C
  */
 
@@ -60,7 +58,7 @@ typedef void (*FWindowIconifyCallback)(void* user_data, uint32_t iconified);
  * @typedef
  * @name FWindowCloseCallback
  */
-typedef bool (*FWindowCloseCallback)(void* user_data);
+typedef int (*FWindowCloseCallback)(void* user_data);
 
 /*# keyboard char callback
  * @typedef
@@ -178,7 +176,7 @@ void WindowCreateParamsInitialize(WindowCreateParams* params);
  * @name WindowNew
  * @return window [type:HWindow] window handle
  */
-HWindow WindowNew(void);
+HWindow WindowNew();
 
 /*# delete a window handle
  * @name WindowDelete

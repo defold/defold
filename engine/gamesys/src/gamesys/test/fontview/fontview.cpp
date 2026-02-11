@@ -17,6 +17,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
+#include <platform/window.hpp>
 
 #include <hid/hid.h>
 

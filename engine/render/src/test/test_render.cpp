@@ -24,6 +24,7 @@
 #include <font/font.h>
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
+#include <platform/window.hpp>
 
 #include <algorithm> // std::stable_sort
 

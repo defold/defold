@@ -17,6 +17,7 @@
 #include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
+#include <platform/window.hpp>
 
 #include <ddf/ddf.h>
 #include <script/lua_source_ddf.h>
