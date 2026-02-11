@@ -50,8 +50,8 @@ public class ParticleLibrary {
         void invoke(Pointer userContext, Pointer material, Pointer texture, Matrix4 worldTransform, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount);
     }
 
-    public interface FetchAnimationCallback extends Callback {
-        int invoke(Pointer tileSource, long hash, AnimationData outAnimationData);
+    public interface FetchResourcesCallback extends Callback {
+        int invoke(FetchResourcesParams params, FetchResourcesData outData);
     }
 
     public static native Pointer Particle_NewPrototype(Buffer buffer, int bufferSize);
@@ -88,7 +88,7 @@ public class ParticleLibrary {
 
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
-    public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
+    public static native void Particle_Update(Pointer context, float dt, FetchResourcesCallback callback);
 
     public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
 
@@ -313,10 +313,10 @@ public class ParticleLibrary {
         public static final int ANIM_PLAYBACK_LOOP_PINGPONG = 5;
     }
 
-    public static interface FetchAnimationResult {
-        public static final int FETCH_ANIMATION_OK = 0;
-        public static final int FETCH_ANIMATION_NOT_FOUND = -1;
-        public static final int FETCH_ANIMATION_UNKNOWN_ERROR = -1000;
+    public static interface FetchResourcesResult {
+        public static final int FETCH_RESOURCES_OK = 0;
+        public static final int FETCH_RESOURCES_NOT_FOUND = -1;
+        public static final int FETCH_RESOURCES_UNKNOWN_ERROR = -1000;
     }
 
     public static class AnimationData extends Structure {
@@ -343,6 +343,38 @@ public class ParticleLibrary {
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("texture", "texCoords", "texDims", "pageIndices", "frameIndices", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
+        }
+    }
+
+    public static class FetchResourcesParams extends Structure {
+        public FetchResourcesParams() {
+            super();
+        }
+
+        public Pointer particleContext;
+        public int     instance;
+        public long    animation;
+        public int     emitterIndex;
+        public Pointer materialResource;
+        public Pointer textureSetResource;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("particleContext", "instance", "animation", "emitterIndex", "materialResource", "textureSetResource");
+        }
+    }
+
+    public static class FetchResourcesData extends Structure {
+        public FetchResourcesData() {
+            super();
+        }
+
+        public AnimationData animationData;
+        public Pointer       material;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("animationData", "material");
         }
     }
 }

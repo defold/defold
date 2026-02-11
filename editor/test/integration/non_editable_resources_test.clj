@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.lsp :as lsp]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -241,6 +242,7 @@
                                        :house (g/node-value house :build-targets)}}]
                   (tu/save-project! project)
                   (tu/set-non-editable-directories! project-path ["/assets"])
+                  (lsp/await (lsp/get-node-lsp project))
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
@@ -253,7 +255,8 @@
                       :let [non-editable-node-id (non-editable-node-ids-by-node-key node-key)]]
                 (testing (str node-key)
                   (is (= editable-build-source-paths
-                         (tu/node-built-source-paths non-editable-node-id))))))))))))
+                         (tu/node-built-source-paths non-editable-node-id))))))
+            (lsp/await (lsp/get-node-lsp (:project non-editable-node-ids-by-node-key)))))))))
 
 (deftest build-target-test
   (doseq [atlas-property-proj-paths-by-node-key
@@ -332,7 +335,8 @@
                 (is (= "/non-editable-room/go" (:id non-editable-room-instance-pb-map)))
                 (is (string/includes? (:prototype editable-room-instance-pb-map) "generated"))
                 (is (= (:prototype editable-room-instance-pb-map)
-                       (:prototype non-editable-room-instance-pb-map)))))))))))
+                       (:prototype non-editable-room-instance-pb-map))))))
+          (lsp/await (lsp/get-node-lsp project)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; scene-test
@@ -446,6 +450,7 @@
                                :house (g/node-value house :scene)}}]
                   (tu/save-project! project)
                   (tu/set-non-editable-directories! project-path ["/assets"])
+                  (lsp/await (lsp/get-node-lsp project))
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.

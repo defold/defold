@@ -3597,6 +3597,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float* out_value)
     {
         PropertyOptions options;
@@ -3615,6 +3616,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value)
     {
         PropertyOptions options;
@@ -3635,6 +3637,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value)
     {
         PropertyOptions options;
@@ -3656,6 +3659,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value)
     {
         PropertyOptions options;
@@ -3677,6 +3681,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool* out_value)
     {
         PropertyOptions options;
@@ -3695,6 +3700,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value)
     {
         PropertyOptions options;
@@ -3717,6 +3723,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
     {
         PropertyOptions options;
@@ -3738,8 +3745,6 @@ namespace dmGameObject
         }
         return result;
     }
-
-
 
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value)
     {

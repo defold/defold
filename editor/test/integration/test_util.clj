@@ -32,6 +32,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -184,7 +185,12 @@
 (defn make-directory-deleter
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
+  directory path must be a temp directory.
+
+  IMPORTANT! If you use the deleter for a project directory where you set up a
+  system, you need to use (lsp/await (lsp/get-node-lsp project)) before the
+  body returns, otherwise you might get `:editor.resource/project-directory`
+  spec failures in the output."
   ^AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getCanonicalPath directory)
@@ -691,8 +697,10 @@
            (workspace/resource-sync! ~'workspace)
            (fetch-libraries! ~'workspace)
            (let [~'project (setup-project! ~'workspace)
-                 ~'app-view (setup-app-view! ~'project)]
-             ~@body))))))
+                 ~'app-view (setup-app-view! ~'project)
+                 ret# (do ~@body)]
+             (lsp/await (lsp/get-node-lsp ~'project))
+             ret#))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]

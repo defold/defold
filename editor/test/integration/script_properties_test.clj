@@ -27,6 +27,7 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -433,7 +434,8 @@
                       (is (= [(resource "/props.script") props-script]
                              (error-item-open-info-without-opts error-item-of-parent-resource)))
                       (is (= [(resource "/props.script") props-script]
-                             (error-item-open-info-without-opts error-item-of-faulty-node))))))))))))))
+                             (error-item-open-info-without-opts error-item-of-faulty-node))))))))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest edit-component-instance-resource-properties-test
   (with-clean-system
@@ -639,7 +641,8 @@
               (resource-not-found-message "Texture" "/missing-resource.png")
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))))))
+              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest rename-resource-referenced-from-component-instance-test
   (with-clean-system
@@ -679,7 +682,8 @@
               (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-game-object)
-                     [renamed-build-resource-path])))))))))
+                     [renamed-build-resource-path])))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
@@ -904,7 +908,8 @@
               (resource-not-found-message "Texture" "/missing-resource.png")
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))))))
+              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest rename-resource-referenced-from-game-object-instance-test
   (with-clean-system
@@ -950,7 +955,8 @@
               (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-collection)
-                     [renamed-build-resource-path])))))))))
+                     [renamed-build-resource-path])))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest edit-collection-instance-resource-properties-test
   (with-clean-system
@@ -1192,7 +1198,8 @@
               (resource-not-found-message "Texture" "/missing-resource.png")
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))))))
+              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest edit-collection-instance-embedded-game-object-resource-properties-test
   (with-clean-system
@@ -1437,7 +1444,8 @@
               (resource-not-found-message "Texture" "/missing-resource.png")
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))))))
+              (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest rename-resource-referenced-from-collection-instance-test
   (with-clean-system
@@ -1488,7 +1496,8 @@
               (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-sub-props-collection)
-                     [renamed-build-resource-path])))))))))
+                     [renamed-build-resource-path])))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest layered-resource-property-override-test
   (with-clean-system
@@ -1639,7 +1648,8 @@
                      "/from-props-collection.atlas"
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
-                   (tu/node-built-source-paths sub-props-collection)))))))))
+                   (tu/node-built-source-paths sub-props-collection)))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest overrides-remain-after-script-edit-test
   (with-clean-system
@@ -1690,7 +1700,8 @@
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest overrides-remain-after-script-reload-test
   (with-clean-system
@@ -1752,7 +1763,8 @@
           (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
           (is (overridden-property? props-script-component))
           (is (overridden-property? ov-props-script-component))
-          (is (overridden-property? ov-ov-props-script-component)))))))
+          (is (overridden-property? ov-ov-props-script-component)))
+        (lsp/await (lsp/get-node-lsp project))))))
 
 (deftest zip-resource-reference-remains-valid-after-script-reload-test
   ;; It seems currently all ZipResources are recreated during resource sync.
@@ -1786,4 +1798,6 @@
         (let [props-script (tu/resource-node project "/props.script")]
           (is (= #{"/props.script"
                    "/builtins/graphics/particle_blob.tilesource"}
-                 (tu/node-built-source-paths props-script))))))))
+                 (tu/node-built-source-paths props-script))))
+
+        (lsp/await (lsp/get-node-lsp project))))))

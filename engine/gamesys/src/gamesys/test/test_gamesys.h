@@ -320,7 +320,7 @@ public:
     ~SpriteTest() override = default;
 };
 
-class ParticleFxTest : public GamesysTest<const char*>
+class ParticleFxTest : public ScriptBaseTest
 {
 public:
     ~ParticleFxTest() override = default;
