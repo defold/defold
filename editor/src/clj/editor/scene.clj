@@ -1114,7 +1114,7 @@
                                                   (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
                                                   (prefs/get prefs [:scene :perspective-camera :invert-y]))
                                           [current-camera free-camera])
-        key-for-command (fn [cmd] (some-> (first (keymap/shortcuts (keymap/default) cmd))
+        key-for-command (fn [cmd] (some-> (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                           (.getCode)))
         w-key (key-for-command :scene.camera-move-forward)
         a-key (key-for-command :scene.camera-move-left)
@@ -1170,7 +1170,11 @@
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))
           (when-let [input-state (g/node-value node-id :input-state)]
-            (update-free-camera! image-view input-state node-id dt))))
+            (let [camera (view->camera node-id)]
+              (when (and (or (contains? (:mouse-buttons input-state) :secondary)
+                             (g/node-value camera :free-camera-mode))
+                         (= :perspective (:type (g/node-value camera :local-camera))))
+                (update-free-camera! image-view input-state node-id dt)))))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
           (advance-user-data-component!
@@ -1434,6 +1438,10 @@
                  (= :perspective))))
 
 (handler/defhandler :scene.free-camera-mode :workbench
+  (active? [app-view]
+    (let [scene-view (active-scene-view app-view)
+          camera (view->camera scene-view)]
+      (= :perspective (:type (g/node-value camera :local-camera)))))
   (run [app-view]
     (let [scene-view (active-scene-view app-view)]
       (when-let [tab-content (loop [current (.getParent (g/node-value scene-view :image-view))]
@@ -1681,7 +1689,8 @@
                                     picking-rect (selection/calc-picking-rect pos pos)]
                                 (g/update-property! view-id :input-state assoc :cursor-pos [screen-x screen-y])
                                 (when (= :mouse-pressed (:type action))
-                                  (when (= :secondary (:button action))
+                                  (when (and (= :secondary (:button action))
+                                             (= :perspective (:type (g/node-value (view->camera view-id) :local-camera))))
                                     (when-let [tab-content (loop [current (.getParent image-view)]
                                                              (when current
                                                                (if (.contains (.getStyleClass current) "tab-content-area")

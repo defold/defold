@@ -734,7 +734,9 @@
                                                                                                      is-significant-drag))
                        (when is-significant-drag
                          (g/set-property! self :cursor-type
-                                          (if is-mode-2d :pan :none)))
+                                          (if (not= :perspective (:type (g/node-value self :local-camera)))
+                                            :pan
+                                            :none)))
                        (if is-secondary action nil))
                      action)
       action)))
@@ -799,7 +801,6 @@
     (.normalize target-dir))
 
   (let [focus-distance (:focus-distance camera)
-        speed-mult (Math/log (+ 1.0 focus-distance))
         final-speed (* speed focus-distance 0.1)]
     (.scale target-dir final-speed)
 
