@@ -618,6 +618,13 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        // Free dynamically allocated stream storage if present
+        if (vertex_declaration && vertex_declaration->m_Streams)
+        {
+            delete [] vertex_declaration->m_Streams;
+            vertex_declaration->m_Streams = 0;
+            vertex_declaration->m_StreamCount = 0;
+        }
         delete vertex_declaration;
     }
 
