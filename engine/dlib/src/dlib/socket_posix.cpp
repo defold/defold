@@ -261,6 +261,13 @@ namespace dmSocket
             result = setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&group, sizeof(group));
             if (result == 0)
             {
+                // Ensure multicast datagrams are looped back so local browser sockets
+                // can observe announcements sent from the same host.
+                uint8_t loopback = 1;
+                result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback));
+            }
+            if (result == 0)
+            {
                 uint8_t ttl_byte = (uint8_t) ttl;
                 result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl_byte, sizeof(ttl_byte));
             }
