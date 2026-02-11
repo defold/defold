@@ -62,12 +62,12 @@ public:
         bool m_ShouldClose;
     };
 
-    HJobContext m_JobContext;
-    HWindow m_Window;
-    dmGraphics::HContext m_Context;
-    dmGraphics::NullContext* m_NullContext;
-    ResizeData m_ResizeData;
-    CloseData m_CloseData;
+    HJobContext                 m_JobContext;
+    HWindow                     m_Window;
+    dmGraphics::HContext        m_Context;
+    dmGraphics::NullContext*    m_NullContext;
+    ResizeData                  m_ResizeData;
+    CloseData                   m_CloseData;
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {

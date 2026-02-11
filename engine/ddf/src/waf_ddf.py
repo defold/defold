@@ -108,7 +108,7 @@ def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', mandatory = True)
 
 # The "protoc-gen-ddf" adds a new plugin with name "ddf", and protoc automatically checks for the "--ddf_out"
-bproto = waflib.Task.task_factory('bproto', 'protoc \
+bproto = waflib.Task.task_factory('bproto', '${PROTOC} \
 --plugin=protoc-gen-ddf=${DDFC_CXX} \
 --ddf_out=${TGT[0].parent.abspath()} \
 -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
@@ -131,21 +131,21 @@ def bproto_file(self, node):
     if hasattr(self, "ddf_namespace"):
         protoc.env['ddf_options'] = '--ns %s' % self.ddf_namespace
 
-proto_b = waflib.Task.task_factory('proto_b', 'protoc -o${TGT} -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
+proto_b = waflib.Task.task_factory('proto_b', '${PROTOC} -o${TGT} -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
                                  color='PINK',
                                  before='c cxx',
                                  shell=True)
 
 proto_b.scan = scan
 
-proto_gen_cc = waflib.Task.task_factory('proto_gen_cc', 'protoc --cpp_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${SRC[0].abspath()}',
+proto_gen_cc = waflib.Task.task_factory('proto_gen_cc', '${PROTOC} --cpp_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${SRC[0].abspath()}',
                                       color='RED',
                                       before='c cxx',
                                       after='proto_b',
                                       shell=True)
 proto_gen_cc.scan = scan
 
-proto_gen_py = waflib.Task.task_factory('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC[0].abspath()}',
+proto_gen_py = waflib.Task.task_factory('proto_gen_py', '${PROTOC} --python_out=${PROTO_OUT_DIR} ${PROTOC_CC_FLAGS} ${PROTOC_FLAGS} ${SRC[0].abspath()}',
                                      color='RED',
                                      before='c cxx',
                                      after='proto_b',
@@ -158,7 +158,7 @@ proto_gen_py_package = waflib.Task.task_factory('proto_gen_py_package', 'echo ""
                                              after='proto_b',
                                              shell=True)
 
-proto_gen_java = waflib.Task.task_factory('proto_gen_java', 'protoc --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_java = waflib.Task.task_factory('proto_gen_java', '${PROTOC} --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
                                        color='RED',
                                        
                                        after='proto_b',

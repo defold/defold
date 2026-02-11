@@ -15,15 +15,25 @@
 (ns editor.resource-io
   (:require [clojure.java.io :as io]
             [editor.resource :as resource]
-            [dynamo.graph :as g])
+            [dynamo.graph :as g]
+            [util.path :as path])
   (:import [java.io FileNotFoundException]))
 
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
 (defn file-not-found-error [node-id label severity resource]
-  (g/->error node-id label severity nil
-             (format "The file '%s' could not be found."
-                     (resource/proj-path resource))
-             {:type :file-not-found
-              :resource resource}))
+  (let [symlink-target-pathname (some-> resource path/symlink-target path/absolute str)
+        message (if symlink-target-pathname
+                  (format "The symlink '%s' refers to missing path '%s'."
+                          (resource/proj-path resource)
+                          symlink-target-pathname)
+                  (format "The file '%s' could not be found."
+                          (resource/proj-path resource)))
+        user-data (cond-> {:type :file-not-found
+                           :resource resource}
+                          symlink-target-pathname (assoc :symlink-target-pathname symlink-target-pathname))]
+    (g/->error node-id label severity nil message user-data)))
 
 (defn file-not-found-error? [error]
   (= :file-not-found (-> error :user-data :type)))

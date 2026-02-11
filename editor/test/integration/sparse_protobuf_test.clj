@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.lsp :as lsp]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -577,4 +578,5 @@
                                   read-text (slurp resource)
                                   written-read-text (write-fn read-value)]
                               (test-util/check-value-equivalence! read-value save-value read-text)
-                              (test-util/check-text-equivalence! written-read-text save-text read-text))))))))))))))))
+                              (test-util/check-text-equivalence! written-read-text save-text read-text)))))))))
+              (lsp/await (lsp/get-node-lsp project)))))))))

@@ -4239,8 +4239,8 @@ namespace dmGui
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        Vector4 scale((float) scene->m_AdjustWidth / (float) scene->m_Context->m_DefaultProjectWidth,
-                (float) scene->m_AdjustHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
+        Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
+                (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
         CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);

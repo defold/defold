@@ -170,7 +170,23 @@
 
   ;; Skip native extensions tests:
   ;; lein test :no-native-extensions
-  :test-selectors {:no-native-extensions (complement :native-extensions)}
+  ;;
+  ;; Skip specific tests or test namespaces:
+  ;; lein test :skip integration.lsp-test integration.library-test/fetch-libraries
+  :test-selectors {:no-native-extensions (complement :native-extensions)
+                   :skip [(fn [test-ns-symbol & symbol-args]
+                            ;; Returning false from this first predicate allows
+                            ;; the test runner to completely skip loading a
+                            ;; particular test namespace.
+                            (not-any? #(= test-ns-symbol %) symbol-args))
+                          (fn [test-var-metadata & symbol-args]
+                            ;; We've already skipped over entire namespaces by
+                            ;; this point, so all that remains is to skip any
+                            ;; specific tests that match the listed symbol args.
+                            (let [test-ns-name (-> test-var-metadata :ns ns-name name)
+                                  test-name (-> test-var-metadata :name name)
+                                  test-var-symbol (symbol test-ns-name test-name)]
+                              (not-any? #(= test-var-symbol %) symbol-args)))]}
 
   :prep-tasks [["with-profile" "antlr" "run" "-m" "org.antlr.v4.Tool"
                 "LSPSnippet.g4"

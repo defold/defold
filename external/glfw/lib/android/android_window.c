@@ -45,6 +45,7 @@
 #include "android_log.h"
 #include "android_util.h"
 #include "android_joystick.h"
+#include "android_jni.h"
 
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
@@ -364,16 +365,12 @@ static void CreateGLSurface()
         // This thread attachment is a workaround for this crash 
         // https://github.com/defold/defold/issues/6956
         // only on Android 13 
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
 
         make_current(&_glfwWinAndroid);
         
-        if (vm != 0)
-        {
-            (*vm)->DetachCurrentThread(vm);
-        }
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
 
         computeIconifiedState();

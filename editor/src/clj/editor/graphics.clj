@@ -435,7 +435,7 @@
                     (graphics.types/attribute-info-with-reflection-info material-attribute-info shader-attribute-reflection-info)))
                 material-attribute-infos)]
 
-    (coll/transfer
+    (coll/into->
       [decorated-material-attribute-infos
        shader-attribute-reflection-infos]
       []

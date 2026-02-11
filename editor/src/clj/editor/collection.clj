@@ -866,7 +866,7 @@
                                  (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
           id->nid (-> tx-go-creation
                       (g/tx-data-added-nodes)
-                      (coll/transfer {}
+                      (coll/into-> {}
                         (filter #(g/node-instance*? GameObjectInstanceNode %))
                         (map (fn [node]
                                (pair (:id node)

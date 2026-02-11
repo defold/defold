@@ -434,7 +434,7 @@ def get_windows_local_sdk_info(platform):
         # todo: check using `wine`
         return None
 
-    vswhere_path = '%s/../../scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DYNAMO_HOME', '.')
+    vswhere_path = '%s/scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DEFOLD_HOME', '.')
     if not os.path.exists(vswhere_path):
         vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
         vswhere_path = os.path.normpath(vswhere_path)

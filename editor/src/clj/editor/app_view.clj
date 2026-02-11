@@ -1352,7 +1352,7 @@
                :command :run.set-instance-count
                :check true
                :user-data {:instance-count i}})
-            (range 1 5))))
+            (range 1 (inc system/max-engine-instance-count)))))
   (run [prefs user-data]
     (let [count (:instance-count user-data)]
       (prefs/set! prefs [:run :instance-count] count)))
@@ -2408,11 +2408,11 @@
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
         selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
-    (coll/transfer prefs-data-per-tab-per-tab-pane []
+    (coll/into-> prefs-data-per-tab-per-tab-pane []
       (coll/mapcat-indexed
         (fn [tab-pane-index prefs-data-per-tab]
           (let [selected-tab-index (nth selected-tab-index-by-tab-pane-index tab-pane-index 0)]
-            (coll/transfer prefs-data-per-tab :eduction
+            (coll/into-> prefs-data-per-tab :eduction
               (keep-indexed
                 (fn [tab-index [proj-path view-type-id]]
                   (let [resource (workspace/find-resource workspace proj-path evaluation-context)]

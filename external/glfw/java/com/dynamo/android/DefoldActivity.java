@@ -288,15 +288,17 @@ public class DefoldActivity extends NativeActivity {
 
         nativeOnCreate(this);
 
-        View decorView = getWindow().getDecorView();
-        decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-            @Override
-            public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                glfwSetPendingResizeBecauseOfInsets();
-                return v.onApplyWindowInsets(insets);
-            }
-        });
-        decorView.requestApplyInsets();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            View decorView = getWindow().getDecorView();
+            decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    glfwSetPendingResizeBecauseOfInsets();
+                    return v.onApplyWindowInsets(insets);
+                }
+            });
+            decorView.requestApplyInsets();
+        }
     }
 
     @Override

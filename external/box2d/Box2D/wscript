@@ -18,10 +18,11 @@ def configure(conf):
     conf.env.CXXFLAGS_SIMD = []
     conf.env.DEFINES_NOSIMD = ['BOX2D_DISABLE_SIMD']
 
-    if plat in ('win32', 'x86_64-win32'):
-        conf.env.STLIB_ST = 'lib%s.lib'
-        conf.env.cstlib_PATTERN = 'lib%s.lib'
-        conf.env.cxxstlib_PATTERN = 'lib%s.lib'
+    if plat in ('win32', 'x86_64-win32', 'x86_64-xbone'):
+        if plat in ('win32', 'x86_64-win32'):
+            conf.env.STLIB_ST = 'lib%s.lib'
+            conf.env.cstlib_PATTERN = 'lib%s.lib'
+            conf.env.cxxstlib_PATTERN = 'lib%s.lib'
         conf.env.append_unique('CFLAGS', ['/std:c11'])
 
     if plat == 'armv7-android':

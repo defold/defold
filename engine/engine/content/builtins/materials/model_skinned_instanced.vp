@@ -26,9 +26,9 @@ out mediump vec4 var_light;
 
 uniform vs_uniforms
 {
-    uniform mediump mat4 mtx_view;
-    uniform mediump mat4 mtx_proj;
-    uniform mediump vec4 light;
+    mediump mat4 mtx_view;
+    mediump mat4 mtx_proj;
+    mediump vec4 light;
 };
 
 #include "/builtins/materials/skinning.glsl"

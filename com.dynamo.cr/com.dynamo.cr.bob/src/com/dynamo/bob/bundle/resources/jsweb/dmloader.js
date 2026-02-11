@@ -65,11 +65,11 @@ var CUSTOM_PARAMETERS = {
     },
     update_imports: function(imports) {
     },
+    resize_window_prev_inner_width: -1,
+    resize_window_prev_inner_height: -1,
     resize_window_callback: function() {
         var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         var buttonHeight = 0;
-        var prevInnerWidth = -1;
-        var prevInnerHeight = -1;
         {{#html5.show_made_with_defold}}
         buttonHeight = 42;
         {{/html5.show_made_with_defold}}
@@ -80,17 +80,18 @@ var CUSTOM_PARAMETERS = {
         if (is_iOS) {
             window.scrollTo(0, 0);
         }
-    
+
         var app_container = document.getElementById('app-container');
         var game_canvas = document.getElementById('canvas');
         var innerWidth = window.innerWidth;
         var innerHeight = window.innerHeight - buttonHeight;
-        if (prevInnerWidth == innerWidth && prevInnerHeight == innerHeight)
+        if (CUSTOM_PARAMETERS.resize_window_prev_inner_width == innerWidth &&
+            CUSTOM_PARAMETERS.resize_window_prev_inner_height == innerHeight)
         {
             return;
         }
-        prevInnerWidth = innerWidth;
-        prevInnerHeight = innerHeight;
+        CUSTOM_PARAMETERS.resize_window_prev_inner_width = innerWidth;
+        CUSTOM_PARAMETERS.resize_window_prev_inner_height = innerHeight;
         var width = {{display.width}};
         var height = {{display.height}};
         var targetRatio = width / height;

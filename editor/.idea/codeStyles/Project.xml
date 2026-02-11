@@ -99,10 +99,13 @@
           <entry key="integration.test-util/write-file-resource!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
-          <entry key="util.bit-set/transfer" value="-1" />
+          <entry key="util.bit-set/into-&gt;" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
-          <entry key="util.coll/transfer" value="-1" />
-          <entry key="util.coll/transform" value="-1" />
+          <entry key="util.coll/into-&gt;" value="-1" />
+          <entry key="util.coll/reduce-&gt;" value="-1" />
+          <entry key="util.coll/reduce-kv-&gt;" value="-1" />
+          <entry key="util.coll/run!-&gt;" value="-1" />
+          <entry key="util.coll/transform-&gt;" value="-1" />
           <entry key="util.debug-util/log-time" value="-1" />
           <entry key="util.debug-util/log-time-and-memory" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />

@@ -117,7 +117,7 @@
       (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
-(defn- gen-vb [^GL2 gl renderables]
+(defn- gen-vb [^GL2 gl renderables render-args]
   (let [user-data (get-in renderables [0 :user-data])
         font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
@@ -128,16 +128,17 @@
                                          (update-in [:shadow 3] * alpha))))
                            renderables)
         node-ids (into #{} (map :node-id) renderables)]
-    (font/request-vertex-buffer gl node-ids font-data text-entries)))
+    (font/request-vertex-buffer gl node-ids font-data text-entries render-args)))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
-        vb (gen-vb gl renderables)
+        render-pass (:pass render-args)
+        vb (gen-vb gl renderables render-args)
         vcount (count vb)]
     (when (> vcount 0)
-      (condp = (:pass render-args)
+      (condp = render-pass
         pass/transparent
         (let [material-shader (get user-data :material-shader)
               blend-mode (get user-data :blend-mode)

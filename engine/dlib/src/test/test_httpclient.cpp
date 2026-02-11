@@ -1386,10 +1386,10 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
-    #if defined(WIN32)
-    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    #elif defined(__linux__) || defined(DM_PLATFORM_VENDOR)
+    #if defined(__linux__) || defined(DM_PLATFORM_VENDOR)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, dmHttpClient::GetLastSocketResult(client));
+    #elif defined(WIN32)
+    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
     #else
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     #endif

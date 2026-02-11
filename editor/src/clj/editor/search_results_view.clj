@@ -802,7 +802,7 @@
                           display-order
                           (->> (if has-specific-properties
                                  properties
-                                 (coll/transfer (tree-seq :children :children tree) #{}
+                                 (coll/into-> (tree-seq :children :children tree) #{}
                                    (drop 1)
                                    (mapcat :overridden-properties)))
                                (sort-by property-keyword->display-order)

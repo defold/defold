@@ -1122,7 +1122,7 @@
                              (e/filter #(and % (tree-item-id-fn %)))
                              (coll/pair-map-by
                                (fn path-fn [^TreeItem item]
-                                 (vec (rseq (coll/transfer (iterate TreeItem/.getParent item) []
+                                 (vec (rseq (coll/into-> (iterate TreeItem/.getParent item) []
                                               (take-while some?)
                                               (map tree-item-id-fn)))))))
         root-paths (reduce-kv
@@ -1132,7 +1132,7 @@
                          (conj root-paths path)))
                      []
                      path->tree-item)]
-    (coll/transfer root-paths []
+    (coll/into-> root-paths []
       (map path->tree-item)
       (util/distinct-by tree-item-id-fn))))
 

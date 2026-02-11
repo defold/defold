@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <font/font.h>
 
 
@@ -147,22 +148,22 @@ static FontResult GBGetGlyph(HFont hfont, uint32_t glyph_index, const FontGlyphO
     out->m_Ascent       = g->m_Ascent;
     out->m_Descent      = g->m_Descent;
 
-    uint32_t padding2 = bank->m_GlyphPadding*2;
-    out->m_Width        = g->m_Width + padding2;
-    out->m_Height       = g->m_Ascent + g->m_Descent + padding2;
+    out->m_Width        = g->m_Width;
+    out->m_Height       = g->m_Ascent + g->m_Descent;
 
     if (options->m_GenerateImage)
     {
         if (g->m_GlyphDataSize != 0)
         {
+            uint32_t cell_padding_2 = bank->m_GlyphPadding * 2;
             uint8_t* data = (uint8_t*)bank->m_GlyphData.m_Data;
             uint8_t* glyph_data = GetPointer(data, g->m_GlyphDataOffset);
 
-            out->m_Bitmap.m_DataSize = g->m_GlyphDataSize;
+            out->m_Bitmap.m_DataSize = (uint32_t)g->m_GlyphDataSize;
             out->m_Bitmap.m_Data = glyph_data + 1;
             out->m_Bitmap.m_Flags = glyph_data[0] | FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED;
-            out->m_Bitmap.m_Width = out->m_Width;
-            out->m_Bitmap.m_Height = out->m_Height;
+            out->m_Bitmap.m_Width = out->m_Width + cell_padding_2;
+            out->m_Bitmap.m_Height = out->m_Height + cell_padding_2;
             out->m_Bitmap.m_Channels = bank->m_GlyphChannels;
         }
     }

@@ -90,5 +90,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/java', 'shaderc.jar')
 
+    bld.recurse('standalone')
+
     if not Options.options.skip_build_tests:
         bld.recurse('test')

@@ -200,7 +200,6 @@ namespace dmGameSystem
     static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
 
     static const dmhash_t PROP_SKIN          = dmHashString64("skin");
-    static const dmhash_t PROP_ANIMATION     = dmHashString64("animation");
     static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
 

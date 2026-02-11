@@ -427,7 +427,7 @@
       (assoc :condition condition))))
 
 (g/defnk produce-breakpoints [resource regions]
-  (coll/transfer regions []
+  (coll/into-> regions []
     (filter data/breakpoint-region?)
     (map (partial region->breakpoint resource))))
 

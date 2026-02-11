@@ -165,4 +165,18 @@ namespace dmShaderc
             return res_texture;
         return 0;
     }
+
+#if !defined(DM_BINARY_HLSL_SUPPORTED)
+    HLSLRootSignature* HLSLMergeRootSignatures(ShaderCompileResult* shaders, uint32_t shaders_size)
+    {
+        (void) shaders;
+        (void) shaders_size;
+
+        static const char* kErr = "HLSL root signature merge is not supported on this platform";
+        HLSLRootSignature* result = new HLSLRootSignature;
+        result->m_LastError = kErr;
+        result->m_HLSLRootSignature.SetCapacity(0);
+        return result;
+    }
+#endif
 }

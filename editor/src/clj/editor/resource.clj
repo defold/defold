@@ -14,12 +14,16 @@
 
 (ns editor.resource
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.fs :as fs]
-            [schema.core :as s]
+            [editor.settings-core :as settings-core]
+            [editor.system :as system]
+            [schema.core :as schema]
+            [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.digest :as digest]
@@ -48,6 +52,7 @@
   (source-type [this])
   (exists? [this])
   (read-only? [this])
+  (symlink? [this])
   (path [this])
   (abs-path ^String [this])
   (proj-path ^String [this])
@@ -162,58 +167,226 @@
   (when-let [last-slash (string/last-index-of proj-path "/")]
     (subs proj-path 0 last-slash)))
 
-(def ^:private defignore-cache
-  ;; path->{:mtime ... :pred ...}
-  (atom {}))
+(defn project-directory? [^File value]
+  ;; The project directory must exist on disk and exactly match the real casing.
+  (and (instance? File value)
+       (.isDirectory value)
+       (= (.getPath value)
+          (str (path/actual-cased value)))))
 
-(defn lines->proj-path-patterns-pred
-  "Returns a predicate that takes a proj-path and returns true if it starts with
-  or matches one of the proj-paths listed among the lines, typically the
-  contents of something like a `.defignore` file."
+(defn proj-path-patterns-file? [^File value]
+  ;; These files may or may not exist in the project, but it is important for
+  ;; cache lookups that the casing matches the real casing in the file system.
+  ;; Thus, we have a whitelist of allowed file names and ensure they are located
+  ;; below a correctly-cased project-directory even if the file itself does not
+  ;; exist in the project.
+  (and (instance? File value)
+       (#{".defignore" ".defunload"} (.getName value))
+       (project-directory? (.getParentFile value))
+       (or (.isFile value)
+           (not (.exists value)))))
+
+(s/def ::proj-path-pattern
+  (s/and string?
+         #(string/starts-with? % "/")
+         #(not (string/ends-with? % "/"))))
+
+(s/def ::proj-path-patterns (s/every ::proj-path-pattern :kind vector?))
+(s/def ::proj-path-pred ifn?)
+(s/def ::project-directory project-directory?)
+(s/def ::proj-path-patterns-file proj-path-patterns-file?)
+(s/def ::mtime integer?)
+(s/def ::defignore-mtime ::mtime)
+(s/def ::game-project-mtime ::mtime)
+(s/def ::log-directory-override-pathname (s/nilable string?))
+
+(s/def ::defignore-patterns-key
+  (s/keys :req-un [::defignore-mtime
+                   ::project-directory
+                   (or ::log-directory-override-pathname ::game-project-mtime)]))
+
+(defn- make-defignore-patterns-key [^File project-directory]
+  {:pre [(s/assert ::project-directory project-directory)]
+   :post [(s/assert ::defignore-patterns-key %)]}
+  (let [defignore-file (io/file project-directory ".defignore")
+        defignore-mtime (.lastModified defignore-file) ; Returns zero if not exists.
+        common-args {:defignore-mtime defignore-mtime
+                     :project-directory project-directory}]
+    (if-some [log-directory-override-pathname (system/defold-log-dir)]
+      (assoc common-args :log-directory-override-pathname log-directory-override-pathname)
+      (let [game-project-file (io/file project-directory "game.project")
+            game-project-mtime (.lastModified game-project-file)]
+        (assoc common-args
+          :game-project-mtime game-project-mtime)))))
+
+(defn- read-project-log-directory-raw
+  ^File [^File project-directory game-project-mtime]
+  {:pre [(s/assert ::project-directory project-directory)
+         (s/assert ::game-project-mtime game-project-mtime)]} ; Argument invalidates the cached result.
+  (let [game-project-file (io/file project-directory "game.project")]
+    (if-not (.isFile game-project-file)
+      project-directory
+      (let [log-directory-pathname
+            (try
+              (with-open [reader (io/reader game-project-file)]
+                (-> (settings-core/parse-settings reader)
+                    (settings-core/get-setting ["project" "log_dir"])))
+              (catch Exception e
+                (log/error :message "Failed to parse project.log_dir setting from game.project" :exception e)
+                nil))]
+        (if (coll/empty? log-directory-pathname)
+          project-directory
+          (io/as-file (path/resolve-normalized project-directory log-directory-pathname)))))))
+
+(def ^:private read-project-log-directory-fn
+  (fn/memoize
+    (fn [^File project-directory]
+      {:pre [(s/assert ::project-directory project-directory)]}
+      (fn/memoize {:limit 1} #(read-project-log-directory-raw project-directory %)))))
+
+(defn- read-project-log-directory
+  ^File [^File project-directory game-project-mtime]
+  ((read-project-log-directory-fn project-directory) game-project-mtime))
+
+(defn- engine-instance-log-filename
+  ^String [^long instance-index]
+  {:pre [(<= 0 instance-index system/max-engine-instance-count)]}
+  ;; Note: These filename patterns are also hardcoded in the engine.
+  (case instance-index
+    0 "log.txt"
+    (format "instance_%d_log.txt" instance-index)))
+
+(defn- log-file-proj-path-patterns [defignore-patterns-key]
+  {:pre [(s/assert ::defignore-patterns-key defignore-patterns-key)]
+   :post [(s/assert ::proj-path-patterns %)]}
+  (let [^String log-directory-override-pathname (:log-directory-override-pathname defignore-patterns-key)
+        ^File project-directory (:project-directory defignore-patterns-key)
+
+        log-directory
+        (if (nil? log-directory-override-pathname)
+          (read-project-log-directory project-directory (:game-project-mtime defignore-patterns-key))
+          (let [working-directory (.getCanonicalFile (io/file "."))]
+            (if (= "" log-directory-override-pathname)
+              working-directory
+              (io/as-file (path/resolve-normalized working-directory log-directory-override-pathname)))))]
+
+    (if-not (path/starts-with? log-directory project-directory)
+      [] ; No need to ignore log files, since they are outside the project.
+      (let [log-filename->proj-path
+            (fn log-filename->proj-path [log-filename]
+              (let [log-file (io/file log-directory log-filename)]
+                (file->proj-path project-directory log-file)))]
+        ;; The zero instance uses the "log.txt" filename. The others are
+        ;; prefixed with "instance_1_", "instance_2_" and so on.
+        (coll/into-> (range (inc system/max-engine-instance-count)) []
+          (map engine-instance-log-filename)
+          (map log-filename->proj-path))))))
+
+(defn lines->proj-path-patterns
+  "Given the lines from something like a `.defignore` file, return a clean
+  vector of distinct proj-path-patterns. Only lines that start with a `/`
+  character are included. Trailing path separators are stripped."
   [lines]
-  (let [patterns (when lines
-                   (coll/transfer lines []
-                     (filter #(string/starts-with? % "/"))
-                     (map #(string/replace % #"/*$" ""))
-                     (distinct)))]
-    (if (zero? (count patterns))
-      fn/constantly-false
-      (fn matched-proj-path? [^String proj-path]
-        (let [proj-path-length (.length proj-path)]
-          (boolean
-            (coll/some
-              (fn [^String pattern]
-                ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
-                ;; but not "/dire".
-                (and (string/starts-with? proj-path pattern)
-                     (let [pattern-length (.length pattern)]
-                       (or (= pattern-length proj-path-length)
-                           (= \/ (.charAt proj-path pattern-length))))))
-              patterns)))))))
+  {:post [(s/assert ::proj-path-patterns %)]}
+  (coll/into-> lines []
+    (filter #(string/starts-with? % "/"))
+    (map #(string/replace % #"/*$" ""))
+    (remove string/blank?)
+    (distinct)))
 
-(defn- read-proj-path-patterns-pred [^File proj-path-patterns-file]
-  (lines->proj-path-patterns-pred
+(defn- read-proj-path-patterns-raw [^File proj-path-patterns-file proj-path-patterns-mtime]
+  {:pre [(s/assert ::mtime proj-path-patterns-mtime)] ; Argument invalidates the cached result.
+   :post [(s/assert ::proj-path-patterns %)]}
+  (lines->proj-path-patterns
     (when (.isFile proj-path-patterns-file)
-      (string/split-lines (slurp proj-path-patterns-file)))))
+      (try
+        (string/split-lines (slurp proj-path-patterns-file))
+        (catch Exception e
+          (log/error :message (str "Failed to read proj-path patterns from " (.getName proj-path-patterns-file)) :exception e)
+          nil)))))
 
-(defn defignore-pred [^File root]
-  (let [defignore-file (io/file root ".defignore")
-        defignore-path (.getCanonicalPath defignore-file)
-        latest-mtime (.lastModified defignore-file)
-        {:keys [mtime pred]} (get @defignore-cache defignore-path)]
-    (if (= mtime latest-mtime)
-      pred
-      (let [pred (read-proj-path-patterns-pred defignore-file)]
-        (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
-        pred))))
+(def ^:private read-proj-path-patterns-fn
+  (fn/memoize
+    (fn [^File proj-path-patterns-file]
+      {:pre [(s/assert ::proj-path-patterns-file proj-path-patterns-file)]}
+      (fn/memoize {:limit 1} #(read-proj-path-patterns-raw proj-path-patterns-file %)))))
 
-(defn- defunload-pred-raw [^File root]
+(defn- read-proj-path-patterns [^File proj-path-patterns-file proj-path-patterns-mtime]
+  ((read-proj-path-patterns-fn proj-path-patterns-file) proj-path-patterns-mtime))
+
+(defn- make-defignore-patterns-raw [defignore-patterns-key]
+  {:pre [(s/assert ::defignore-patterns-key defignore-patterns-key)]
+   :post [(s/assert ::proj-path-patterns %)]}
+  (let [{:keys [defignore-mtime project-directory]} defignore-patterns-key
+        defignore-file (io/file project-directory ".defignore")]
+    (into []
+          (comp cat
+                (distinct))
+          [(log-file-proj-path-patterns defignore-patterns-key)
+           (read-proj-path-patterns defignore-file defignore-mtime)])))
+
+(def ^:private make-defignore-patterns-fn
+  (fn/memoize
+    (fn [^File project-directory]
+      {:pre [(s/assert ::project-directory project-directory)]}
+      (fn/memoize {:limit 1} make-defignore-patterns-raw))))
+
+(defn- make-defignore-patterns [^File project-directory defignore-patterns-key]
+  ((make-defignore-patterns-fn project-directory) defignore-patterns-key))
+
+(defn project-defignore-patterns
+  "Returns a vector of proj-path-patterns that should be ignored under the
+  specified project-directory. Cached - will return the identical result every
+  time unless changes are detected."
+  [^File project-directory]
+  (->> project-directory
+       (make-defignore-patterns-key)
+       (make-defignore-patterns project-directory)))
+
+(defn make-proj-path-patterns-pred-raw
+  "Returns a predicate that takes a proj-path and returns true if it starts with
+  or matches one of the listed proj-paths."
+  [proj-path-patterns]
+  {:pre [(or (nil? proj-path-patterns)
+             (s/assert ::proj-path-patterns proj-path-patterns))]
+   :post [(s/assert ::proj-path-pred %)]}
+  (if (zero? (count proj-path-patterns))
+    fn/constantly-false
+    (fn matched-proj-path? [^String proj-path]
+      (let [proj-path-length (.length proj-path)]
+        (boolean
+          (coll/some
+            (fn [^String pattern]
+              ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
+              ;; but not "/dire".
+              (and (string/starts-with? proj-path pattern)
+                   (let [pattern-length (.length pattern)]
+                     (or (= pattern-length proj-path-length)
+                         (= \/ (.charAt proj-path pattern-length))))))
+            proj-path-patterns))))))
+
+(def ^:private make-proj-path-patterns-pred-fn
+  (fn/memoize
+    (fn [^File proj-path-patterns-file]
+      {:pre [(s/assert ::proj-path-patterns-file proj-path-patterns-file)]}
+      (fn/memoize {:limit 1} make-proj-path-patterns-pred-raw))))
+
+(defn- make-proj-path-patterns-pred [^File proj-path-patterns-file proj-path-patterns]
+  ((make-proj-path-patterns-pred-fn proj-path-patterns-file) proj-path-patterns))
+
+(defn defignore-pred [^File project-directory]
+  (let [defignore-file (io/file project-directory ".defignore")
+        proj-path-patterns (project-defignore-patterns project-directory)]
+    (make-proj-path-patterns-pred defignore-file proj-path-patterns)))
+
+(defn- defunload-pred-raw [^File project-directory]
   ;; Contrary to .defignore, we only read the .defunload file once and cache it
   ;; for the entire lifetime of the application. You'll have to restart the
   ;; editor for any changes to take effect.
-  {:pre [(instance? File root)]} ; Guard against duplicate memoization since io/file accepts multiple types.
-  (let [defunload-file (io/file root ".defunload")]
-    (read-proj-path-patterns-pred defunload-file)))
+  (let [defunload-file (io/file project-directory ".defunload")
+        defunload-mtime (.lastModified defunload-file)
+        proj-path-patterns (read-proj-path-patterns defunload-file defunload-mtime)]
+    (make-proj-path-patterns-pred defunload-file proj-path-patterns)))
 
 (def defunload-pred (fn/memoize defunload-pred-raw))
 
@@ -240,6 +413,7 @@
      ~@body))
 
 (defn ignored-project-path? [^File root proj-path]
+  ;; The root directory is assumed to be canonical.
   ((or *defignore-pred* (defignore-pred root)) proj-path))
 
 (defn- textual-resource-type?
@@ -278,7 +452,7 @@
       (let [file (io/file this)]
         (and (.exists file)
              (not (ignored-project-path? (io/file root) project-path))
-             (string/ends-with? (->unix-seps (.getCanonicalPath file)) project-path)))
+             (string/ends-with? (->unix-seps (str (path/actual-cased file))) project-path)))
       (catch IOException _
         false)
       (catch SecurityException _
@@ -288,6 +462,7 @@
       (not (.canWrite (io/file this)))
       (catch SecurityException _
         true)))
+  (symlink? [this] (path/symlink? this))
   (path [this] (if (= "" project-path) "" (subs project-path 1)))
   (abs-path [this] abs-path)
   (proj-path [this] project-path)
@@ -370,6 +545,7 @@
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
+  (symlink? [this] false)
   (path [this] nil)
   (abs-path [this] nil)
   (proj-path [this] nil)
@@ -424,6 +600,7 @@
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
+  (symlink? [this] false) ; Note: Zip archives can contain symlinks. The ZipFile class doesn't support them, but the zip FileSystem implementation does.
   (path [this] path)
   (abs-path [this] nil)
   (proj-path [this] (.concat "/" path))
@@ -639,7 +816,7 @@
           disk-sha256 (digest/completed-stream->hex input-stream)]
       (pair source-value disk-sha256))))
 
-(g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
+(g/deftype ResourceVec [(schema/maybe (schema/protocol Resource))])
 
 (defn temp-path [resource]
   (when (and resource (= :file (source-type resource)))

@@ -133,8 +133,8 @@ namespace dmGraphics
         uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
-        uint8_t               m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t               m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t               m_RenderDocSupport : 1;           // Vulkan, XBox only
+        uint8_t               m_UseValidationLayers : 1;        // Vulkan, XBox only
         uint8_t               : 4;
     };
 

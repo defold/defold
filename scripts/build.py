@@ -399,7 +399,7 @@ def get_host_platform():
 def format_exes(name, platform):
     prefix = ''
     suffix = ['']
-    if 'win32' in platform:
+    if platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
         suffix = ['.exe']
     elif 'android' in platform:
         prefix = 'lib'
@@ -1457,7 +1457,7 @@ class Configuration(object):
                 shutil.copy2(engine, engine_stripped)
                 if self._strip_engine(engine_stripped):
                     self.upload_to_archive(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
-                if 'win32' in self.target_platform:
+                if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
@@ -1517,7 +1517,7 @@ class Configuration(object):
     def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
 

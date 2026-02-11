@@ -17,7 +17,6 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.code.lang.java-properties :as java-properties]
-            [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -359,19 +358,21 @@
     initial-bundle         initial bundle map, a map from localization file
                            paths to 0-arg functions that produce
                            a java.io.Reader for java properties file
+    error-handler          1-arg fn used for reporting errors, receives an
+                           instance of a Throwable
 
   Returns a localization system agent"
-  [prefs initial-bundle-key initial-bundle]
+  [prefs initial-bundle-key initial-bundle error-handler]
   (->Localization
     prefs
     (agent
       (make-localization-state (prefs/get prefs [:window :locale]) {initial-bundle-key initial-bundle} (WeakHashMap.))
       :error-handler (fn report-localization-error [_ exception]
-                       (error-reporting/report-exception! exception)))))
+                       (error-handler exception)))))
 
 (defn make-editor
   "Create localization configured for use in the editor"
-  [prefs]
+  [prefs error-handler]
   (letfn [(get-bundle [resource-dir]
             (->> resource-dir
                  (fs/class-path-walker java/class-loader)
@@ -386,7 +387,7 @@
                      (let [url (.toURL (.toUri (path/of path)))]
                        #(io/reader url))))))]
     (let [resource-dir "localization"
-          localization (make prefs ::editor (get-bundle resource-dir))]
+          localization (make prefs ::editor (get-bundle resource-dir) error-handler)]
       (when (system/defold-dev?)
         (let [url (io/resource resource-dir)]
           (when (.startsWith (str url) "file:")
@@ -397,12 +398,13 @@
                                                                                   StandardWatchEventKinds/ENTRY_MODIFY
                                                                                   StandardWatchEventKinds/OVERFLOW]))
               (future
-                (error-reporting/catch-all!
+                (try
                   (while true
                     (let [watch-key (.take watch-service)]
                       (when (pos? (count (.pollEvents watch-key)))
                         (set-bundle! localization ::editor (get-bundle resource-dir)))
-                      (.reset watch-key)))))))))
+                      (.reset watch-key)))
+                  (catch Throwable e (error-handler e))))))))
       localization)))
 
 (defn- impl-simple-message [k m fallback ^LocalizationState state]

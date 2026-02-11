@@ -55,7 +55,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
+    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
     if use_profile_null:
         local_libs += ['profile_null']
     else:
