@@ -17,6 +17,7 @@
 
 #include <dlib/atomic.h>
 #include <dlib/math.h>
+#include <dlib/jobsystem.h>
 #include <dlib/mutex.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
@@ -154,7 +155,7 @@ namespace dmGraphics
 
         SetTextureAsyncState    m_SetTextureAsyncState;
         dmPlatform::HWindow     m_Window;
-        dmJobThread::HContext   m_JobThread;
+        HJobContext             m_JobContext;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
         void*                   m_AuxContext;

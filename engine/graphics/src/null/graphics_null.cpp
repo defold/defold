@@ -78,7 +78,7 @@ namespace dmGraphics
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
         m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        m_JobThread               = params.m_JobThread;
+        m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -164,7 +164,7 @@ namespace dmGraphics
         context->m_CurrentFrameBuffer                   = &context->m_MainFrameBuffer;
         context->m_Program                              = 0x0;
         context->m_PipelineState                        = GetDefaultPipelineState();
-        context->m_AsyncProcessingSupport               = context->m_JobThread && dmThread::PlatformHasThreadSupport();
+        context->m_AsyncProcessingSupport               = context->m_JobContext && dmThread::PlatformHasThreadSupport();
 
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
@@ -1490,7 +1490,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(dmJobThread::HContext, dmJobThread::HJob hjob, void* _context, void* _h_texture)
+    static int DoDeleteTexture(HJobContext, HJob hjob, void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
         HTexture texture = (HTexture) _h_texture;
@@ -1510,7 +1510,7 @@ namespace dmGraphics
         return 0;
     }
 
-    static void DoDeleteTextureComplete(dmJobThread::HContext, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* _context, void* _h_texture, int result)
+    static void DoDeleteTextureComplete(HJobContext, HJob hjob, JobSystemStatus status, void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
         HTexture texture = (HTexture) _h_texture;
@@ -1520,14 +1520,14 @@ namespace dmGraphics
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        dmJobThread::Job job = {0};
+        Job job = {0};
         job.m_Process = DoDeleteTexture;
         job.m_Callback = DoDeleteTextureComplete;
         job.m_Context = context;
         job.m_Data = (void*)(uintptr_t)texture;
 
-        dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-        dmJobThread::PushJob(context->m_JobThread, hjob);
+        HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+        JobSystemPushJob(context->m_JobContext, hjob);
     }
 
     static void PostDeleteTextures(NullContext* context, bool force_delete)
@@ -1538,8 +1538,8 @@ namespace dmGraphics
             for (uint32_t i = 0; i < size; ++i)
             {
                 void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-                DoDeleteTexture(context->m_JobThread, 0, context, texture);
-                DoDeleteTextureComplete(context->m_JobThread, 0, dmJobThread::JOB_STATUS_FINISHED, context, texture, 0);
+                DoDeleteTexture(context->m_JobContext, 0, context, texture);
+                DoDeleteTextureComplete(context->m_JobContext, 0, JOBSYSTEM_STATUS_FINISHED, context, texture, 0);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1579,8 +1579,8 @@ namespace dmGraphics
         else
         {
             void* htexture = (void*) texture;
-            DoDeleteTexture(context->m_JobThread, 0, g_NullContext, htexture);
-            DoDeleteTextureComplete(context->m_JobThread, 0, dmJobThread::JOB_STATUS_FINISHED, g_NullContext, htexture, 0);
+            DoDeleteTexture(context->m_JobContext, 0, g_NullContext, htexture);
+            DoDeleteTextureComplete(context->m_JobContext, 0, JOBSYSTEM_STATUS_FINISHED, g_NullContext, htexture, 0);
         }
     }
 
@@ -1855,7 +1855,7 @@ namespace dmGraphics
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob hjob, void* _context, void* data)
+    static int AsyncProcessCallback(HJobContext, HJob hjob, void* _context, void* data)
     {
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -1873,7 +1873,7 @@ namespace dmGraphics
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob hjob, dmJobThread::JobStatus status, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(HJobContext, HJob hjob, JobSystemStatus status, void* _context, void* data, int result)
     {
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -1898,14 +1898,14 @@ namespace dmGraphics
             }
             uint16_t param_array_index = PushSetTextureAsyncState(g_NullContext->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncProcessCallback;
             job.m_Callback = AsyncCompleteCallback;
             job.m_Context = (void*) g_NullContext;
             job.m_Data = (void*) (uintptr_t) param_array_index;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(g_NullContext->m_JobThread, &job);
-            dmJobThread::PushJob(g_NullContext->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(g_NullContext->m_JobContext, &job);
+            JobSystemPushJob(g_NullContext->m_JobContext, hjob);
         }
         else
         {

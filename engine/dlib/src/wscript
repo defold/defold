@@ -377,7 +377,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/job_thread.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/jobsystem.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')

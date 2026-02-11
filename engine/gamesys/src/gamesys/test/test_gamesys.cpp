@@ -330,7 +330,7 @@ static bool UpdateAndWaitUntilDone(
         update_context->m_DT = dt;
         frame_time = now;
 
-        dmJobThread::Update(scriptlibcontext.m_JobThread, 0);
+        JobSystemUpdate(scriptlibcontext.m_JobContext, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
@@ -362,7 +362,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    scriptlibcontext.m_JobThread       = m_JobThread;
+    scriptlibcontext.m_JobContext      = m_JobContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -998,7 +998,7 @@ TEST_P(ScriptComponentTest, GetComponentFromLua)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    scriptlibcontext.m_JobThread       = m_JobThread;
+    scriptlibcontext.m_JobContext      = m_JobContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1801,7 +1801,7 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    scriptlibcontext.m_JobThread       = m_JobThread;
+    scriptlibcontext.m_JobContext      = m_JobContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 

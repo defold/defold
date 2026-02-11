@@ -108,7 +108,15 @@
                              :skip-root? true}]}
 
                {:label "welcome.tab.samples"
-                :templates [{:name "welcome.new-project.linker-sample-game.title"
+                :templates [{:name "welcome.new-project.sample-3d-third-person-playground.title"
+                             :description "welcome.new-project.sample-3d-third-person-playground.description"
+                             :image "3d-third-person.png"
+                             :duration "Short"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-third-person-playground/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "welcome.new-project.linker-sample-game.title"
                              :description "welcome.new-project.linker-sample-game.description"
                              :image "linker.png"
                              :duration "Medium"
