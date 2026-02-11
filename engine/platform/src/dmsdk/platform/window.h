@@ -152,19 +152,19 @@ typedef struct WindowCreateParams
     FWindowIconifyCallback  m_IconifyCallback;
     void*                   m_IconifyCallbackUserData;
 
+    const char*             m_Title;
     uint32_t                m_Width;
     uint32_t                m_Height;
     uint32_t                m_Samples;
-    const char*             m_Title;
-    bool                    m_Fullscreen;
-    bool                    m_PrintDeviceInfo;
-    bool                    m_HighDPI;
     uint32_t                m_BackgroundColor;
     uint8_t                 m_ContextAlphabits;
-    uint8_t                 m_OpenGLVersionHint        : 7;
-    uint8_t                 m_OpenGLUseCoreProfileHint : 1;
-    uint8_t                 m_Hidden                   : 1;
-    uint8_t                                            : 7;
+    uint8_t                 m_OpenGLVersionHint         : 7;
+    uint8_t                 m_OpenGLUseCoreProfileHint  : 1;
+    uint8_t                 m_Hidden                    : 1;
+    uint8_t                 m_Fullscreen                : 1;
+    uint8_t                 m_PrintDeviceInfo           : 1;
+    uint8_t                 m_HighDPI                   : 1;
+    uint8_t                                             : 4;
 } WindowCreateParams;
 
 /*# initialize window parameters
@@ -180,6 +180,12 @@ void WindowCreateParamsInitialize(WindowCreateParams* params);
  */
 HWindow WindowNew(void);
 
+/*# delete a window handle
+ * @name WindowDelete
+ * @param window [type:HWindow] window handle
+ */
+void WindowDelete(HWindow window);
+
 /*# open a window
  * @name WindowOpen
  * @param window [type:HWindow] window handle
@@ -187,6 +193,12 @@ HWindow WindowNew(void);
  * @return result [type:WindowResult] result code
  */
 WindowResult WindowOpen(HWindow window, const WindowCreateParams* params);
+
+/*# close the window
+ * @name WindowClose
+ * @param window [type:HWindow] window handle
+ */
+void WindowClose(HWindow window);
 
 /*# show the window
  * @name WindowShow
@@ -236,18 +248,6 @@ float WindowGetDisplayScaleFactor(HWindow window);
  * @param height [type:uint32_t] window height
  */
 void WindowSetSize(HWindow window, uint32_t width, uint32_t height);
-
-/*# close the window
- * @name WindowClose
- * @param window [type:HWindow] window handle
- */
-void WindowClose(HWindow window);
-
-/*# delete a window handle
- * @name WindowDelete
- * @param window [type:HWindow] window handle
- */
-void WindowDelete(HWindow window);
 
 /*# poll window events
  * @name WindowPollEvents
