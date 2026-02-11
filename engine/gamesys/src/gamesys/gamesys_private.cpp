@@ -326,6 +326,7 @@ namespace dmGameSystem
     // as specified in the material
     void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space)
     {
+        /*
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
@@ -352,6 +353,7 @@ namespace dmGameSystem
 
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &value_byte_size);
         }
+        */
     }
 
     static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)

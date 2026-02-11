@@ -216,6 +216,8 @@ namespace dmRender
         m->m_MaterialAttributes.SetSize(num_program_attributes);
         m->m_VertexAttributes.SetCapacity(num_program_attributes);
         m->m_VertexAttributes.SetSize(num_program_attributes);
+        m->m_VertexAttributeInfos.SetCapacity(num_program_attributes);
+        m->m_VertexAttributeInfos.SetSize(num_program_attributes);
 
         bool instancing_supported = m->m_InstancingSupported;
 
@@ -561,6 +563,27 @@ namespace dmRender
             {
                 FillElementIds(graphics_attribute_in.m_Name, name_buffer, name_buffer_size, material_attribute.m_ElementIds);
             }
+
+            // Update attribute infos
+            dmGraphics::VertexAttributeInfo& attribute_info = material->m_VertexAttributeInfos
+
+            /*
+            info.m_NameHash         = material_attributes[i].m_NameHash;
+            info.m_SemanticType     = material_attributes[i].m_SemanticType;
+            info.m_DataType         = material_attributes[i].m_DataType;
+            info.m_CoordinateSpace  = material_attributes[i].m_CoordinateSpace;
+            info.m_VectorType       = material_attributes[i].m_VectorType;
+            info.m_Normalize        = material_attributes[i].m_Normalize;
+            info.m_StepFunction     = material_attributes[i].m_StepFunction;
+            info.m_ValueVectorType  = material_attributes[i].m_VectorType;
+
+            //if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_DEFAULT)
+            //{
+            //    info.m_CoordinateSpace = default_coordinate_space;
+            //}
+            // dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &value_byte_size);
+            */
+
         }
 
         CreateVertexDeclarations(GetGraphicsContext(material->m_RenderContext), material);

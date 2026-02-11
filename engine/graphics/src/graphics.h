@@ -158,10 +158,10 @@ namespace dmGraphics
             m_StructSize = sizeof(*this);
         }
 
-        VertexAttributeInfo* m_Infos;
-        uint32_t             m_NumInfos;
-        uint32_t             m_VertexStride;
-        uint32_t             m_StructSize;
+        const VertexAttributeInfo* m_Infos;
+        uint32_t                   m_NumInfos;
+        uint32_t                   m_VertexStride;
+        uint32_t                   m_StructSize;
     };
 
     struct VertexAttributeInfoMetadata
