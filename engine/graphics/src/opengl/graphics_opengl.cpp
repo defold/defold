@@ -1974,8 +1974,9 @@ static void LogFrameBufferError(GLenum status)
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
         vd->m_Stride = 0;
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; i++)
+        for (uint32_t i = 0; i < stream_count; i++)
         {
             vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
             vd->m_Streams[i].m_Location  = -1;
@@ -1986,7 +1987,7 @@ static void LogFrameBufferError(GLenum status)
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        vd->m_StreamCount = stream_count;
         vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }

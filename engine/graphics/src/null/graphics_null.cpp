@@ -568,7 +568,9 @@ namespace dmGraphics
         memset(vd, 0, sizeof(VertexDeclaration));
         if (stream_declaration)
         {
-            for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+            uint32_t stream_count = stream_declaration->m_Streams.Size();
+
+            for (uint32_t i=0; i<stream_count; i++)
             {
                 VertexStream& stream = stream_declaration->m_Streams[i];
                 vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
@@ -580,17 +582,36 @@ namespace dmGraphics
 
                 vd->m_Stride += stream.m_Size * GetTypeSize(stream.m_Type);
             }
-            vd->m_StreamCount = stream_declaration->m_StreamCount;
+            vd->m_StreamCount = stream_count;
             vd->m_StepFunction = stream_declaration->m_StepFunction;
         }
         return vd;
     }
 
-    static void EnableVertexStream(HContext context, uint32_t binding_index, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    static void EnableVertexStream(HContext _context, uint32_t binding_index, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
-        assert(context);
+        assert(_context);
         assert(vertex_buffer);
-        VertexStreamBuffer& s = ((NullContext*) context)->m_VertexStreams[binding_index][stream];
+
+        NullContext* context = (NullContext*) _context;
+
+        VertexStreamBufferList& stream_list = context->m_VertexStreams[binding_index];
+
+        if (stream >= stream_list.Size())
+        {
+            stream_list.SetCapacity(stream + 1);
+
+            VertexStreamBuffer default_stream = {};
+            uint32_t old_size = stream_list.Size();
+            stream_list.SetSize(stream + 1);
+
+            for (uint32_t i = old_size; i < stream_list.Size(); ++i)
+            {
+                stream_list[i] = default_stream;
+            }
+        }
+
+        VertexStreamBuffer& s = stream_list[stream];
         assert(s.m_Source == 0x0);
         assert(s.m_Buffer == 0x0);
         s.m_Source = vertex_buffer;
@@ -695,6 +716,8 @@ namespace dmGraphics
                 DisableVertexStream(context, binding_index, i);
             }
         }
+
+        context->m_VertexDeclarations[binding_index] = 0;
     }
 
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
@@ -788,21 +811,23 @@ namespace dmGraphics
         DrawSetup(context);
 
         uint32_t binding_index = 0;
+        VertexStreamBufferList& lst = context->m_VertexStreams[binding_index];
 
-        for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
+        for (int i = 0; i < lst.Size(); ++i)
         {
-            VertexStreamBuffer& vs = context->m_VertexStreams[binding_index][i];
+            VertexStreamBuffer& vs = lst[i];
             if (vs.m_Size > 0)
             {
                 vs.m_Buffer = new char[vs.m_Size * count];
             }
         }
+
         for (uint32_t i = 0; i < count; ++i)
         {
             uint32_t index = GetIndex(type, index_buffer, i + first);
-            for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
+            for (uint32_t j = 0; j < lst.Size(); ++j)
             {
-                VertexStreamBuffer& vs = context->m_VertexStreams[binding_index][j];
+                VertexStreamBuffer& vs = lst[j];
                 if (vs.m_Size > 0)
                 {
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);

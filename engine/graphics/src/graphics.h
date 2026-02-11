@@ -69,7 +69,6 @@ namespace dmGraphics
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R   = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
@@ -159,10 +158,10 @@ namespace dmGraphics
             m_StructSize = sizeof(*this);
         }
 
-        VertexAttributeInfo m_Infos[MAX_VERTEX_STREAM_COUNT];
-        uint32_t            m_VertexStride;
-        uint32_t            m_NumInfos;
-        uint32_t            m_StructSize;
+        VertexAttributeInfo* m_Infos;
+        uint32_t             m_NumInfos;
+        uint32_t             m_VertexStride;
+        uint32_t             m_StructSize;
     };
 
     struct VertexAttributeInfoMetadata
@@ -221,7 +220,7 @@ namespace dmGraphics
             bool     m_Normalize;
         };
 
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        Stream*            m_Streams;
         dmhash_t           m_PipelineHash; // Vulkan
         uint16_t           m_StreamCount;
         uint16_t           m_Stride;

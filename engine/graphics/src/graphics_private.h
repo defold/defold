@@ -91,9 +91,8 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
-        VertexStepFunction m_StepFunction;
-        uint8_t            m_StreamCount;
+        dmArray<VertexStream> m_Streams;
+        VertexStepFunction    m_StepFunction;
     };
 
     struct ShaderResourceType

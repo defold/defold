@@ -23,7 +23,7 @@
 
 namespace dmGraphics
 {
-    const static uint32_t MAX_TEXTURE_COUNT  = 32;
+    const static uint32_t MAX_TEXTURE_COUNT = 32;
 
     struct TextureSampler
     {
@@ -60,6 +60,8 @@ namespace dmGraphics
         uint16_t m_Size;
         uint16_t m_Stride;
     };
+
+    typedef dmArray<VertexStreamBuffer> VertexStreamBufferList;
 
     struct FrameBuffer
     {
@@ -139,7 +141,8 @@ namespace dmGraphics
         dmPlatform::HWindow                m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
-        VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_BUFFERS][MAX_VERTEX_STREAM_COUNT];
+        VertexStreamBufferList             m_VertexStreams[MAX_VERTEX_BUFFERS];
+
         HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];
         TextureSampler                     m_Samplers[MAX_TEXTURE_COUNT];
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];

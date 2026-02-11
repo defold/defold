@@ -577,6 +577,8 @@ namespace dmGraphics
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
+
+        sd->m_Streams.SetCapacity(8);
         return sd;
     }
 
@@ -594,20 +596,19 @@ namespace dmGraphics
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
     {
-        if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
+        if (stream_declaration->m_Streams.Full())
         {
-            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)",
-                dmHashReverseSafe64(name_hash), MAX_VERTEX_STREAM_COUNT);
-            return;
+            stream_declaration->m_Streams.OffsetCapacity(8);
         }
 
-        uint8_t stream_index = stream_declaration->m_StreamCount;
-        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
-        stream_declaration->m_Streams[stream_index].m_Size      = size;
-        stream_declaration->m_Streams[stream_index].m_Type      = type;
-        stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
-        stream_declaration->m_Streams[stream_index].m_Stream    = stream_index;
-        stream_declaration->m_StreamCount++;
+        VertexStream stream;
+        stream.m_NameHash  = name_hash;
+        stream.m_Size      = size;
+        stream.m_Type      = type;
+        stream.m_Normalize = normalize;
+        stream.m_Stream    = stream_declaration->m_Streams.Size();
+
+        stream_declaration->m_Streams.Push(stream);
     }
 
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
@@ -636,9 +637,8 @@ namespace dmGraphics
 
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
     {
-        uint32_t count = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             if (streams[i].m_NameHash == name_hash)
             {

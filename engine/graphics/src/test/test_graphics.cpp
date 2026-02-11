@@ -306,7 +306,7 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
         ASSERT_EQ(streams[ix].m_Type, type); \
         ASSERT_EQ(streams[ix].m_Normalize, normalize);
 
-    ASSERT_EQ(stream_declaration->m_StreamCount, 2);
+    ASSERT_EQ(stream_declaration->m_Streams.Size(), 2);
     TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
     TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
 
