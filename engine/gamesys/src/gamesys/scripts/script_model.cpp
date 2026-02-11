@@ -148,30 +148,39 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
-    static void ScriptModelAnimationCallback(void* user_ctx, dmRig::RigEventType event, void* event_data)
+    static void ScriptModelAnimationCallback(void* user_ctx, dmRig::RigEventType event_type, void* event_data)
     {
         dmScript::LuaCallbackInfo* luacbk = (dmScript::LuaCallbackInfo*)user_ctx;
-        dmRig::RigCompletedEventData* data = (dmRig::RigCompletedEventData*)event_data;
-
         if (dmScript::IsCallbackValid(luacbk))
         {
             lua_State* L = dmScript::GetCallbackLuaContext(luacbk);
             DM_LUA_STACK_CHECK(L, 0);
-
             if (!dmScript::SetupCallback(luacbk))
             {
                 dmLogError("Failed to setup model animation callback");
                 return;
             }
 
-            dmModelDDF::ModelAnimationDone message;
-            message.m_AnimationId = data->m_AnimationId;
-            message.m_Playback    = data->m_Playback;
+            switch (event_type) {
+                case dmRig::RIG_EVENT_TYPE_COMPLETED:
+                {
+                    dmRig::RigCompletedEventData* data = (dmRig::RigCompletedEventData*)event_data;
+                    dmModelDDF::ModelAnimationDone message;
+                    message.m_AnimationId = data->m_AnimationId;
+                    message.m_Playback    = data->m_Playback;
 
-            dmScript::PushHash(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash);
-            dmScript::PushDDF(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor, (const char*)&message, false);
-            int ret = dmScript::PCall(L, 3, 0);
-            (void)ret;
+                    dmScript::PushHash(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash);
+                    dmScript::PushDDF(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor, (const char*)&message, false);
+                    int ret = dmScript::PCall(L, 3, 0);
+                    (void)ret;
+                    break;
+                }
+                default:
+                {
+                    dmLogError("Unknown rig event received (%d).", event_type);
+                    break;
+                }
+            }
             dmScript::TeardownCallback(luacbk);
         }
         dmScript::DestroyCallback(luacbk);

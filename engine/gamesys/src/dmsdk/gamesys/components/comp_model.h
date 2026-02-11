@@ -36,7 +36,14 @@ namespace dmGameSystem
     typedef struct ModelComponent* HModelComponent;
 
 
-    typedef void (*FModelAnimationCallback)(void* user_ctx, dmRig::RigEventType event, void* event_data);
+    /*#
+     * Model animation callback function.
+     * @name FModelAnimationCallback
+     * @param user_ctx [type: void*] User context
+     * @param event_type [type: dmRig::RigEventType] Animation event type
+     * @param event_data [type: void*] Animation event data
+     */
+    typedef void (*FModelAnimationCallback)(void* user_ctx, dmRig::RigEventType event_type, void* event_data);
 
     /*# 
      * Play a model animation.
