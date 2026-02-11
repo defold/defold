@@ -956,59 +956,7 @@
     (ui/add-style! label "slide-switch-label")
     [label check-box]))
 
-(declare settings)
-
-(defn- reset-button
-  [app-view prefs ^PopupControl popup]
-  (let [button (doto (Button. "Reset to Defaults")
-                 (.setPrefWidth Double/MAX_VALUE))
-        reset-fn (fn [^ActionEvent event]
-                   (let [target ^Node (.getTarget event)
-                         parent (.getParent target)]
-                     (doseq [path [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]]
-                       (let [path (into camera-perspective-prefs-path path)]
-                         (prefs/set! prefs path (:default (prefs/schema prefs path)))))
-                     (invalidate-grids! app-view)
-                     (doto parent
-                       (ui/children! (ui/node-array (settings app-view prefs popup)))
-                       (.requestFocus))))]
-    (doto button
-      (ui/on-action! reset-fn)
-      (ensure-focus-traversable!))
-    button))
-
-(defn- settings
-  [app-view prefs popup]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid (g/node-value scene-view-id :grid)
-        options (g/node-value grid :options)
-        reset-btn (reset-button app-view prefs popup)]
-    (->> [:speed :move-damping :mouse-smoothing :look-sensitivity :invert-y :walking-mode]
-         (e/remove (partial contains? options))
-         (reduce (fn [rows option]
-                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs popup option)))
-                                (.setAlignment Pos/CENTER))))
-                 [reset-btn]))))
-
-(defn- pref-popup-position
-  ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 40.0 10.0 true))
-
-;; TODO: We have to check whether any other settings popup is already open
-(defn show-settings! [app-view ^Parent owner prefs]
-  (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-    (.hide popup)
-    (let [region (StackPane.)
-          popup (popup/make-popup owner region)
-          anchor ^Point2D (pref-popup-position (.getParent owner))]
-      (ui/children! region [(doto (javafx.scene.layout.Region.)
-                              (ui/add-style! "popup-shadow"))
-                            (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
-                              (.setFocusTraversable true)
-                              (ensure-focus-traversable!)
-                              (ui/add-styles! ["grid-settings" "wider"]))])
-      (ui/user-data! owner ::popup popup)
-      (doto popup
-        (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-        (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
-        (.show owner (.getX anchor) (.getY anchor))))))
+;; TODO: Figure out a way to add the "wider" class, but honestly we should just pass a width ourselves
+(defn show-settings! [app-view ^Parent owner prefs prefs-path]
+  (popup/show-settings! app-view owner prefs [:scene :perspective-camera]
+                        [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]))

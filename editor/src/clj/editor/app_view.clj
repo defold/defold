@@ -466,37 +466,32 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(defn- get-grid-settings-button
-  [^Tab tab]
+(defn- get-settings-button [^Tab tab button-id]
   (some-> tab
           .getContent
-          (.lookup "#show-grid-settings")))
+          (.lookup button-id)))
 
-(defn- get-perspective-camera-settings-button
-  [^Tab tab]
-  (some-> tab
-          .getContent
-          (.lookup "#show-perspective-camera-settings")))
+(defn- show-popup-settings [app-view scene-visibility prefs button-id show-fn]
+  (when-some [btn (some-> (g/node-value app-view :active-tab)
+                          (get-settings-button button-id))]
+    (show-fn app-view btn prefs)))
+
+(defn- show-settings-state [app-view scene-visibility button-id evaluation-context]
+  (some-> (g/node-value app-view :active-tab evaluation-context)
+          (get-settings-button button-id)
+          (scene-visibility/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs]
-    (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-perspective-camera-settings-button))]
-      (grid/show-settings! app-view btn prefs)))
+    (show-popup-settings app-view scene-visibility prefs "#show-grid-settings" grid/show-settings!))
   (state [app-view scene-visibility evaluation-context]
-    (some-> (g/node-value app-view :active-tab evaluation-context)
-            (get-perspective-camera-settings-button)
-            (scene-visibility/settings-visible?))))
+    (show-settings-state app-view scene-visibility "#show-grid-settings" evaluation-context)))
 
 (handler/defhandler :scene.perspective-camera.show-settings :workbench
   (run [app-view scene-visibility prefs]
-    (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-perspective-camera-settings-button))]
-      (camera/show-settings! app-view btn prefs)))
+    (show-popup-settings app-view scene-visibility prefs "#show-perspective-camera-settings" camera/show-settings!))
   (state [app-view scene-visibility evaluation-context]
-    (some-> (g/node-value app-view :active-tab evaluation-context)
-            (get-grid-settings-button)
-            (scene-visibility/settings-visible?))))
+    (show-settings-state app-view scene-visibility "#show-perspective-camera-settings" evaluation-context)))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
