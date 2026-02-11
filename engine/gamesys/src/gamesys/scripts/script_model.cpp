@@ -171,7 +171,8 @@ namespace dmGameSystem
                     return;
                 }
 
-                switch (event_type) {
+                switch (event_type)
+                {
                     case dmRig::RIG_EVENT_TYPE_COMPLETED:
                     {
                         dmRig::RigCompletedEventData* data = (dmRig::RigCompletedEventData*)event_data;
@@ -197,7 +198,8 @@ namespace dmGameSystem
         }
         else
         {
-            switch (event_type) {
+            switch (event_type)
+            {
                 case dmRig::RIG_EVENT_TYPE_COMPLETED:
                 {
                     dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
