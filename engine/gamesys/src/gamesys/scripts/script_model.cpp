@@ -27,6 +27,8 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
 #include <extension/extension.hpp>
+#include <dmsdk/gamesys/script.h>
+#include <dmsdk/rig/rig.h>
 
 extern "C"
 {
@@ -146,6 +148,84 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
+    struct AnimationCallbackContext
+    {
+        dmScript::LuaCallbackInfo* m_LuaCallback;
+        dmMessage::URL             m_Listener;
+    };
+
+    static void ScriptModelAnimationCallback(void* user_ctx, dmRig::RigEventType event_type, void* event_data)
+    {
+        AnimationCallbackContext* cbctx = (AnimationCallbackContext*)user_ctx;
+
+        if (cbctx->m_LuaCallback)
+        {
+            if (dmScript::IsCallbackValid(cbctx->m_LuaCallback))
+            {
+                lua_State* L = dmScript::GetCallbackLuaContext(cbctx->m_LuaCallback);
+                DM_LUA_STACK_CHECK(L, 0);
+                if (!dmScript::SetupCallback(cbctx->m_LuaCallback))
+                {
+                    dmLogError("Failed to setup model animation callback");
+                    delete cbctx;
+                    return;
+                }
+
+                switch (event_type)
+                {
+                    case dmRig::RIG_EVENT_TYPE_COMPLETED:
+                    {
+                        dmRig::RigCompletedEventData* data = (dmRig::RigCompletedEventData*)event_data;
+                        dmModelDDF::ModelAnimationDone message;
+                        message.m_AnimationId = data->m_AnimationId;
+                        message.m_Playback    = data->m_Playback;
+
+                        dmScript::PushHash(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash);
+                        dmScript::PushDDF(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor, (const char*)&message, false);
+                        int ret = dmScript::PCall(L, 3, 0);
+                        (void)ret;
+                        break;
+                    }
+                    default:
+                    {
+                        dmLogError("Unknown rig event received (%d).", event_type);
+                        break;
+                    }
+                }
+                dmScript::TeardownCallback(cbctx->m_LuaCallback);
+            }
+            dmScript::DestroyCallback(cbctx->m_LuaCallback);
+        }
+        else
+        {
+            switch (event_type)
+            {
+                case dmRig::RIG_EVENT_TYPE_COMPLETED:
+                {
+                    dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
+                    const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
+
+                    dmModelDDF::ModelAnimationDone message;
+                    message.m_AnimationId = completed_event->m_AnimationId;
+                    message.m_Playback    = completed_event->m_Playback;
+
+                    uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
+                    uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
+                    dmMessage::Result result = dmMessage::Post(0, &cbctx->m_Listener, message_id, 0, 0, descriptor, &message, data_size, 0);
+                    if (result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send animation_done to listener.");
+                    }
+                    break;
+                }
+                default:
+                    dmLogError("Unknown rig event received (%d).", event_type);
+                    break;
+            }
+        }
+        delete cbctx;
+    }
+
     /*# [type:hash] model material
      *
      * The material used when rendering the model. The type of the property is hash.
@@ -164,7 +244,6 @@ namespace dmGameSystem
      * end
      * ```
      */
-
     static int LuaModelComp_Play(lua_State* L)
     {
         dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
@@ -184,24 +263,39 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        int functionref = 0;
+        ModelWorld* world;
+        ModelComponent* component;
+        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
+        callback_ctx->m_LuaCallback = 0;
+        callback_ctx->m_Listener = sender;
+
         if (top > 4)
         {
             if (lua_isfunction(L, 5))
             {
-                lua_pushvalue(L, 5);
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
             }
         }
 
-        dmModelDDF::ModelPlayAnimation msg;
-        msg.m_AnimationId = anim_id;
-        msg.m_Playback = playback;
-        msg.m_BlendDuration = blend_duration;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
+        FModelAnimationCallback callback = ScriptModelAnimationCallback;
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
+        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
+        {
+            dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            delete callback_ctx;
+            dmLogError("'%s:%s#%s' has no animation named '%s'",
+                    dmMessage::GetSocketName(receiver.m_Socket),
+                    dmHashReverseSafe64(receiver.m_Path),
+                    dmHashReverseSafe64(receiver.m_Fragment),
+                    dmHashReverseSafe64(anim_id));
+        }
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -324,25 +418,39 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
-        int functionref = 0;
-        if (top > 4) // completed cb
+        ModelWorld* world;
+        ModelComponent* component;
+        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
+        callback_ctx->m_LuaCallback = 0;
+        callback_ctx->m_Listener = receiver;
+
+        if (top > 4)
         {
             if (lua_isfunction(L, 5))
             {
-                lua_pushvalue(L, 5);
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
             }
         }
 
-        dmModelDDF::ModelPlayAnimation msg;
-        msg.m_AnimationId = anim_id;
-        msg.m_Playback = playback;
-        msg.m_BlendDuration = blend_duration;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
+        FModelAnimationCallback callback = ScriptModelAnimationCallback;
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
+        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
+        {
+            dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            delete callback_ctx;
+            dmLogError("'%s:%s#%s' has no animation named '%s'",
+                    dmMessage::GetSocketName(receiver.m_Socket),
+                    dmHashReverseSafe64(receiver.m_Path),
+                    dmHashReverseSafe64(receiver.m_Fragment),
+                    dmHashReverseSafe64(anim_id));
+        }
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
