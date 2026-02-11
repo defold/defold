@@ -200,7 +200,7 @@ def build(bld):
         create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
         create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
         create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
-        create_test(bld, 'test_job_thread')
+        create_test(bld, 'test_job_system')
 
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_run)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])

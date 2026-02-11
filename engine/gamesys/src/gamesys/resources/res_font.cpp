@@ -85,7 +85,7 @@ namespace dmGameSystem
             font->m_PendingJobs.OffsetCapacity(2);
         font->m_PendingJobs.Push(job_info);
 
-        dmJobThread::PushJob(font->m_Jobs, job_info->m_Job);
+        JobSystemPushJob(font->m_Jobs, job_info->m_Job);
     }
 
     static void RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
@@ -111,13 +111,13 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
-            dmJobThread::HJob hjob = job_info->m_Job;
+            HJob hjob = job_info->m_Job;
 
-            dmJobThread::JobResult jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
-            while (dmJobThread::JOB_RESULT_PENDING == jr)
+            JobSystemResult jr = JobSystemCancelJob(font->m_Jobs, hjob);
+            while (JOBSYSTEM_RESULT_PENDING == jr)
             {
                 dmTime::Sleep(1000);
-                jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
+                jr = JobSystemCancelJob(font->m_Jobs, hjob);
             }
 
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
