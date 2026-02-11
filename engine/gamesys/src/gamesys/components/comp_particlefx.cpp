@@ -110,13 +110,6 @@ namespace dmGameSystem
         uint32_t                                m_WarnParticlesExceeded : 1;
     };
 
-    struct InstanceUserData
-    {
-        ParticleFXWorld*              m_World;
-        ParticleFXPrototypeOverrides* m_Overrides;
-        dmhash_t                      m_ComponentId;
-    };
-
     static void DestroyComponent(ParticleFXWorld* world, ParticleFXComponent* component);
 
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -689,11 +682,7 @@ namespace dmGameSystem
                 component->m_Overrides = component_overrides;
             }
 
-            InstanceUserData* instance_user_data = new InstanceUserData;
-            instance_user_data->m_World          = world;
-            instance_user_data->m_ComponentId    = component_id;
-            instance_user_data->m_Overrides      = component->m_Overrides;
-            dmParticle::SetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance, instance_user_data);
+            dmParticle::SetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance, component);
         }
 
         world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
@@ -722,14 +711,6 @@ namespace dmGameSystem
         }
 
         dmResource::Release(world->m_Context->m_Factory, component->m_ParticlePrototype);
-
-        InstanceUserData* user_data = (InstanceUserData*)dmParticle::GetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance);
-
-        if (user_data)
-        {
-            delete user_data;
-        }
-
         dmParticle::DestroyInstance(world->m_ParticleContext, component->m_ParticleInstance);
     }
 
@@ -1091,14 +1072,14 @@ namespace dmGameSystem
 
     dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data)
     {
-        InstanceUserData* user_data         = (InstanceUserData*) dmParticle::GetInstanceUserData(params->m_ParticleContext, params->m_Instance);
+        ParticleFXComponent* component      = (ParticleFXComponent*) dmParticle::GetInstanceUserData(params->m_ParticleContext, params->m_Instance);
         MaterialResource* material_res      = (MaterialResource*) params->m_MaterialResource;
         TextureSetResource* texture_set_res = (TextureSetResource*) params->m_TextureSetResource;
         dmhash_t animation_id               = params->m_Animation;
 
-        if (user_data && user_data->m_Overrides)
+        if (component && component->m_Overrides)
         {
-            ParticleFXPrototypeOverrides* component_overrides = user_data->m_Overrides;
+            ParticleFXPrototypeOverrides* component_overrides = component->m_Overrides;
             if (component_overrides && params->m_EmitterIndex < component_overrides->m_EmitterOverrides.Size())
             {
                 ParticleFXEmitterOverride* emitter_override = &component_overrides->m_EmitterOverrides[params->m_EmitterIndex];

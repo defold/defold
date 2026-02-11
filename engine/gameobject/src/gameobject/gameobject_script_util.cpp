@@ -202,7 +202,7 @@ namespace dmGameObject
 
         dmhash_t key = 0;
         int32_t index = 0;
-        bool key_requsted = false;
+        bool key_requested = false;
 
         if (index_requested)
         {
@@ -210,7 +210,7 @@ namespace dmGameObject
         }
         else
         {
-            key_requsted = GetPropertyOptionsKey((HPropertyOptions) &property_options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK;
+            key_requested = GetPropertyOptionsKey((HPropertyOptions) &property_options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK;
         }
 
         switch (result)
@@ -223,7 +223,7 @@ namespace dmGameObject
                     {
                         return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                     }
-                    else if (key_requsted && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
+                    else if (key_requested && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
                     {
                         return luaL_error(L, "Options table contains key, but property '%s' is not a hashtable.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                     }
@@ -235,7 +235,7 @@ namespace dmGameObject
             }
         case dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND:
             {
-                if (key_requsted)
+                if (key_requested)
                 {
                     return luaL_error(L, "Resource `%s` for property '%s' not found!", dmHashReverseSafe64Alloc(&hash_ctx, key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                 }
@@ -246,7 +246,7 @@ namespace dmGameObject
             }
         case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
             {
-                if (key_requsted)
+                if (key_requested)
                 {
                     return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                 }
@@ -254,7 +254,7 @@ namespace dmGameObject
             }
         case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
             {
-                if (!key_requsted)
+                if (!key_requested)
                 {
                     return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                 }
