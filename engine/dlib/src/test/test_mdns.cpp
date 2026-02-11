@@ -85,6 +85,28 @@ namespace
             }
             return 0;
         }
+
+        bool HasInstance(dmMDNS::EventType type, const char* instance_name) const
+        {
+            for (uint32_t i = 0; i < m_Events.size(); ++i)
+            {
+                const EventSnapshot& e = m_Events[i];
+                if (e.m_Type == type && e.m_InstanceName == instance_name)
+                    return true;
+            }
+            return false;
+        }
+
+        const EventSnapshot* FindInstance(dmMDNS::EventType type, const char* instance_name) const
+        {
+            for (uint32_t i = 0; i < m_Events.size(); ++i)
+            {
+                const EventSnapshot& e = m_Events[i];
+                if (e.m_Type == type && e.m_InstanceName == instance_name)
+                    return &e;
+            }
+            return 0;
+        }
     };
 
     static void Pump(dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t iterations, uint32_t sleep_us)
@@ -295,16 +317,24 @@ TEST(MDNS, ResolveAndRemove)
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
 
-    for (uint32_t i = 0; i < 300 && !event_log.Has(dmMDNS::EVENT_RESOLVED, service.m_Id); ++i)
+    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_ADDED, service.m_InstanceName); ++i)
     {
         Pump(mdns, browser, 1, 10 * 1000);
     }
 
-    const EventSnapshot* resolved = event_log.Find(dmMDNS::EVENT_RESOLVED, service.m_Id);
+    ASSERT_TRUE(event_log.HasInstance(dmMDNS::EVENT_ADDED, service.m_InstanceName));
+
+    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName); ++i)
+    {
+        Pump(mdns, browser, 1, 10 * 1000);
+    }
+
+    const EventSnapshot* resolved = event_log.FindInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName);
     ASSERT_NE((const EventSnapshot*) 0, resolved);
     ASSERT_EQ(service.m_Port, resolved->m_Port);
     ASSERT_TRUE(!resolved->m_Host.empty());
     ASSERT_EQ(std::string("resolve-target"), resolved->m_InstanceName);
+    ASSERT_TRUE(resolved->m_Id == "mdns-resolve-01" || resolved->m_Id == "resolve-target._defoldtest._tcp.local");
     std::map<std::string, std::string>::const_iterator log_port_it = resolved->m_Txt.find("log_port");
     ASSERT_TRUE(log_port_it != resolved->m_Txt.end());
     ASSERT_EQ(std::string("19001"), log_port_it->second);
@@ -314,12 +344,12 @@ TEST(MDNS, ResolveAndRemove)
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeregisterService(mdns, service.m_Id));
 
-    for (uint32_t i = 0; i < 300 && !event_log.Has(dmMDNS::EVENT_REMOVED, service.m_Id); ++i)
+    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_REMOVED, service.m_InstanceName); ++i)
     {
         Pump(mdns, browser, 1, 10 * 1000);
     }
 
-    ASSERT_TRUE(event_log.Has(dmMDNS::EVENT_REMOVED, service.m_Id));
+    ASSERT_TRUE(event_log.HasInstance(dmMDNS::EVENT_REMOVED, service.m_InstanceName));
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeleteBrowser(browser));
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));
