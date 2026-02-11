@@ -250,8 +250,10 @@
              :perspective-camera {:type :object
                                   :scope :project
                                   :properties {:speed {:type :number :default 1.0}
+                                               :move-damping {:type :number :default 10.0}
+                                               :mouse-smoothing {:type :number :default 0.55}
+                                               :look-sensitivity {:type :number :default 0.15}
                                                :invert-y {:type :boolean :default false}
-                                               :look-sensitivity {:type :number :default 1.0}
                                                :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties

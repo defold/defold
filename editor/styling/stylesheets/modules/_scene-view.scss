@@ -139,6 +139,10 @@
             -fx-background-radius: 4px;
             -fx-padding: 12px;
 
+            &.wider {
+                -fx-pref-width: 250px;
+            }
+
             HBox {
                 -fx-pref-height: 28px;
             }

@@ -1107,7 +1107,8 @@
              (Vector3d. 0.0 1.0 0.0)
              (c/camera-up-vector current-camera))
         [camera-after-look free-camera] (if is-secondary-button
-                                          (c/look current-camera
+                                          (c/look camera-node
+                                                  current-camera
                                                   free-camera
                                                   cursor-pos
                                                   cursor-lock-pos

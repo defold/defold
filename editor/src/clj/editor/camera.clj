@@ -763,10 +763,8 @@
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
-(def ^:private acceleration 12.0)
-(def ^:private look-smoothing 0.55)
 
-(defn look [current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
+(defn look [camera-node current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
   (let [raw-dx (if cursor-lock-pos
                  (- (first cursor-lock-pos) (first cursor-pos))
                  (first cursor-pos))
@@ -775,6 +773,7 @@
                  (second cursor-pos))
         smoothed-look-delta (:smoothed-look-delta free-camera)
         [prev-dx prev-dy] smoothed-look-delta
+        look-smoothing (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :mouse-smoothing])
         smooth-dx (+ prev-dx (* look-smoothing (- raw-dx prev-dx)))
         smooth-dy (+ prev-dy (* look-smoothing (- raw-dy prev-dy)))]
 
@@ -793,8 +792,6 @@
          (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
 
-(def ^:private damping 8.0)
-
 (defn wasd-move
   [camera-node camera free-camera target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
@@ -805,8 +802,9 @@
     (.scale target-dir final-speed)
 
     (let [vel (:velocity free-camera)
-          diff (doto (Vector3d. target-dir) (.sub vel))]
-      (.scale diff (* acceleration dt))
+          diff (doto (Vector3d. target-dir) (.sub vel))
+          damping (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :move-damping])]
+      (.scale diff (* damping dt))
       (.add vel diff)
       (when (= (.length target-dir) 0.0)
         (.scale vel (Math/exp (* (- damping) dt))))
@@ -885,12 +883,11 @@
 
 (defmulti settings-row (fn [_app-view _prefs _popup option] option))
 
-(defmethod settings-row :speed
-  [app-view prefs ^PopupControl popup option]
+(defn slider-setting [app-view prefs ^PopupControl popup option label range-min range-max]
   (let [prefs-path (conj camera-perspective-prefs-path option)
         value (prefs/get prefs prefs-path)
-        slider (Slider. 1.0 3.0 value)
-        label (Label. "Speed")]
+        slider (Slider. range-min range-max value)
+        label (Label. label)]
     (doto slider
       (ensure-focus-traversable!)
       (.setBlockIncrement 0.1)
@@ -906,28 +903,22 @@
           (prefs/set! prefs prefs-path val)
           (invalidate-grids! app-view))))
     [label slider]))
+
+(defmethod settings-row :speed
+  [app-view prefs ^PopupControl popup option]
+  (slider-setting app-view prefs popup option "Move Speed" 1.0 3.0))
+
+(defmethod settings-row :move-damping
+  [app-view prefs ^PopupControl popup option]
+  (slider-setting app-view prefs popup option "Move Damping" 5.0 20.0))
 
 (defmethod settings-row :look-sensitivity
   [app-view prefs ^PopupControl popup option]
-  (let [prefs-path (conj camera-perspective-prefs-path option)
-        value (prefs/get prefs prefs-path)
-        slider (Slider. 0.2 1.5 value)
-        label (Label. "Mouse")]
-    (doto slider
-      (ensure-focus-traversable!)
-      (.setBlockIncrement 0.1)
-      ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
-      ;; when autoHide is set to true.
-      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
-      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+  (slider-setting app-view prefs popup option "Look Sensitivity" 0.02 0.5))
 
-    (ui/observe
-      (.valueProperty slider)
-      (fn [_observable _old-val new-val]
-        (let [val (math/round-with-precision new-val 0.01)]
-          (prefs/set! prefs prefs-path val)
-          (invalidate-grids! app-view))))
-    [label slider]))
+(defmethod settings-row :mouse-smoothing
+  [app-view prefs ^PopupControl popup option]
+  (slider-setting app-view prefs popup option "Mouse Smoothing" 0.3 0.8))
 
 (defmethod settings-row :invert-y
   [app-view prefs _popup option]
@@ -974,7 +965,7 @@
         reset-fn (fn [^ActionEvent event]
                    (let [target ^Node (.getTarget event)
                          parent (.getParent target)]
-                     (doseq [path [[:speed] [:look-sensitivity] [:invert-y] [:walking-mode]]]
+                     (doseq [path [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]]
                        (let [path (into camera-perspective-prefs-path path)]
                          (prefs/set! prefs path (:default (prefs/schema prefs path)))))
                      (invalidate-grids! app-view)
@@ -992,7 +983,7 @@
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)
         reset-btn (reset-button app-view prefs popup)]
-    (->> [:speed :look-sensitivity :invert-y :walking-mode]
+    (->> [:speed :move-damping :mouse-smoothing :look-sensitivity :invert-y :walking-mode]
          (e/remove (partial contains? options))
          (reduce (fn [rows option]
                    (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs popup option)))
@@ -1003,6 +994,7 @@
   ^Point2D [^Parent container]
   (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
+;; TODO: We have to check whether any other settings popup is already open
 (defn show-settings! [app-view ^Parent owner prefs]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
@@ -1014,7 +1006,7 @@
                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
                               (.setFocusTraversable true)
                               (ensure-focus-traversable!)
-                              (ui/add-style! "grid-settings"))])
+                              (ui/add-styles! ["grid-settings" "wider"]))])
       (ui/user-data! owner ::popup popup)
       (doto popup
         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
