@@ -33,17 +33,17 @@ local function test_get_set_emitter_paths_by_property(prop, valid_prop_value, ov
     assert_error(function() go.get("#particlefx", prop, { key = "unsupported_key" }) end)
     assert_error(function() go.get("#particlefx", prop, { index = 1 }) end)
     assert_error(function() go.get("#particlefx", prop, { keys = {} }) end)
-    assert_error(function() go.get("#particlefx", prop, { keys = {{emitter_id = "invalid_emitter"}} }) end)
+    assert_error(function() go.get("#particlefx", prop, { keys = { "invalid_emitter" } }) end)
 
     assert_error(function() go.set("#particlefx", prop, override_value, { key = "unsupported_key" }) end)
     assert_error(function() go.set("#particlefx", prop, override_value, { index = 1 }) end)
     assert_error(function() go.set("#particlefx", prop, override_value, { keys = {} }) end)
-    assert_error(function() go.set("#particlefx", prop, override_value, { keys = {{emitter_id = "invalid_emitter"}} }) end)
+    assert_error(function() go.set("#particlefx", prop, override_value, { keys = { "invalid_emitter" } }) end)
 
     -- test valid paths
     for i,v in ipairs(all_emitter_ids) do
-        assert(valid_prop_value == go.get("#particlefx", prop, { keys = {{ emitter_id = v }} }))
-        go.set("#particlefx", prop, valid_prop_value, { keys = {{ emitter_id = v }} })
+        assert(valid_prop_value == go.get("#particlefx", prop, { keys = { v } }))
+        go.set("#particlefx", prop, valid_prop_value, { keys = { v } })
     end
 end
 
@@ -56,8 +56,8 @@ end
 local function test_get_set_material_overrides()
     -- test overriding material
     for i,v in ipairs(all_emitter_ids) do
-        go.set("#particlefx", "material", test_override_material_path, { keys = {{ emitter_id = v }} })
-        assert(test_override_material_path == go.get("#particlefx", "material", { keys = {{ emitter_id = v }} }))
+        go.set("#particlefx", "material", test_override_material_path, { keys = { v } })
+        assert(test_override_material_path == go.get("#particlefx", "material", { keys = { v } }))
     end
 end
 
@@ -79,8 +79,8 @@ local function test_get_set_image_overrides()
     })
 
     for i,v in ipairs(all_emitter_ids) do
-        go.set("#particlefx", "image", test_override_image_path, { keys = {{ emitter_id = v }} })
-        assert(test_override_image_path == go.get("#particlefx", "image", { keys = {{ emitter_id = v }} }))
+        go.set("#particlefx", "image", test_override_image_path, { keys = { v } })
+        assert(test_override_image_path == go.get("#particlefx", "image", { keys = { v } }))
     end
 
     resource.release(atlas_id)
@@ -89,8 +89,8 @@ end
 
 local function test_get_set_animation_overrides()
     for i,v in ipairs(all_emitter_ids) do
-        go.set("#particlefx", "animation", test_override_animation, { keys = {{ emitter_id = v }} })
-        assert(test_override_animation == go.get("#particlefx", "animation", { keys = {{ emitter_id = v }} }))
+        go.set("#particlefx", "animation", test_override_animation, { keys = { v } })
+        assert(test_override_animation == go.get("#particlefx", "animation", { keys = { v } }))
     end
 end
 

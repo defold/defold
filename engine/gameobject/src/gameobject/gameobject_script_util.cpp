@@ -142,48 +142,17 @@ namespace dmGameObject
                     count, MAX_PROPERTY_OPTIONS_COUNT);
             }
 
-            // Parse chain of tables
+            // Parse a simple list of keys, e.g. { "cone_emitter" }
             for (int i = 1; i <= count; ++i)
             {
                 lua_rawgeti(L, -1, i);
 
-                if (!lua_istable(L, -1))
+                dmhash_t key_hash = dmScript::CheckHashOrString(L, -1);
+
+                if (!dmGameObject::AddPropertyOptionsKey(options, key_hash))
                 {
-                    return luaL_error(L, "Each entry in 'keys' must be a table");
-                }
-
-                bool has_key = false;
-                bool has_index = false;
-                ParsePropertyOptionKey(L, -1, options, &has_key);
-
-                if (!has_key)
-                {
-                    ParsePropertyOptionIndex(L, -1, options, &has_index);
-
-                    if (!has_index)
-                    {
-                        lua_pushnil(L); // first key
-                        while (lua_next(L, -2) != 0)
-                        {
-                            // stack:
-                            // -1 value
-                            // -2 key
-                            // -3 table
-
-                            dmhash_t key_hash   = dmScript::CheckHashOrString(L, -2);
-                            dmhash_t value_hash = dmScript::CheckHashOrString(L, -1);
-
-                            if (!dmGameObject::AddPropertyOptionsKey(options, key_hash) ||
-                                !dmGameObject::AddPropertyOptionsKey(options, value_hash))
-                            {
-                                return luaL_error(L,
-                                    "Too many options supplied to options table (max=%d).",
-                                    MAX_PROPERTY_OPTIONS_COUNT);
-                            }
-
-                            lua_pop(L, 1); // pop value, keep key for next iteration
-                        }
-                    }
+                    lua_pop(L, 1);
+                    return luaL_error(L, "Too many options supplied to options table (max=%d).", MAX_PROPERTY_OPTIONS_COUNT);
                 }
 
                 lua_pop(L, 1);

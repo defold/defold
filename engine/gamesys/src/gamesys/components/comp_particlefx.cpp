@@ -48,7 +48,6 @@ DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, PROFILE_PROPERTY_FRAME_RESET, "si
 namespace dmGameSystem
 {
     const int VERTEX_COUNT         = 6; // Fixed vertex count per particle
-    const dmhash_t HASH_EMITTER_ID = dmHashString64("emitter_id");
 
     using namespace dmVMath;
 
@@ -849,19 +848,11 @@ namespace dmGameSystem
 
     static bool ResolvePropertyEmitter(dmGameObject::HPropertyOptions options, dmhash_t* emitter_id)
     {
-        uint32_t property_count = dmGameObject::GetPropertyOptionsCount(options);
-        for (int i = 0; i < property_count; ++i)
+        if (dmGameObject::GetPropertyOptionsKey(options, 0, emitter_id) != dmGameObject::PROPERTY_RESULT_OK)
         {
-            dmhash_t hash = 0;
-            dmGameObject::GetPropertyOptionsKey(options, i, &hash);
-
-            if (hash == HASH_EMITTER_ID)
-            {
-                dmGameObject::GetPropertyOptionsKey(options, ++i, emitter_id);
-                return true;
-            }
+            return false;
         }
-        return false;
+        return true;
     }
 
     static inline const ParticleFXEmitterOverride* GetEmitterOverride(const ParticleFXComponentPrototype* prototype, uint32_t emitter_index)
