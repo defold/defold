@@ -366,42 +366,7 @@ namespace dmGameSystem
         if (component->m_Callback)
         {
             component->m_Callback(component->m_CallbackContext, event_type, event_data);
-            return;
         }
-
-        dmMessage::URL sender;
-        dmMessage::URL receiver = component->m_Listener;
-        switch (event_type) {
-            case dmRig::RIG_EVENT_TYPE_COMPLETED:
-            {
-                if (!GetSender(component, &sender))
-                {
-                    dmLogError("Could not send animation_done to listener because of incomplete component.");
-                    return;
-                }
-
-                dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
-                const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
-
-                dmModelDDF::ModelAnimationDone message;
-                message.m_AnimationId = completed_event->m_AnimationId;
-                message.m_Playback    = completed_event->m_Playback;
-
-                uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
-                uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, 0, descriptor, &message, data_size, 0);
-                dmMessage::ResetURL(&component->m_Listener);
-                if (result != dmMessage::RESULT_OK)
-                {
-                    dmLogError("Could not send animation_done to listener.");
-                }
-                break;
-            }
-            default:
-                dmLogError("Unknown rig event received (%d).", event_type);
-                break;
-        }
-
     }
 
     static void CompModelPoseCallback(void* user_data1, void* user_data2)
@@ -2517,12 +2482,11 @@ namespace dmGameSystem
         component->m_ReHash = 1;
     }
 
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, dmMessage::URL listener, FModelAnimationCallback callback, void* callback_ctx)
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx)
     {
         dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, anim_id, playback, blend_duration, offset, playback_rate);
         if (dmRig::RESULT_OK == result)
         {
-            component->m_Listener = listener;
             component->m_Callback = callback;
             component->m_CallbackContext = callback_ctx;
         }
