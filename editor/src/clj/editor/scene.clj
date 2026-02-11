@@ -69,6 +69,7 @@
            [java.awt.image BufferedImage]
            [java.lang Math Runnable]
            [java.nio IntBuffer]
+           [javafx.css PseudoClass]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent]
            [javafx.geometry HPos VPos]
@@ -1423,7 +1424,6 @@
                  (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
-         (println "me")
          (set-camera-type! view
                            (case (g/node-value view :camera-type)
                              :orthographic :perspective
@@ -1666,6 +1666,12 @@
                                 (g/update-property! view-id :input-state assoc :cursor-pos [screen-x screen-y])
                                 (when (= :mouse-pressed (:type action))
                                   (when (= :secondary (:button action))
+                                    (when-let [tab-content (loop [current (.getParent image-view)]
+                                                             (when current
+                                                               (if (.contains (.getStyleClass current) "tab-content-area")
+                                                                 current
+                                                                 (recur (.getParent current)))))]
+                                      (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
                                     (g/update-property! view-id :input-state assoc :cursor-lock-pos [screen-x screen-y]))
                                   (g/update-property! view-id :input-state update :mouse-buttons conj (:button action))
                                   (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
@@ -1680,6 +1686,12 @@
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
                                   (when (= :secondary (:button action))
+                                    (when-let [tab-content (loop [current (.getParent image-view)]
+                                                             (when current
+                                                               (if (.contains (.getStyleClass current) "tab-content-area")
+                                                                 current
+                                                                 (recur (.getParent current)))))]
+                                      (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
                                     (g/update-property! view-id :input-state assoc :cursor-lock-pos nil))
                                   (g/update-property! view-id :input-state update :mouse-buttons disj (:button action))
                                   (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
