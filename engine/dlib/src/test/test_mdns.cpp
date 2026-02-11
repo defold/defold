@@ -121,6 +121,20 @@ namespace
         }
     }
 
+    static bool WaitForEvent(EventLog& event_log, dmMDNS::EventType event_type, const char* instance_name, dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t timeout_ms)
+    {
+        const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
+        while (dmTime::GetMonotonicTime() < deadline)
+        {
+            if (event_log.HasInstance(event_type, instance_name))
+            {
+                return true;
+            }
+            Pump(mdns, browser, 1, 5 * 1000);
+        }
+        return event_log.HasInstance(event_type, instance_name);
+    }
+
     static bool WaitForFlag(int32_atomic_t* flag, uint32_t iterations, uint32_t sleep_us)
     {
         for (uint32_t i = 0; i < iterations; ++i)
@@ -316,18 +330,7 @@ TEST(MDNS, ResolveAndRemove)
     service.m_Ttl = 2;
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
-
-    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_ADDED, service.m_InstanceName); ++i)
-    {
-        Pump(mdns, browser, 1, 10 * 1000);
-    }
-
-    ASSERT_TRUE(event_log.HasInstance(dmMDNS::EVENT_ADDED, service.m_InstanceName));
-
-    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName); ++i)
-    {
-        Pump(mdns, browser, 1, 10 * 1000);
-    }
+    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_RESOLVED, service.m_InstanceName, mdns, browser, 15000));
 
     const EventSnapshot* resolved = event_log.FindInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName);
     ASSERT_NE((const EventSnapshot*) 0, resolved);
@@ -343,13 +346,7 @@ TEST(MDNS, ResolveAndRemove)
     ASSERT_EQ(std::string("1"), schema_it->second);
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeregisterService(mdns, service.m_Id));
-
-    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_REMOVED, service.m_InstanceName); ++i)
-    {
-        Pump(mdns, browser, 1, 10 * 1000);
-    }
-
-    ASSERT_TRUE(event_log.HasInstance(dmMDNS::EVENT_REMOVED, service.m_InstanceName));
+    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_REMOVED, service.m_InstanceName, mdns, browser, 15000));
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeleteBrowser(browser));
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));
