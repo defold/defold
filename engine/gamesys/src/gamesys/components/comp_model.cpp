@@ -1036,7 +1036,6 @@ namespace dmGameSystem
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         ModelResource* resource = (ModelResource*)params.m_Resource;
         component->m_Resource = resource;
-        dmMessage::ResetURL(&component->m_Listener);
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
