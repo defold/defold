@@ -320,10 +320,10 @@
   (let [{:keys [defignore-mtime project-directory]} defignore-patterns-key
         defignore-file (io/file project-directory ".defignore")]
     (into []
-          (distinct)
-          (concat
-            (log-file-proj-path-patterns defignore-patterns-key)
-            (read-proj-path-patterns defignore-file defignore-mtime)))))
+          (comp cat
+                (distinct))
+          [(log-file-proj-path-patterns defignore-patterns-key)
+           (read-proj-path-patterns defignore-file defignore-mtime)])))
 
 (def ^:private make-defignore-patterns-fn
   (fn/memoize
