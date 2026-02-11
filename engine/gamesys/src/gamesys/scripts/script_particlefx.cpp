@@ -66,8 +66,8 @@ namespace dmGameSystem
      * ```lua
      * go.property("my_material", resource.material())
      * function init(self)
-     *     go.set("#particlefx", "material", self.my_material, {keys = {{emitter_id = "explosion"}}})
-     *     local emitter_mat = go.get("#particlefx", "material", {keys = {{emitter_id = "explosion"}}})
+     *     go.set("#particlefx", "material", self.my_material, { keys = { "explosion" } })
+     *     local emitter_mat = go.get("#particlefx", "material", { keys = { "explosion" } })
      *     assert(emitter_mat == self.my_material)
      * end
      * ```
@@ -90,8 +90,8 @@ namespace dmGameSystem
      * ```lua
      * go.property("my_atlas", resource.atlas())
      * function init(self)
-     *     go.set("#particlefx", "image", self.my_atlas, {keys = {{emitter_id = "explosion"}}})
-     *     local emitter_img = go.get("#particlefx", "image", {keys = {{emitter_id = "explosion"}}})
+     *     go.set("#particlefx", "image", self.my_atlas, { keys = { "explosion" } })
+     *     local emitter_img = go.get("#particlefx", "image", { keys = { "explosion" } })
      *     assert(emitter_img == self.my_atlas)
      * end
      * ```
@@ -111,8 +111,8 @@ namespace dmGameSystem
      * How to set and get the animation of an emitter in a particle FX.
      *
      * ```lua
-     * local current_animation = go.get("#particlefx", "animation", {keys = {{emitter_id = "explosion"}}})
-     * go.set("#particlefx", "animation", hash("explode_large"), {keys = {{emitter_id = "explosion"}}})
+     * local current_animation = go.get("#particlefx", "animation", { keys = { "explosion" } })
+     * go.set("#particlefx", "animation", hash("explode_large"), { keys = { "explosion" } })
      * ```
      */
 
