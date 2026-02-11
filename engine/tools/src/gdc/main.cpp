@@ -23,6 +23,7 @@
 #include <dlib/platform.h>
 
 #include <graphics/graphics.h>
+#include <platform/window.hpp>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
