@@ -300,9 +300,11 @@
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
 (defn- reserved-project-file [^File project-path ^File f]
+  ;; The project-path is assumed to be canonical.
   (resource-watch/reserved-proj-path? project-path (resource/file->proj-path project-path f)))
 
 (defn- illegal-copy-move-pairs [^File project-path prospect-pairs]
+  ;; The project-path is assumed to be canonical.
   (seq (filter (comp (partial reserved-project-file project-path) second) prospect-pairs)))
 
 (defn allow-resource-move?

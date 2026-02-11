@@ -228,7 +228,9 @@
          (or (nil? changes-view) (g/node-id? changes-view))]}
   (g/let-ec [workspace (project/workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)]
-    (let [success-promise (promise)
+    (let [project-directory (workspace/project-directory workspace)
+          old-defignore-patterns (resource/project-defignore-patterns project-directory)
+          success-promise (promise)
           complete! (fn [successful?]
                       (render-save-progress! progress/done)
                       (reset! save-job-atom nil)
@@ -250,7 +252,8 @@
                 save-data (project/save-data-with-progress project evaluation-context save-data-fn render-save-progress!)
                 post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters localization {:render-progress! render-save-progress!})
                 written-resources (into #{} (map :resource) save-data)
-                reload-required (some #(= "/.defignore" (resource/proj-path %)) written-resources)]
+                new-defignore-patterns (resource/project-defignore-patterns project-directory)
+                reload-required (not= old-defignore-patterns new-defignore-patterns)]
             (render-save-progress! (progress/make-indeterminate (localization/message "progress.caching-save-results")))
             (ui/run-later
               (try

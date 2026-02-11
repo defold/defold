@@ -215,7 +215,7 @@
                           renderables)))))
 
 (defn- gen-font-vb
-  [gl user-data renderables]
+  [gl user-data renderables render-args]
   (let [font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
                                          alpha (get-in (:user-data r) [:color 3])]
@@ -226,16 +226,16 @@
                                          (update-in [:shadow 3] * alpha))))
                            renderables)
         node-ids (into #{} (map :node-id) renderables)]
-    (font/request-vertex-buffer gl node-ids font-data text-entries)))
+    (font/request-vertex-buffer gl node-ids font-data text-entries render-args)))
 
-(defn- gen-vb [^GL2 gl renderables]
+(defn- gen-vb [^GL2 gl renderables render-args]
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
       (gen-geom-vb renderables)
 
       (get-in user-data [:text-data :font-data])
-      (gen-font-vb gl user-data renderables)
+      (gen-font-vb gl user-data renderables render-args)
 
       (contains? user-data :gen-vb)
       ((:gen-vb user-data) user-data renderables))))
@@ -246,10 +246,11 @@
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
-        vb (gen-vb gl renderables)
+        render-pass (:pass render-args)
+        vb (gen-vb gl renderables render-args)
         vcount (count vb)]
     (when (> vcount 0)
-      (condp = (:pass render-args)
+      (condp = render-pass
         pass/transparent
         (let [shader (or material-shader shader)
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)

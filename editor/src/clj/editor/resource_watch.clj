@@ -200,6 +200,11 @@
                     (.getAbsolutePath (io/file "bundle-resources"))
                     (system/defold-unpack-path))
         root (io/file base-path "_defold/debugger")
+        ;; Supplying this mount-root derived from the base-path appears to
+        ;; produce a strange file-resource-filter inside make-file-tree, which
+        ;; won't include defignore patterns and so on. It probably won't matter
+        ;; for this case, since this directory will not have any of those files
+        ;; below it anyway.
         mount-root (io/file base-path)
         resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false fn/constantly-false))]
     {:resources resources

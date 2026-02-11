@@ -285,7 +285,7 @@
       (catch Exception _))))
 
 (defn launch! [^File engine project-directory prefs debug? instance-index]
-  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+  (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)

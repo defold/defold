@@ -2766,6 +2766,32 @@ TEST_F(dmGuiTest, PickingDisabledAdjust)
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmin.getX()*ref_scale, tmax.getY()*ref_scale));
 }
 
+TEST_F(dmGuiTest, PickingSafeAreaAdjust)
+{
+    uint32_t physical_width = 100;
+    uint32_t physical_height = 200;
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, physical_width, physical_height);
+
+    dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, physical_width, physical_height, 0, 40, 0, 20);
+
+    Vector3 size(20, 20, 0);
+    Point3 pos(size * 0.5f);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+
+    Matrix4 transform;
+    dmGui::InternalNode* nn = dmGui::GetNode(m_Scene, n1);
+    dmGui::CalculateNodeTransform(m_Scene, nn, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+
+    Vector4 screen_pos_bottom = transform * Vector4(0.5f, 0.05f, 0.0f, 1.0f);
+    Vector4 screen_pos_top = transform * Vector4(0.5f, 0.95f, 0.0f, 1.0f);
+    Vector4 screen_pos_out = transform * Vector4(0.5f, 1.05f, 0.0f, 1.0f);
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, screen_pos_bottom.getX(), screen_pos_bottom.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, screen_pos_top.getX(), screen_pos_top.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, screen_pos_out.getX(), screen_pos_out.getY()));
+}
+
 TEST_F(dmGuiTest, ScriptPicking)
 {
     uint32_t physical_width = 640;
@@ -5411,7 +5437,7 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
     dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
 }
 
-// Check consistancy of get_screen_position/set_screen_position functions 
+// Check consistancy of get_screen_position/set_screen_position functions
 TEST_F(dmGuiTest, SetGetScreenPosition)
 {
     const char* s = "function init(self)\n"
@@ -5449,6 +5475,35 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
 
     r = dmGui::FinalScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionSafeArea)
+{
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    dmGui::SetDefaultResolution(m_Context, 100, 200);
+    dmGui::SetSceneResolution(m_Scene, 100, 200);
+    dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, 100, 200, 0, 40, 0, 20);
+
+    dmGui::HNode root = dmGui::NewNode(m_Scene, Point3(20, 30, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeId(m_Scene, root, "root_safe");
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    Point3 local_before = dmGui::GetNodePosition(m_Scene, root);
+    Point3 local_from_screen = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(before_set.getXYZ()));
+    ASSERT_NEAR(local_before.getX(), local_from_screen.getX(), EPSILON);
+    ASSERT_NEAR(local_before.getY(), local_from_screen.getY(), EPSILON);
+
+    Point3 target_screen(before_set.getX() + 7.0f, before_set.getY() + 11.0f, 0.0f);
+    dmGui::SetScreenPosition(m_Scene, root, target_screen);
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
+    ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+
+    Point3 local_after = dmGui::GetNodePosition(m_Scene, root);
+    Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(after_set.getXYZ()));
+    ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
+    ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
 }
 
 TEST_F(dmGuiTest, ZeroMaxDynamicTextures)

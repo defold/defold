@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
+welcome.new-project.sample-3d-third-person-playground.description = This is a sample 3D third-person game where you can move a 3D character around with keyboard or mouse/touch input. It shows how to make a basic 3D setup with shadows.
 welcome.new-project.linker-sample-game.title = Linker Sample Game
 welcome.new-project.linker-sample-game.description = This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters.
 welcome.new-project.roids-sample-game.title = Roids Sample Game
