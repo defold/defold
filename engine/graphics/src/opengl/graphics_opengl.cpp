@@ -38,6 +38,7 @@
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 #include "graphics_opengl_private.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_MACOS)
     // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)

@@ -22,7 +22,7 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include <platform/window.hpp>
+#include <platform/window.h>
 
 namespace dmGraphics
 {

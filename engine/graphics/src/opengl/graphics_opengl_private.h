@@ -22,7 +22,7 @@
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
-#include <platform/window.hpp>
+#include <platform/window.h>
 
 namespace dmGraphics
 {

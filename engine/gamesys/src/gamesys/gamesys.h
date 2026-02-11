@@ -32,7 +32,7 @@
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
-#include <platform/window.hpp>
+#include <platform/window.h>
 
 namespace dmMessage { struct URL; }
 

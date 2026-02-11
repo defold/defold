@@ -15,6 +15,7 @@
 #include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
 #include  <glfw/glfw_native.h> // for glfwAppBootstrap

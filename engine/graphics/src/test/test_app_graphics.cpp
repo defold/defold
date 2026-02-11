@@ -26,6 +26,7 @@
 #include "test_app_graphics.h"
 
 #include <dmsdk/graphics/graphics_vulkan.h>
+#include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
 

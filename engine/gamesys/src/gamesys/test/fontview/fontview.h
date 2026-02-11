@@ -19,7 +19,7 @@
 
 #include <resource/resource.h>
 
-#include <platform/window.hpp>
+#include <platform/window.h>
 
 #include <graphics/graphics.h>
 
