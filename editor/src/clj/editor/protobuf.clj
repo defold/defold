@@ -391,13 +391,12 @@ Macros currently mean no foreseeable performance gain, however."
                                  [[key]]))
 
                    (message-field? field-info)
-                   (when (pb-class? (:type field-info))
-                     (let [sub-paths (resource-field-path-specs (:type field-info))]
-                       (when (seq sub-paths)
-                         (let [prefix (if (= :repeated (:field-rule field-info))
-                                        [[key]]
-                                        [key])]
-                           (mapv (partial into prefix) sub-paths))))))))
+                   (let [sub-paths (resource-field-path-specs (:type field-info))]
+                     (when (seq sub-paths)
+                       (let [prefix (if (= :repeated (:field-rule field-info))
+                                      [[key]]
+                                      [key])]
+                         (mapv (partial into prefix) sub-paths)))))))
           cat
           (remove nil?))
         (field-infos class)))
