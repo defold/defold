@@ -181,7 +181,7 @@ namespace dmEngine
                 ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
 
             if (engine->m_JobThreadContext)
-                ExtensionParamsSetContext(&m_Params, "job_thread", engine->m_JobThreadContext);
+                ExtensionParamsSetContext(&m_Params, "jobs", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -487,7 +487,7 @@ namespace dmEngine
         // // Stop processing graphics requests before deleting the graphics context
         // if (engine->m_JobThreadContext)
         // {
-        //     dmJobThread::Destroy(engine->m_JobThreadContext);
+        //     JobSystemDestroy(engine->m_JobThreadContext);
         // }
 
         if (engine->m_GraphicsContext)
@@ -1095,10 +1095,10 @@ namespace dmEngine
             swap_interval = 0;
         }
 
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        JobSystemCreateParams job_thread_create_param;
         job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
         job_thread_create_param.m_ThreadCount       = 1;
-        engine->m_JobThreadContext                  = dmJobThread::Create(job_thread_create_param);
+        engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
@@ -1111,7 +1111,7 @@ namespace dmEngine
         graphics_context_params.m_Width                   = engine->m_Width;
         graphics_context_params.m_Height                  = engine->m_Height;
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
-        graphics_context_params.m_JobThread               = engine->m_JobThreadContext;
+        graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
@@ -1586,7 +1586,7 @@ namespace dmEngine
         script_lib_context.m_Register        = engine->m_Register;
         script_lib_context.m_HidContext      = engine->m_HidContext;
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
-        script_lib_context.m_JobThread       = engine->m_JobThreadContext;
+        script_lib_context.m_JobContext      = engine->m_JobThreadContext;
         script_lib_context.m_ConfigFile      = engine->m_Config;
         script_lib_context.m_Window          = engine->m_Window;
 
@@ -1950,7 +1950,7 @@ bail:
                 // Note that it will always process at least one item if available
                 uint64_t jobthread_max_time_us = 3 * 1000;
 #endif
-                dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
+                JobSystemUpdate(engine->m_JobThreadContext, jobthread_max_time_us);
 
                 {
                     DM_PROFILE("Resource");

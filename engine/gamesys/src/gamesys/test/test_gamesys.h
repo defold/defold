@@ -123,7 +123,7 @@ protected:
     dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
-    dmJobThread::HContext m_JobThread;
+    HJobContext m_JobContext;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContextBox2D m_PhysicsContextBox2D;
     dmGameSystem::PhysicsContextBullet3D m_PhysicsContextBullet3D;
@@ -158,7 +158,7 @@ public:
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
         m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-        m_Scriptlibcontext.m_JobThread       = m_JobThread;
+        m_Scriptlibcontext.m_JobContext      = m_JobContext;
 
         dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
@@ -498,14 +498,14 @@ void GamesysTest<T>::SetUp()
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+    JobSystemCreateParams job_thread_create_param = {0};
     job_thread_create_param.m_ThreadCount = 1;
-    m_JobThread = dmJobThread::Create(job_thread_create_param);
+    m_JobContext = JobSystemCreate(&job_thread_create_param);
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    params.m_JobThreadContext = m_JobThread;
+    params.m_JobThreadContext = m_JobContext;
 
     m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
@@ -524,7 +524,7 @@ void GamesysTest<T>::SetUp()
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
-    graphics_context_params.m_JobThread = m_JobThread;
+    graphics_context_params.m_JobContext = m_JobContext;
 
     m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
@@ -563,7 +563,7 @@ void GamesysTest<T>::SetUp()
     m_Params.m_ConfigFile = m_Config;
     ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
     ExtensionParamsSetContext(&m_Params, "config", m_Config);
-    ExtensionParamsSetContext(&m_Params, "job_thread", m_JobThread);
+    ExtensionParamsSetContext(&m_Params, "jobs", m_JobContext);
 
     dmExtension::AppInitialize(&m_AppParams);
     dmExtension::Initialize(&m_Params);
@@ -715,7 +715,7 @@ void GamesysTest<T>::TearDown()
 
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
-    dmJobThread::Destroy(m_JobThread);
+    JobSystemDestroy(m_JobContext);
     dmGraphics::CloseWindow(m_GraphicsContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
     dmPlatform::CloseWindow(m_Window);

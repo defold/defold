@@ -535,7 +535,7 @@ static void LogFrameBufferError(GLenum status)
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
-        m_JobThread               = params.m_JobThread;
+        m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -660,7 +660,7 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
-    static int WorkerAcquireContextRunner(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* _acquire_flag)
+    static int WorkerAcquireContextRunner(HJobContext, HJob job, void* _context, void* _acquire_flag)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
@@ -683,24 +683,24 @@ static void LogFrameBufferError(GLenum status)
     {
         if (!context->m_AsyncProcessingSupport)
             return;
-        if (!context->m_JobThread)
+        if (!context->m_JobContext)
             return;
 
         // TODO: If we have multiple workers, we need to either tag one of them as a graphics-only worker,
         //       or create multiple aux contexts and do an acquire for each of them.
         //       But since we only have one worker thread right now, we can leave that for when we have more.
-        assert(dmJobThread::GetWorkerCount(context->m_JobThread) == 1);
+        assert(JobSystemGetWorkerCount(context->m_JobContext) == 1);
 
         dmAtomicStore32(&context->m_AuxContextJobPending, 1);
 
-        dmJobThread::Job job = {0};
+        Job job = {0};
         job.m_Process = WorkerAcquireContextRunner;
         job.m_Callback = 0;
         job.m_Context = (void*) context;
         job.m_Data = (void*) (uintptr_t) acquire_flag;
 
-        dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-        dmJobThread::PushJob(context->m_JobThread, hjob);
+        HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+        JobSystemPushJob(context->m_JobContext, hjob);
 
         // Block until the job is done
         while(dmAtomicGet32(&context->m_AuxContextJobPending))
@@ -1523,7 +1523,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_GLHandlesData.m_Mutex = dmMutex::New();
             context->m_AssetHandleContainerMutex = dmMutex::New();
 
-            if (context->m_JobThread == 0x0)
+            if (context->m_JobContext == 0x0)
             {
                 dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
@@ -3910,7 +3910,7 @@ static void LogFrameBufferError(GLenum status)
         delete tex;
     }
 
-    static int AsyncDeleteTextureProcess(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
+    static int AsyncDeleteTextureProcess(HJobContext, HJob job, void* _context, void* data)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DoDeleteTexture(context, (HTexture) data);
@@ -3923,14 +3923,14 @@ static void LogFrameBufferError(GLenum status)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncDeleteTextureProcess;
             job.m_Callback = 0;
             job.m_Context = (void*) context;
             job.m_Data = (void*) (uintptr_t) texture;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-            dmJobThread::PushJob(context->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(context->m_JobContext, hjob);
         }
         else
         {
@@ -4110,7 +4110,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
+    static int AsyncProcessCallback(HJobContext, HJob job, void* _context, void* data)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4138,7 +4138,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(HJobContext, HJob job, JobSystemStatus status, void* _context, void* data, int result)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4162,14 +4162,14 @@ static void LogFrameBufferError(GLenum status)
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncProcessCallback;
             job.m_Callback = AsyncCompleteCallback;
             job.m_Context = (void*) context;
             job.m_Data = (void*) (uintptr_t) param_array_index;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-            dmJobThread::PushJob(g_Context->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(g_Context->m_JobContext, hjob);
         }
         else
         {

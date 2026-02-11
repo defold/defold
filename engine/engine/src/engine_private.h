@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
+#include <dlib/jobsystem.h>
 #include <dlib/message.h>
 #include <dlib/http_cache.h>
 
@@ -124,7 +125,7 @@ namespace dmEngine
 
         float                                       m_MouseSensitivity;
 
-        dmJobThread::HContext                       m_JobThreadContext;
+        HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;

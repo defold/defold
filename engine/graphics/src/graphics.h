@@ -20,7 +20,7 @@
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/opaque_handle_container.h>
 
 #include <ddf/ddf.h>
@@ -124,7 +124,7 @@ namespace dmGraphics
         ContextParams();
 
         dmPlatform::HWindow   m_Window;
-        dmJobThread::HContext m_JobThread;
+        HJobContext           m_JobContext;
         TextureFilter         m_DefaultTextureMinFilter;
         TextureFilter         m_DefaultTextureMagFilter;
         uint32_t              m_Width;
