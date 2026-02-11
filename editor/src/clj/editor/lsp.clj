@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.lsp
+  (:refer-clojure :exclude [await])
   (:require [clojure.core.async :as a :refer [<! >!]]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
@@ -440,7 +441,7 @@
 
 (defn set-servers [new-servers]
   {:pre [(s/assert ::new-servers new-servers)]}
-  (fn [{:keys [server->server-state project] :as state}]
+  (bound-fn [{:keys [server->server-state project] :as state}]
     (let [old-servers (set (keys server->server-state))
           to-remove (set/difference old-servers new-servers)
           to-add (set/difference new-servers old-servers)]
@@ -582,7 +583,7 @@
 (defn notify-lines-modified!
   "Notify the LSP manager about new lines of a resource node"
   [lsp resource old-source-value new-lines]
-  (lsp (fn notify-lines-modified [state]
+  (lsp (bound-fn notify-lines-modified [state]
          (cond-> state
                  (resource/file-resource? resource)
                  (sync-modified-lines-of-existing-node! resource old-source-value new-lines)))))
@@ -936,6 +937,15 @@
                                 [(lsp.server/rename resource cursor new-name)]))
                :timeout-ms timeout-ms))))
     (throw (IllegalArgumentException. "Expected a prepared range" {:range prepared-range}))))
+
+(defn await
+  "For tests only: await for all enqueued LSP invocations to complete"
+  [lsp]
+  (let [p (promise)]
+    (lsp (bound-fn [state]
+           (deliver p nil)
+           state))
+    @p))
 
 (comment
   (val (first @running-lsps))
