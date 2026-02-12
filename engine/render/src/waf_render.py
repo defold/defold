@@ -20,13 +20,13 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
+waflib.Task.task_factory('material', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
 
-waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
+waflib.Task.task_factory('material_shaderbuilder', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -82,7 +82,7 @@ def material_file(self, node):
     # Ensure shader runs first, material builders depend on reflection data from shaders
     material.set_run_after(shader)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
+waflib.Task.task_factory('fontmap', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',

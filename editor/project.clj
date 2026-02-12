@@ -69,7 +69,6 @@
                      [com.cognitect.aws/endpoints "1.1.12.478"]
                      [com.cognitect.aws/s3 "847.2.1387.0"]
 
-
                      [org.luaj/luaj-jse "3.0.1"]
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
@@ -159,6 +158,7 @@
                       ;; used in editor.scene$read_to_buffered_image
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
                       "--enable-native-access=ALL-UNNAMED"
+                      "--sun-misc-unsafe-memory-access=allow"
                       "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
 

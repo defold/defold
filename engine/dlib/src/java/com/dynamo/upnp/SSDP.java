@@ -19,6 +19,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -49,7 +50,8 @@ public class SSDP implements ISSDP {
             if (!addresses.isEmpty()) {
                 mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
                 mcastSocket.setNetworkInterface(networkInterface);
-                mcastSocket.joinGroup(SSDP_MCAST_ADDR);
+                this.networkInterface = networkInterface;
+                mcastSocket.joinGroup(new InetSocketAddress(SSDP_MCAST_ADDR, 0), this.networkInterface);
                 mcastSocket.setSoTimeout(1);
                 mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
                 sockets = new ArrayList<DatagramSocket>();
@@ -75,14 +77,16 @@ public class SSDP implements ISSDP {
                 sockets = null;
             }
             if (mcastSocket != null) {
-                mcastSocket.leaveGroup(SSDP_MCAST_ADDR);
+                mcastSocket.leaveGroup(new InetSocketAddress(SSDP_MCAST_ADDR, 0), networkInterface);
                 mcastSocket.close();
                 mcastSocket = null;
+                networkInterface = null;
             }
         }
 
         private MulticastSocket mcastSocket;
         private List<DatagramSocket> sockets;
+        private NetworkInterface networkInterface;
     }
 
     private static final String SSDP_MCAST_ADDR_IP = "239.255.255.250";
