@@ -1719,26 +1719,18 @@
                         (when @process-events?
                           (try
                             (profiler/profile "input-event" -1
-                              (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
+                              (let [{:keys [x y] :as action} (augment-action view-id (i/action-from-jfx e))
                                     pos [x y 0.0]
                                     picking-rect (selection/calc-picking-rect pos pos)]
-                                (g/update-property! view-id :input-state assoc :cursor-pos [screen-x screen-y])
+                                (g/update-property! view-id :input-state i/update-input-state action)
                                 (when (= :mouse-pressed (:type action))
                                   (handle-free-camera-mode! view-id image-view action)
-                                  (g/update-property! view-id :input-state update :mouse-buttons conj (:button action))
-                                  (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                                                  (filter action)
-                                                                                                  set))
                                   (.requestFocus parent)
                                   (.consume e))
                                 (when (not= :mouse-clicked (:type action))
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
-                                  (handle-free-camera-mode! view-id image-view action)
-                                  (g/update-property! view-id :input-state update :mouse-buttons disj (:button action))
-                                  (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                                                  (filter action)
-                                                                                                  set)))
+                                  (handle-free-camera-mode! view-id image-view action))
                                 (g/transact
                                   (concat
                                     (g/set-property view-id :cursor-pos [x y])
@@ -1760,33 +1752,21 @@
     (.setOnScroll parent event-handler)
     (.addEventFilter parent KeyEvent/KEY_RELEASED
       (ui/event-handler e
-        (let [code (.getCode e)
-              action (i/action-from-jfx e)]
-          (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                         (filter action)
-                                                                         set))
-          (when (or (.isLetterKey code)
-                    (.isDigitKey code))
-            (g/update-property! view-id :input-state update :pressed-keys disj code))
+        (let [action (i/action-from-jfx e)]
+          (g/update-property! view-id :input-state i/update-input-state action)
           (let [current-input (g/node-value view-id :input-state)]
             (when (contains? (:mouse-buttons current-input) :secondary)
               (.consume e))))))
     (.addEventFilter parent KeyEvent/KEY_PRESSED
       (ui/event-handler e
         (when @process-events?
-          (let [code (.getCode e)
-                action (i/action-from-jfx e)
+          (let [action (i/action-from-jfx e)
+                _ (g/update-property! view-id :input-state i/update-input-state action)
                 current-input (g/node-value view-id :input-state)
                 is-secondary (contains? (:mouse-buttons current-input) :secondary)]
-            (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                           (filter action)
-                                                                           set))
-            (when (and (= code KeyCode/ESCAPE)
+            (when (and (= (:key-code action) KeyCode/ESCAPE)
                        (not is-secondary))
               (cancel-free-camera-mode! view-id image-view))
-            (when (or (.isLetterKey code)
-                      (.isDigitKey code))
-              (g/update-property! view-id :input-state update :pressed-keys conj code))
             ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
             ;; would be consumed by the TabPane and will trigger next/prev tab selection.
             ;; Because of that, such key presses will not reach the workbench view and
