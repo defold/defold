@@ -27,6 +27,7 @@ extern "C" {
  *
  * @document
  * @name Platform Window
+ * @namespace dmPlatform
  * @language C
  */
 
@@ -37,42 +38,50 @@ extern "C" {
 typedef struct dmWindow* HWindow;
 
 /*# window resize callback
+ * Called when the window size changes.
  * @typedef
  * @name FWindowResizeCallback
  */
 typedef void (*FWindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
 
 /*# window focus callback
+ * Called when the window focus changes.
  * @typedef
  * @name FWindowFocusCallback
  */
 typedef void (*FWindowFocusCallback)(void* user_data, uint32_t focus);
 
 /*# window iconify callback
+ * Called when the window is iconified/minimized or restored.
  * @typedef
  * @name FWindowIconifyCallback
  */
 typedef void (*FWindowIconifyCallback)(void* user_data, uint32_t iconified);
 
 /*# window close callback
+ * Called when the window is requested to close.
+ * Return non-zero to allow close, or zero to cancel close.
  * @typedef
  * @name FWindowCloseCallback
  */
 typedef int (*FWindowCloseCallback)(void* user_data);
 
 /*# keyboard char callback
+ * Called when a character is entered from keyboard input.
  * @typedef
  * @name FWindowAddKeyboardCharCallback
  */
 typedef void (*FWindowAddKeyboardCharCallback)(void* user_data, int chr);
 
 /*# marked text callback
+ * Called when IME marked text is updated.
  * @typedef
  * @name FWindowSetMarkedTextCallback
  */
 typedef void (*FWindowSetMarkedTextCallback)(void* user_data, char* text);
 
 /*# device changed callback
+ * Called when keyboard input device status changes.
  * @typedef
  * @name FWindowDeviceChangedCallback
  */
@@ -81,6 +90,9 @@ typedef void (*FWindowDeviceChangedCallback)(void* user_data, int status);
 /*# result enumeration
  * @enum
  * @name WindowResult
+ * @member WINDOW_RESULT_OK Operation completed successfully
+ * @member WINDOW_RESULT_WINDOW_OPEN_ERROR Failed to open the window
+ * @member WINDOW_RESULT_WINDOW_ALREADY_OPENED Window is already open
  */
 typedef enum WindowResult
 {
@@ -92,6 +104,13 @@ typedef enum WindowResult
 /*# graphics api enumeration
  * @enum
  * @name WindowsGraphicsApi
+ * @member WINDOW_GRAPHICS_API_NULL No graphics backend
+ * @member WINDOW_GRAPHICS_API_OPENGL OpenGL backend
+ * @member WINDOW_GRAPHICS_API_OPENGLES OpenGL ES backend
+ * @member WINDOW_GRAPHICS_API_VULKAN Vulkan backend
+ * @member WINDOW_GRAPHICS_API_VENDOR Vendor-specific backend
+ * @member WINDOW_GRAPHICS_API_WEBGPU WebGPU backend
+ * @member WINDOW_GRAPHICS_API_DIRECTX DirectX backend
  */
 typedef enum WindowsGraphicsApi
 {
@@ -107,6 +126,28 @@ typedef enum WindowsGraphicsApi
 /*# window state enumeration
  * @enum
  * @name WindowState
+ * @member WINDOW_STATE_OPENED Window is opened
+ * @member WINDOW_STATE_ACTIVE Window is active/focused
+ * @member WINDOW_STATE_ICONIFIED Window is iconified/minimized
+ * @member WINDOW_STATE_ACCELERATED Window has an accelerated graphics context
+ * @member WINDOW_STATE_RED_BITS Red channel bit depth
+ * @member WINDOW_STATE_GREEN_BITS Green channel bit depth
+ * @member WINDOW_STATE_BLUE_BITS Blue channel bit depth
+ * @member WINDOW_STATE_ALPHA_BITS Alpha channel bit depth
+ * @member WINDOW_STATE_DEPTH_BITS Depth buffer bit depth
+ * @member WINDOW_STATE_STENCIL_BITS Stencil buffer bit depth
+ * @member WINDOW_STATE_REFRESH_RATE Display refresh rate
+ * @member WINDOW_STATE_ACCUM_RED_BITS Accumulation red channel bit depth
+ * @member WINDOW_STATE_ACCUM_GREEN_BITS Accumulation green channel bit depth
+ * @member WINDOW_STATE_ACCUM_BLUE_BITS Accumulation blue channel bit depth
+ * @member WINDOW_STATE_ACCUM_ALPHA_BITS Accumulation alpha channel bit depth
+ * @member WINDOW_STATE_AUX_BUFFERS Number of auxiliary buffers
+ * @member WINDOW_STATE_STEREO Stereo rendering enabled
+ * @member WINDOW_STATE_WINDOW_NO_RESIZE Window resize disabled
+ * @member WINDOW_STATE_FSAA_SAMPLES Requested FSAA sample count
+ * @member WINDOW_STATE_SAMPLE_COUNT Actual sample count used by the window/context
+ * @member WINDOW_STATE_HIGH_DPI High-DPI framebuffer enabled
+ * @member WINDOW_STATE_AUX_CONTEXT Auxiliary graphics context supported
  */
 typedef enum WindowState
 {
@@ -137,6 +178,27 @@ typedef enum WindowState
 /*# window parameters
  * @struct
  * @name WindowCreateParams
+ * @member m_GraphicsApi [type:WindowsGraphicsApi] Graphics backend to request when opening the window
+ * @member m_ResizeCallback [type:FWindowResizeCallback] Callback invoked when the window size changes
+ * @member m_ResizeCallbackUserData [type:void*] User data pointer passed to m_ResizeCallback
+ * @member m_CloseCallback [type:FWindowCloseCallback] Callback invoked when the window is requested to close
+ * @member m_CloseCallbackUserData [type:void*] User data pointer passed to m_CloseCallback
+ * @member m_FocusCallback [type:FWindowFocusCallback] Callback invoked when focus changes
+ * @member m_FocusCallbackUserData [type:void*] User data pointer passed to m_FocusCallback
+ * @member m_IconifyCallback [type:FWindowIconifyCallback] Callback invoked when iconify/minimize state changes
+ * @member m_IconifyCallbackUserData [type:void*] User data pointer passed to m_IconifyCallback
+ * @member m_Title [type:const char*] Window title (default: "Defold Application")
+ * @member m_Width [type:uint32_t] Initial window width in pixels (default: 640)
+ * @member m_Height [type:uint32_t] Initial window height in pixels (default: 480)
+ * @member m_Samples [type:uint32_t] Requested multisample anti-aliasing sample count (default: 1)
+ * @member m_BackgroundColor [type:uint32_t] Initial window background color value
+ * @member m_ContextAlphabits [type:uint8_t] Requested alpha bits for the graphics context
+ * @member m_OpenGLVersionHint [type:uint8_t:7] OpenGL version hint encoded as major*10 + minor (for example 33 means OpenGL 3.3)
+ * @member m_OpenGLUseCoreProfileHint [type:uint8_t:1] Request OpenGL core profile when opening the window
+ * @member m_Hidden [type:uint8_t:1] Start window hidden
+ * @member m_Fullscreen [type:uint8_t:1] Start window in fullscreen mode
+ * @member m_PrintDeviceInfo [type:uint8_t:1] Print graphics device information when opening the window
+ * @member m_HighDPI [type:uint8_t:1] Request high-DPI framebuffer support where available
  */
 typedef struct WindowCreateParams
 {
@@ -167,6 +229,9 @@ typedef struct WindowCreateParams
 
 /*# initialize window parameters
  * Initializes a WindowCreateParams struct with default values.
+ * The struct is first cleared to zero, then `m_Width` is set to 640,
+ * `m_Height` is set to 480, `m_Samples` is set to 1, and
+ * `m_Title` is set to "Defold Application".
  * @name WindowCreateParamsInitialize
  * @param params [type:WindowCreateParams*] the params struct
  */
