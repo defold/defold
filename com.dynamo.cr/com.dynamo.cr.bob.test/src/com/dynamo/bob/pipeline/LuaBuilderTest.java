@@ -18,6 +18,7 @@ import org.junit.Test;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
@@ -72,7 +73,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertNumber(properties, 1, 1);
         PropertiesTestUtil.assertNumber(properties, 1, 2);
         PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("hash"), 0);
-        PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("/material.materialc"), 1);
+        PropertiesTestUtil.assertHash(properties, MurmurHash.hash64(ResourceUtil.minifyPath("/material.materialc")), 1);
         PropertiesTestUtil.assertURL(properties, "", 0);
         PropertiesTestUtil.assertVector3(properties, 1, 2, 3, 0);
         PropertiesTestUtil.assertVector3(properties, 0, 0, 0, 1);
@@ -80,7 +81,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
-        assertEquals("/material.materialc", luaModule.getPropertyResources(0));
+        assertEquals(ResourceUtil.minifyPath("/material.materialc"), luaModule.getPropertyResources(0));
 
         // Verify that .x, .y, .z and .w exists as sub element ids for Vec3, Vec4 and Quat.
         assertSubElementsV3(properties.getVector3Entries(0));

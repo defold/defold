@@ -20,6 +20,7 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.rig.proto.Rig.RigScene;
@@ -70,14 +71,14 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals(1, materials.size());
         assertEquals("test2", materials.get(0).getName());
-        assertEquals("/test.materialc", materials.get(0).getMaterial());
-        assertEquals("/test.rigscenec", model.getRigScene());
+        assertEquals(ResourceUtil.minifyPath("/test.materialc"), materials.get(0).getMaterial());
+        assertEquals(ResourceUtil.minifyPath("/test.rigscenec"), model.getRigScene());
 
         assertEquals("test", model.getDefaultAnimation());
 
         RigScene rigScene = getMessage(outputs, RigScene.class);
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
-        assertEquals("/test_skeleton.skeletonc", rigScene.getSkeleton());
+        assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animationset_generated_0.animationsetc", rigScene.getAnimationSet());
     }
 
@@ -119,12 +120,12 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals(1, materials.size());
         assertEquals("default", materials.get(0).getName());
-        assertEquals("/test.materialc", materials.get(0).getMaterial());
-        assertEquals("/test.rigscenec", model.getRigScene());
+        assertEquals(ResourceUtil.minifyPath("/test.materialc"), materials.get(0).getMaterial());
+        assertEquals(ResourceUtil.minifyPath("/test.rigscenec"), model.getRigScene());
 
         RigScene rigScene = getMessage(outputs, RigScene.class);
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
-        assertEquals("/test_skeleton.skeletonc", rigScene.getSkeleton());
+        assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
     }
 }
