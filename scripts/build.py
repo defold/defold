@@ -59,7 +59,7 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-webgpu': 'WITH_WEBGPU'
 }
 
-JAVA_RUNTIME_FLAGS = '-sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
+JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 
 sys.dont_write_bytecode = True
 try:
