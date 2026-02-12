@@ -67,11 +67,14 @@ protected:
         m_VertexBuffer = new uint8_t[m_VertexBufferSize];
         m_Prototype = 0x0;
 
-        FillAttribute(m_AttributeInfos.m_Infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
-        FillAttribute(m_AttributeInfos.m_Infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-        FillAttribute(m_AttributeInfos.m_Infos[2], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
-        FillAttribute(m_AttributeInfos.m_Infos[3], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+        dmGraphics::VertexAttributeInfo* attribute_infos = new dmGraphics::VertexAttributeInfo[4];
 
+        FillAttribute(attribute_infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute(attribute_infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute(attribute_infos[2], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute(attribute_infos[3], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+
+        m_AttributeInfos.m_Infos        = attribute_infos;
         m_AttributeInfos.m_NumInfos     = 4;
         m_AttributeInfos.m_VertexStride = sizeof(TestVertex);
     }
@@ -84,6 +87,7 @@ protected:
         }
         dmParticle::DestroyContext(m_Context);
         delete [] m_VertexBuffer;
+        delete [] m_AttributeInfos.m_Infos;
     }
 
     void VerifyVertexTexCoords(TestVertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas);

@@ -468,7 +468,6 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
     dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader, 0, 0);
-    const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
 
     dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
     ASSERT_EQ(1, null_program->m_UniformBuffers.Size());
@@ -720,23 +719,25 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     dmGraphics::VertexAttribute::VectorType value_vector_type,
     dmGraphics::VertexAttribute::VectorType vector_type)
 {
-    infos.m_Infos[infos.m_NumInfos].m_SemanticType    = semantic_type;
-    infos.m_Infos[infos.m_NumInfos].m_DataType        = data_type;
-    infos.m_Infos[infos.m_NumInfos].m_VectorType      = vector_type;
-    infos.m_Infos[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
-    infos.m_Infos[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    dmGraphics::VertexAttributeInfo* infos_array = (dmGraphics::VertexAttributeInfo*) infos.m_Infos;
+    infos_array[infos.m_NumInfos].m_SemanticType    = semantic_type;
+    infos_array[infos.m_NumInfos].m_DataType        = data_type;
+    infos_array[infos.m_NumInfos].m_VectorType      = vector_type;
+    infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
+    infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
     infos.m_NumInfos++;
 }
 
 static inline void InitializeVertexAttributeInfos(dmGraphics::VertexAttributeInfos& infos, uint32_t num_streams)
 {
-    infos.m_Infos = new dmGraphics::VertexAttributeInfo[num_streams];
-    memset(infos.m_Infos, 0, sizeof(dmGraphics::VertexAttributeInfo) * num_streams);
+    dmGraphics::VertexAttributeInfo* infos_array = new dmGraphics::VertexAttributeInfo[num_streams];
+    memset(infos_array, 0, sizeof(dmGraphics::VertexAttributeInfo) * num_streams);
+    infos.m_Infos = infos_array;
 }
 
 static inline void DestroyVertexAttributeInfos(dmGraphics::VertexAttributeInfos& infos)
 {
-    delete[] infos.m_Infos;
+    delete[] (dmGraphics::VertexAttributeInfo*) infos.m_Infos;
 }
 
 static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& expected, const VectorTypeContainer<float>& actual)
@@ -780,6 +781,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
     dmGraphics::VertexAttributeInfos attribute_infos;
     InitializeVertexAttributeInfos(attribute_infos, 1);
 
+    dmGraphics::VertexAttributeInfo* mutable_infos = (dmGraphics::VertexAttributeInfo*) attribute_infos.m_Infos;
+
     AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
 
     dmGraphics::WriteAttributeParams params = {};
@@ -787,7 +790,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned byte
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
         attribute_infos.m_VertexStride = sizeof(uint8_t) * 4;
         float position_values[] = {128.0, 255.0};
         uint8_t expected[4]     = {128,   255, 0, 1};
@@ -801,7 +804,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed byte
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
         attribute_infos.m_VertexStride        = sizeof(int8_t) * 4;
         float position_values[]               = {-32.0, -16.0};
         int8_t expected[4]                    = {-32,   -16, 0, 1};
@@ -816,7 +819,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned short
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
         attribute_infos.m_VertexStride        = sizeof(uint16_t) * 4;
         float position_values[]               = {32768.0, 65535.0};
         uint16_t expected[4]                  = {32768,   65535, 0, 1};
@@ -831,7 +834,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed short
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
         attribute_infos.m_VertexStride        = sizeof(int16_t) * 4;
         float position_values[]               = {-16384.0, -32768.0};
         int16_t expected[4]                   = {-16384,   -32768, 0, 1};
@@ -846,7 +849,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned int
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
         attribute_infos.m_VertexStride        = sizeof(uint32_t) * 4;
         float position_values[]               = {128000.0, 13371337.0};
         uint32_t expected[4]                  = {128000,   13371337, 0, 1};
@@ -861,7 +864,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed int
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
         attribute_infos.m_VertexStride        = sizeof(int32_t) * 4;
         float position_values[]               = {-128000.0, -99999.0};
         int32_t expected[4]                   = {-128000,   -99999, 0, 1};
