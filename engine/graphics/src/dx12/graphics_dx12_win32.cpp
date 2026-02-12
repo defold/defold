@@ -139,7 +139,7 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     swap_chain_desc.BufferDesc           = back_buffer_desc;
     swap_chain_desc.BufferUsage          = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swap_chain_desc.SwapEffect           = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    swap_chain_desc.OutputWindow         = GetWindowsHWND(context->m_Window);
+    swap_chain_desc.OutputWindow         = dmPlatform::GetWindowsHWND(context->m_Window);
     swap_chain_desc.SampleDesc           = sample_desc;
     swap_chain_desc.Windowed             = true;
 

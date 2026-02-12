@@ -369,7 +369,7 @@ namespace dmGraphics
         DXGI_FORMAT color_format = DXGI_FORMAT_R8G8B8A8_UNORM;
         DXGI_FORMAT depth_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupSupportedTextureFormats(context);
 
@@ -423,7 +423,7 @@ namespace dmGraphics
 
         // increment fenceValue for next frame
         current_frame_resource.m_FenceValue++;
-        assert(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
     }
 
     static HContext DX12NewContext(const ContextParams& params)
@@ -436,7 +436,7 @@ namespace dmGraphics
 
             if (context)
             {
-                assert(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED));
+                assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
             }
 
             if (!DX12Initialize(context))
