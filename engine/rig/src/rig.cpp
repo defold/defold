@@ -21,7 +21,7 @@
 #include <dlib/profile.h>
 #include <dmsdk/dlib/object_pool.h>
 #include <graphics/graphics.h>
-
+#include <graphics/graphics_util.h>
 
 #include <stdio.h>
 

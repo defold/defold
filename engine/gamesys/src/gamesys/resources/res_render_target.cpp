@@ -22,6 +22,8 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
+#include <graphics/graphics_util.h>
+
 #include <render/render.h>
 #include <render/render_target_ddf.h>
 

@@ -23,6 +23,21 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static dmArray<dmGraphics::VertexAttributeInfo> g_VertexAttributeInfoStreams;
+    static dmGraphics::VertexAttributeInfos         g_VertexAttributeInfos;
+
+    dmGraphics::VertexAttributeInfos* GetScratchVertexAttributeInfos(uint32_t stream_count)
+    {
+        if (g_VertexAttributeInfoStreams.Size() < stream_count)
+        {
+            g_VertexAttributeInfoStreams.SetCapacity(stream_count);
+            g_VertexAttributeInfoStreams.SetSize(stream_count);
+
+            g_VertexAttributeInfos.m_Infos = g_VertexAttributeInfoStreams.Begin();
+        }
+        return &g_VertexAttributeInfos;
+    }
+
     void LogMessageError(dmMessage::Message* message, const char* format, ...)
     {
         va_list lst;
@@ -287,11 +302,15 @@ namespace dmGameSystem
         component_infos->m_NumInfos     = material_infos->m_NumInfos;
         component_infos->m_VertexStride = material_infos->m_VertexStride;
 
+        memcpy((void*) component_infos->m_Infos, (void*) material_infos->m_Infos, sizeof(dmGraphics::VertexAttributeInfo) * material_infos->m_NumInfos);
+
         for (int i = 0; i < material_infos->m_NumInfos; ++i)
         {
             dmhash_t name_hash = material_infos->m_Infos[i].m_NameHash;
 
-            component_infos->m_Infos[i] = material_infos->m_Infos[i];
+            dmGraphics::VertexAttributeInfo& component_info = (dmGraphics::VertexAttributeInfo&) component_infos->m_Infos[i];
+
+            // component_infos->m_Infos[i] = material_infos->m_Infos[i];
 
             // 1. Fill from dynamic attributes first
             if (dynamic_attribute_pool != 0x0 && component_dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
@@ -300,9 +319,9 @@ namespace dmGameSystem
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
-                    component_infos->m_Infos[i].m_ValuePtr        = (uint8_t*) &dynamic_info.m_Infos[dynamic_attribute_index].m_Values;
-                    component_infos->m_Infos[i].m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
-                    component_infos->m_Infos[i].m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
+                    component_info.m_ValuePtr        = (uint8_t*) &dynamic_info.m_Infos[dynamic_attribute_index].m_Values;
+                    component_info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                    component_info.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
                     continue;
                 }
             }
@@ -315,7 +334,7 @@ namespace dmGameSystem
                 // the stride of the materials vertex declaration
                 uint32_t value_byte_size_tmp;
                 dmGraphics::GetAttributeValues(component_attributes[component_attribute_index],
-                    &component_infos->m_Infos[i].m_ValuePtr, &value_byte_size_tmp);
+                    &component_info.m_ValuePtr, &value_byte_size_tmp);
             }
 
             // 3. If all of the above failed, we fallback to using the material attribute instead
@@ -326,6 +345,16 @@ namespace dmGameSystem
     // as specified in the material
     void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space)
     {
+        const dmGraphics::VertexAttributeInfo* attribute_infos;
+        uint32_t num_attribute_infos;
+
+        dmRender::GetMaterialProgramVertexAttributeInfos(material, &attribute_infos, &num_attribute_infos);
+
+        dmGraphics::VertexAttributeInfos material_infos;
+        material_infos.m_Infos        = attribute_infos;
+        material_infos.m_NumInfos     = num_attribute_infos;
+        material_infos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
         /*
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;

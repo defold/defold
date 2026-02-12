@@ -23,6 +23,7 @@
 #include <dlib/vmath.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
+#include <graphics/graphics_util.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include "particle.h"

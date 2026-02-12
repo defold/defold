@@ -152,6 +152,9 @@ namespace dmGameSystem
     dmGameObject::PropertyResult SetMaterialAttribute(DynamicAttributePool& pool, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompGetMaterialAttributeCallback callback, void* callback_user_data, const dmGraphics::VertexAttribute** attribute_out);
     dmGameObject::PropertyResult GetMaterialAttribute(DynamicAttributePool& pool, uint16_t dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
 
+    // Return a temporary vertex attribute infos buffer
+    dmGraphics::VertexAttributeInfos* GetScratchVertexAttributeInfos(uint32_t stream_count);
+
     // gamesys_resource.cpp
     struct CreateTextureResourceParams
     {

@@ -85,24 +85,25 @@ namespace dmRender
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
         }
 
-        dmRender::HRenderContext                m_RenderContext;
-        dmGraphics::HProgram                    m_Program;
-        dmGraphics::HVertexDeclaration          m_VertexDeclarationShared;
-        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerVertex;
-        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerInstance;
-        dmGraphics::VertexAttributeInfoMetadata m_VertexAttributeInfoMetadata;
+        dmRender::HRenderContext                    m_RenderContext;
+        dmGraphics::HProgram                        m_Program;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationShared;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerVertex;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
+        dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
-        dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
-        dmArray<MaterialAttribute>              m_MaterialAttributes;
-        dmArray<uint8_t>                        m_MaterialAttributeValues;
-        dmArray<RenderConstant>                 m_Constants;
-        dmArray<Sampler>                        m_Samplers;
-        dmRenderDDF::MaterialDesc::PbrParameters m_PbrParameters;
-        uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
-        dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
-        uint8_t                                 m_InstancingSupported : 1;
-        uint8_t                                 m_HasSkinnedAttributes : 1;
-        uint8_t                                 m_HasSkinnedMatrixCache : 1;
+        dmArray<dmGraphics::VertexAttribute>        m_VertexAttributes;
+        dmArray<dmGraphics::VertexAttributeInfo>    m_VertexAttributeInfos;
+        dmArray<MaterialAttribute>                  m_MaterialAttributes;
+        dmArray<uint8_t>                            m_MaterialAttributeValues;
+        dmArray<RenderConstant>                     m_Constants;
+        dmArray<Sampler>                            m_Samplers;
+        dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
+        uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
+        dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
+        uint8_t                                     m_InstancingSupported : 1;
+        uint8_t                                     m_HasSkinnedAttributes : 1;
+        uint8_t                                     m_HasSkinnedMatrixCache : 1;
     };
 
     struct ComputeProgram

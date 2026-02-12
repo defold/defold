@@ -18,6 +18,7 @@
 #include "resources/res_texture.h"
 
 #include <graphics/graphics.h>
+#include <graphics/graphics_util.h>
 
 namespace dmGameSystem
 {

@@ -15,6 +15,8 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
+#include <graphics/graphics_util.h>
+
 #include "render.h"
 #include "render_private.h"
 
