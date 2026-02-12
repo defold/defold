@@ -15,6 +15,13 @@
 #include <string.h>
 #include <assert.h>
 
+// Include winsock2.h before any header that may include windows.h (e.g. D3D12/DXGI).
+// graphics_util.h pulls in dlib/endian.h -> endian_posix.h which includes winsock2.h;
+// if winsock.h was already pulled in by Windows/D3D headers, we get redefinition errors.
+#if defined(_WIN32)
+    #include <winsock2.h>
+#endif
+
 #if defined(DM_PLATFORM_VENDOR)
     #include "graphics_dx12_vendor.h"
 #else
@@ -35,6 +42,7 @@
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
+#include "../graphics_util.h"
 
 #include "graphics_dx12_private.h"
 

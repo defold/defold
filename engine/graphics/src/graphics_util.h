@@ -16,6 +16,7 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
+
 #include <dmsdk/dlib/vmath.h>
 
 #include "graphics.h"

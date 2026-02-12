@@ -27,6 +27,7 @@
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_util.h"
 #include "../graphics_adapter.h"
 #include "graphics_null_private.h"
 

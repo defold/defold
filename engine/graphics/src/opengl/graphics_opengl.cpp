@@ -36,6 +36,7 @@
 #include "graphics_opengl_defines.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_util.h"
 #include "../graphics_adapter.h"
 #include "graphics_opengl_private.h"
 
