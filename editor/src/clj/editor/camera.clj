@@ -734,7 +734,8 @@
                                                                                                      is-significant-drag))
                        (when is-significant-drag
                          (g/set-property! self :cursor-type
-                                          (if (not= :perspective (:type (g/node-value self :local-camera)))
+                                          (if (or (not= :perspective (:type (g/node-value self :local-camera)))
+                                                  (not is-secondary))
                                             :pan
                                             :none)))
                        (if is-secondary action nil))
