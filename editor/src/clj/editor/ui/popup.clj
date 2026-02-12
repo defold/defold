@@ -103,55 +103,8 @@
      (ui/add-style! label "slide-switch-label")
      [label check-box])))
 
-(defn plane-toggle-button
-  [prefs plane-group prefs-path plane]
-  (let [active-plane (prefs/get prefs prefs-path)]
-    (doto (ToggleButton. (string/upper-case (name plane)))
-      (ensure-focus-traversable!)
-      (.setToggleGroup plane-group)
-      (.setSelected (= plane active-plane))
-      (ui/add-style! "plane-toggle"))))
-
-(defmethod settings-row :active-plane
-  [app-view prefs prefs-path _popup option]
-  (let [prefs-path (conj prefs-path option)
-        plane-group (ToggleGroup.)
-        buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
-        label (Label. "Plane")]
-    (ui/observe (.selectedToggleProperty plane-group)
-                (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
-                  (if new-value
-                    (do (let [active-plane (-> (.getText new-value)
-                                               string/lower-case
-                                               keyword)]
-                          (prefs/set! prefs prefs-path active-plane))
-                        (invalidate-grids! app-view))
-                    (.setSelected old-value true))))
-    (concat [label] buttons)))
-
-(defmethod settings-row :color
-  [app-view prefs prefs-path _popup option]
-  (let [prefs-path (conj prefs-path option)
-        text-field (TextField.)
-        [r g b a] (prefs/get prefs prefs-path)
-        color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
-        label (Label. "Color")
-        cancel-fn (fn [_] (ui/text! text-field color))
-        update-fn (fn [_] (try
-                            (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
-                              (do (prefs/set! prefs prefs-path value)
-                                  (invalidate-grids! app-view))
-                              (cancel-fn nil))
-                            (catch Exception _e
-                              (cancel-fn nil))))]
-    (doto text-field
-      (ui/text! color)
-      (ui/customize! update-fn cancel-fn)
-      (ensure-focus-traversable!))
-    [label text-field]))
-
-(defn- axis-group
-  [app-view prefs prefs-path axis]
+(defn- vec3-group
+  [app-view prefs prefs-path on-change-fn axis]
   (let [text-field (TextField.)
         label (Label. (string/upper-case (name axis)))
         size-val (str (get (prefs/get prefs prefs-path) axis))
@@ -161,7 +114,7 @@
                               (if (pos? value)
                                 (do (prefs/set! prefs (conj prefs-path axis) value)
                                     (ui/text! text-field (str value))
-                                    (invalidate-grids! app-view))
+                                    (when on-change-fn (on-change-fn)))
                                 (cancel-fn nil)))
                             (catch Exception _e
                               (cancel-fn nil))))]
@@ -171,13 +124,57 @@
       (ensure-focus-traversable!))
     [label text-field]))
 
-(defmethod settings-row :size
-  [app-view prefs prefs-path _popup option]
+(defn vec3-floats-setting [app-view prefs prefs-path _popup option on-change-fn]
   (let [prefs-path (conj prefs-path option)]
     (into []
-          (comp (map (partial axis-group app-view prefs prefs-path))
+          (comp (map (partial vec3-group app-view prefs prefs-path on-change-fn))
                 (mapcat identity))
           axes)))
+
+(defn- plane-toggle-button
+  [prefs plane-group prefs-path plane]
+  (let [active-plane (prefs/get prefs prefs-path)]
+    (doto (ToggleButton. (string/upper-case (name plane)))
+      (ensure-focus-traversable!)
+      (.setToggleGroup plane-group)
+      (.setSelected (= plane active-plane))
+      (ui/add-style! "plane-toggle"))))
+
+(defn vec3-toggle-setting [app-view prefs prefs-path _popup option label-text on-change-fn]
+  (let [prefs-path (conj prefs-path option)
+        plane-group (ToggleGroup.)
+        buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
+        label (Label. label-text)]
+    (ui/observe (.selectedToggleProperty plane-group)
+                (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
+                  (if new-value
+                    (do (let [active-plane (-> (.getText new-value)
+                                               string/lower-case
+                                               keyword)]
+                          (prefs/set! prefs prefs-path active-plane))
+                        (when on-change-fn (on-change-fn)))
+                    (.setSelected old-value true))))
+    (concat [label] buttons)))
+
+(defn color-setting [app-view prefs prefs-path _popup option on-change-fn]
+  (let [prefs-path (conj prefs-path option)
+        text-field (TextField.)
+        [r g b a] (prefs/get prefs prefs-path)
+        color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
+        label (Label. "Color")
+        cancel-fn (fn [_] (ui/text! text-field color))
+        update-fn (fn [_] (try
+                            (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
+                              (do (prefs/set! prefs prefs-path value)
+                                  (when on-change-fn (on-change-fn)))
+                              (cancel-fn nil))
+                            (catch Exception _e
+                              (cancel-fn nil))))]
+    (doto text-field
+      (ui/text! color)
+      (ui/customize! update-fn cancel-fn)
+      (ensure-focus-traversable!))
+    [label text-field]))
 
 (declare settings)
 

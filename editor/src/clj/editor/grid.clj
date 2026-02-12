@@ -286,6 +286,18 @@
   [app-view prefs prefs-path ^PopupControl popup option]
   (popup/slider-setting app-view prefs popup option prefs-path "Opacity" 0.0 1.0 #(invalidate-grids! app-view)))
 
+(defmethod popup/settings-row :size
+  [app-view prefs prefs-path _popup option]
+  (popup/vec3-floats-setting app-view prefs prefs-path _popup option #(invalidate-grids! app-view)))
+
+(defmethod popup/settings-row :color
+  [app-view prefs prefs-path _popup option]
+  (popup/color-setting app-view prefs prefs-path _popup option #(invalidate-grids! app-view)))
+
+(defmethod popup/settings-row :active-plane
+  [app-view prefs prefs-path _popup option]
+  (popup/vec3-toggle-setting app-view prefs prefs-path _popup option "Plane" #(invalidate-grids! app-view)))
+
 (defn show-settings! [app-view ^Parent owner prefs]
   (popup/show-settings! app-view owner prefs [:scene :grid]
                         [[:size :x] [:size :y] [:size :z] [:active-plane] [:opacity] [:color]]))
