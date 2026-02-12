@@ -134,14 +134,9 @@
         }
 
         .grid-settings {
-            -fx-pref-width: 200px;
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
             -fx-padding: 12px;
-
-            &.wider {
-                -fx-pref-width: 260px;
-            }
 
             HBox {
                 -fx-pref-height: 28px;

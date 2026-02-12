@@ -895,5 +895,5 @@
 
 ;; TODO: Figure out a way to add the "wider" class, but honestly we should just pass a width ourselves
 (defn show-settings! [app-view ^Parent owner prefs]
-  (popup/show-settings! app-view owner prefs [:scene :perspective-camera]
+  (popup/show-settings! app-view owner prefs 260 [:scene :perspective-camera]
                         [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]))

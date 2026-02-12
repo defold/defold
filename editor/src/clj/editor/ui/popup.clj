@@ -213,16 +213,16 @@
   ^Point2D [^Parent container]
   (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
-;; TODO: We have to check whether any other settings popup is already open
 (defn show-settings!
-  ([app-view ^Parent owner prefs prefs-path settings-paths]
-   (show-settings! app-view ^Parent owner prefs prefs-path settings-paths nil nil))
-  ([app-view ^Parent owner prefs prefs-path settings-paths hidden-settings reset-callback]
+  ([app-view ^Parent owner prefs width prefs-path settings-paths]
+   (show-settings! app-view ^Parent owner prefs width prefs-path settings-paths nil nil))
+  ([app-view ^Parent owner prefs width prefs-path settings-paths hidden-settings reset-callback]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (.hide popup)
      (let [region (StackPane.)
            popup (make-popup owner region)
            anchor ^Point2D (pref-popup-position (.getParent owner))]
+       (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
                              (doto (VBox. 10 (ui/node-array (settings app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)))
