@@ -44,7 +44,6 @@ ordinary paths."
             [util.fn :as fn]
             [util.path :as path])
   (:import [clojure.lang DynamicClassLoader]
-           [editor.resource FileResource]
            [com.dynamo.bob Platform]
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]

@@ -114,6 +114,7 @@ namespace dmGameSystem
     };
     const dmhash_t PROP_TEXTURES    = dmHashString64("textures");
     const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
+    const dmhash_t PROP_ANIMATION   = dmHashString64("animation");
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
@@ -280,7 +281,7 @@ namespace dmGameSystem
                 &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
                 &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, CompParticleFXGetComponent,
                 &CompParticleFXUpdate, 0, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
-                &CompParticleFXOnReload, 0, 0,
+                &CompParticleFXOnReload, CompParticleFXGetProperty, CompParticleFXSetProperty,
                 0, 0,
                 1);
 

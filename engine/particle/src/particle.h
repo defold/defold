@@ -57,6 +57,10 @@ namespace dmParticle
      * Invalid instance handle
      */
     const HInstance INVALID_INSTANCE = 0;
+    /**
+     * Invalid emitter id
+     */
+    const uint32_t INVALID_EMITTER_INDEX = -1;
 
     /// Config key to use for tweaking maximum number of instances in a context.
     extern const char* MAX_INSTANCE_COUNT_KEY;
@@ -97,6 +101,13 @@ namespace dmParticle
         ANIM_PLAYBACK_ONCE_PINGPONG = 6,
     };
 
+    enum FetchResourcesResult
+    {
+        FETCH_RESOURCES_OK = 0,
+        FETCH_RESOURCES_NOT_FOUND = -1,
+        FETCH_RESOURCES_UNKNOWN_ERROR = -1000
+    };
+
     struct AnimationData
     {
         AnimationData();
@@ -118,11 +129,20 @@ namespace dmParticle
         uint32_t m_StructSize;
     };
 
-    enum FetchAnimationResult
+    struct FetchResourcesParams
     {
-        FETCH_ANIMATION_OK = 0,
-        FETCH_ANIMATION_NOT_FOUND = -1,
-        FETCH_ANIMATION_UNKNOWN_ERROR = -1000
+        HParticleContext m_ParticleContext;
+        HInstance        m_Instance;
+        dmhash_t         m_Animation;
+        uint32_t         m_EmitterIndex;
+        void*            m_MaterialResource;
+        void*            m_TextureSetResource;
+    };
+
+    struct FetchResourcesData
+    {
+        AnimationData m_AnimationData;
+        void*         m_Material;
     };
 
     enum EmitterState
@@ -181,9 +201,9 @@ namespace dmParticle
     };
 
     /**
-     * Callback to fetch the animation from a tile source
+     * Callback to fetch the resources from either engine or editor
      */
-    typedef FetchAnimationResult (*FetchAnimationCallback)(void* tile_source, dmhash_t animation, AnimationData* out_data);
+    typedef FetchResourcesResult (*FetchResourcesCallback)(const FetchResourcesParams* params, FetchResourcesData* out_data);
 
     /**
      * Particle statistics
@@ -213,6 +233,12 @@ namespace dmParticle
         float m_Time;
         uint32_t m_StructSize;
     };
+
+    // Runtime only
+    uint32_t GetEmitterIndexFromId(HPrototype prototype, dmhash_t id);
+    dmhash_t GetAnimation(HPrototype prototype, uint32_t emitter_index);
+    void     SetInstanceUserData(HParticleContext context, HInstance instance, void* user_data);
+    void*    GetInstanceUserData(HParticleContext context, HInstance instance);
 
     // For tests
     dmVMath::Vector3 GetPosition(HParticleContext context, HInstance instance);
@@ -332,7 +358,7 @@ namespace dmParticle
      * @param context Context of the instances to update.
      * @param dt Time step.
      */
-    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchResourcesCallback fetch_resources_callback);
 
     /**
      * Gets the vertex count for rendering the emitter at a given emitter index

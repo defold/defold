@@ -60,6 +60,7 @@ namespace dmGameSystem
     extern const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     extern const dmhash_t PROP_TEXTURES;
     extern const dmhash_t PROP_TILE_SOURCE;
+    extern const dmhash_t PROP_ANIMATION;
 
     extern const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR;
     extern const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR;

@@ -320,7 +320,7 @@ public:
     ~SpriteTest() override = default;
 };
 
-class ParticleFxTest : public GamesysTest<const char*>
+class ParticleFxTest : public ScriptBaseTest
 {
 public:
     ~ParticleFxTest() override = default;
@@ -657,6 +657,8 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_RenderContext = m_RenderContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
+    m_ModelContext.m_MaxBoneMatrixTextureWidth = 1024;
+    m_ModelContext.m_MaxBoneMatrixTextureHeight = 1024;
 
     dmBuffer::NewContext(); // ???
 

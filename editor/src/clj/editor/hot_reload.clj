@@ -51,7 +51,7 @@
     {"/build/{*path}"
      {"GET" (bound-fn [{:keys [path-params headers]}]
               (let [^String path (:path path-params)
-                    full-path (path/normalized (path/resolve build-path path))]
+                    full-path (path/resolve-normalized build-path path)]
                 (if (and (path/starts-with? full-path build-path) ;; Avoid going outside the build path with '..'
                          (path/file? full-path))
                   (let [etag (workspace/etag workspace (str "/" path))

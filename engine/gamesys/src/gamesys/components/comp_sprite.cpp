@@ -196,7 +196,6 @@ namespace dmGameSystem
 
     static const dmhash_t SPRITE_PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
-    static const dmhash_t SPRITE_PROP_ANIMATION     = dmHashString64("animation");
     static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashString64("frame_count");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
@@ -2316,7 +2315,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set->m_Texture, out_value);
         }
-        else if (get_property == SPRITE_PROP_ANIMATION)
+        else if (get_property == PROP_ANIMATION)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -2447,7 +2446,7 @@ namespace dmGameSystem
             }
             return res;
         }
-        else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == SPRITE_PROP_ANIMATION))
+        else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == PROP_ANIMATION))
         {
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }

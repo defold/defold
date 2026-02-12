@@ -18,7 +18,7 @@
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
-  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos]
+  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchResourcesCallback ParticleLibrary$FetchResourcesData ParticleLibrary$FetchResourcesParams ParticleLibrary$FetchResourcesResult ParticleLibrary$InstanceStats ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
@@ -75,27 +75,31 @@
    :playback-loop-backward ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_LOOP_BACKWARD
    :playback-loop-pingpong ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_LOOP_PINGPONG})
 
-(defn- fetch-animation [tile-source hash ^ParticleLibrary$AnimationData out-data fetch-anim-fn]
-  (let [index (int (Pointer/nativeValue tile-source))
-        data (fetch-anim-fn (dec index))]
+(defn- fetch-resources [^ParticleLibrary$FetchResourcesParams params ^ParticleLibrary$FetchResourcesData out-data fetch-anim-fn]
+  (let [emitter-index (.emitterIndex params)
+        data (fetch-anim-fn emitter-index)]
     (if (or (nil? data) (nil? (:texture-set-anim data)))
-      ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_NOT_FOUND
-      (let [anim (:texture-set-anim data)]
-        (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
-        (set! (. out-data texture) (Pointer. index))
-        (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
-        (set! (. out-data pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
-        (set! (. out-data frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
-        (set! (. out-data playback) (get playback-map (:playback anim)))
-        (set! (. out-data tileWidth) (int (:width anim)))
-        (set! (. out-data tileHeight) (int (:height anim)))
-        (set! (. out-data startTile) (:start anim))
-        (set! (. out-data endTile) (:end anim))
-        (set! (. out-data fps) (:fps anim))
-        (set! (. out-data hFlip) (:flip-horizontal anim))
-        (set! (. out-data vFlip) (:flip-vertical anim))
-        (set! (. out-data structSize) (.size out-data))
-        ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))
+      ParticleLibrary$FetchResourcesResult/FETCH_RESOURCES_NOT_FOUND
+      (let [anim (:texture-set-anim data)
+            ^ParticleLibrary$AnimationData anim-out (.animationData out-data)]
+        (assert (= (.animation params) (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
+        (set! (. anim-out texture) (Pointer. (inc emitter-index)))
+        (set! (. anim-out texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
+        (when-let [tex-dims ^ByteBuffer (:tex-dims data)]
+          (set! (. anim-out texDims) (.asFloatBuffer tex-dims)))
+        (set! (. anim-out pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
+        (set! (. anim-out frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
+        (set! (. anim-out playback) (get playback-map (:playback anim)))
+        (set! (. anim-out tileWidth) (int (:width anim)))
+        (set! (. anim-out tileHeight) (int (:height anim)))
+        (set! (. anim-out startTile) (:start anim))
+        (set! (. anim-out endTile) (:end anim))
+        (set! (. anim-out fps) (:fps anim))
+        (set! (. anim-out hFlip) (:flip-horizontal anim))
+        (set! (. anim-out vFlip) (:flip-vertical anim))
+        (set! (. anim-out structSize) (.size anim-out))
+        (set! (. out-data material) Pointer/NULL)
+        ParticleLibrary$FetchResourcesResult/FETCH_RESOURCES_OK))))
 
 (defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
@@ -141,9 +145,9 @@
 
 
 (defn simulate [sim dt fetch-anim-fn instance-transforms]
-  (let [anim-callback (reify ParticleLibrary$FetchAnimationCallback
-                        (invoke [_ tile-source hash out-data]
-                          (fetch-animation tile-source hash out-data fetch-anim-fn)))
+  (let [anim-callback (reify ParticleLibrary$FetchResourcesCallback
+                        (invoke [_ params out-data]
+                          (fetch-resources params out-data fetch-anim-fn)))
         sim (if (sleeping? sim)
               (-> sim
                 (reset)

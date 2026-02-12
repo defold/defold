@@ -307,21 +307,28 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
 static bool UpdateAndWaitUntilDone(
     dmGameSystem::ScriptLibContext&    scriptlibcontext,
     dmGameObject::HCollection          collection,
-    const dmGameObject::UpdateContext* update_context,
+    dmGameObject::UpdateContext*       update_context,
     bool                               ignore_script_update_fail,
     const char*                        tests_done_key,
     uint32_t                           timeout_seconds = 1)
 {
     uint64_t timeout = timeout_seconds * 1000000; // microseconds
     uint64_t stop_time = dmTime::GetMonotonicTime() + timeout;
+    uint64_t frame_time = dmTime::GetMonotonicTime();
     bool tests_done = false;
     while (!tests_done)
     {
-        if (dmTime::GetMonotonicTime() >= stop_time)
+        uint64_t now = dmTime::GetMonotonicTime();
+        if (now >= stop_time)
         {
             dmLogError("Test timed out after %f seconds", timeout / 1000000.0f);
             break;
         }
+
+        // calculate dt and pass that via the update context
+        float dt = (float)((now - frame_time) / 1000000.0);
+        update_context->m_DT = dt;
+        frame_time = now;
 
         JobSystemUpdate(scriptlibcontext.m_JobContext, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
@@ -1359,15 +1366,6 @@ TEST_F(SpriteTest, GetSetImagesByHash)
 // Test that animation done event reaches callback
 TEST_F(ParticleFxTest, PlayAnim)
 {
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -1382,7 +1380,18 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ParticleFxTest, GetSetProperties)
+{
+    dmGameSystem::MaterialResource *material;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/particlefx/particlefx_get_set_properties.materialc", (void**) &material));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_get_set_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmResource::Release(m_Factory, material);
 }
 
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
@@ -5755,7 +5764,7 @@ TEST_F(SysTest, LoadBufferSync)
 static bool RunTestLoadBufferASync(int test_n,
     dmGameSystem::ScriptLibContext& scriptlibcontext,
     dmGameObject::HCollection collection,
-    const dmGameObject::UpdateContext* update_context,
+    dmGameObject::UpdateContext* update_context,
     bool ignore_script_update_fail)
 {
     char buffer[256];
@@ -5939,6 +5948,26 @@ TEST_F(ModelTest, GetAABB)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ModelTest, PlayAnim)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_done", 5));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

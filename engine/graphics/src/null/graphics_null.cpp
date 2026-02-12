@@ -101,6 +101,7 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
     }
 
     static HContext NullNewContext(const ContextParams& params)

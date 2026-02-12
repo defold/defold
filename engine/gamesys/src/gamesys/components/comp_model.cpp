@@ -132,8 +132,8 @@ namespace dmGameSystem
         Matrix4                     m_World;
         ModelResource*              m_Resource;
         dmRig::HRigInstance         m_RigInstance;
-        dmMessage::URL              m_Listener;
-        int                         m_FunctionRef;
+        FModelAnimationCallback     m_Callback;
+        void*                       m_CallbackContext;
         HComponentRenderConstants   m_RenderConstants;
         TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         MaterialResource*           m_Material; // Override material
@@ -200,7 +200,6 @@ namespace dmGameSystem
     static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
 
     static const dmhash_t PROP_SKIN          = dmHashString64("skin");
-    static const dmhash_t PROP_ANIMATION     = dmHashString64("animation");
     static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
 
@@ -362,40 +361,10 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)user_data1;
 
-        dmMessage::URL sender;
-        dmMessage::URL receiver = component->m_Listener;
-        switch (event_type) {
-            case dmRig::RIG_EVENT_TYPE_COMPLETED:
-            {
-                if (!GetSender(component, &sender))
-                {
-                    dmLogError("Could not send animation_done to listener because of incomplete component.");
-                    return;
-                }
-
-                dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
-                const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
-
-                dmModelDDF::ModelAnimationDone message;
-                message.m_AnimationId = completed_event->m_AnimationId;
-                message.m_Playback    = completed_event->m_Playback;
-
-                uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
-                uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
-                dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, component->m_FunctionRef, descriptor, &message, data_size, 0);
-                dmMessage::ResetURL(&component->m_Listener);
-                if (result != dmMessage::RESULT_OK)
-                {
-                    dmLogError("Could not send animation_done to listener.");
-                }
-
-                break;
-            }
-            default:
-                dmLogError("Unknown rig event received (%d).", event_type);
-                break;
+        if (component->m_Callback)
+        {
+            component->m_Callback(component->m_CallbackContext, event_type, event_data);
         }
-
     }
 
     static void CompModelPoseCallback(void* user_data1, void* user_data2)
@@ -1066,13 +1035,13 @@ namespace dmGameSystem
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         ModelResource* resource = (ModelResource*)params.m_Resource;
         component->m_Resource = resource;
-        dmMessage::ResetURL(&component->m_Listener);
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
-        component->m_FunctionRef = 0;
+        component->m_Callback = 0;
+        component->m_CallbackContext = 0;
         component->m_RenderConstants = 0;
 
         // Create GO<->bone representation
@@ -2510,6 +2479,17 @@ namespace dmGameSystem
         component->m_ReHash = 1;
     }
 
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx)
+    {
+        dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, anim_id, playback, blend_duration, offset, playback_rate);
+        if (dmRig::RESULT_OK == result)
+        {
+            component->m_Callback = callback;
+            component->m_CallbackContext = callback_ctx;
+        }
+        return result;
+    }
+
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -2526,25 +2506,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor != 0x0)
         {
-            if (params.m_Message->m_Id == dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash)
-            {
-                dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::ModelPlayAnimation*)params.m_Message->m_Data;
-
-                dmRig::Result rig_result = dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate);
-                if (dmRig::RESULT_OK == rig_result)
-                {
-                    component->m_Listener = params.m_Message->m_Sender;
-                    component->m_FunctionRef = params.m_Message->m_UserData2;
-                } else if (dmRig::RESULT_ANIM_NOT_FOUND == rig_result) {
-                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
-                    dmLogError("'%s:%s#%s' has no animation named '%s'",
-                            dmMessage::GetSocketName(receiver.m_Socket),
-                            dmHashReverseSafe64(receiver.m_Path),
-                            dmHashReverseSafe64(receiver.m_Fragment),
-                            dmHashReverseSafe64(ddf->m_AnimationId));
-                }
-            }
-            else if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
+            if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
             }
