@@ -300,8 +300,8 @@
                                             [:font-data :font-data]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
-                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? font font-message)
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? font font-message))))
+                             (or (validation/prop-error :info _node-id :font validation/prop-nil? font font-message)
+                                 (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["font"]}))
@@ -316,8 +316,8 @@
                                             [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id material]
-                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? material material-message)
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? material material-message))))
+                             (or (validation/prop-error :info _node-id :material validation/prop-nil? material material-message)
+                                 (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))

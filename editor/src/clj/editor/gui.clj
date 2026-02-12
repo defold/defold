@@ -2739,7 +2739,7 @@
             (dynamic label (properties/label-dynamic :gui :particlefx))
             (dynamic tooltip (properties/tooltip-dynamic :gui :particlefx))
             (dynamic error (g/fnk [_node-id particlefx]
-                                  (prop-resource-error _node-id :particlefx particlefx particlefx-message)))
+                             (prop-resource-error _node-id :particlefx particlefx particlefx-message)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext [particlefx/particlefx-ext]})))
@@ -2920,7 +2920,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.textures") texture-icon add-textures-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.textures") texture-icon add-textures-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3001,7 +3001,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-font)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.fonts") font-icon add-fonts-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.fonts") font-icon add-fonts-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3058,7 +3058,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-layer :ordered-layer-names)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.layer") layer-icon add-layer-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.layer") layer-icon add-layer-handler {}])))
 
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////

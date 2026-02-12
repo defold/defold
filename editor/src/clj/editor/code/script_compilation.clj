@@ -105,7 +105,7 @@
 
         (not (resource/exists? resource))
         (g/->error node-id prop-kw :fatal resource
-                   (localization/message "error.resource-assignment-not-found"
+                   (localization/message "error.property-resource-not-found"
                                          {"property" (validation/format-name prop-name)
                                           "resource" (resource/proj-path resource)}))))))
 

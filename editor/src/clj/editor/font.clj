@@ -828,8 +828,8 @@
                                     [:samplers :material-samplers]
                                     [:shader :material-shader])))
     (dynamic error (g/fnk [_node-id material-resource]
-                          (or (validation/prop-error :fatal _node-id :font validation/prop-nil? material-resource material-message)
-                              (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? material-resource material-message))))
+                     (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material-resource material-message)
+                         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material-resource material-message))))
     (dynamic edit-type (g/constantly
                          {:type resource/Resource
                           :ext ["material"]})))
