@@ -134,11 +134,9 @@
                                       ""]
           (take max-error-count)
           (map (fn [{:keys [_node-id message]}]
-                 (localization-state
-                   (localization/message "error.render.item"
-                                         {"resource" (or (get-resource-name _node-id)
-                                                         (localization-state error-render-unknown-resource-message))
-                                          "error" message})))))]
+                 (let [resource-name (or (get-resource-name _node-id)
+                                         (localization-state error-render-unknown-resource-message))]
+                   (str "- " resource-name ": " (localization-state message))))))]
 
     (cond-> error-message-lines
             (< max-error-count (count distinct-errors))

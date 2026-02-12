@@ -2280,7 +2280,6 @@ error.editor-extension-compilation-failed = Не удалось скомпили
 error.font-bitmap-generation-failed = Не удалось сгенерировать растровое изображение из шрифта. {error}
 error.at-line = Строка {line}: {error}
 error.render.title = ОШИБКА ОТРИСОВКИ:
-error.render.item = - {resource}: {error}
 error.render.unknown-resource = неизвестно
 error.render.and-more = …и ещё
 error.gui.resource-not-found-in-scene = {type} «{name}» не существует в сцене.

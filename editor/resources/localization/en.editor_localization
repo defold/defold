@@ -2280,7 +2280,6 @@ error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
 error.at-line = Line {line}: {error}
 error.render.title = RENDER ERROR:
-error.render.item = - {resource}: {error}
 error.render.unknown-resource = unknown
 error.render.and-more = …and more
 error.gui.resource-not-found-in-scene = {type} "{name}" does not exist in the scene.
