@@ -299,5 +299,10 @@
   (popup/vec3-toggle-setting app-view prefs prefs-path _popup option "Plane" #(invalidate-grids! app-view)))
 
 (defn show-settings! [app-view ^Parent owner prefs]
-  (popup/show-settings! app-view owner prefs [:scene :grid]
-                        [[:size :x] [:size :y] [:size :z] [:active-plane] [:opacity] [:color]]))
+  (let [scene-view-id (g/node-value app-view :active-view)
+        grid (g/node-value scene-view-id :grid)
+        ignore-options (g/node-value grid :options)]
+    (popup/show-settings! app-view owner prefs [:scene :grid]
+                         [[:size :x] [:size :y] [:size :z] [:active-plane] [:color] [:opacity]]
+                         ignore-options
+                         #(invalidate-grids! app-view))))

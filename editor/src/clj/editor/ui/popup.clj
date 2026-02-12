@@ -178,37 +178,34 @@
 
 (declare settings)
 
-(defn- reset-button
-  [app-view prefs ^PopupControl popup prefs-path settings-paths reset-callback]
+(defn- reset-button [app-view prefs ^PopupControl popup prefs-path settings-paths hidden-settings reset-callback]
   (let [button (doto (Button. "Reset to Defaults")
                  (.setPrefWidth Double/MAX_VALUE))
-        reset-fn (fn [^ActionEvent event]
-                   (let [target ^Node (.getTarget event)
-                         parent (.getParent target)]
-                     (doseq [path settings-paths]
-                       (let [path (into prefs-path path)]
-                         (prefs/set! prefs path (:default (prefs/schema prefs path)))))
-                     (when reset-callback (reset-callback))
-                     (doto parent
-                       (ui/children! (ui/node-array (settings app-view prefs popup)))
-                       (.requestFocus))))]
+        reset-fn
+        (fn [^ActionEvent event]
+          (let [target ^Node (.getTarget event)
+                parent (.getParent target)]
+            (doseq [path settings-paths]
+              (let [path (into prefs-path path)]
+                (prefs/set! prefs path (:default (prefs/schema prefs path)))))
+            (when reset-callback (reset-callback))
+            (doto parent
+              (ui/children! (ui/node-array (settings app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)))
+              (.requestFocus))))]
     (doto button
       (ui/on-action! reset-fn)
       (ensure-focus-traversable!))
     button))
 
 (defn- settings
-  [app-view prefs popup prefs-path settings-paths reset-callback]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid (g/node-value scene-view-id :grid)
-        options (g/node-value grid :options)
-        reset-btn (reset-button app-view prefs popup prefs-path settings-paths reset-callback)]
+  [app-view prefs popup prefs-path settings-paths hidden-settings reset-callback]
+  (let [reset-btn (reset-button app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)]
     (->> settings-paths
          (e/map first)
          (e/distinct)
-         (e/remove (partial contains? options))
-         (reduce (fn [rows option]
-                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs prefs-path popup option)))
+         (e/remove (partial contains? hidden-settings))
+         (reduce (fn [rows setting]
+                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs prefs-path popup setting)))
                                 (.setAlignment Pos/CENTER))))
                  [reset-btn]))))
 
@@ -219,8 +216,8 @@
 ;; TODO: We have to check whether any other settings popup is already open
 (defn show-settings!
   ([app-view ^Parent owner prefs prefs-path settings-paths]
-   (show-settings! app-view ^Parent owner prefs prefs-path settings-paths nil))
-  ([app-view ^Parent owner prefs prefs-path settings-paths reset-callback]
+   (show-settings! app-view ^Parent owner prefs prefs-path settings-paths nil nil))
+  ([app-view ^Parent owner prefs prefs-path settings-paths hidden-settings reset-callback]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (.hide popup)
      (let [region (StackPane.)
@@ -228,7 +225,7 @@
            anchor ^Point2D (pref-popup-position (.getParent owner))]
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
-                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup prefs-path settings-paths reset-callback)))
+                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)))
                                (.setFocusTraversable true)
                                (ensure-focus-traversable!)
                                (ui/add-style! "grid-settings"))])
