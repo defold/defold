@@ -284,7 +284,7 @@
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
                           (is (= :resource (:type error-item-of-parent-resource)))
-                          (is (= (localization/message "error.resource-not-loaded" {"resource" error-resource-path "error" "irrelevant"})
+                          (is (= (localization/message "error.resource-not-loaded-with-error" {"resource" error-resource-path "error" "irrelevant"})
                                  (localization/vary-message-variables (:message error-item-of-faulty-node) assoc "error" "irrelevant")))))]
                 (is (invalid-content-error? "/main/main.collection" (test-util/build-error! main-collection)))
                 (is (invalid-content-error? "/main/main.gui" (test-util/build-error! main-gui))))))

@@ -39,9 +39,12 @@
 
 (defn invalid-content-error [node-id label severity resource exception]
   (g/->error node-id label severity nil
-             (localization/message "error.resource-not-loaded"
-                                   {"resource" (resource/proj-path resource)
-                                    "error" (or (ex-message exception) "none")})
+             (if-let [message (ex-message exception)]
+               (localization/message "error.resource-not-loaded-with-error"
+                                     {"resource" (resource/proj-path resource)
+                                      "error" message})
+               (localization/message "error.resource-not-loaded"
+                                     {"resource" (resource/proj-path resource)}))
              {:type :invalid-content :resource resource :exception exception}))
 
 (defmacro with-error-translation
