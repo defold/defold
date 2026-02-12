@@ -31,7 +31,7 @@
 (set! *warn-on-reflection* true)
 
 (def collection-proxy-icon "icons/32/Icons_52-Collection-proxy.png")
-(def ^:private collection-message (localization/message "property.collection-proxy.collection"))
+(def ^:private collection-message (properties/label-message :collection-proxy :collection))
 
 (g/defnk produce-form-data
   [_node-id collection-resource]

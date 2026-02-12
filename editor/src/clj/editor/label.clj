@@ -44,8 +44,8 @@
 (set! *warn-on-reflection* true)
 
 (def label-icon "icons/32/Icons_39-GUI-Text-node.png")
-(def ^:private font-message (localization/message "property.label.font"))
-(def ^:private material-message (localization/message "property.material"))
+(def ^:private font-message (properties/label-message :label :font))
+(def ^:private material-message (properties/label-message :material))
 
 ; Render assets
 

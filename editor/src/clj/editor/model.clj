@@ -48,11 +48,11 @@
 
 (def ^:private supported-image-exts (conj image/exts "cubemap" "render_target"))
 
-(def ^:private animations-message (localization/message "property.model.animations"))
-(def ^:private default-animation-message (localization/message "property.model.default-animation"))
-(def ^:private material-message (localization/message "property.material"))
-(def ^:private mesh-message (localization/message "property.model.mesh"))
-(def ^:private skeleton-message (localization/message "property.model.skeleton"))
+(def ^:private animations-message (properties/label-message :model :animations))
+(def ^:private default-animation-message (properties/label-message :model :default-animation))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private mesh-message (properties/label-message :model :mesh))
+(def ^:private skeleton-message (properties/label-message :model :skeleton))
 
 (g/defnk produce-animation-set-build-target-single [_node-id resource animations-resource animation-set]
   (let [is-single-anim (and (not (empty? animation-set))

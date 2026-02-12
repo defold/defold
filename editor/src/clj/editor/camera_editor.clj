@@ -334,7 +334,7 @@
       orthographic-zoom :orthographic-zoom
       orthographic-mode :orthographic-mode)))
 
-(def ^:private orthographic-zoom-message (localization/message "property.camera.orthographic-zoom"))
+(def ^:private orthographic-zoom-message (properties/label-message :camera :orthographic-zoom))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)

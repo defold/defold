@@ -268,9 +268,9 @@
             (< 1 (count (:frames first-animation)))
             (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
-(def ^:private material-message (localization/message "property.material"))
-(def ^:private default-animation-message (localization/message "property.sprite.default-animation"))
-(def ^:private image-message (localization/message "property.image"))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private default-animation-message (properties/label-message :sprite :default-animation))
+(def ^:private image-message (properties/label-message :image))
 
 (defn- validate-material [_node-id material]
   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)

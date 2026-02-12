@@ -79,9 +79,9 @@
 
 (def tile-map-icon "icons/32/Icons_48-Tilemap.png")
 (def tile-map-layer-icon "icons/32/Icons_42-Layers.png")
-(def ^:private material-message (localization/message "property.material"))
-(def ^:private tile-source-message (localization/message "property.tile-map.tile-source"))
-(def ^:private z-message (localization/message "property.tile-map.layer.z"))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private tile-source-message (properties/label-message :tile-map :tile-source))
+(def ^:private z-message (properties/label-message :tile-map.layer :z))
 
 
 ;; manipulating cells

@@ -145,12 +145,12 @@
    :nz :back})
 
 (def ^:private cubemap-dir->message
-  {:px (localization/message "property.cubemap.right")
-   :nx (localization/message "property.cubemap.left")
-   :py (localization/message "property.cubemap.top")
-   :ny (localization/message "property.cubemap.bottom")
-   :pz (localization/message "property.cubemap.front")
-   :nz (localization/message "property.cubemap.back")})
+  {:px (properties/label-message :cubemap :right)
+   :nx (properties/label-message :cubemap :left)
+   :py (properties/label-message :cubemap :top)
+   :ny (properties/label-message :cubemap :bottom)
+   :pz (properties/label-message :cubemap :front)
+   :nz (properties/label-message :cubemap :back)})
 
 (defn- cubemap-images-missing-error [node-id cubemap-image-resources]
   (when-let [error (some (fn [[dir image-resource]]

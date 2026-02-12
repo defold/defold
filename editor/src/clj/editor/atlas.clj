@@ -202,8 +202,8 @@
                          :flip-vertical   false
                          :playback        :playback-none}))
 
-(def ^:private id-message (localization/message "property.id"))
-(def ^:private image-message (localization/message "property.image"))
+(def ^:private id-message (properties/label-message :id))
+(def ^:private image-message (properties/label-message :image))
 
 (defn- unique-id-error [node-id id id-counts]
   (or (validation/prop-error :fatal node-id :id validation/prop-empty? id id-message)
@@ -405,7 +405,7 @@
 (defn- validate-animation-id [node-id id id-counts]
   (unique-id-error node-id id id-counts))
 
-(def ^:private fps-message (localization/message "property.atlas.animation.fps"))
+(def ^:private fps-message (properties/label-message :atlas.animation :fps))
 
 (defn- validate-animation-fps [node-id fps]
   (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
@@ -491,11 +491,11 @@
     :max-page-width (max-page-size 0)
     :max-page-height (max-page-size 1)))
 
-(def ^:private margin-message (localization/message "property.atlas.margin"))
-(def ^:private inner-padding-message (localization/message "property.atlas.inner-padding"))
-(def ^:private extrude-borders-message (localization/message "property.atlas.extrude-borders"))
-(def ^:private max-page-width-message (localization/message "property.atlas.max-page-width"))
-(def ^:private max-page-height-message (localization/message "property.atlas.max-page-height"))
+(def ^:private margin-message (properties/label-message :atlas :margin))
+(def ^:private inner-padding-message (properties/label-message :atlas :inner-padding))
+(def ^:private extrude-borders-message (properties/label-message :atlas :extrude-borders))
+(def ^:private max-page-width-message (properties/label-message :atlas :max-page-width))
+(def ^:private max-page-height-message (properties/label-message :atlas :max-page-height))
 
 (defn- validate-margin [node-id margin]
   (validation/prop-error :fatal node-id :margin validation/prop-negative? margin margin-message))

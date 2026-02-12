@@ -53,8 +53,8 @@
 (set! *warn-on-reflection* true)
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
-(def id-message (localization/message "property.id"))
-(def path-message (localization/message "property.path"))
+(def id-message (properties/label-message :id))
+(def path-message (properties/label-message :path))
 
 (declare add-embedded-component)
 

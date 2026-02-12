@@ -44,7 +44,7 @@
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
-(def ^:private prototype-message (localization/message "property.factory.prototype"))
+(def ^:private prototype-message (properties/label-message :factory :prototype))
 
 (g/defnk produce-form-data
   [_node-id factory-type prototype-resource load-dynamically dynamic-prototype]

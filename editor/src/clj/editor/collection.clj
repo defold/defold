@@ -53,9 +53,9 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private id-message (localization/message "property.id"))
-(def ^:private name-message (localization/message "property.name"))
-(def ^:private path-message (localization/message "property.path"))
+(def ^:private id-message (properties/label-message :id))
+(def ^:private name-message (properties/label-message :name))
+(def ^:private path-message (properties/label-message :path))
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
   (-> (protobuf/make-map-without-defaults GameObject$EmbeddedInstanceDesc

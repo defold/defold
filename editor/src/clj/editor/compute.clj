@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.render-program-utils :as render-program-utils]
@@ -31,7 +32,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private compute-program-message (localization/message "property.compute.compute-program"))
+(def ^:private compute-program-message (properties/label-message :compute :compute-program))
 
 (def ^:private form-data
   {:navigation false

@@ -68,9 +68,9 @@
 (def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
 
 (def particlefx-ext "particlefx")
-(def image-message (localization/message "property.image"))
-(def material-message (localization/message "property.material"))
-(def animation-message (localization/message "property.particlefx.animation"))
+(def image-message (properties/label-message :image))
+(def material-message (properties/label-message :material))
+(def animation-message (properties/label-message :particlefx :animation))
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -960,7 +960,7 @@
             (dynamic visible (g/constantly false)))
 
   (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
-                  :max-particle-count :type :particle-orientation :inherit-velocity [(localization/message "property.particlefx.category.particle-life") ParticleProperties]])
+                  :max-particle-count :type :particle-orientation :inherit-velocity [(properties/label-message :particlefx.category :particle-life) ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)

@@ -49,11 +49,11 @@
 (set! *warn-on-reflection* true)
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
-(def ^:private collision-shape-message (localization/message "property.collision-object.collision-shape"))
-(def ^:private dimensions-message (localization/message "property.collision-object.shape.dimensions"))
-(def ^:private diameter-message (localization/message "property.collision-object.shape.diameter"))
-(def ^:private height-message (localization/message "property.collision-object.shape.height"))
-(def ^:private mass-message (localization/message "property.collision-object.mass"))
+(def ^:private collision-shape-message (properties/label-message :collision-object :collision-shape))
+(def ^:private dimensions-message (properties/label-message :collision-object.shape :dimensions))
+(def ^:private diameter-message (properties/label-message :collision-object.shape :diameter))
+(def ^:private height-message (properties/label-message :collision-object.shape :height))
+(def ^:private mass-message (properties/label-message :collision-object :mass))
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
 

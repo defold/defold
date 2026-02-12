@@ -54,10 +54,10 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private mesh-icon "icons/32/Icons_22-Model.png")
-(def ^:private material-message (localization/message "property.material"))
-(def ^:private normal-stream-message (localization/message "property.mesh.normal-stream"))
-(def ^:private position-stream-message (localization/message "property.mesh.position-stream"))
-(def ^:private vertices-message (localization/message "property.mesh.vertices"))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private normal-stream-message (properties/label-message :mesh :normal-stream))
+(def ^:private position-stream-message (properties/label-message :mesh :position-stream))
+(def ^:private vertices-message (properties/label-message :mesh :vertices))
 
 (shader/defshader model-id-vertex-shader
   (attribute vec4 position)

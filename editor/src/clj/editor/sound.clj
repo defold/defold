@@ -40,11 +40,11 @@
 
 (def supported-audio-formats #{"wav" "ogg" "opus"})
 
-(def ^:private sound-message (localization/message "property.sound.sound"))
-(def ^:private loopcount-message (localization/message "property.sound.loopcount"))
-(def ^:private gain-message (localization/message "property.sound.gain"))
-(def ^:private pan-message (localization/message "property.sound.pan"))
-(def ^:private speed-message (localization/message "property.sound.speed"))
+(def ^:private sound-message (properties/label-message :sound :sound))
+(def ^:private loopcount-message (properties/label-message :sound :loopcount))
+(def ^:private gain-message (properties/label-message :sound :gain))
+(def ^:private pan-message (properties/label-message :sound :pan))
+(def ^:private speed-message (properties/label-message :sound :speed))
 
 (def ^:private error-invalid-ogg-file-message (localization/message "error.sound.invalid-ogg-file"))
 
