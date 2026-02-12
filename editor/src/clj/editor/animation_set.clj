@@ -94,8 +94,9 @@
     (catch LoaderException e
       (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
       (g/->error _node-id :animations :fatal resource
-                 (str "Failed to build " (resource/resource->proj-path resource)
-                      ": " (.getMessage e))))))
+                 (localization/message "error.animation-set-build-failed"
+                                       {"resource" (resource/resource->proj-path resource)
+                                        "error" (.getMessage e)})))))
 
 (g/defnk produce-animation-set [animation-set-info]
   (:animation-set animation-set-info))

@@ -45,6 +45,9 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private vertex-program-message (localization/message "form.label.material.vertex-program"))
+(def ^:private fragment-program-message (localization/message "form.label.material.fragment-program"))
+
 (def ^:private editable-attribute-optional-field-defaults
   (-> Graphics$VertexAttribute
       (protobuf/default-message #{:optional})
@@ -122,8 +125,8 @@
             (when (and normalize
                        (= :type-float data-type))
               (g/->error node-id label :fatal nil
-                         (format "'%s' attribute uses normalize with float data type"
-                                 name)))]))
+                         (localization/message "error.vertex-attribute-normalize-float-data-type"
+                                               {"attribute" name})))]))
 
 (defn- build-target-pbr-params [shader-reflection]
   (when-some [pbr-parameters-proto (MaterialBuilder/makePbrParametersProtoMessage shader-reflection)]
@@ -131,8 +134,8 @@
 
 (g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
-        (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-        (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+        (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
+        (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
       (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
@@ -194,8 +197,8 @@
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
 (g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
-  (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-      (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+  (or (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
+      (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
       (let [augmented-shader-infos
             (mapv (fn [{:keys [node-id resource shader-source]}]
                     (transpile-shader-source node-id resource shader-source max-page-count))

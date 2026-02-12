@@ -18,10 +18,11 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build :as build]
+            [editor.code-completion :refer :all]
+            [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [editor.code-completion :refer :all]
             [integration.test-util :as test-util]))
 
 (defn make-script-resource
@@ -83,4 +84,4 @@
           build-targets    (build/resolve-node-dependencies script-node project)
           error-message    (some :message (tree-seq :causes :causes build-targets))]
       (is (g/error? build-targets))
-      (is (= (str "The file '/MODULE.lua' could not be found.") error-message)))))
+      (is (= (localization/message "error.resource-not-found" {"resource" "/MODULE.lua"}) error-message)))))

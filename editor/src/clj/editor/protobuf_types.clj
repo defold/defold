@@ -73,6 +73,12 @@
             platform :formats
             sanitize-texture-profile-format))))))
 
+(def ^:private texture-format-not-supported-by-texture-compressor-message
+  (localization/message "error.texture-profiles.format-not-supported-by-texture-compressor"))
+
+(def ^:private texture-preset-not-supported-by-texture-compressor-message
+  (localization/message "error.texture-profiles.preset-not-supported-by-texture-compressor"))
+
 (defn- texture-profiles-errors-fn [node-id resource texture-profiles]
   (let [all-format-entries (->> (:profiles texture-profiles)
                                 (mapcat :platforms)
@@ -85,8 +91,8 @@
                                    (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
                   format-is-supported? (.supportsTextureFormat texture-compressor texture-format)
                   preset-is-supported? (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)]
-              [(when-not format-is-supported? (g/->error node-id :pb :fatal resource "Texture format is not supported by the texture compressor"))
-               (when-not preset-is-supported? (g/->error node-id :pb :fatal resource "Texture preset is not supported by the texture compressor"))]))
+              [(when-not format-is-supported? (g/->error node-id :pb :fatal resource texture-format-not-supported-by-texture-compressor-message))
+               (when-not preset-is-supported? (g/->error node-id :pb :fatal resource texture-preset-not-supported-by-texture-compressor-message))]))
           all-format-entries)))
 
 (def pb-defs [{:ext "input_binding"

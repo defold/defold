@@ -19,6 +19,7 @@
             [editor.code.preprocessors :as preprocessors]
             [editor.code.resource :as r]
             [editor.image :as image]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.luajit :as luajit]
@@ -33,8 +34,7 @@
             [util.coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [com.google.protobuf ByteString]
-           [java.io StringReader]))
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 
@@ -98,16 +98,16 @@
       (cond
         (not ext-match?)
         (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' is not of type %s"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)
-                           (validation/format-ext expected-ext)))
+                   (localization/message "error.resource-assignment-not-of-type"
+                                         {"property" (validation/format-name prop-name)
+                                          "resource" (resource/proj-path resource)
+                                          "type" (validation/format-ext-message expected-ext)}))
 
         (not (resource/exists? resource))
         (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' could not be found"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)))))))
+                   (localization/message "error.property-resource-not-found"
+                                         {"property" (validation/format-name prop-name)
+                                          "resource" (resource/proj-path resource)}))))))
 
 (defn validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
   (when (= resource/Resource (:type edit-type))
@@ -187,7 +187,7 @@
                 exception))]
         (if-some [exception-message (ex-message preprocessed-lines)]
           (let [exception preprocessed-lines
-                build-error-message (str "Lua preprocessing failed.\n" exception-message)
+                build-error-message (localization/message "error.lua-preprocessing-failed" {"error" exception-message})
                 log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
             (log/error :message log-error-message :exception exception)
             (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
