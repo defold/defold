@@ -297,7 +297,6 @@ public class ResourceCacheKeyTest {
                 "email",
                 "exclude-archive",
                 "exclude-build-folder",
-                "experimental-path-minification",
                 "help",
                 "identity",
                 "input",

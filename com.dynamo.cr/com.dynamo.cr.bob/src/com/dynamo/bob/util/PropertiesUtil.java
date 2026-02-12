@@ -25,7 +25,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.ProtoBuilders;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
@@ -135,9 +135,9 @@ public class PropertiesUtil {
     public static String transformResourcePropertyValue(IResource resource, String value) throws CompileExceptionError {
         String ext = "." + FilenameUtils.getExtension(value);
         // This is not optimal, but arguably ok for this case.
-        value = ResourceUtil.replaceExt(value, ".material", ".materialc");
-        value = ResourceUtil.replaceExt(value, ".font", ".fontc");
-        value = ResourceUtil.replaceExt(value, ".buffer", ".bufferc");
+        value = BuilderUtil.replaceExt(value, ".material", ".materialc");
+        value = BuilderUtil.replaceExt(value, ".font", ".fontc");
+        value = BuilderUtil.replaceExt(value, ".buffer", ".bufferc");
         value = ProtoBuilders.replaceTextureName(value);
         try {
             if (TextureUtil.isAtlasFileType(ext))
@@ -147,7 +147,6 @@ public class PropertiesUtil {
         } catch (Exception e) {
             throw new CompileExceptionError(resource, -1, e.getMessage(), e);
         }
-        value = ResourceUtil.minifyPath(value);
         return value;
     }
 

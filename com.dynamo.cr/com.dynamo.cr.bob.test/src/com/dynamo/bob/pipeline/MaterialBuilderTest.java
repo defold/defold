@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import java.util.List;
 
-import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
@@ -81,8 +80,8 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(material.hasProgram());
 
         String program = material.getProgram();
-        String expectedProgram = MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
-        assertEquals(ResourceUtil.minifyPath(expectedProgram), program);
+        String expectedProgram = "/" + MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
+        assertEquals(expectedProgram, program);
     }
 
     @Test

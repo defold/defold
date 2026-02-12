@@ -21,7 +21,6 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.CompileExceptionError;
 import com.google.protobuf.Message;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
@@ -65,7 +64,7 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
 
             RenderPrototypeDesc.RenderResourceDesc res_desc = output.getRenderResourcesList().get(0);
             assertTrue(res_desc.getName().equals("test"));
-            assertTrue(res_desc.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
+            assertTrue(res_desc.getPath().equals("/test.materialc"));
         }
 
         {
@@ -87,11 +86,11 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
 
             RenderPrototypeDesc.RenderResourceDesc res_desc_1 = output.getRenderResourcesList().get(0);
             assertTrue(res_desc_1.getName().equals("test"));
-            assertTrue(res_desc_1.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
+            assertTrue(res_desc_1.getPath().equals("/test.materialc"));
 
             RenderPrototypeDesc.RenderResourceDesc res_desc_2 = output.getRenderResourcesList().get(1);
             assertTrue(res_desc_2.getName().equals("test_2"));
-            assertTrue(res_desc_2.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
+            assertTrue(res_desc_2.getPath().equals("/test.materialc"));
         }
 
         {

@@ -6,7 +6,6 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
@@ -72,12 +71,9 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
             shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
         }
 
-        String path = messageBuilder.getCollisionShape();
-        path = ResourceUtil.replaceExt(path, ".convexshape", ".convexshapec");
-        path = ResourceUtil.replaceExt(path, ".tilegrid", ".tilemapc");
-        path = ResourceUtil.replaceExt(path, ".tilemap", ".tilemapc");
-        messageBuilder.setCollisionShape(ResourceUtil.minifyPath(path));
-
+        messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
+        messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilegrid", ".tilemapc"));
+        messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilemap", ".tilemapc"));
         return messageBuilder;
     }
 }

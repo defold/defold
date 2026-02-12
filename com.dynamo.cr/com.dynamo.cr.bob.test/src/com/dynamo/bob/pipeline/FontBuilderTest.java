@@ -23,7 +23,6 @@ import org.junit.Test;
 
 import java.util.List;
 
-import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
 
 import com.google.protobuf.Message;
@@ -68,7 +67,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
-        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        assertEquals(fontMap.getMaterial(), "/test.materialc");
     }
 
     @Test
@@ -80,7 +79,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        assertEquals(fontMap.getMaterial(), "/test.materialc");
     }
 
     @Test
@@ -95,7 +94,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
         FontMap fontMap = getFontMap(build("/subdir/test.font", src.toString()));
 
-        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        assertEquals(fontMap.getMaterial(), "/test.materialc");
     }
 
     @Test

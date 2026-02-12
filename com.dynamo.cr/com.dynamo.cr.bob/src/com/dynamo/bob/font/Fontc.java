@@ -66,7 +66,7 @@ import com.sun.jna.Pointer;
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
 
-import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.util.StringUtil;
@@ -1150,7 +1150,7 @@ public class Fontc {
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
-            fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+            fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
             if (!dynamic)
             {
