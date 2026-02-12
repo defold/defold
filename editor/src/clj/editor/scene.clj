@@ -1679,6 +1679,40 @@
       KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
       ::unhandled)))
 
+(defn- find-tab-content [^Node node]
+  (loop [current (.getParent node)]
+    (when current
+      (if (.contains (.getStyleClass current) "tab-content-area")
+        current
+        (recur (.getParent current))))))
+
+(defn- handle-free-camera-mode! [view-id image-view action]
+  (let [camera-id (view->camera view-id)
+        is-perspective? (= :perspective (:type (g/node-value camera-id :local-camera)))]
+    (case (:type action)
+      :mouse-pressed
+      (when (and (= :secondary (:button action)) is-perspective?)
+        (when-let [tab-content (find-tab-content image-view)]
+          (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
+        (g/update-property! view-id :input-state assoc :cursor-lock-pos [(:screen-x action) (:screen-y action)]))
+
+      :mouse-released
+      (when (= :secondary (:button action))
+        (when-let [tab-content (find-tab-content image-view)]
+          (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
+        (g/set-property! camera-id :free-camera-mode false)
+        (g/update-property! view-id :input-state assoc :cursor-lock-pos nil))
+
+      nil)))
+
+(defn- cancel-free-camera-mode! [view-id image-view]
+  (let [camera-id (view->camera view-id)]
+    (g/set-property! camera-id :free-camera-mode false)
+    (g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
+    (g/set-property! camera-id :cursor-type :default)
+    (when-let [tab-content (find-tab-content image-view)]
+      (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))))
+
 (defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
         event-handler (ui/event-handler e
@@ -1690,40 +1724,21 @@
                                     picking-rect (selection/calc-picking-rect pos pos)]
                                 (g/update-property! view-id :input-state assoc :cursor-pos [screen-x screen-y])
                                 (when (= :mouse-pressed (:type action))
-                                  (when (and (= :secondary (:button action))
-                                             (= :perspective (:type (g/node-value (view->camera view-id) :local-camera))))
-                                    (when-let [tab-content (loop [current (.getParent image-view)]
-                                                             (when current
-                                                               (if (.contains (.getStyleClass current) "tab-content-area")
-                                                                 current
-                                                                 (recur (.getParent current)))))]
-                                      (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
-                                    (g/update-property! view-id :input-state assoc :cursor-lock-pos [screen-x screen-y]))
+                                  (handle-free-camera-mode! view-id image-view action)
                                   (g/update-property! view-id :input-state update :mouse-buttons conj (:button action))
                                   (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                             (filter action)
-                                                                             set))
-                                  ;; Request focus and consume event to prevent someone else from stealing focus
+                                                                                                  (filter action)
+                                                                                                  set))
                                   (.requestFocus parent)
                                   (.consume e))
-                                ;; NOTE: In JavaFX, when you release a mouse button, it dispatches 2 events; the release
-                                ;; and a `MOUSE_CLICKED` event as well. We only care about pressed/released
                                 (when (not= :mouse-clicked (:type action))
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
-                                  (when (= :secondary (:button action))
-                                    (when-let [tab-content (loop [current (.getParent image-view)]
-                                                             (when current
-                                                               (if (.contains (.getStyleClass current) "tab-content-area")
-                                                                 current
-                                                                 (recur (.getParent current)))))]
-                                      (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
-                                    (g/set-property! (view->camera view-id) :free-camera-mode false)
-                                    (g/update-property! view-id :input-state assoc :cursor-lock-pos nil))
+                                  (handle-free-camera-mode! view-id image-view action)
                                   (g/update-property! view-id :input-state update :mouse-buttons disj (:button action))
                                   (g/update-property! view-id :input-state assoc :modifiers (->> [:alt :shift :meta :control]
-                                                                             (filter action)
-                                                                             set)))
+                                                                                                  (filter action)
+                                                                                                  set)))
                                 (g/transact
                                   (concat
                                     (g/set-property view-id :cursor-pos [x y])
@@ -1768,15 +1783,7 @@
                                                                            set))
             (when (and (= code KeyCode/ESCAPE)
                        (not is-secondary))
-              (g/set-property! (view->camera view-id) :free-camera-mode false)
-              (g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
-              (g/set-property! (view->camera view-id) :cursor-type :default)
-              (when-let [tab-content (loop [current (.getParent image-view)]
-                                       (when current
-                                         (if (.contains (.getStyleClass current) "tab-content-area")
-                                           current
-                                           (recur (.getParent current)))))]
-                (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false)))
+              (cancel-free-camera-mode! view-id image-view))
             (when (or (.isLetterKey code)
                       (.isDigitKey code))
               (g/update-property! view-id :input-state update :pressed-keys conj code))
