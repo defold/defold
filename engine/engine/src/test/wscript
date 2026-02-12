@@ -32,7 +32,7 @@ def run_bob(task):
     output = run.env_command(env, args.split())
 
 def build(bld):
-    java_runtime_flags = os.environ.get('DM_JAVA_RUNTIME_FLAGS', '')
+    java_runtime_flags = bld.env.JAVA_RUNTIME_FLAGS
 
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
