@@ -293,10 +293,11 @@ namespace dmGameSystem
         dmRender::HMaterial material = GetRenderMaterial(render_context, first);
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
 
-        dmGraphics::VertexAttributeInfos emitter_attribute_info = {};
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
+
+        dmGraphics::VertexAttributeInfos* emitter_attribute_info = GetScratchVertexAttributeInfos(material_attribute_info.m_NumInfos);
 
         const uint32_t vx_stride = material_attribute_info.m_VertexStride;
         const uint32_t max_gpu_count = pfx_context->m_MaxParticleCount;
@@ -334,7 +335,8 @@ namespace dmGameSystem
                     emitter_render_data->m_Attributes,
                     emitter_render_data->m_AttributeCount,
                     &material_attribute_info,
-                    &emitter_attribute_info);
+                    emitter_attribute_info,
+                    dmGraphics::COORDINATE_SPACE_WORLD);
 
             uint32_t particle_count = dmParticle::GetParticleCount(particle_context, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
@@ -348,7 +350,7 @@ namespace dmGameSystem
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
                     pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                     p, num_particles_to_write,
-                    emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
+                    *emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
                 // if the buffer is full
                 // or if we couldn't fit a single particle

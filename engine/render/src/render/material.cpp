@@ -129,6 +129,13 @@ namespace dmRender
         }
     }
 
+    inline static void GetMaterialVertexAttributeValues(HMaterial material, const dmGraphics::VertexAttribute& graphics_attribute, const MaterialAttribute& material_attribute, const uint8_t** value_ptr, uint32_t* value_byte_size)
+    {
+        dmGraphics::Type base_type = dmGraphics::GetGraphicsType(graphics_attribute.m_DataType);
+        *value_byte_size           = dmGraphics::GetTypeSize(base_type) * graphics_attribute.m_ElementCount;
+        *value_ptr                 = &material->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
+    }
+
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
     {
         if (m->m_VertexDeclarationShared != 0)
@@ -208,6 +215,20 @@ namespace dmRender
         }
     }
 
+    static void SetVertexAttributeInfos(Material* m, const dmGraphics::VertexAttribute& attribute, const MaterialAttribute material_attribute, dmGraphics::VertexAttributeInfo& info)
+    {
+        info.m_NameHash         = attribute.m_NameHash;
+        info.m_SemanticType     = attribute.m_SemanticType;
+        info.m_DataType         = attribute.m_DataType;
+        info.m_CoordinateSpace  = attribute.m_CoordinateSpace;
+        info.m_VectorType       = attribute.m_VectorType;
+        info.m_Normalize        = attribute.m_Normalize;
+        info.m_StepFunction     = attribute.m_StepFunction;
+        info.m_ValueVectorType  = attribute.m_VectorType;
+        uint32_t tmp;
+        GetMaterialVertexAttributeValues(m, attribute, material_attribute, &info.m_ValuePtr, &tmp);
+    }
+
     static void CreateAttributes(dmGraphics::HContext graphics_context, Material* m)
     {
         uint32_t num_program_attributes  = dmGraphics::GetAttributeCount(m->m_Program);
@@ -254,6 +275,12 @@ namespace dmRender
         m->m_MaterialAttributeValues.SetCapacity(num_attribute_byte_size);
         m->m_MaterialAttributeValues.SetSize(num_attribute_byte_size);
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
+
+        // Update the attribute infos (we need a valid pointer to the data here)
+        for (int i = 0; i < num_program_attributes; ++i)
+        {
+            SetVertexAttributeInfos(m, m->m_VertexAttributes[i], m->m_MaterialAttributes[i], m->m_VertexAttributeInfos[i]);
+        }
     }
 
     void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)
@@ -474,19 +501,12 @@ namespace dmRender
         *attribute_count = material->m_VertexAttributes.Size();
     }
 
-    inline static void GetAttributeValues(HMaterial material, const dmGraphics::VertexAttribute& graphics_attribute, const MaterialAttribute& material_attribute, const uint8_t** value_ptr, uint32_t* value_byte_size)
-    {
-        dmGraphics::Type base_type = dmGraphics::GetGraphicsType(graphics_attribute.m_DataType);
-        *value_byte_size           = dmGraphics::GetTypeSize(base_type) * graphics_attribute.m_ElementCount;
-        *value_ptr                 = &material->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
-    }
-
     void GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* value_byte_size)
     {
         assert(index < material->m_MaterialAttributes.Size());
         MaterialAttribute& material_attribute           = material->m_MaterialAttributes[index];
         dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
-        GetAttributeValues(material, graphics_attribute, material_attribute, value_ptr, value_byte_size);
+        GetMaterialVertexAttributeValues(material, graphics_attribute, material_attribute, value_ptr, value_byte_size);
     }
 
     void SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count)
@@ -569,20 +589,7 @@ namespace dmRender
                 FillElementIds(graphics_attribute_in.m_Name, name_buffer, name_buffer_size, material_attribute.m_ElementIds);
             }
 
-            // Maybe these two structures could be merged?
-            dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
-            dmGraphics::VertexAttributeInfo& attribute_info = material->m_VertexAttributeInfos[index];
-            attribute_info.m_NameHash         = graphics_attribute.m_NameHash;
-            attribute_info.m_SemanticType     = graphics_attribute.m_SemanticType;
-            attribute_info.m_DataType         = graphics_attribute.m_DataType;
-            attribute_info.m_CoordinateSpace  = graphics_attribute.m_CoordinateSpace;
-            attribute_info.m_VectorType       = graphics_attribute.m_VectorType;
-            attribute_info.m_Normalize        = graphics_attribute.m_Normalize;
-            attribute_info.m_StepFunction     = graphics_attribute.m_StepFunction;
-            attribute_info.m_ValueVectorType  = graphics_attribute.m_VectorType;
-
-            uint32_t tmp;
-            GetAttributeValues(material, graphics_attribute, material_attribute, &attribute_info.m_ValuePtr, &tmp);
+            SetVertexAttributeInfos(material, material->m_VertexAttributes[index], material_attribute, material->m_VertexAttributeInfos[index]);
         }
 
         CreateVertexDeclarations(GetGraphicsContext(material->m_RenderContext), material);

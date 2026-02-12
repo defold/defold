@@ -578,19 +578,20 @@ namespace dmGameSystem
             }
 
             dmGraphics::VertexAttributeInfos material_infos;
-            FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos, GetRenderMaterialCoordinateSpace(material));
+            FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos);
 
-            dmGraphics::VertexAttributeInfos attribute_infos;
+            dmGraphics::VertexAttributeInfos* attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
             FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                         item.m_DynamicVertexAttributeIndex,
                         material_info->m_Attributes,
                         material_info->m_AttributeCount,
                         &material_infos,
-                        &attribute_infos);
+                        attribute_infos,
+                        GetRenderMaterialCoordinateSpace(material));
 
-            for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
+            for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
             {
-                const dmGraphics::VertexAttributeInfo& attr = attribute_infos.m_Infos[i];
+                const dmGraphics::VertexAttributeInfo& attr = attribute_infos->m_Infos[i];
                 // We can skip hashing instance attribute values since the data can be shared
                 // between all meshes in a regular draw call.
                 if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
@@ -747,7 +748,7 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context,
         const dmGraphics::HVertexDeclaration& vx_decl_in,
         const dmGraphics::VertexAttributeInfos& material_infos,
-        const dmGraphics::VertexAttributeInfos& attribute_infos,
+        const dmGraphics::VertexAttributeInfos* attribute_infos,
         uint32_t vertex_count,
         dmGraphics::HVertexDeclaration* vx_decl_out,
         dmGraphics::HVertexBuffer* vx_buffer_out,
@@ -757,7 +758,7 @@ namespace dmGameSystem
         bool has_matching_step_function = false;
         for (int i = 0; i < material_infos.m_NumInfos; ++i)
         {
-            const dmGraphics::VertexAttributeInfo& attr          = attribute_infos.m_Infos[i];
+            const dmGraphics::VertexAttributeInfo& attr          = attribute_infos->m_Infos[i];
             const dmGraphics::VertexAttributeInfo& attr_material = material_infos.m_Infos[i];
 
             if (attr.m_StepFunction != step_function)
@@ -877,17 +878,18 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
 
         dmGraphics::VertexAttributeInfos material_infos;
-        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos, GetRenderMaterialCoordinateSpace(material));
+        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos);
 
-        dmGraphics::VertexAttributeInfos attribute_infos;
+        dmGraphics::VertexAttributeInfos* attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
         FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                     render_item->m_DynamicVertexAttributeIndex,
                     model_attributes,
                     model_attribute_count,
                     &material_infos,
-                    &attribute_infos);
+                    attribute_infos,
+                    GetRenderMaterialCoordinateSpace(material));
 
-        SetMeshAttributeRenderData(world, component, render_context, &material_infos, &attribute_infos, render_item, model_attributes, model_attribute_count, rd);
+        SetMeshAttributeRenderData(world, component, render_context, &material_infos, attribute_infos, render_item, model_attributes, model_attribute_count, rd);
     }
 
     static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
@@ -900,15 +902,16 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration vx_decl_inst = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
 
         dmGraphics::VertexAttributeInfos material_infos;
-        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos, GetRenderMaterialCoordinateSpace(material));
+        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos);
 
-        dmGraphics::VertexAttributeInfos attribute_infos;
+        dmGraphics::VertexAttributeInfos* attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
         FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                     render_item->m_DynamicVertexAttributeIndex,
                     model_attributes,
                     model_attribute_count,
                     &material_infos,
-                    &attribute_infos);
+                    attribute_infos,
+                    GetRenderMaterialCoordinateSpace(material));
 
         // Do we need a custom instance declaration?
         if (vx_decl_inst)
@@ -920,8 +923,7 @@ namespace dmGameSystem
         if (vx_decl_vert)
         {
             CreateCustomVertexDeclaration(graphics_context, vx_decl_vert, material_infos, attribute_infos, render_item->m_Buffers->m_VertexCount, &rd->m_VertexDeclaration, &rd->m_VertexBuffer, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
-
-            SetMeshAttributeRenderData(world, component, render_context, &material_infos, &attribute_infos, render_item, model_attributes, model_attribute_count, rd);
+            SetMeshAttributeRenderData(world, component, render_context, &material_infos, attribute_infos, render_item, model_attributes, model_attribute_count, rd);
         }
 
         rd->m_Initialized = true;
@@ -1571,7 +1573,6 @@ namespace dmGameSystem
         ro.m_VertexBufferOffsets[VX_DECL_INSTANCE_BUFFER] = world->m_InstanceBufferDataLocalSpace.Size();
 
         dmGraphics::VertexAttributeInfos material_infos;
-        dmGraphics::VertexAttributeInfos attribute_infos;
 
         int32_t first_free_index = FillTextures(&ro, component, material_index);
 
@@ -1605,20 +1606,23 @@ namespace dmGameSystem
                         attribute_rd);
                 }
 
-                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos, GetRenderMaterialCoordinateSpace(render_material));
+                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
+
+                dmGraphics::VertexAttributeInfos* attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
                 FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                             instance_render_item->m_DynamicVertexAttributeIndex,
                             instance_component->m_Resource->m_Materials[material_index].m_Attributes,
                             instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
                             &material_infos,
-                            &attribute_infos);
+                            attribute_infos,
+                            GetRenderMaterialCoordinateSpace(render_material));
                 
                 if (instance_render_item->m_DynamicVertexAttributesDirty)
                 {
                     SetMeshAttributeRenderData(world, component,
                         render_context,
                         &material_infos,
-                        &attribute_infos,
+                        attribute_infos,
                         instance_render_item,
                         instance_component->m_Resource->m_Materials[material_index].m_Attributes,
                         instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
@@ -1639,7 +1643,7 @@ namespace dmGameSystem
                     ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
                 }
 
-                instance_write_ptr = WriteMeshAttributes(render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, &attribute_infos, instance_write_ptr, 1);
+                instance_write_ptr = WriteMeshAttributes(render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
             }
             else if (IsRenderItemSkinned(instance_component, render_item))
             {
@@ -1967,8 +1971,7 @@ namespace dmGameSystem
         *vb_begin = vertex_buffer.End() + vb_buffer_padding;
 
         dmGraphics::VertexAttributeInfos* scratch_attribute_infos = GetScratchVertexAttributeInfos(vx_decl_stream_count);
-
-        FillMaterialAttributeInfos(material, vx_decl, scratch_attribute_infos, GetRenderMaterialCoordinateSpace(material));
+        FillMaterialAttributeInfos(material, vx_decl, scratch_attribute_infos);
 
         // We need to force the step function to vertex here since we don't support instancing.
         for (int i = 0; i < scratch_attribute_infos->m_NumInfos; ++i)
@@ -1983,21 +1986,22 @@ namespace dmGameSystem
         return scratch_attribute_infos;
     }
 
-    static uint8_t* WriteWorldSpaceVertexData(ModelWorld* world, dmRender::HRenderContext render_context, const ModelComponent* c, const MeshRenderItem* render_item, dmGraphics::VertexAttributeInfos* material_infos, uint32_t stride, uint32_t material_index, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, bool has_custom_attributes, uint8_t* write_ptr)
+    static uint8_t* WriteWorldSpaceVertexData(ModelWorld* world, dmRender::HRenderContext render_context, const ModelComponent* c, const MeshRenderItem* render_item, dmGraphics::VertexAttributeInfos* material_infos, uint32_t stride, dmRender::HMaterial material, uint32_t material_index, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, bool has_custom_attributes, uint8_t* write_ptr)
     {
         // Either generate the vertices by using the attributes or the 'old' way.
         // This should mean that we won't take a performance hit if we don't use attributes.
         if (has_custom_attributes)
         {
-            dmGraphics::VertexAttributeInfos attribute_infos;
+            dmGraphics::VertexAttributeInfos* attribute_infos = GetScratchVertexAttributeInfos(material_infos->m_NumInfos);
             FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                 render_item->m_DynamicVertexAttributeIndex,
                 c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
                 c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
                 material_infos,
-                &attribute_infos);
+                attribute_infos,
+                GetRenderMaterialCoordinateSpace(material));
 
-            return dmRig::GenerateVertexDataFromAttributes(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, normal_matrix, &attribute_infos, stride, write_ptr);
+            return dmRig::GenerateVertexDataFromAttributes(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, normal_matrix, attribute_infos, stride, write_ptr);
         }
         else
         {
@@ -2075,7 +2079,7 @@ namespace dmGameSystem
                 dmVMath::Matrix4 world_matrix     = c->m_World * model_matrix;
                 dmVMath::Matrix4 normal_matrix    = dmRender::GetNormalMatrix(render_context, world_matrix);
                 bool has_custom_vertex_attributes = vx_decl != world->m_VertexDeclaration;
-                vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, material_infos_vertex, vertex_stride, render_item->m_MaterialIndex, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
+                vb_end = WriteWorldSpaceVertexData(world, render_context, c, render_item, material_infos_vertex, vertex_stride, material, render_item->m_MaterialIndex, world_matrix, normal_matrix, has_custom_vertex_attributes, vb_end);
             }
         }
 

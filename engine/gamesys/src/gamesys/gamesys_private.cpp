@@ -297,7 +297,13 @@ namespace dmGameSystem
     }
 
     // Prepares the list of attributes that could potentially overrides an already specified material attribute
-    void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
+    void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool,
+        uint16_t component_dynamic_attribute_index,
+        const dmGraphics::VertexAttribute* component_attributes,
+        uint32_t num_component_attributes,
+        dmGraphics::VertexAttributeInfos* material_infos,
+        dmGraphics::VertexAttributeInfos* component_infos,
+        dmGraphics::CoordinateSpace default_coordinate_space)
     {
         component_infos->m_NumInfos     = material_infos->m_NumInfos;
         component_infos->m_VertexStride = material_infos->m_VertexStride;
@@ -310,7 +316,10 @@ namespace dmGameSystem
 
             dmGraphics::VertexAttributeInfo& component_info = (dmGraphics::VertexAttributeInfo&) component_infos->m_Infos[i];
 
-            // component_infos->m_Infos[i] = material_infos->m_Infos[i];
+            if (component_info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_DEFAULT)
+            {
+                component_info.m_CoordinateSpace = default_coordinate_space;
+            }
 
             // 1. Fill from dynamic attributes first
             if (dynamic_attribute_pool != 0x0 && component_dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
@@ -343,46 +352,16 @@ namespace dmGameSystem
 
     // Prepares the list of material attributes by getting all the vertex attributes and values for each attribute
     // as specified in the material
-    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space)
+    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos)
     {
         const dmGraphics::VertexAttributeInfo* attribute_infos;
         uint32_t num_attribute_infos;
 
         dmRender::GetMaterialProgramVertexAttributeInfos(material, &attribute_infos, &num_attribute_infos);
 
-        dmGraphics::VertexAttributeInfos material_infos;
-        material_infos.m_Infos        = attribute_infos;
-        material_infos.m_NumInfos     = num_attribute_infos;
-        material_infos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
-
-        /*
-        const dmGraphics::VertexAttribute* material_attributes;
-        uint32_t material_attributes_count;
-        dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
-        infos->m_NumInfos     = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        infos->m_Infos        = attribute_infos;
+        infos->m_NumInfos     = num_attribute_infos;
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
-
-        uint32_t value_byte_size;
-        for (int i = 0; i < infos->m_NumInfos; ++i)
-        {
-            dmGraphics::VertexAttributeInfo& info = infos->m_Infos[i];
-            info.m_NameHash         = material_attributes[i].m_NameHash;
-            info.m_SemanticType     = material_attributes[i].m_SemanticType;
-            info.m_DataType         = material_attributes[i].m_DataType;
-            info.m_CoordinateSpace  = material_attributes[i].m_CoordinateSpace;
-            info.m_VectorType       = material_attributes[i].m_VectorType;
-            info.m_Normalize        = material_attributes[i].m_Normalize;
-            info.m_StepFunction     = material_attributes[i].m_StepFunction;
-            info.m_ValueVectorType  = material_attributes[i].m_VectorType;
-
-            if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_DEFAULT)
-            {
-                info.m_CoordinateSpace = default_coordinate_space;
-            }
-
-            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &value_byte_size);
-        }
-        */
     }
 
     static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)

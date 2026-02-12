@@ -1344,7 +1344,7 @@ namespace dmGameSystem
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
 
-        dmGraphics::VertexAttributeInfos sprite_attribute_info = {};
+        dmGraphics::VertexAttributeInfos* sprite_attribute_info = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);;
         dmGraphics::WriteAttributeParams write_params = {};
 
         for (uint32_t* i = begin; i != end; ++i)
@@ -1367,9 +1367,10 @@ namespace dmGameSystem
                     component->m_Resource->m_DDF->m_Attributes.m_Data,
                     component->m_Resource->m_DDF->m_Attributes.m_Count,
                     material_attribute_info,
-                    &sprite_attribute_info);
+                    sprite_attribute_info,
+                    dmGraphics::COORDINATE_SPACE_WORLD);
 
-                sprite_attribute_info_ptr = &sprite_attribute_info;
+                sprite_attribute_info_ptr = sprite_attribute_info;
             }
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
@@ -1597,7 +1598,7 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;
