@@ -1344,7 +1344,7 @@ namespace dmGameSystem
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
 
-        dmGraphics::VertexAttributeInfos* sprite_attribute_info = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);;
+        dmGraphics::VertexAttributeInfos* sprite_attribute_info = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);
         dmGraphics::WriteAttributeParams write_params = {};
 
         for (uint32_t* i = begin; i != end; ++i)
@@ -1358,20 +1358,18 @@ namespace dmGameSystem
             uint8_t textures_num = component->m_NumTextures;
             AnimationData* animations = GetOrCreateAnimationData(sprite_world, component);
     
-            // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
-            dmGraphics::VertexAttributeInfos* sprite_attribute_info_ptr = material_attribute_info;
-            if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
-            {
-                FillAttributeInfos(&sprite_world->m_DynamicVertexAttributePool,
-                    component->m_DynamicVertexAttributeIndex,
-                    component->m_Resource->m_DDF->m_Attributes.m_Data,
-                    component->m_Resource->m_DDF->m_Attributes.m_Count,
-                    material_attribute_info,
-                    sprite_attribute_info,
-                    dmGraphics::COORDINATE_SPACE_WORLD);
+            // Always prepare a writable copy of the material attributes, so that we can
+            // resolve default coordinate spaces (e.g. POSITION with COORDINATE_SPACE_DEFAULT)
+            // and optionally override them with per-component attributes.
+            FillAttributeInfos(&sprite_world->m_DynamicVertexAttributePool,
+                component->m_DynamicVertexAttributeIndex,
+                component->m_Resource->m_DDF->m_Attributes.m_Data,
+                component->m_Resource->m_DDF->m_Attributes.m_Count,
+                material_attribute_info,
+                sprite_attribute_info,
+                dmGraphics::COORDINATE_SPACE_WORLD);
 
-                sprite_attribute_info_ptr = sprite_attribute_info;
-            }
+            dmGraphics::VertexAttributeInfos* sprite_attribute_info_ptr = sprite_attribute_info;
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             const uint32_t vb_buffer_offset = vertices - sprite_world->m_VertexBufferData;

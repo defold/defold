@@ -358,7 +358,19 @@ namespace dmGameSystem
 
         dmRender::GetMaterialProgramVertexAttributeInfos(material, &attribute_infos, &num_attribute_infos);
 
-        infos->m_Infos        = attribute_infos;
+        // If the caller has provided a scratch buffer for the attribute infos (via
+        // GetScratchVertexAttributeInfos), we copy the material attribute infos into
+        // that buffer instead of just forwarding the pointer. This allows callers to
+        // safely modify the infos without affecting the underlying material.
+        if (infos->m_Infos != 0 && infos->m_Infos != attribute_infos)
+        {
+            memcpy((void*) infos->m_Infos, (const void*) attribute_infos, sizeof(dmGraphics::VertexAttributeInfo) * num_attribute_infos);
+        }
+        else
+        {
+            infos->m_Infos = attribute_infos;
+        }
+
         infos->m_NumInfos     = num_attribute_infos;
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
     }
