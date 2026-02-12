@@ -778,13 +778,29 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
 #endif
     desc.vertex.module            = context->m_CurrentProgram->m_VertexModule->m_Module;
 
-    WGPUVertexAttribute vertexAttributes[MAX_VERTEX_STREAM_COUNT];
+    // Build the vertex input layout dynamically based on the currently enabled
+    // vertex declarations. We first count how many attributes we need, then
+    // allocate a contiguous array and point each buffer layout into the correct
+    // slice of that array.
+    uint32_t total_attribute_count = 0;
+    for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+    {
+        if (context->m_CurrentVertexDeclaration[i])
+        {
+            total_attribute_count += context->m_CurrentVertexDeclaration[i]->m_StreamCount;
+        }
+    }
+
+    dmArray<WGPUVertexAttribute> vertexAttributes;
+    vertexAttributes.SetCapacity(total_attribute_count);
+    vertexAttributes.SetSize(total_attribute_count);
+
     WGPUVertexBufferLayout vertexBuffers[MAX_VERTEX_BUFFERS];
     for (int i = 0, attributes = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexBuffers[i])
         {
-            VertexDeclaration* declaration                     = context->m_CurrentVertexDeclaration[desc.vertex.bufferCount];
+            VertexDeclaration* declaration                     = context->m_CurrentVertexDeclaration[i];
             vertexBuffers[desc.vertex.bufferCount]             = {};
             vertexBuffers[desc.vertex.bufferCount].arrayStride = declaration->m_Stride;
             if (declaration->m_StepFunction == VERTEX_STEP_FUNCTION_VERTEX)
@@ -794,7 +810,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
             if (declaration->m_StreamCount)
             {
                 vertexBuffers[desc.vertex.bufferCount].attributeCount = declaration->m_StreamCount;
-                vertexBuffers[desc.vertex.bufferCount].attributes     = vertexAttributes + attributes;
+                vertexBuffers[desc.vertex.bufferCount].attributes     = vertexAttributes.Begin() + attributes;
                 for (uint16_t s = 0; s < declaration->m_StreamCount; ++s)
                 {
                     vertexAttributes[attributes]                = {};
@@ -2136,11 +2152,13 @@ static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVer
 {
     VertexDeclaration* vd = new VertexDeclaration();
     memset(vd, 0, sizeof(VertexDeclaration));
-    vd->m_StreamCount = stream_declaration->m_StreamCount;
+    uint32_t stream_count = stream_declaration->m_Streams.Size();
+
+    vd->m_StreamCount = stream_count;
 
     // Allocate streams array for the vertex declaration
-    vd->m_Streams = new VertexDeclaration::Stream[vd->m_StreamCount];
-    for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+    vd->m_Streams = new VertexDeclaration::Stream[stream_count];
+    for (uint32_t i = 0; i < stream_count; ++i)
     {
         VertexStream& stream = stream_declaration->m_Streams[i];
         if ((stream.m_Type == TYPE_BYTE || stream.m_Type == TYPE_UNSIGNED_BYTE || stream.m_Type == TYPE_SHORT || stream.m_Type == TYPE_UNSIGNED_SHORT) && !stream.m_Normalize) // stolen from vulkan

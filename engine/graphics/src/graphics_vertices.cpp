@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "graphics.h"
-#include "graphics_private.h"
+#include "graphics_util.h"
 
 #include <dlib/math.h>
 
