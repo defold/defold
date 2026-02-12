@@ -98,7 +98,7 @@
 (def ^:private tile-spacing-message (properties/label-message :tile-source :tile-spacing))
 (def ^:private extrude-borders-message (properties/label-message :tile-source :extrude-borders))
 (def ^:private inner-padding-message (properties/label-message :tile-source :inner-padding))
-(def ^:private more-than-16-collision-groups-in-use-message (localization/message "error.tile-source.more-than-16-collision-groups-in-use"))
+(def ^:private more-than-max-collision-groups-in-use-message (localization/message "error.tile-source.more-than-max-collision-groups-in-use" {"max" collision-groups/MAX-GROUPS}))
 (def ^:private tile-data-could-not-be-generated-due-to-invalid-values-message (localization/message "error.tile-source.tile-data-could-not-be-generated-due-to-invalid-values"))
 
 (defn- tile-coords
@@ -173,7 +173,7 @@
             (dynamic error (g/fnk [_node-id id collision-groups-data]
                              (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
                                  (when (collision-groups/overallocated? collision-groups-data)
-                                   (g/->error _node-id :id :warning id more-than-16-collision-groups-in-use-message))))))
+                                   (g/->error _node-id :id :warning id more-than-max-collision-groups-in-use-message))))))
 
   (input collision-groups-data g/Any)
 

@@ -235,13 +235,15 @@
 (def ^:private texture-resource-exts [".cubemap" ".jpeg" ".jpg" ".png" ".render_target"])
 
 (defn- resource-not-found-message [property resource]
-  (localization/message "error.property-resource-not-found" {"property" property
-                                                             "resource" resource}))
+  (localization/message "error.property-resource-not-found"
+                        {"property" property
+                         "resource" resource}))
 
 (defn- resource-not-of-type-message [property resource exts]
-  (localization/message "error.resource-assignment-not-of-type" {"property" property
-                                                                 "resource" resource
-                                                                 "type" (localization/or-list exts)}))
+  (localization/message "error.resource-assignment-not-of-type"
+                        {"property" property
+                         "resource" resource
+                         "type" (localization/or-list exts)}))
 
 (deftest resource-script-properties-test
   (tu/with-loaded-project
