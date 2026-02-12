@@ -32,9 +32,8 @@ namespace dmGameSystem
         {
             g_VertexAttributeInfoStreams.SetCapacity(stream_count);
             g_VertexAttributeInfoStreams.SetSize(stream_count);
-
-            g_VertexAttributeInfos.m_Infos = g_VertexAttributeInfoStreams.Begin();
         }
+        g_VertexAttributeInfos.m_Infos = g_VertexAttributeInfoStreams.Begin();
         return &g_VertexAttributeInfos;
     }
 
