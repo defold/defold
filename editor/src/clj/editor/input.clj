@@ -15,7 +15,7 @@
 (ns editor.input
   (:require [schema.core :as s])
   (:import [javafx.event EventType]
-           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
+           [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,6 +33,11 @@
                  KeyEvent/KEY_RELEASED :key-released
                  DragEvent/DRAG_OVER :drag-over
                  DragEvent/DRAG_DROPPED :drag-dropped})
+
+(defrecord InputState [mouse-buttons pressed-keys modifiers cursor-pos])
+
+(defn make-input-state []
+  (->InputState #{} #{} #{} nil))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
@@ -98,3 +103,32 @@
           :target (.getTarget mouse-event)
           :screen-x (.getScreenX mouse-event)
           :screen-y (.getScreenY mouse-event))))))
+
+(defn update-input-state [state action]
+  (let [modifiers (->> [:alt :shift :meta :control]
+                       (filter action)
+                       set)
+        cursor-pos (when (and (:screen-x action) (:screen-y action))
+                     [(:screen-x action) (:screen-y action)])]
+    (cond-> state
+      cursor-pos
+      (assoc :cursor-pos cursor-pos)
+
+      :always
+      (assoc :modifiers modifiers)
+
+      (= :mouse-pressed (:type action))
+      (update :mouse-buttons conj (:button action))
+
+      (= :mouse-released (:type action))
+      (update :mouse-buttons disj (:button action))
+
+      (and (= :key-pressed (:type action))
+           (let [code (:key-code action)]
+             (or (.isLetterKey code) (.isDigitKey code))))
+      (update :pressed-keys conj (:key-code action))
+
+      (and (= :key-released (:type action))
+           (let [code (:key-code action)]
+             (or (.isLetterKey code) (.isDigitKey code))))
+      (update :pressed-keys disj (:key-code action)))))
