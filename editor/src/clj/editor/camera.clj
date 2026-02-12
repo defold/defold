@@ -869,95 +869,31 @@
         cpy      (camera-project camera viewport (Point3d. (.x y-axis) (.y y-axis) (.z y-axis)))]
     [(/ 1.0 (Math/abs (- (.x cp0) (.x cpx)))) (/ 1.0 (Math/abs (- (.y cp0) (.y cpy)))) 1.0]))
 
-(defonce camera-perspective-prefs-path [:scene :perspective-camera])
+(defmethod popup/settings-row :speed
+  [app-view prefs prefs-path ^PopupControl popup option]
+  (popup/slider-setting app-view prefs popup option prefs-path "Move Speed" 1.0 3.0))
 
-(defn- invalidate-grids! [app-view]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid-id (g/node-value scene-view-id :grid)]
-    (g/transact [(g/invalidate-output grid-id :grids)])))
+(defmethod popup/settings-row :move-damping
+  [app-view prefs prefs-path ^PopupControl popup option]
+  (popup/slider-setting app-view prefs popup option prefs-path "Move Damping" 5.0 20.0))
 
-(defn- ensure-focus-traversable!
-  [^Control control]
-  (ui/observe (.focusTraversableProperty control)
-    (fn [_ _ _]
-      (.setFocusTraversable control true))))
+(defmethod popup/settings-row :look-sensitivity
+  [app-view prefs prefs-path ^PopupControl popup option]
+  (popup/slider-setting app-view prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
 
-(defmulti settings-row (fn [_app-view _prefs _popup option] option))
+(defmethod popup/settings-row :mouse-smoothing
+  [app-view prefs prefs-path ^PopupControl popup option]
+  (popup/slider-setting app-view prefs popup option prefs-path "Mouse Smoothing" 0.3 0.8))
 
-(defn slider-setting [app-view prefs ^PopupControl popup option label range-min range-max]
-  (let [prefs-path (conj camera-perspective-prefs-path option)
-        value (prefs/get prefs prefs-path)
-        slider (Slider. range-min range-max value)
-        label (Label. label)]
-    (doto slider
-      (ensure-focus-traversable!)
-      (.setBlockIncrement 0.1)
-      ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
-      ;; when autoHide is set to true.
-      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
-      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+(defmethod popup/settings-row :invert-y
+  [app-view prefs prefs-path _popup option]
+  (popup/toggle-setting app-view prefs _popup option prefs-path "Invert Y" nil))
 
-    (ui/observe
-      (.valueProperty slider)
-      (fn [_observable _old-val new-val]
-        (let [val (math/round-with-precision new-val 0.01)]
-          (prefs/set! prefs prefs-path val)
-          (invalidate-grids! app-view))))
-    [label slider]))
-
-(defmethod settings-row :speed
-  [app-view prefs ^PopupControl popup option]
-  (slider-setting app-view prefs popup option "Move Speed" 1.0 3.0))
-
-(defmethod settings-row :move-damping
-  [app-view prefs ^PopupControl popup option]
-  (slider-setting app-view prefs popup option "Move Damping" 5.0 20.0))
-
-(defmethod settings-row :look-sensitivity
-  [app-view prefs ^PopupControl popup option]
-  (slider-setting app-view prefs popup option "Look Sensitivity" 0.02 0.5))
-
-(defmethod settings-row :mouse-smoothing
-  [app-view prefs ^PopupControl popup option]
-  (slider-setting app-view prefs popup option "Mouse Smoothing" 0.3 0.8))
-
-(defmethod settings-row :invert-y
-  [app-view prefs _popup option]
-  (let [prefs-path (conj camera-perspective-prefs-path option)
-        value (prefs/get prefs prefs-path)
-        check-box (CheckBox.)
-        label (Label. "Invert Y")]
-    (doto check-box
-      (ui/value! value)
-      (ui/remove-style! "check-box")
-      (ui/add-style! "slide-switch")
-      (ensure-focus-traversable!)
-      (ui/on-action! (fn [_]
-                       (prefs/set! prefs prefs-path (ui/value check-box))
-                       (invalidate-grids! app-view))))
-    (HBox/setHgrow label Priority/ALWAYS)
-    (ui/add-style! label "slide-switch-label")
-    [label check-box]))
-
-(defmethod settings-row :walking-mode
-  [app-view prefs _popup option]
-  (let [prefs-path (conj camera-perspective-prefs-path option)
-        value (prefs/get prefs prefs-path)
-        check-box (CheckBox.)
-        label (Label. "Walking Mode")]
-    (doto check-box
-      (ui/value! value)
-      (ui/remove-style! "check-box")
-      (ui/add-style! "slide-switch")
-      (ensure-focus-traversable!)
-      (ui/on-action! (fn [_]
-                       (prefs/set! prefs prefs-path (ui/value check-box))
-                       (invalidate-grids! app-view))))
-    (HBox/setHgrow label Priority/ALWAYS)
-    (ui/add-style! label "slide-switch-label")
-    [label check-box]))
+(defmethod popup/settings-row :walking-mode
+  [app-view prefs prefs-path _popup option]
+  (popup/toggle-setting app-view prefs _popup option prefs-path "Walking Mode" nil))
 
 ;; TODO: Figure out a way to add the "wider" class, but honestly we should just pass a width ourselves
-(defn show-settings! [app-view ^Parent owner prefs prefs-path]
+(defn show-settings! [app-view ^Parent owner prefs]
   (popup/show-settings! app-view owner prefs [:scene :perspective-camera]
                         [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]))

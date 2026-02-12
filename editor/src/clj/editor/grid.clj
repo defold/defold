@@ -277,10 +277,15 @@
   (output grids g/Any :cached produce-grids)
   (output renderable pass/RenderData :cached produce-renderable))
 
-(defn show-settings! [app-view ^Parent owner prefs prefs-path]
-  (popup/show-settings! app-view owner prefs [:scene :grid] [[:size :x]
-                                                             [:size :y]
-                                                             [:size :z]
-                                                             [:active-plane]
-                                                             [:opacity]
-                                                             [:color]]))
+(defn- invalidate-grids! [app-view]
+  (let [scene-view-id (g/node-value app-view :active-view)
+        grid-id (g/node-value scene-view-id :grid)]
+    (g/transact [(g/invalidate-output grid-id :grids)])))
+
+(defmethod popup/settings-row :opacity
+  [app-view prefs prefs-path ^PopupControl popup option]
+  (popup/slider-setting app-view prefs popup option prefs-path "Opacity" 0.0 1.0 #(invalidate-grids! app-view)))
+
+(defn show-settings! [app-view ^Parent owner prefs]
+  (popup/show-settings! app-view owner prefs [:scene :grid]
+                        [[:size :x] [:size :y] [:size :z] [:active-plane] [:opacity] [:color]]))

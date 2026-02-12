@@ -26,8 +26,8 @@
            [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button Control Label PopupControl Skin Slider TextField ToggleButton ToggleGroup]
-           [javafx.scene.layout HBox Region StackPane VBox]
+           [javafx.scene.control Button CheckBox Control Label PopupControl Skin Slider TextField ToggleButton ToggleGroup]
+           [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
 
@@ -51,40 +51,57 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
-(defn- invalidate-grids! [app-view]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid-id (g/node-value scene-view-id :grid)]
-    (g/transact [(g/invalidate-output grid-id :grids)])))
-
 (defmulti settings-row (fn [_app-view _prefs _prefs-path _popup option] option))
 
-(defn- ensure-focus-traversable!
-  [^Control control]
+(defn- ensure-focus-traversable! [^Control control]
   (ui/observe (.focusTraversableProperty control)
     (fn [_ _ _]
       (.setFocusTraversable control true))))
 
-(defmethod settings-row :opacity
-  [app-view prefs ^PopupControl prefs-path popup option]
-  (let [prefs-path (conj prefs-path option)
-        value (prefs/get prefs prefs-path)
-        slider (Slider. 0.0 1.0 value)
-        label (Label. "Opacity")]
-    (doto slider
-      (ensure-focus-traversable!)
-      (.setBlockIncrement 0.1)
-      ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
-      ;; when autoHide is set to true.
-      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
-      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+(defn slider-setting
+  ([app-view prefs ^PopupControl popup option prefs-path label-text range-min range-max]
+   (slider-setting app-view prefs ^PopupControl popup option prefs-path label-text range-min range-max nil))
+  ([app-view prefs ^PopupControl popup option prefs-path label-text range-min range-max on-change-fn]
+   (let [prefs-path (conj prefs-path option)
+         value (prefs/get prefs prefs-path)
+         slider (Slider. range-min range-max value)
+         label (Label. label-text)]
+     (doto slider
+       (ensure-focus-traversable!)
+       (.setBlockIncrement 0.1)
+       ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
+       ;; when autoHide is set to true.
+       (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
+       (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
 
-    (ui/observe
-      (.valueProperty slider)
-      (fn [_observable _old-val new-val]
-        (let [val (math/round-with-precision new-val 0.01)]
-          (prefs/set! prefs prefs-path val)
-          (invalidate-grids! app-view))))
-    [label slider]))
+     (ui/observe
+       (.valueProperty slider)
+       (fn [_observable _old-val new-val]
+         (let [val (math/round-with-precision new-val 0.01)]
+           (prefs/set! prefs prefs-path val)
+           ;; TODO: Maybe pass some extra arguments
+           (when on-change-fn (on-change-fn)))))
+     [label slider])))
+
+(defn toggle-setting
+  ([app-view prefs _popup option prefs-path label-text]
+   (toggle-setting app-view prefs _popup option prefs-path label-text nil))
+  ([app-view prefs _popup option prefs-path label-text on-change-fn]
+   (let [prefs-path (conj prefs-path option)
+         value (prefs/get prefs prefs-path)
+         check-box (CheckBox.)
+         label (Label. label-text)]
+     (doto check-box
+       (ui/value! value)
+       (ui/remove-style! "check-box")
+       (ui/add-style! "slide-switch")
+       (ensure-focus-traversable!)
+       (ui/on-action! (fn [_]
+                        (prefs/set! prefs prefs-path (ui/value check-box))
+                        (when on-change-fn (on-change-fn)))))
+     (HBox/setHgrow label Priority/ALWAYS)
+     (ui/add-style! label "slide-switch-label")
+     [label check-box])))
 
 (defn plane-toggle-button
   [prefs plane-group prefs-path plane]
@@ -165,7 +182,7 @@
 (declare settings)
 
 (defn- reset-button
-  [app-view prefs ^PopupControl popup prefs-path settings-paths]
+  [app-view prefs ^PopupControl popup prefs-path settings-paths reset-callback]
   (let [button (doto (Button. "Reset to Defaults")
                  (.setPrefWidth Double/MAX_VALUE))
         reset-fn (fn [^ActionEvent event]
@@ -174,7 +191,7 @@
                      (doseq [path settings-paths]
                        (let [path (into prefs-path path)]
                          (prefs/set! prefs path (:default (prefs/schema prefs path)))))
-                     (invalidate-grids! app-view)
+                     (when reset-callback (reset-callback))
                      (doto parent
                        (ui/children! (ui/node-array (settings app-view prefs popup)))
                        (.requestFocus))))]
@@ -184,13 +201,14 @@
     button))
 
 (defn- settings
-  [app-view prefs popup prefs-path settings-paths]
+  [app-view prefs popup prefs-path settings-paths reset-callback]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         options (g/node-value grid :options)
-        reset-btn (reset-button app-view prefs popup prefs-path settings-paths)]
+        reset-btn (reset-button app-view prefs popup prefs-path settings-paths reset-callback)]
     (->> settings-paths
-         (into #{} (map first))
+         (e/map first)
+         (e/distinct)
          (e/remove (partial contains? options))
          (reduce (fn [rows option]
                    (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs prefs-path popup option)))
@@ -202,20 +220,23 @@
   (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 ;; TODO: We have to check whether any other settings popup is already open
-(defn show-settings! [app-view ^Parent owner prefs prefs-path settings-paths]
-  (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-    (.hide popup)
-    (let [region (StackPane.)
-          popup (make-popup owner region)
-          anchor ^Point2D (pref-popup-position (.getParent owner))]
-      (ui/children! region [(doto (Region.)
-                              (ui/add-style! "popup-shadow"))
-                            (doto (VBox. 10 (ui/node-array (settings app-view prefs popup prefs-path settings-paths)))
-                              (.setFocusTraversable true)
-                              (ensure-focus-traversable!)
-                              (ui/add-style! "grid-settings"))])
-      (ui/user-data! owner ::popup popup)
-      (doto popup
-        (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-        (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
-        (.show owner (.getX anchor) (.getY anchor))))))
+(defn show-settings!
+  ([app-view ^Parent owner prefs prefs-path settings-paths]
+   (show-settings! app-view ^Parent owner prefs prefs-path settings-paths nil))
+  ([app-view ^Parent owner prefs prefs-path settings-paths reset-callback]
+   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
+     (.hide popup)
+     (let [region (StackPane.)
+           popup (make-popup owner region)
+           anchor ^Point2D (pref-popup-position (.getParent owner))]
+       (ui/children! region [(doto (Region.)
+                               (ui/add-style! "popup-shadow"))
+                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup prefs-path settings-paths reset-callback)))
+                               (.setFocusTraversable true)
+                               (ensure-focus-traversable!)
+                               (ui/add-style! "grid-settings"))])
+       (ui/user-data! owner ::popup popup)
+       (doto popup
+         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
+         (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
+         (.show owner (.getX anchor) (.getY anchor)))))))
