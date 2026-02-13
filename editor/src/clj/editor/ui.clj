@@ -385,12 +385,11 @@
 
 (defmacro run-now
   [& body]
-  `(do-run-now
-     (fn [] ~@body)))
+  `(do-run-now (bound-fn [] ~@body)))
 
 (defmacro run-later
   [& body]
-  `(do-run-later (fn [] ~@body)))
+  `(do-run-later (bound-fn [] ~@body)))
 
 (defn send-event! [^EventTarget event-target ^Event event]
   (Event/fireEvent event-target (DirectEvent. (.copyFor event event-target event-target))))
