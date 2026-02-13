@@ -1161,16 +1161,19 @@
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
         node (g/node-by-id-at basis node-id)
-        image-view (g/raw-property-value* basis node :image-view)]
+        image-view (g/raw-property-value* basis node :image-view)
+        camera (view->camera node-id)
+        free-camera-mode (and camera
+                              (g/node-value camera :free-camera-mode))]
     (when-not (ui/inside-hidden-tab? image-view)
       (let [drawable (g/raw-property-value* basis node :drawable)
             async-copy-state-atom (g/raw-property-value* basis node :async-copy-state)]
         (when (and (some? drawable)
                    (some? async-copy-state-atom))
-          (update-image-view! image-view drawable async-copy-state-atom dt)
+          (update-image-view! image-view drawable async-copy-state-atom free-camera-mode dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))
-          (when-let [input-state (g/node-value node-id :input-state)]
+          (when-let [input-state (g/maybe-node-value node-id :input-state)]
             (let [camera (view->camera node-id)]
               (when (and (or (contains? (:mouse-buttons input-state) :secondary)
                              (g/node-value camera :free-camera-mode))
@@ -1559,7 +1562,7 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom free-camera-mode dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
           (g/with-auto-evaluation-context evaluation-context
@@ -1569,7 +1572,8 @@
              (g/node-value view-id :play-mode evaluation-context)
              (g/node-value view-id :active-updatables evaluation-context)
              (g/node-value view-id :updatable-states evaluation-context)])
-
+          tool-user-data (cond-> tool-user-data
+                           free-camera-mode (assoc :free-camera-mode free-camera-mode))
           has-active-updatables (not (coll/empty? active-updatables))
           new-updatable-states (if has-active-updatables
                                  (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
@@ -1695,6 +1699,7 @@
       (when (and (= :secondary (:button action)) is-perspective?)
         (when-let [tab-content (find-tab-content image-view)]
           (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
+        (g/set-property! camera-id :free-camera-mode true)
         (g/update-property! view-id :input-state assoc :cursor-lock-pos [(:screen-x action) (:screen-y action)]))
 
       :mouse-released
