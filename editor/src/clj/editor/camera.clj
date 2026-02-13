@@ -869,31 +869,30 @@
         cpy      (camera-project camera viewport (Point3d. (.x y-axis) (.y y-axis) (.z y-axis)))]
     [(/ 1.0 (Math/abs (- (.x cp0) (.x cpx)))) (/ 1.0 (Math/abs (- (.y cp0) (.y cpy)))) 1.0]))
 
-(defmethod popup/settings-row :speed
+(defmethod popup/settings-row [:perspective-camera :speed]
   [app-view prefs prefs-path ^PopupControl popup option]
   (popup/slider-setting app-view prefs popup option prefs-path "Move Speed" 1.0 3.0))
 
-(defmethod popup/settings-row :move-damping
+(defmethod popup/settings-row [:perspective-camera :move-damping]
   [app-view prefs prefs-path ^PopupControl popup option]
   (popup/slider-setting app-view prefs popup option prefs-path "Move Damping" 5.0 20.0))
 
-(defmethod popup/settings-row :look-sensitivity
+(defmethod popup/settings-row [:perspective-camera :look-sensitivity]
   [app-view prefs prefs-path ^PopupControl popup option]
   (popup/slider-setting app-view prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
 
-(defmethod popup/settings-row :mouse-smoothing
+(defmethod popup/settings-row [:perspective-camera :mouse-smoothing]
   [app-view prefs prefs-path ^PopupControl popup option]
   (popup/slider-setting app-view prefs popup option prefs-path "Mouse Smoothing" 0.3 0.8))
 
-(defmethod popup/settings-row :invert-y
+(defmethod popup/settings-row [:perspective-camera :invert-y]
   [app-view prefs prefs-path _popup option]
   (popup/toggle-setting app-view prefs _popup option prefs-path "Invert Y" nil))
 
-(defmethod popup/settings-row :walking-mode
+(defmethod popup/settings-row [:perspective-camera :walking-mode]
   [app-view prefs prefs-path _popup option]
   (popup/toggle-setting app-view prefs _popup option prefs-path "Walking Mode" nil))
 
-;; TODO: Figure out a way to add the "wider" class, but honestly we should just pass a width ourselves
 (defn show-settings! [app-view ^Parent owner prefs]
   (popup/show-settings! app-view owner prefs 260 [:scene :perspective-camera]
                         [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]))

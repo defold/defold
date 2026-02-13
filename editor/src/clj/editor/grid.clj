@@ -282,19 +282,19 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defmethod popup/settings-row :opacity
+(defmethod popup/settings-row [:grid :opacity]
   [app-view prefs prefs-path ^PopupControl popup option]
   (popup/slider-setting app-view prefs popup option prefs-path "Opacity" 0.0 1.0 #(invalidate-grids! app-view)))
 
-(defmethod popup/settings-row :size
+(defmethod popup/settings-row [:grid :size]
   [app-view prefs prefs-path _popup option]
   (popup/vec3-floats-setting app-view prefs prefs-path _popup option #(invalidate-grids! app-view)))
 
-(defmethod popup/settings-row :color
+(defmethod popup/settings-row [:grid :color]
   [app-view prefs prefs-path _popup option]
   (popup/color-setting app-view prefs prefs-path _popup option #(invalidate-grids! app-view)))
 
-(defmethod popup/settings-row :active-plane
+(defmethod popup/settings-row [:grid :active-plane]
   [app-view prefs prefs-path _popup option]
   (popup/vec3-toggle-setting app-view prefs prefs-path _popup option "Plane" #(invalidate-grids! app-view)))
 
@@ -302,7 +302,7 @@
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         ignore-options (g/node-value grid :options)]
-    (popup/show-settings! app-view owner prefs [:scene :grid]
+    (popup/show-settings! app-view owner prefs 220 [:scene :grid]
                          [[:size :x] [:size :y] [:size :z] [:active-plane] [:color] [:opacity]]
                          ignore-options
                          #(invalidate-grids! app-view))))
