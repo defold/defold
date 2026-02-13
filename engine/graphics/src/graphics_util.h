@@ -20,7 +20,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include "graphics.h"
-#include "graphics_util.h"
 
 namespace dmGraphics
 {
@@ -53,24 +52,6 @@ namespace dmGraphics
         float a = (float)((in_color & 0x000000FF)      ) / 255.0f;
 #endif
         return dmVMath::Vector4(r,g,b,a);
-    }
-
-    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
-    {
-        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
-        uint64_t handle = ((uint64_t) asset_type) << 32 | opaque_handle;
-        assert(handle <= MAX_ASSET_HANDLE_VALUE);
-        return handle;
-    }
-
-    static inline AssetType GetAssetType(HAssetHandle asset_handle)
-    {
-        return (AssetType) (asset_handle >> 32);
-    }
-
-    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
-    {
-        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
     }
 
     static inline bool IsColorBufferType(BufferType buffer_type)

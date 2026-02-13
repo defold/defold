@@ -485,6 +485,24 @@ namespace dmGraphics
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);
 
+    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
+    {
+        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
+        uint64_t handle = ((uint64_t) asset_type) << 32 | opaque_handle;
+        assert(handle <= MAX_ASSET_HANDLE_VALUE);
+        return handle;
+    }
+
+    static inline AssetType GetAssetType(HAssetHandle asset_handle)
+    {
+        return (AssetType) (asset_handle >> 32);
+    }
+
+    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
+    {
+        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
+
     // Test functions:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
     bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
