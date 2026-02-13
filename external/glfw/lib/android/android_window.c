@@ -379,11 +379,42 @@ static void CreateGLSurface()
 
 void glfwAndroidFlushEvents()
 {
+    static struct InputEvent* flush_input_events = 0;
+    static int flush_input_events_capacity = 0;
+
+    int local_app_commands[MAX_APP_COMMANDS];
+    int local_num_app_commands = 0;
+    struct InputEvent* local_input_events = 0;
+    int local_num_input_events = 0;
+
     spinlock_lock(&g_EventLock);
 
-    for (int i = 0; i < g_NumAppCommands; ++i)
+    local_num_app_commands = g_NumAppCommands;
+    if (local_num_app_commands > 0)
     {
-        int cmd = g_AppCommands[i];
+        memcpy(local_app_commands, g_AppCommands, local_num_app_commands * sizeof(int));
+    }
+    g_NumAppCommands = 0;
+
+    local_num_input_events = g_NumAppInputEvents;
+    if (local_num_input_events > flush_input_events_capacity)
+    {
+        flush_input_events_capacity = local_num_input_events;
+        flush_input_events = realloc(flush_input_events, local_num_input_events * sizeof(struct InputEvent));
+    }
+
+    if (local_num_input_events > 0)
+    {
+        memcpy(flush_input_events, g_AppInputEvents, local_num_input_events * sizeof(struct InputEvent));
+        local_input_events = flush_input_events;
+    }
+    g_NumAppInputEvents = 0;
+
+    spinlock_unlock(&g_EventLock);
+
+    for (int i = 0; i < local_num_app_commands; ++i)
+    {
+        int cmd = local_app_commands[i];
 
         LOGV("handleCommand (main thread): %s", _glfwGetAndroidCmdName(cmd));
 
@@ -440,7 +471,6 @@ void glfwAndroidFlushEvents()
 
         }
     }
-    g_NumAppCommands = 0;
 
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
     if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
@@ -452,26 +482,23 @@ void glfwAndroidFlushEvents()
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;
-    if (g_NumAppInputEvents > 0)
+    if (local_num_input_events > 0)
     {
         env = g_AndroidApp->activity->env;
         vm = g_AndroidApp->activity->vm;
         (*vm)->AttachCurrentThread(vm, &env, NULL);
     }
 
-    for (int i = 0; i < g_NumAppInputEvents; ++i)
+    for (int i = 0; i < local_num_input_events; ++i)
     {
-        struct InputEvent* event = &g_AppInputEvents[i];
+        struct InputEvent* event = &local_input_events[i];
         _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
     }
-    g_NumAppInputEvents = 0;
 
     if (vm != 0)
     {
         (*vm)->DetachCurrentThread(vm);
     }
-
-    spinlock_unlock(&g_EventLock);
 }
 
 void androidDestroyWindow( void )
