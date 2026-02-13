@@ -20,6 +20,7 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include "graphics.h"
+#include "graphics_util.h"
 
 namespace dmGraphics
 {

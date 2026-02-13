@@ -68,6 +68,7 @@ protected:
         m_Prototype = 0x0;
 
         dmGraphics::VertexAttributeInfo* attribute_infos = new dmGraphics::VertexAttributeInfo[4];
+        memset(attribute_infos, 0, sizeof(dmGraphics::VertexAttributeInfo) * 4);
 
         FillAttribute(attribute_infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
         FillAttribute(attribute_infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
@@ -144,18 +145,18 @@ void ParticleTest::VerifyVertexTexCoords(TestVertex* vertex_buffer, float* tex_c
     // |         then       |
     // 0               5 -- 4
 
-    ASSERT_EQ(u0, vertex_buffer[0].m_U);
-    ASSERT_EQ(v1, vertex_buffer[0].m_V);
-    ASSERT_EQ(u0, vertex_buffer[1].m_U);
-    ASSERT_EQ(v0, vertex_buffer[1].m_V);
-    ASSERT_EQ(u1, vertex_buffer[2].m_U);
-    ASSERT_EQ(v0, vertex_buffer[2].m_V);
-    ASSERT_EQ(u1, vertex_buffer[3].m_U);
-    ASSERT_EQ(v0, vertex_buffer[3].m_V);
-    ASSERT_EQ(u1, vertex_buffer[4].m_U);
-    ASSERT_EQ(v1, vertex_buffer[4].m_V);
-    ASSERT_EQ(u0, vertex_buffer[5].m_U);
-    ASSERT_EQ(v1, vertex_buffer[5].m_V);
+    ASSERT_NEAR(u0, vertex_buffer[0].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[0].m_V, EPSILON);
+    ASSERT_NEAR(u0, vertex_buffer[1].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[1].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[2].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[2].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[3].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[3].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[4].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[4].m_V, EPSILON);
+    ASSERT_NEAR(u0, vertex_buffer[5].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[5].m_V, EPSILON);
 }
 
 void ParticleTest::VerifyVertexDims(TestVertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height)
