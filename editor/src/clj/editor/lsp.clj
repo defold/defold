@@ -948,6 +948,18 @@
     @p))
 
 (comment
+
+  (let [resource (g/node-value (dev/active-resource) :resource)]
+    ((g/graph-value 1 :lsp) (fn [state]
+                              (let [ch (a/chan 1)]
+                                (a/take! ch tap>)
+                                (send-requests!
+                                  state ch
+                                  :capabilities-pred :document-symbol
+                                  :language (resource/language resource)
+                                  :timeout-ms 10000
+                                  :requests [(lsp.server/document-symbols resource)])))))
+
   (val (first @running-lsps))
   ;; Restart all servers:
   ((g/graph-value 1 :lsp) (fn [state]
