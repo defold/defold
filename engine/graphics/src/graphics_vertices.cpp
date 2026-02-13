@@ -381,6 +381,8 @@ namespace dmGraphics
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NONE:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
                 data->m_ValuePtr     = info.m_ValuePtr;
                 data->m_VectorType   = info.m_ValueVectorType;
                 data->m_DataType     = info.m_DataType;
