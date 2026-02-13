@@ -370,6 +370,57 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+TEST_F(dmGraphicsTest, VertexDeclarationMoreThan8Streams)
+{
+    // Create a vertex declaration with more than 8 streams (e.g. 10)
+    const uint32_t num_streams = 10;
+    float v[20]; // 2 vertices, 10 floats each (stream0..stream9 per vertex)
+    for (uint32_t i = 0; i < 20; ++i)
+    {
+        v[i] = (float) i;
+    }
+
+    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), (void*)v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        char name[16];
+        dmSnPrintf(name, sizeof(name), "stream%u", i);
+        dmGraphics::AddVertexStream(stream_declaration, name, 1, dmGraphics::TYPE_FLOAT, false);
+    }
+
+    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
+    dmGraphics::VertexDeclaration* vx = (dmGraphics::VertexDeclaration*) vertex_declaration;
+    ASSERT_EQ(num_streams, (uint32_t) vx->m_StreamCount);
+    ASSERT_EQ(num_streams * sizeof(float), (uint32_t) dmGraphics::GetVertexDeclarationStride(vertex_declaration));
+
+    dmGraphics::EnableVertexBuffer(m_Context, vertex_buffer, 0);
+    dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, 0);
+
+    // Verify that enabling the vertex declaration bound all streams correctly
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        ASSERT_EQ(4u, (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Size);
+        ASSERT_EQ(num_streams * sizeof(float), (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Stride);
+        const float* src = (const float*) m_NullContext->m_VertexStreams[0][i].m_Source;
+        ASSERT_NE((void*)0, (void*)src);
+        ASSERT_EQ((float)i, *src);
+    }
+
+    dmGraphics::DisableVertexDeclaration(m_Context, vertex_declaration);
+
+    // Verify all streams were disabled
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        ASSERT_EQ(0u, (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Size);
+    }
+
+    dmGraphics::DeleteVertexDeclaration(vertex_declaration);
+    dmGraphics::DeleteVertexBuffer(vertex_buffer);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
 TEST_F(dmGraphicsTest, Drawing)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f };
