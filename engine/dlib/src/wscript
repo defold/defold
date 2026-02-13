@@ -329,7 +329,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
+    bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
     bld(features='jar seq',
         basedir='java',

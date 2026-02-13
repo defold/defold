@@ -110,7 +110,7 @@
                       (fs/file-walker output-dir false))))
           (catch Exception e
             (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
-                       (str "Compilation failed: " (ex-message e))))
+                       (localization/message "error.transpiler-compilation-failed" {"error" (ex-message e)})))
           (finally
             (when-not use-project-dir
               (fs/delete-directory! source-dir {:fail :silently}))))))))

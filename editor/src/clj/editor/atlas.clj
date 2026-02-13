@@ -202,8 +202,11 @@
                          :flip-vertical   false
                          :playback        :playback-none}))
 
+(def ^:private id-message (properties/label-message :id))
+(def ^:private image-message (properties/label-message :image))
+
 (defn- unique-id-error [node-id id id-counts]
-  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
+  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id id-message)
       (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
 
 (defn- validate-image-id [node-id id id-counts]
@@ -211,7 +214,7 @@
     (unique-id-error node-id id id-counts)))
 
 (defn- validate-image-resource [node-id image-resource]
-  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
+  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource image-message))
 
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
@@ -267,7 +270,7 @@
   (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource maybe-image-size]
                                              ;; Depending on maybe-image-size provides ErrorValues from the image/ImageNode,
                                              ;; but we also want to guard against a non-assigned Image here.
-                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource "Image")
+                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource image-message)
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
@@ -402,8 +405,10 @@
 (defn- validate-animation-id [node-id id id-counts]
   (unique-id-error node-id id id-counts))
 
+(def ^:private fps-message (properties/label-message :atlas.animation :fps))
+
 (defn- validate-animation-fps [node-id fps]
-  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "Fps"))
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
 
 (g/defnode AtlasAnimation
   (inherits core/Scope)
@@ -486,21 +491,31 @@
     :max-page-width (max-page-size 0)
     :max-page-height (max-page-size 1)))
 
+(def ^:private margin-message (properties/label-message :atlas :margin))
+(def ^:private inner-padding-message (properties/label-message :atlas :inner-padding))
+(def ^:private extrude-borders-message (properties/label-message :atlas :extrude-borders))
+(def ^:private max-page-width-message (properties/label-message :atlas :max-page-width))
+(def ^:private max-page-height-message (properties/label-message :atlas :max-page-height))
+
 (defn- validate-margin [node-id margin]
-  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
+  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin margin-message))
 
 (defn- validate-inner-padding [node-id inner-padding]
-  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding inner-padding-message))
 
 (defn- validate-extrude-borders [node-id extrude-borders]
-  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders extrude-borders-message))
 
 (defn- max-page-size-error-message [[x y]]
   (cond
-    (neg? x) "'Max Page Width' cannot be negative"
-    (neg? y) "'Max Page Height' cannot be negative"
-    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Width' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
-    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Height' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
+    (neg? x) (localization/message "error.property-cannot-be-negative" {"property" max-page-width-message})
+    (neg? y) (localization/message "error.property-cannot-be-negative" {"property" max-page-height-message})
+    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (localization/message "error.property-cannot-exceed"
+                                                                     {"property" max-page-width-message
+                                                                      "value" TextureSetLayout/MAX_ATLAS_DIMENSION})
+    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (localization/message "error.property-cannot-exceed"
+                                                                     {"property" max-page-height-message
+                                                                      "value" TextureSetLayout/MAX_ATLAS_DIMENSION})
     :else nil))
 
 (defn- validate-max-page-size [node-id page-size]
@@ -508,7 +523,7 @@
 
 (defn- texture-page-count-error-message [x]
   (when (> x 8)
-    (format "Atlas page count (%d) cannot exceed 8 pages per atlas" x)))
+    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" 8})))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)

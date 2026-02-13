@@ -15,8 +15,8 @@
 (ns editor.scene
   (:require [cljfx.api :as fx]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.text-area :as fx.text-area]
             [clojure.set :as set]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -58,7 +58,6 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -112,13 +111,21 @@
   (when-let [resource (some-> node-id resource-node/owner-resource)]
     (resource/resource-name resource)))
 
-(defn- error-message-lines
-  [error-values]
+(def ^:private error-render-title-message
+  (localization/message "error.render.title"))
+
+(def ^:private error-render-unknown-resource-message
+  (localization/message "error.render.unknown-resource"))
+
+(def ^:private error-render-and-more-message
+  (localization/message "error.render.and-more"))
+
+(defn- error-message-lines [error-values localization-state]
   (let [max-error-count 15 ; We limit the number of errors since traversing deep trees is slow.
 
         distinct-errors
         (coll/into-> error-values []
-          (mapcat #(tree-seq :causes :causes %))
+          (coll/tree-xf :causes :causes)
           (filter :message)
           (remove :causes)
           (map #(select-keys % [:_node-id :message]))
@@ -126,30 +133,22 @@
           (take (inc max-error-count))) ; Produce one more error than we'll use so we'll know if we're over the limit.
 
         error-message-lines
-        (coll/into-> distinct-errors ["RENDER ERROR:" ""]
+        (coll/into-> distinct-errors [(localization-state error-render-title-message)
+                                      ""]
           (take max-error-count)
           (map (fn [{:keys [_node-id message]}]
-                 (let [resource-name (get-resource-name _node-id)]
-                   (format "- %s: %s"
-                           (or resource-name "unknown")
-                           message)))))]
+                 (let [resource-name (or (get-resource-name _node-id)
+                                         (localization-state error-render-unknown-resource-message))]
+                   (str "- " resource-name ": " (localization-state message))))))]
 
     (cond-> error-message-lines
             (< max-error-count (count distinct-errors))
-            (conj "...and more"))))
-
-(def ^:private renderable->error-value (comp :error :user-data))
+            (conj (localization-state error-render-and-more-message)))))
 
 (defn- render-error
-  [gl render-args renderables _nrenderables]
+  [gl render-args _renderables _nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [error-values (e/map renderable->error-value renderables)
-          error-message-lines (error-message-lines error-values)]
-      (->> error-message-lines
-           (e/map-indexed coll/pair)
-           (run!
-             (fn [[index error-message-line]]
-               (scene-text/overlay gl error-message-line 24.0 (- -22.0 (* 14 index)))))))))
+    (scene-text/overlay gl "RENDER ERROR" 24.0 -22.0)))
 
 (defn substitute-render-data
   [error]
@@ -828,17 +827,24 @@
             (:preview-anim-data updatable)))
         active-updatable-ids))
 
+(fxui/defc error-overlay
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [localization-state error]}]
+  {:fx/type fx.text-area/lifecycle
+   :style-class "info-text-area"
+   :editable false
+   :wrap-text true
+   :text (coll/join-to-string "\n" (error-message-lines [error] localization-state))})
+
 (g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap]
   (if-let [error (:error scene)]
-    {:children [{:fx/type cljfx.fx.text-area/lifecycle
+    {:children [{:fx/type error-overlay
                  :anchor-pane/bottom 0
                  :anchor-pane/left 0
                  :anchor-pane/right 0
                  :anchor-pane/top 0
-                 :style-class "info-text-area"
-                 :editable false
-                 :wrap-text true
-                 :text (string/join \newline (error-message-lines [error]))}]}
+                 :localization localization
+                 :error error}]}
     (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
       overlay-anchor-pane-props
       (let [info-text
@@ -1027,13 +1033,6 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
-(defn- advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
-    (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
-
 (defn cursor
   "Maps inconsistent cursor types across platforms.
   See https://bugs.openjdk.org/browse/JDK-8101062"
@@ -1179,7 +1178,7 @@
                 (update-free-camera! image-view input-state node-id dt))))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
-          (advance-user-data-component!
+          (fxui/advance-graph-user-data-component!
             node-id :overlay-anchor-pane
             {:fx/type fxui/ext-with-anchor-pane-props
              :props overlay-anchor-pane-props
@@ -1200,6 +1199,7 @@
         (scene-cache/drop-context! gl)
         (.glFinish gl))
       (.destroy picking-drawable))
+    (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
     (g/transact
       (concat
         (g/set-property node-id :drawable nil)
