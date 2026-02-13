@@ -1060,6 +1060,7 @@
   ([camera-node start-camera end-camera animate?]
    (set-camera! camera-node start-camera end-camera animate? nil))
   ([camera-node start-camera end-camera animate? on-animation-end]
+   (assoc end-camera :focus-distance (.distance (:position end-camera) (c/camera-focus-point end-camera)))
    (if animate?
      (let [duration 0.5]
        (g/transact (g/set-property camera-node :animating true))
