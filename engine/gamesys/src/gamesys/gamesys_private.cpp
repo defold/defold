@@ -385,7 +385,26 @@ namespace dmGameSystem
         }
     }
 
-    void ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, const dmGraphics::VertexAttribute* attribute, uint8_t* value_ptr)
+    static void VertexAttributeToFloats(const dmGraphics::VertexAttributeInfo* info, const uint8_t* value_ptr, float* out)
+    {
+        if (!value_ptr)
+            return;
+        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(info->m_DataType);
+        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+        for (uint32_t i = 0; i < info->m_ElementCount; ++i)
+        {
+            out[i] = VertexAttributeDataTypeToFloat(info->m_DataType, value_ptr + bytes_per_element * i);
+        }
+    }
+
+    static void VertexAttributeToFloats(const dmGraphics::VertexAttributeInfo* info, float* out)
+    {
+        if (!info->m_ValuePtr)
+            return;
+        VertexAttributeToFloats(info, info->m_ValuePtr, out);
+    }
+
+    void ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, const dmGraphics::VertexAttributeInfo* attribute, uint8_t* value_ptr)
     {
         float* values = info.m_Infos[dynamic_attribute_index].m_Values;
 
@@ -399,7 +418,7 @@ namespace dmGameSystem
         }
         else
         {
-            for (int i = 0; i < attribute->m_ElementCount; ++i)
+            for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
             {
                 WriteVertexAttributeFromFloat(value_ptr + bytes_per_element * i, values[i], attribute->m_DataType);
             }
@@ -557,7 +576,7 @@ namespace dmGameSystem
         const dmGameObject::PropertyVar&    var,
         CompGetMaterialAttributeCallback    callback,
         void*                               callback_user_data,
-        const dmGraphics::VertexAttribute** attribute_out)
+        const dmGraphics::VertexAttributeInfo** attribute_out)
     {
         if (var.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER &&
             var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3 &&
@@ -643,7 +662,7 @@ namespace dmGameSystem
             }
 
             // Then, we need to convert each element of the attribute data to a float, since that is the backing storage for the override
-            VertexAttributeToFloats(info.m_Attribute, info.m_ValuePtr, values);
+            VertexAttributeToFloats(info.m_Attribute, values);
         }
 
         // go.set("#sprite", "attribute_vec.x", 10.0)

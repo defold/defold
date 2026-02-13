@@ -730,12 +730,12 @@ namespace dmGameSystem
 
     static bool HasCustomVertexAttributes(dmRender::HMaterial material)
     {
-        const dmGraphics::VertexAttribute* attributes = 0;
+        const dmGraphics::VertexAttributeInfo* attributes = 0;
         uint32_t attribute_count = 0;
         dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
         for (int i = 0; i < attribute_count; ++i)
         {
-            const dmGraphics::VertexAttribute& attr = attributes[i];
+            const dmGraphics::VertexAttributeInfo& attr = attributes[i];
             if (!IsDefaultStream(attr.m_NameHash, attr.m_SemanticType, attr.m_StepFunction))
             {
                 return true;
@@ -1917,12 +1917,12 @@ namespace dmGameSystem
 
     static inline bool CanUseDefaultVertexDeclaration(dmRender::HMaterial material)
     {
-        const dmGraphics::VertexAttribute* attributes = 0;
+        const dmGraphics::VertexAttributeInfo* attributes = 0;
         uint32_t attribute_count = 0;
         dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
         for (int i = 0; i < attribute_count; ++i)
         {
-            const dmGraphics::VertexAttribute& attr = attributes[i];
+            const dmGraphics::VertexAttributeInfo& attr = attributes[i];
             if (attr.m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT)
             {
                 return false;
@@ -2779,7 +2779,7 @@ namespace dmGameSystem
         // Only check attributes if the constant property was not found
         if (res == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
         {
-            const dmGraphics::VertexAttribute* attribute = 0;
+            const dmGraphics::VertexAttributeInfo* attribute = 0;
             MeshRenderItem* render_item = GetMeshRenderItem(component, 0);
             uint16_t* dynamic_attribute_index_ptr = render_item ? &render_item->m_DynamicVertexAttributeIndex : 0;
 

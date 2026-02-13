@@ -137,6 +137,8 @@ namespace dmGraphics
         uint8_t               : 4;
     };
 
+    // Single runtime representation for vertex attributes (descriptor + value pointer).
+    // Used everywhere after loading; DDF VertexAttribute is converted to this at load boundaries.
     struct VertexAttributeInfo
     {
         dmhash_t                       m_NameHash;
@@ -147,6 +149,7 @@ namespace dmGraphics
         CoordinateSpace                m_CoordinateSpace;
         const uint8_t*                 m_ValuePtr;
         VertexAttribute::VectorType    m_ValueVectorType;
+        uint32_t                       m_ElementCount;  // Number of vector/matrix elements (e.g. 1 for a single vec4, 4 for array of 4 vec4s)
         bool                           m_Normalize;
     };
 
@@ -413,6 +416,7 @@ namespace dmGraphics
     uint32_t         GetAttributeCount(HProgram prog);
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    void             GetAttributeValues(const VertexAttributeInfo& info, const uint8_t** data_ptr, uint32_t* data_size);
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);

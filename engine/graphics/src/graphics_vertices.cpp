@@ -57,6 +57,12 @@ namespace dmGraphics
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
+    void GetAttributeValues(const dmGraphics::VertexAttributeInfo& info, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        *data_ptr  = info.m_ValuePtr;
+        *data_size = info.m_ValuePtr ? (info.m_ElementCount * dmGraphics::DataTypeToByteWidth(info.m_DataType)) : 0;
+    }
+
     uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type)
     {
         switch (data_type)

@@ -5029,7 +5029,7 @@ TEST_F(MaterialTest, CustomInstanceAttributes)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
     ASSERT_EQ(5, attribute_count);
@@ -5078,7 +5078,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
 
     // Attributes specified in the shader:
@@ -5184,7 +5184,7 @@ TEST_F(MaterialTest, ManyVertexStreamsLoad)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
 
@@ -5219,7 +5219,7 @@ TEST_F(MaterialTest, ManyVertexStreamsAttributeValues)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
     ASSERT_EQ(10u, attribute_count);
@@ -5285,7 +5285,7 @@ static void ValidateVertexAttributeTypeConversion(dmGameSystem::DynamicAttribute
     uint8_t value_buffer[sizeof(float) * 4];
     T* values = (T*) value_buffer;
 
-    dmGraphics::VertexAttribute attr = {};
+    dmGraphics::VertexAttributeInfo attr = {};
     attr.m_ElementCount = num_values;
     attr.m_DataType = data_type;
 

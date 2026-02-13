@@ -781,6 +781,7 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     infos_array[infos.m_NumInfos].m_VectorType      = vector_type;
     infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
     infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    infos_array[infos.m_NumInfos].m_ElementCount   = dmGraphics::VectorTypeToElementCount(vector_type);
     infos.m_NumInfos++;
 }
 
