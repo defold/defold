@@ -870,27 +870,27 @@
     [(/ 1.0 (Math/abs (- (.x cp0) (.x cpx)))) (/ 1.0 (Math/abs (- (.y cp0) (.y cpy)))) 1.0]))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
-  [app-view prefs prefs-path ^PopupControl popup option]
+  [app-view prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting app-view prefs popup option prefs-path "Move Speed" 1.0 3.0))
 
 (defmethod popup/settings-row [:perspective-camera :move-damping]
-  [app-view prefs prefs-path ^PopupControl popup option]
+  [app-view prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting app-view prefs popup option prefs-path "Move Damping" 5.0 20.0))
 
 (defmethod popup/settings-row [:perspective-camera :look-sensitivity]
-  [app-view prefs prefs-path ^PopupControl popup option]
+  [app-view prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting app-view prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
 
 (defmethod popup/settings-row [:perspective-camera :mouse-smoothing]
-  [app-view prefs prefs-path ^PopupControl popup option]
+  [app-view prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting app-view prefs popup option prefs-path "Mouse Smoothing" 0.3 0.8))
 
 (defmethod popup/settings-row [:perspective-camera :invert-y]
-  [app-view prefs prefs-path _popup option]
+  [app-view prefs prefs-path _popup [_ option]]
   (popup/toggle-setting app-view prefs _popup option prefs-path "Invert Y" nil))
 
 (defmethod popup/settings-row [:perspective-camera :walking-mode]
-  [app-view prefs prefs-path _popup option]
+  [app-view prefs prefs-path _popup [_ option]]
   (popup/toggle-setting app-view prefs _popup option prefs-path "Walking Mode" nil))
 
 (defn show-settings! [app-view ^Parent owner prefs]

@@ -199,13 +199,14 @@
 
 (defn- settings
   [app-view prefs popup prefs-path settings-paths hidden-settings reset-callback]
-  (let [reset-btn (reset-button app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)]
+  (let [reset-btn (reset-button app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)
+        category (last prefs-path)]
     (->> settings-paths
          (e/map first)
          (e/distinct)
          (e/remove (partial contains? hidden-settings))
          (reduce (fn [rows setting]
-                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs prefs-path popup setting)))
+                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs prefs-path popup [category setting])))
                                 (.setAlignment Pos/CENTER))))
                  [reset-btn]))))
 
