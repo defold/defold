@@ -17,15 +17,33 @@
             [clojure.data.json :as json]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
             [editor.future :as future]
+            [editor.lsp.server :as lsp.server]
+            [editor.resource :as resource]
             [editor.ui :as ui]
             [service.log :as log]
+            [util.coll :as coll]
             [util.http-server :as http-server]))
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:const url-prefix "/command")
+(defn- build-response [result localization-state]
+  (future/then
+    result
+    (fn [{:keys [error warning]}]
+      (let [issues (coll/into-> [error warning] []
+                     (filter some?)
+                     (mapcat #(:children (build-errors-view/build-resource-tree %)))
+                     (mapcat :children)
+                     (map (fn [{:keys [message severity parent cursor-range]}]
+                            (let [maybe-resource (:resource parent)]
+                              (cond-> {:severity (case severity :fatal :error :info :information severity)
+                                       :message (localization-state message)}
+                                      maybe-resource (assoc :resource (resource/proj-path maybe-resource))
+                                      cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
+        (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))
 
 (def ^:private supported-commands
   ;; Notable exclusions:
@@ -37,7 +55,8 @@
    :build
    {:ui-handler :project.build
     :help "Build and run the project."
-    :resource-sync true}
+    :resource-sync true
+    :response-fn build-response}
 
    :build-html5
    {:ui-handler :project.build-html5
@@ -196,12 +215,12 @@
      (g/let-ec [command-contexts (ui/node-contexts ui-node true evaluation-context)]
        (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
 
-(defn router [ui-node render-reload-progress!]
+(defn router [ui-node localization render-reload-progress!]
   {"/command" {"GET" (constantly api-response)}
    "/command/{command}"
    {"POST" (bound-fn [request]
              (let [command (-> request :path-params :command keyword)]
-               (if-let [{:keys [ui-handler resource-sync]} (supported-commands command)]
+               (if-let [{:keys [ui-handler resource-sync response-fn]} (supported-commands command)]
                  (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
                    (case ui-handler-ctx
                      (::ui/not-active ::ui/not-enabled) http-server/forbidden
@@ -209,14 +228,23 @@
                            result-future (future/make)
                            execute-command!
                            (bound-fn execute-command! []
-                             (try
-                               (ui/execute-handler-ctx ui-handler-ctx)
-                               (future/complete! result-future http-server/accepted)
-                               (catch Exception error
-                                 (log/error :msg "Failed to handle command request"
-                                            :request request
-                                            :exception error)
-                                 (future/complete! result-future http-server/internal-server-error))))]
+                             (-> (try
+                                   (future/completed (ui/execute-handler-ctx ui-handler-ctx))
+                                   (catch Throwable e (future/failed e)))
+                                 (future/then
+                                   (fn [result]
+                                     (if response-fn
+                                       (response-fn result @localization)
+                                       http-server/accepted)))
+                                 (future/then
+                                   (fn [response]
+                                     (future/complete! result-future response)))
+                                 (future/catch
+                                   (fn [error]
+                                     (log/error :msg "Failed to handle command request"
+                                                :request request
+                                                :exception error)
+                                     (future/complete! result-future http-server/internal-server-error)))))]
                        (assert (g/node-id? changes-view))
                        (assert (g/node-id? workspace))
                        (when-not (Boolean/getBoolean "defold.tests")
@@ -236,3 +264,16 @@
                                  (future/complete! result-future http-server/internal-server-error))))))
                        result-future)))
                  http-server/not-found)))}})
+
+(comment
+
+  (-> @(util.http-client/request
+         (str "http://localhost:"
+              (slurp (str (g/node-value (dev/workspace) :root) "/.internal/editor.port"))
+              "/command/build")
+         :method "POST"
+         :as :string)
+      :body
+      (clojure.data.json/read-str :key-fn keyword))
+
+  #__)

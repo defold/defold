@@ -1037,17 +1037,19 @@
 (defn async-build!
   "Asynchronously build the project and notify the :result-fn with results
 
+  Returns a CompletableFuture that will eventually be completed with a map with
+  the following keys:
+    :artifacts       build results for successfully built project resources
+    :artifact-map    build results by resource, used as input to future builds
+    :etags           map of built resource proj-paths to content fingerprint
+    :engine          the engine descriptor map when asked to build the engine,
+                     and it was successfully built
+    :error           the error value in case of any errors, be it project
+                     resources, linting or engine build error
+    :warning         error value in case there are non-critical issues reported
+                     by the build process
+
   Kv-args:
-    :result-fn           required fn that will receive build results, a map with
-                         the following keys:
-                         * :artifacts, :artifact-map and :etags - results for
-                           successfully built project resources
-                         * :engine - engine descriptor map when asked to build
-                           the engine, and it was successfully built
-                         * :error - error value in case of any errors, be it
-                           project resources, linting or engine build error
-                         * :warning - error value in case there are non-critical
-                           issues reported by the build process
     :build-engine        optional flag that indicates whether the engine should
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
@@ -1066,7 +1068,6 @@
     :old-artifact-map    optional old artifact map with previous build results
                          to speed up the build process"
   [project & {:keys [;; required
-                     result-fn
                      prefs
                      ;; optional
                      debug build-engine run-build-hooks render-progress! task-cancelled? old-artifact-map lint]
@@ -1076,9 +1077,9 @@
                    render-progress! progress/null-render-progress!
                    task-cancelled? fn/constantly-false
                    old-artifact-map {}}}]
-  {:pre [(ifn? result-fn)
-         (or (not build-engine) (some? prefs))]}
-  (let [lint (if (nil? lint)
+  {:pre [(or (not build-engine) (some? prefs))]}
+  (let [result-future (future/make)
+        lint (if (nil? lint)
                (prefs/get prefs [:build :lint-code])
                lint)
         ;; After any pre-build hooks have completed successfully, we will start
@@ -1132,11 +1133,13 @@
                       (reset! build-in-progress-atom false)
                       (render-progress! progress/done)
                       (cancel-engine-build!)
+                      (future/fail! result-future error)
                       (throw error)))))
               (catch Throwable error
                 (reset! build-in-progress-atom false)
                 (render-progress! progress/done)
                 (cancel-engine-build!)
+                (future/fail! result-future error)
                 (error-reporting/report-exception! error))))
           nil)
 
@@ -1145,7 +1148,7 @@
           (reset! build-in-progress-atom false)
           (render-progress! progress/done)
           (cancel-engine-build!)
-          (result-fn project-build-results)
+          (future/complete! result-future project-build-results)
           nil)
 
         phase-7-await-lint!
@@ -1302,7 +1305,8 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (phase-1-await-current-reload!)))
+    (phase-1-await-current-reload!)
+    result-future))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error warning artifact-map etags project-build-successful]} build-results
@@ -1325,18 +1329,20 @@
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project
-                  :debug true
-                  :build-engine (not skip-engine)
-                  :prefs prefs
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :result-fn (fn [{:keys [engine] :as build-results}]
-                               (when (handle-build-results! workspace render-build-error! build-results)
-                                 (when (or engine skip-engine)
-                                   (show-console! main-scene tool-tab-pane)
-                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
+    (future/then
+      (async-build! project
+                    :debug true
+                    :build-engine (not skip-engine)
+                    :prefs prefs
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace))
+      (fn [{:keys [engine] :as build-results}]
+        (when (handle-build-results! workspace render-build-error! build-results)
+          (when (or engine skip-engine)
+            (show-console! main-scene tool-tab-pane)
+            (launch-built-project! project engine project-directory prefs web-server false)))
+        build-results))))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
@@ -1377,36 +1383,38 @@
   (let [project-directory (workspace/project-directory workspace)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
-    (async-build! project
-                  :debug true
-                  :build-engine (not skip-engine)
-                  :prefs prefs
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :result-fn (fn [{:keys [engine] :as build-results}]
-                               (when (handle-build-results! workspace render-build-error! build-results)
-                                 (when (or engine skip-engine)
-                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
-                                     (when (nil? (debug-view/current-session debug-view))
-                                       (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
+    (future/then
+      (async-build! project
+                    :debug true
+                    :build-engine (not skip-engine)
+                    :prefs prefs
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace))
+      (fn [{:keys [engine] :as build-results}]
+        (when (handle-build-results! workspace render-build-error! build-results)
+          (when (or engine skip-engine)
+            (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+              (when (nil? (debug-view/current-session debug-view))
+                (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
   (let [[render-progress! task-cancelled?] (begin-task-progress! :build)]
-    (async-build! project
-                  :debug true
-                  :build-engine false
-                  :run-build-hooks false
-                  :lint false
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :prefs prefs
-                  :result-fn (fn [build-results]
-                               (when (handle-build-results! workspace render-build-error! build-results)
-                                 (let [target (targets/selected-target prefs)]
-                                   (when (targets/controllable-target? target)
-                                     (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
+    (future/then
+      (async-build! project
+                    :debug true
+                    :build-engine false
+                    :run-build-hooks false
+                    :lint false
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace)
+                    :prefs prefs)
+      (fn [build-results]
+        (when (handle-build-results! workspace render-build-error! build-results)
+          (let [target (targets/selected-target prefs)]
+            (when (targets/controllable-target? target)
+              (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
 
 (handler/defhandler :debugger.start :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -1524,40 +1532,41 @@
     ;; keep track of which resource versions have been loaded by the engine,
     ;; or we might miss resources that were recompiled but never reloaded.
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project
-                  :debug false
-                  :build-engine false
-                  :run-build-hooks false
-                  :lint false
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :prefs prefs
-                  :result-fn (fn [{:keys [error artifact-map etags]}]
-                               (if (some? error)
-                                 (render-build-error! error)
-                                 (do
-                                   (workspace/artifact-map! workspace artifact-map)
-                                   (workspace/etags! workspace etags)
-                                   (workspace/save-build-cache! workspace)
-                                   (try
-                                     (when-some [updated-build-resources
-                                                 (not-empty
-                                                   (g/with-auto-evaluation-context evaluation-context
-                                                     (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
-                                       (if (targets/all-launched-targets? target)
-                                         (doseq [launched-target (targets/all-launched-targets)]
-                                           (engine/reload-build-resources! launched-target updated-build-resources))
-                                         (engine/reload-build-resources! target updated-build-resources)))
-                                     (catch Exception e
-                                       (dialogs/make-info-dialog
-                                         localization
-                                         {:title (localization/message "dialog.hot-reload-failed.title")
-                                          :icon :icon/triangle-error
-                                          :header (localization/message
-                                                    "dialog.hot-reload-failed.header"
-                                                    {"engine" (targets/target-message (targets/selected-target prefs))})
-                                          :content (.getMessage e)})))))))))
+    (future/then
+      (async-build! project
+                    :debug false
+                    :build-engine false
+                    :run-build-hooks false
+                    :lint false
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace)
+                    :prefs prefs)
+      (fn [{:keys [error artifact-map etags]}]
+        (if (some? error)
+          (render-build-error! error)
+          (do
+            (workspace/artifact-map! workspace artifact-map)
+            (workspace/etags! workspace etags)
+            (workspace/save-build-cache! workspace)
+            (try
+              (when-some [updated-build-resources
+                          (not-empty
+                            (g/with-auto-evaluation-context evaluation-context
+                              (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
+                (if (targets/all-launched-targets? target)
+                  (doseq [launched-target (targets/all-launched-targets)]
+                    (engine/reload-build-resources! launched-target updated-build-resources))
+                  (engine/reload-build-resources! target updated-build-resources)))
+              (catch Exception e
+                (dialogs/make-info-dialog
+                  localization
+                  {:title (localization/message "dialog.hot-reload-failed.title")
+                   :icon :icon/triangle-error
+                   :header (localization/message
+                             "dialog.hot-reload-failed.header"
+                             {"engine" (targets/target-message (targets/selected-target prefs))})
+                   :content (.getMessage e)})))))))))
 
 (handler/defhandler :run.hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
