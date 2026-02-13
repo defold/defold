@@ -34,6 +34,7 @@ namespace dmGameSystem
             g_VertexAttributeInfoStreams.SetSize(stream_count);
         }
         g_VertexAttributeInfos.m_Infos = g_VertexAttributeInfoStreams.Begin();
+        g_VertexAttributeInfos.m_StructSize = sizeof(dmGraphics::VertexAttributeInfos);
         return &g_VertexAttributeInfos;
     }
 
