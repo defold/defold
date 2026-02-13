@@ -39,8 +39,11 @@
                      (mapcat :children)
                      (map (fn [{:keys [message severity parent cursor-range]}]
                             (let [maybe-resource (:resource parent)]
-                              (cond-> {:severity (case severity :fatal :error :info :information severity)
-                                       :message (localization-state message)}
+                              (cond-> {:message (localization-state message)
+                                       :severity (case severity
+                                                   :fatal :error
+                                                   :info :information
+                                                   severity)}
                                       maybe-resource (assoc :resource (resource/proj-path maybe-resource))
                                       cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
         (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))

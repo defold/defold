@@ -1139,7 +1139,7 @@
                 (reset! build-in-progress-atom false)
                 (render-progress! progress/done)
                 (cancel-engine-build!)
-                (future/fail! result-future error)
+                (ui/run-later (future/fail! result-future error))
                 (error-reporting/report-exception! error))))
           nil)
 
