@@ -33,11 +33,15 @@ namespace dmGameSystem
 
     struct ImageDesc
     {
-        uint8_t*                  m_Memory; // the memory from the resource system, if we've taken ownership
-        dmGraphics::TextureImage* m_DDFImage;
-        uint8_t*                  m_DDFImageBytes;
-        uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
-        uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
+        uint8_t*                         m_Memory; // the memory from the resource system, if we've taken ownership
+        dmGraphics::TextureImage*        m_DDFImage;
+        uint8_t*                         m_DDFImageBytes;
+        uint8_t*                         m_DecompressedData[MAX_MIPMAP_COUNT];
+        uint32_t                         m_DecompressedDataSize[MAX_MIPMAP_COUNT];
+        dmGraphics::TextureImage::Image* m_Image;
+        uint8_t*                         m_ImageData;
+        dmGraphics::TextureFormat        m_OutputFormat;
+        uint32_t                         m_NumMips;
     };
 
 #define CASE_TT(_X, _T) case dmGraphics::TextureImage::_X: return dmGraphics::TEXTURE_ ## _T
@@ -174,189 +178,7 @@ namespace dmGameSystem
     {
         DM_PROFILE_DYN(path, 0);
 
-        uint32_t alternative_offset = 0;
-        dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
-        for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
-        {
-            dmGraphics::TextureImage::Image* image    = &image_desc->m_DDFImage->m_Alternatives[i];
-            dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
-            dmGraphics::TextureFormat output_format   = original_format;
-            uint8_t* image_data_alternative           = image_desc->m_DDFImageBytes + alternative_offset;
-            alternative_offset                       += image->m_DataSize;
-            uint32_t num_mips                         = image->m_MipMapOffset.m_Count;
-            bool specific_mip_requested               = upload_params.m_UploadSpecificMipmap;
-
-            if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
-            {
-                num_mips = MAX_MIPMAP_COUNT;
-                dmGraphics::TextureType texture_type = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
-                output_format = dmGraphics::GetSupportedCompressionFormatForType(context, output_format, image->m_Width, image->m_Height, texture_type);
-
-                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, image_data_alternative, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
-                {
-                    dmLogError("Failed to transcode %s", path);
-                    continue;
-                }
-            }
-
-            if (!dmGraphics::IsTextureFormatSupportedForType(context, TextureImageToTextureType(image_desc->m_DDFImage->m_Type), output_format))
-            {
-                continue;
-            }
-
-            result = dmResource::RESULT_OK;
-
-            dmGraphics::TextureParams params;
-            dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
-
-            params.m_Format     = output_format;
-            params.m_Width      = image->m_Width;
-            params.m_Height     = image->m_Height;
-            params.m_Depth      = image->m_Depth;
-            params.m_LayerCount = (uint8_t)image_desc->m_DDFImage->m_Count;
-            params.m_X          = upload_params.m_X;
-            params.m_Y          = upload_params.m_Y;
-            params.m_Z          = upload_params.m_Z;
-            params.m_Slice      = upload_params.m_Page;
-            params.m_SubUpdate  = upload_params.m_SubUpdate;
-            params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
-
-            if (!texture)
-            {
-                dmGraphics::TextureCreationParams creation_params;
-
-                creation_params.m_Type           = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
-                creation_params.m_Width          = image->m_Width;
-                creation_params.m_Height         = image->m_Height;
-                creation_params.m_Depth          = image->m_Depth;
-                creation_params.m_LayerCount     = (uint8_t)image_desc->m_DDFImage->m_Count;
-                creation_params.m_OriginalWidth  = image->m_OriginalWidth;
-                creation_params.m_OriginalHeight = image->m_OriginalHeight;
-                creation_params.m_MipMapCount    = num_mips;
-
-                if (image_desc->m_DDFImage->m_UsageFlags != 0)
-                {
-                    creation_params.m_UsageHintBits = image_desc->m_DDFImage->m_UsageFlags;
-                }
-                texture = dmGraphics::NewTexture(context, creation_params);
-            }
-            else
-            {
-                uint16_t tex_width_full    = dmGraphics::GetTextureWidth(context, texture);
-                uint16_t tex_height_full   = dmGraphics::GetTextureHeight(context, texture);
-                uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
-                uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
-                uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
-                uint8_t  tex_page_count    = dmGraphics::GetTexturePageCount(texture);
-
-                if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
-                {
-                    dmLogError("Texture mipmap level %u exceeds maximum mipmap level %u.", params.m_MipMap, tex_mipmap_count);
-                    result = dmResource::RESULT_INVALID_DATA;
-                    break;
-                }
-
-                if (params.m_SubUpdate && ((params.m_X + params.m_Width) > tex_width_mipmap || (params.m_Y + params.m_Height) > tex_height_mipmap))
-                {
-                    dmLogError("Texture size %ux%u at offset %u,%u exceeds maximum texture size (%ux%u) for mipmap level %u.",
-                        params.m_Width, params.m_Height, params.m_X, params.m_Y, tex_width_mipmap, tex_height_mipmap, params.m_MipMap);
-                    result = dmResource::RESULT_INVALID_DATA;
-                    break;
-                }
-
-                if (params.m_SubUpdate && params.m_Slice >= tex_page_count)
-                {
-                    dmLogError("Page index %u exceeds maximum texture page count %u", params.m_Slice, tex_page_count);
-                    result = dmResource::RESULT_INVALID_DATA;
-                    break;
-                }
-            }
-
-            // Need to revert to simple bilinear filtering if no mipmaps were supplied
-            if (image->m_MipMapOffset.m_Count <= 1) {
-                if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST) {
-                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-                } else if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST) {
-                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-                }
-            }
-
-            uint32_t max_size = dmGraphics::GetMaxTextureSize(context);
-            if (params.m_Width > max_size || params.m_Height > max_size) {
-                // dmGraphics::SetTextureAsync will fail if texture is too big; fall back to 1x1 texture.
-                dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
-                SetBlankTexture(context, texture, params);
-                break;
-            }
-
-            // This should not be happening if the max width/height check goes through
-            assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
-
-            uint16_t tex_width_full  = image->m_Width;
-            uint16_t tex_height_full = image->m_Height;
-
-            // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
-            if (params.m_MipMap > 0)
-            {
-                tex_width_full  = dmGraphics::GetTextureWidth(context, texture);
-                tex_height_full = dmGraphics::GetTextureHeight(context, texture);
-            }
-
-            // If we requested to upload a specific mipmap, upload only that level
-            // It is expected that we only have offsets for that level in the image desc as well
-            // -> See script_resource.cpp::SetTexture
-            if (specific_mip_requested)
-            {
-                if (image_desc->m_DecompressedData[0] == 0)
-                {
-                    params.m_Data     = &image_data_alternative[image->m_MipMapOffset[0]];
-                    params.m_DataSize = image->m_MipMapSize[0];
-                }
-                else
-                {
-                    params.m_Data     = image_desc->m_DecompressedData[0];
-                    params.m_DataSize = image_desc->m_DecompressedDataSize[0];
-                }
-
-                if (!ValidateTextureParams(tex_width_full, tex_height_full, params))
-                {
-                    dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
-                    return dmResource::RESULT_FORMAT_ERROR;
-                }
-                dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
-            }
-            else
-            {
-                for (uint32_t i = 0; i < num_mips; ++i)
-                {
-                    if (image_desc->m_DecompressedData[i] == 0)
-                    {
-                        params.m_Data     = &image_data_alternative[image->m_MipMapOffset[i]];
-                        params.m_DataSize = image->m_MipMapSize[i];
-                    }
-                    else
-                    {
-                        params.m_Data     = image_desc->m_DecompressedData[i];
-                        params.m_DataSize = image_desc->m_DecompressedDataSize[i];
-                    }
-
-                    params.m_MipMap = i;
-                    params.m_Width  = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2]);
-                    params.m_Height = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2 + 1]);
-
-                    if (!ValidateTextureParams(tex_width_full, tex_height_full, params))
-                    {
-                        dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
-                        return dmResource::RESULT_FORMAT_ERROR;
-                    }
-
-                    dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
-                }
-            }
-            break;
-        }
-
-        if (result == dmResource::RESULT_FORMAT_ERROR)
+        if (!image_desc->m_Image)
         {
             dmLogError("No matching texture format found for %s. Using blank texture.", path);
 
@@ -377,25 +199,218 @@ namespace dmGameSystem
                 dmGraphics::TextureParams params;
                 dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
                 SetBlankTexture(context, texture, params);
-                result = dmResource::RESULT_OK;
+                *texture_out = texture;
+                return dmResource::RESULT_OK;
+            }
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmGraphics::TextureImage::Image* image = image_desc->m_Image;
+        dmGraphics::TextureFormat output_format = image_desc->m_OutputFormat;
+        uint8_t* image_data_alternative = image_desc->m_ImageData;
+        uint32_t num_mips = image_desc->m_NumMips;
+        bool specific_mip_requested = upload_params.m_UploadSpecificMipmap;
+
+        dmGraphics::TextureParams params;
+        dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
+
+        params.m_Format     = output_format;
+        params.m_Width      = image->m_Width;
+        params.m_Height     = image->m_Height;
+        params.m_Depth      = image->m_Depth;
+        params.m_LayerCount = (uint8_t)image_desc->m_DDFImage->m_Count;
+        params.m_X          = upload_params.m_X;
+        params.m_Y          = upload_params.m_Y;
+        params.m_Z          = upload_params.m_Z;
+        params.m_Slice      = upload_params.m_Page;
+        params.m_SubUpdate  = upload_params.m_SubUpdate;
+        params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
+
+        if (!texture)
+        {
+            dmGraphics::TextureCreationParams creation_params;
+
+            creation_params.m_Type           = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
+            creation_params.m_Width          = image->m_Width;
+            creation_params.m_Height         = image->m_Height;
+            creation_params.m_Depth          = image->m_Depth;
+            creation_params.m_LayerCount     = (uint8_t)image_desc->m_DDFImage->m_Count;
+            creation_params.m_OriginalWidth  = image->m_OriginalWidth;
+            creation_params.m_OriginalHeight = image->m_OriginalHeight;
+            creation_params.m_MipMapCount    = num_mips;
+
+            if (image_desc->m_DDFImage->m_UsageFlags != 0)
+            {
+                creation_params.m_UsageHintBits = image_desc->m_DDFImage->m_UsageFlags;
+            }
+            texture = dmGraphics::NewTexture(context, creation_params);
+        }
+        else
+        {
+            uint16_t tex_width_full    = dmGraphics::GetTextureWidth(context, texture);
+            uint16_t tex_height_full   = dmGraphics::GetTextureHeight(context, texture);
+            uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
+            uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
+            uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
+            uint8_t  tex_page_count    = dmGraphics::GetTexturePageCount(texture);
+
+            if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
+            {
+                dmLogError("Texture mipmap level %u exceeds maximum mipmap level %u.", params.m_MipMap, tex_mipmap_count);
+                return dmResource::RESULT_INVALID_DATA;
+            }
+
+            if (params.m_SubUpdate && ((params.m_X + params.m_Width) > tex_width_mipmap || (params.m_Y + params.m_Height) > tex_height_mipmap))
+            {
+                dmLogError("Texture size %ux%u at offset %u,%u exceeds maximum texture size (%ux%u) for mipmap level %u.",
+                    params.m_Width, params.m_Height, params.m_X, params.m_Y, tex_width_mipmap, tex_height_mipmap, params.m_MipMap);
+                return dmResource::RESULT_INVALID_DATA;
+            }
+
+            if (params.m_SubUpdate && params.m_Slice >= tex_page_count)
+            {
+                dmLogError("Page index %u exceeds maximum texture page count %u", params.m_Slice, tex_page_count);
+                return dmResource::RESULT_INVALID_DATA;
             }
         }
 
-        if (result == dmResource::RESULT_OK)
-        {
+        // Need to revert to simple bilinear filtering if no mipmaps were supplied
+        if (image->m_MipMapOffset.m_Count <= 1) {
+            if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST) {
+                params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+            } else if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST) {
+                params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+            }
+        }
+
+        uint32_t max_size = dmGraphics::GetMaxTextureSize(context);
+        if (params.m_Width > max_size || params.m_Height > max_size) {
+            // dmGraphics::SetTextureAsync will fail if texture is too big; fall back to 1x1 texture.
+            dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
+            SetBlankTexture(context, texture, params);
             *texture_out = texture;
             return dmResource::RESULT_OK;
         }
-        return result;
+
+        // This should not be happening if the max width/height check goes through
+        assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
+
+        uint16_t tex_width_full  = image->m_Width;
+        uint16_t tex_height_full = image->m_Height;
+
+        // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
+        if (params.m_MipMap > 0)
+        {
+            tex_width_full  = dmGraphics::GetTextureWidth(context, texture);
+            tex_height_full = dmGraphics::GetTextureHeight(context, texture);
+        }
+
+        // If we requested to upload a specific mipmap, upload only that level
+        // It is expected that we only have offsets for that level in the image desc as well
+        // -> See script_resource.cpp::SetTexture
+        if (specific_mip_requested)
+        {
+            if (image_desc->m_DecompressedData[0] == 0)
+            {
+                params.m_Data     = &image_data_alternative[image->m_MipMapOffset[0]];
+                params.m_DataSize = image->m_MipMapSize[0];
+            }
+            else
+            {
+                params.m_Data     = image_desc->m_DecompressedData[0];
+                params.m_DataSize = image_desc->m_DecompressedDataSize[0];
+            }
+
+            if (!ValidateTextureParams(tex_width_full, tex_height_full, params))
+            {
+                dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
+                return dmResource::RESULT_FORMAT_ERROR;
+            }
+            dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
+        }
+        else
+        {
+            for (uint32_t i = 0; i < num_mips; ++i)
+            {
+                if (image_desc->m_DecompressedData[i] == 0)
+                {
+                    params.m_Data     = &image_data_alternative[image->m_MipMapOffset[i]];
+                    params.m_DataSize = image->m_MipMapSize[i];
+                }
+                else
+                {
+                    params.m_Data     = image_desc->m_DecompressedData[i];
+                    params.m_DataSize = image_desc->m_DecompressedDataSize[i];
+                }
+
+                params.m_MipMap = i;
+                params.m_Width  = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2]);
+                params.m_Height = dmMath::Max((uint32_t) 1, image->m_MipMapDimensions[i * 2 + 1]);
+
+                if (!ValidateTextureParams(tex_width_full, tex_height_full, params))
+                {
+                    dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
+                    return dmResource::RESULT_FORMAT_ERROR;
+                }
+
+                dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
+            }
+        }
+
+        *texture_out = texture;
+        return dmResource::RESULT_OK;
     }
 
-    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, uint8_t* memory, uint8_t* image_bytes)
+    static ImageDesc* CreateImage(const char* path, dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, uint8_t* memory, uint8_t* image_bytes)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
         image_desc->m_Memory = memory;
         image_desc->m_DDFImage = texture_image;
         image_desc->m_DDFImageBytes = image_bytes;
+        image_desc->m_Image = 0x0;
+        image_desc->m_ImageData = 0x0;
+        image_desc->m_OutputFormat = dmGraphics::TextureFormat::TEXTURE_FORMAT_RGBA;
+        image_desc->m_NumMips = 0;
+
+        if (!image_desc->m_DDFImage || image_desc->m_DDFImage->m_Alternatives.m_Count == 0)
+        {
+            return image_desc;
+        }
+
+        uint32_t alternative_offset = 0;
+        for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
+        {
+            dmGraphics::TextureImage::Image* image = &image_desc->m_DDFImage->m_Alternatives[i];
+            dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
+            dmGraphics::TextureFormat output_format = original_format;
+            uint8_t* image_data_alternative = image_desc->m_DDFImageBytes + alternative_offset;
+            alternative_offset += image->m_DataSize;
+            uint32_t num_mips = image->m_MipMapOffset.m_Count;
+
+            if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
+            {
+                num_mips = MAX_MIPMAP_COUNT;
+                dmGraphics::TextureType texture_type = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
+                output_format = dmGraphics::GetSupportedCompressionFormatForType(context, output_format, image->m_Width, image->m_Height, texture_type);
+
+                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, image_data_alternative, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
+                {
+                    dmLogError("Failed to transcode %s", path);
+                    continue;
+                }
+            }
+
+            if (dmGraphics::IsTextureFormatSupportedForType(context, TextureImageToTextureType(image_desc->m_DDFImage->m_Type), output_format))
+            {
+                image_desc->m_Image = image;
+                image_desc->m_ImageData = image_data_alternative;
+                image_desc->m_OutputFormat = output_format;
+                image_desc->m_NumMips = num_mips;
+                break;
+            }
+
+        }
         return image_desc;
     }
 
@@ -447,7 +462,7 @@ namespace dmGameSystem
             memory = (uint8_t*)params->m_Buffer;
         }
 
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, memory, image_payload);
+        ImageDesc* image_desc = CreateImage(params->m_Filename, (dmGraphics::HContext) params->m_Context, texture_image, memory, image_payload);
         *params->m_PreloadData = image_desc;
         if (params->m_IsBufferOwnershipTransferred && memory != 0)
         {
@@ -567,7 +582,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, 0, (uint8_t*) texture_image->m_ImageDataAddress);
+        ImageDesc* image_desc = CreateImage(params->m_Filename, (dmGraphics::HContext) params->m_Context, texture_image, 0, (uint8_t*) texture_image->m_ImageDataAddress);
 
         ResTextureUploadParams upload_params = {};
 
