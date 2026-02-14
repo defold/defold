@@ -578,7 +578,6 @@ namespace dmInput
         {
             if (action->m_Pressed)
             {
-                action->m_Repeated = true;
                 action->m_RepeatTimer = context->m_RepeatDelay;
             }
             else
