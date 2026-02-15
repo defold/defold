@@ -395,17 +395,7 @@ namespace dmGameSystem
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
     }
 
-    static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
-    {
-        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
-        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
-        for (int i = 0; i < attribute->m_ElementCount; ++i)
-        {
-            out[i] = VertexAttributeDataTypeToFloat(attribute->m_DataType, value_ptr + bytes_per_element * i);
-        }
-    }
-
-    static void VertexAttributeToFloats(const dmGraphics::VertexAttributeInfo* info, const uint8_t* value_ptr, float* out)
+    static void VertexAttributeInfoToFloats(const dmGraphics::VertexAttributeInfo* info, const uint8_t* value_ptr, float* out)
     {
         if (!value_ptr)
             return;
@@ -415,13 +405,6 @@ namespace dmGameSystem
         {
             out[i] = VertexAttributeDataTypeToFloat(info->m_DataType, value_ptr + bytes_per_element * i);
         }
-    }
-
-    static void VertexAttributeToFloats(const dmGraphics::VertexAttributeInfo* info, float* out)
-    {
-        if (!info->m_ValuePtr)
-            return;
-        VertexAttributeToFloats(info, info->m_ValuePtr, out);
     }
 
     void ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, const dmGraphics::VertexAttributeInfo* attribute, uint8_t* value_ptr)
@@ -582,7 +565,8 @@ namespace dmGameSystem
         }
 
         float values[4];
-        VertexAttributeToFloats(info.m_Attribute, info.m_ValuePtr, values);
+        // Use info.m_ValuePtr so we use the component's value when the callback returned true, otherwise the material's default.
+        VertexAttributeInfoToFloats(info.m_Attribute, info.m_ValuePtr, values);
         out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
 
         return dmGameObject::PROPERTY_RESULT_OK;
@@ -681,8 +665,9 @@ namespace dmGameSystem
                 dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
             }
 
-            // Then, we need to convert each element of the attribute data to a float, since that is the backing storage for the override
-            VertexAttributeToFloats(info.m_Attribute, values);
+            // Then, we need to convert each element of the attribute data to a float, since that is the backing storage for the override.
+            // Use info.m_ValuePtr so we use the component's value when the callback returned true, otherwise the material's default.
+            VertexAttributeInfoToFloats(info.m_Attribute, info.m_ValuePtr, values);
         }
 
         // go.set("#sprite", "attribute_vec.x", 10.0)

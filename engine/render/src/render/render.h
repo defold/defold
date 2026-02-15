@@ -188,11 +188,11 @@ namespace dmRender
 
     struct MaterialProgramAttributeInfo
     {
-        dmhash_t                             m_AttributeNameHash;
+        dmhash_t                               m_AttributeNameHash;
         const dmGraphics::VertexAttributeInfo* m_Attribute;
-        const uint8_t*                       m_ValuePtr;
-        dmhash_t                             m_ElementIds[4];
-        uint32_t                             m_ElementIndex;
+        const uint8_t*                         m_ValuePtr;
+        dmhash_t                               m_ElementIds[4];
+        uint32_t                               m_ElementIndex;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);

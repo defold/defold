@@ -26,6 +26,7 @@
 #include <ddf/ddf.h>
 
 #include <graphics/graphics_ddf.h>
+#include <graphics/graphics_util.h>
 
 #include "../particle.h"
 #include "../particle_private.h"
@@ -54,6 +55,7 @@ static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t
     info.m_VectorType      = source_vector_type;
     info.m_ValuePtr        = 0;
     info.m_ValueVectorType = source_vector_type;
+    info.m_ElementCount    = dmGraphics::VectorTypeToElementCount(source_vector_type);
 }
 
 class ParticleTest : public jc_test_base_class
