@@ -12,8 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#endif
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
 #include <stdio.h>
 #include <algorithm>
 
