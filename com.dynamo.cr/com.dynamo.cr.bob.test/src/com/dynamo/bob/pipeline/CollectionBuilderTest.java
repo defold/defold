@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertTrue;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
+import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
@@ -45,10 +47,36 @@ import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
     private static final double epsilon = 0.000001;
+
+    @Test
+    public void testTypedEmbeddedInstancePayloadProducesSameBytesAsLegacyData() throws Exception {
+        PrototypeDesc prototypeDesc = PrototypeDesc.newBuilder()
+            .addComponents(GameObject.ComponentDesc.newBuilder()
+                .setId("script")
+                .setComponent("/test.script")
+                .build())
+            .build();
+
+        EmbeddedInstanceDesc legacy = EmbeddedInstanceDesc.newBuilder()
+            .setId("go1")
+            .setData(TextFormat.printToString(prototypeDesc))
+            .build();
+
+        EmbeddedInstanceDesc typed = EmbeddedInstanceDesc.newBuilder()
+            .setId("go1")
+            .setPrototype(prototypeDesc)
+            .build();
+
+        Method dataMethod = CollectionBuilder.class.getDeclaredMethod("embeddedInstanceDataBytes", EmbeddedInstanceDesc.class);
+        dataMethod.setAccessible(true);
+
+        Assert.assertArrayEquals((byte[]) dataMethod.invoke(null, legacy), (byte[]) dataMethod.invoke(null, typed));
+    }
 
     @Test
     public void testProps() throws Exception {

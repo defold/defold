@@ -15,6 +15,7 @@
 (ns editor.collection-common
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.game-object-common :as game-object-common]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -28,7 +29,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc]
            [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -76,9 +77,10 @@
 (defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (try
-    (let [unsanitized-prototype-desc (protobuf/str->map-without-defaults GameObject$PrototypeDesc (:data embedded-instance-desc))
+    (let [decoded-embedded-instance-desc (collection-string-data/string-decode-embedded-instance-desc ext->embedded-component-resource-type embedded-instance-desc)
+          unsanitized-prototype-desc (:data decoded-embedded-instance-desc)
           sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
-      (assoc embedded-instance-desc
+      (assoc decoded-embedded-instance-desc
         :data sanitized-prototype-desc))
     (catch Exception error
       ;; Leave unsanitized.
@@ -93,7 +95,8 @@
 (defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
+          (or (string? (:data embedded-instance-desc))
+              (map? (:prototype embedded-instance-desc))) (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
@@ -118,15 +121,18 @@
     (fn [source-value]
       (let [go-resource-type (game-object-resource-type-fn)
             go-dependencies-fn (:dependencies-fn go-resource-type)]
-        (into (default-dependencies-fn source-value)
-              (mapcat (fn [embedded-instance-desc]
-                        (try
-                          (go-dependencies-fn (:data embedded-instance-desc))
-                          (catch Exception error
-                            (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
-                                      :exception error)
-                            nil))))
-              (:embedded-instances source-value))))))
+        (into []
+              (util/distinct-by identity)
+              (concat
+                (default-dependencies-fn source-value)
+                (mapcat (fn [embedded-instance-desc]
+                          (try
+                            (go-dependencies-fn (:data embedded-instance-desc))
+                            (catch Exception error
+                              (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
+                                        :exception error)
+                              nil)))
+                        (:embedded-instances source-value))))))))
 
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)

@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,11 +42,23 @@ import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     private Map<IResource, Integer> compCounterInputsCount = new HashMap<>();
+
+    private static byte[] embeddedInstanceDataBytes(EmbeddedInstanceDesc desc) {
+        switch (desc.getPayloadCase()) {
+            case PROTOTYPE:
+                return TextFormat.printToString(desc.getPrototype()).getBytes(StandardCharsets.UTF_8);
+            case DATA:
+            case PAYLOAD_NOT_SET:
+            default:
+                return desc.getData().getBytes(StandardCharsets.UTF_8);
+        }
+    }
 
     private void collectSubCollections(CollectionDesc.Builder collection, Map<IResource, Integer> subCollections) throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
@@ -61,7 +74,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         Map<Long, IResource> uniqueResources, Map<Long, IResource> allResources) throws IOException, CompileExceptionError {
 
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
-            byte[] data = desc.getData().getBytes();
+            byte[] data = embeddedInstanceDataBytes(desc);
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, "go");
@@ -369,7 +382,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
-            byte[] data = desc.getData().getBytes();
+            byte[] data = embeddedInstanceDataBytes(desc);
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource genResource = project.getGeneratedResource(hash, "go");

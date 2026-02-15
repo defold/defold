@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Iterator;
+import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -44,6 +45,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
+import com.google.protobuf.TextFormat;
 
 /**
  * Class helps to count components in GOs and Collections
@@ -53,6 +55,64 @@ public class ComponentsCounter {
     public static final String EXT_GO = ".compcount_go";
     public static final String EXT_COL = ".compcount_col";
     public static final Integer DYNAMIC_VALUE = 0xFFFFFFFF;
+
+    private static String embeddedComponentType(EmbeddedComponentDesc ec) {
+        switch (ec.getPayloadCase()) {
+            case COLLISIONOBJECT:
+                return "collisionobject";
+            case LABEL:
+                return "label";
+            case SPRITE:
+                return "sprite";
+            case SOUND:
+                return "sound";
+            case MODEL:
+                return "model";
+            case FACTORY:
+                return "factory";
+            case COLLECTIONFACTORY:
+                return "collectionfactory";
+            case PARTICLEFX:
+                return "particlefx";
+            case CAMERA:
+                return "camera";
+            case COLLECTIONPROXY:
+                return "collectionproxy";
+            case DATA:
+            case PAYLOAD_NOT_SET:
+            default:
+                return ec.getType();
+        }
+    }
+
+    private static byte[] embeddedComponentDataBytes(EmbeddedComponentDesc ec) {
+        switch (ec.getPayloadCase()) {
+            case COLLISIONOBJECT:
+                return TextFormat.printToString(ec.getCollisionobject()).getBytes(StandardCharsets.UTF_8);
+            case LABEL:
+                return TextFormat.printToString(ec.getLabel()).getBytes(StandardCharsets.UTF_8);
+            case SPRITE:
+                return TextFormat.printToString(ec.getSprite()).getBytes(StandardCharsets.UTF_8);
+            case SOUND:
+                return TextFormat.printToString(ec.getSound()).getBytes(StandardCharsets.UTF_8);
+            case MODEL:
+                return TextFormat.printToString(ec.getModel()).getBytes(StandardCharsets.UTF_8);
+            case FACTORY:
+                return TextFormat.printToString(ec.getFactory()).getBytes(StandardCharsets.UTF_8);
+            case COLLECTIONFACTORY:
+                return TextFormat.printToString(ec.getCollectionfactory()).getBytes(StandardCharsets.UTF_8);
+            case PARTICLEFX:
+                return TextFormat.printToString(ec.getParticlefx()).getBytes(StandardCharsets.UTF_8);
+            case CAMERA:
+                return TextFormat.printToString(ec.getCamera()).getBytes(StandardCharsets.UTF_8);
+            case COLLECTIONPROXY:
+                return TextFormat.printToString(ec.getCollectionproxy()).getBytes(StandardCharsets.UTF_8);
+            case DATA:
+            case PAYLOAD_NOT_SET:
+            default:
+                return ec.getData().getBytes(StandardCharsets.UTF_8);
+        }
+    }
 
     /**
      * Class represents a storage for counted components which can be written on disk
@@ -194,7 +254,7 @@ public class ComponentsCounter {
                                                          byte[] genResourceContent,
                                                          TaskBuilder taskBuilder,
                                                          IResource input) throws IOException, CompileExceptionError {
-        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource, genResourceContent);
+        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(embeddedComponentType(ec), genResource, genResourceContent);
         if (info != null) {
             Boolean isStatic = !info.getValue();
             if (isStatic) {
@@ -283,10 +343,10 @@ public class ComponentsCounter {
         ProtoUtil.merge(input, inputContent, prot);
 
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
-            String type = cd.getType();
+            String type = embeddedComponentType(cd);
             compStorage.add(type);
             if (isFactoryType(type, false)) {
-                byte[] data = cd.getData().getBytes();
+                byte[] data = embeddedComponentDataBytes(cd);
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource genResource = project.getGeneratedResource(hash, type);
                 Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource, data);

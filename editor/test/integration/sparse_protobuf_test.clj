@@ -308,7 +308,7 @@
        (protobuf/field-infos)
        (into {}
              (keep
-               (fn [[field-key {:keys [default field-rule field-type-key options type]}]]
+               (fn [[field-key {:keys [default field-rule field-type-key options type in-oneof]}]]
                  (let [pb-path (conj pb-path field-key)
 
                        [specific-value is-required]
@@ -321,8 +321,11 @@
 
                          (or is-required
                              (= :required field-rule)
+                             (and in-oneof
+                                  (some? specific-value))
                              (and (pos? depth-limit)
-                                  (not (:runtime-only options))))
+                                  (not (:runtime-only options))
+                                  (not in-oneof)))
                          (cond
                            (= :message field-type-key)
                            (sparse-pb-map type pb-path (dec depth-limit))

@@ -5,6 +5,14 @@ import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
 import "gameobject/properties_ddf.proto";
+import "gamesys/gamesys_ddf.proto";
+import "gamesys/sound_ddf.proto";
+import "gamesys/physics_ddf.proto";
+import "gamesys/label_ddf.proto";
+import "gamesys/sprite_ddf.proto";
+import "gamesys/model_ddf.proto";
+import "gamesys/camera_ddf.proto";
+import "particle/particle_ddf.proto";
 
 option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
@@ -45,7 +53,20 @@ message EmbeddedComponentDesc
 {
     required string id = 1;
     required string type = 2;
-    required string data = 3;
+    oneof payload
+    {
+        string data = 3;
+        dmPhysicsDDF.CollisionObjectDesc collisionobject = 10;
+        dmGameSystemDDF.LabelDesc label = 11;
+        dmGameSystemDDF.SpriteDesc sprite = 12;
+        dmSoundDDF.SoundDesc sound = 13;
+        dmModelDDF.ModelDesc model = 14;
+        dmGameSystemDDF.FactoryDesc factory = 15;
+        dmGameSystemDDF.CollectionFactoryDesc collectionfactory = 16;
+        dmParticleDDF.ParticleFX particlefx = 17;
+        dmGamesysDDF.CameraDesc camera = 18;
+        dmGameSystemDDF.CollectionProxyDesc collectionproxy = 19;
+    }
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
     optional dmMath.Vector3One scale    = 6;
@@ -87,7 +108,11 @@ message EmbeddedInstanceDesc
 {
     required string id = 1;
     repeated string children = 2;
-    required string data = 3;
+    oneof payload
+    {
+        string data = 3;
+        PrototypeDesc prototype = 9;
+    }
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;

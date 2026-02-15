@@ -331,9 +331,13 @@
           (collection-game-object-saved-pb [collection game-object-index]
             (let [collection-saved-pb (test-util/saved-pb collection GameObject$CollectionDesc)]
               (is (< game-object-index (.getEmbeddedInstancesCount collection-saved-pb)))
-              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb game-object-index)
-                    embedded-game-object-string (.getData game-object-embedded-instance-saved-pb)]
-                (protobuf/str->pb GameObject$PrototypeDesc embedded-game-object-string))))
+              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb game-object-index)]
+                (if (.hasPrototype game-object-embedded-instance-saved-pb)
+                  (.getPrototype game-object-embedded-instance-saved-pb)
+                  (let [embedded-game-object-string (.getData game-object-embedded-instance-saved-pb)]
+                    (if (empty? embedded-game-object-string)
+                      (GameObject$PrototypeDesc/getDefaultInstance)
+                      (protobuf/str->pb GameObject$PrototypeDesc embedded-game-object-string)))))))
 
           (collection-game-object-built-pb [collection game-object-index]
             (let [collection-resource (g/node-value collection :resource)

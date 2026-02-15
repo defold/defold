@@ -431,7 +431,8 @@
 (defn embedded-instance-desc-save-value [embedded-instance-desc]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (-> embedded-instance-desc
-      (update :data game-object/prototype-desc-save-value) ; Required field.
+      (cond-> (map? (:data embedded-instance-desc))
+              (update :data game-object/prototype-desc-save-value))
       (protobuf/sanitize-repeated :component-properties game-object/component-property-desc-save-value)))
 
 (defn collection-instance-desc-save-value [collection-instance-desc]
@@ -851,23 +852,27 @@
 
 (defn load-collection [project self resource collection]
   {:pre [(map? collection)]} ; GameObject$CollectionDesc in map format.
-  (concat
-    (gu/set-properties-from-pb-map self GameObject$CollectionDesc collection
-      name :name
-      scale-along-z (protobuf/int->boolean :scale-along-z))
-    (let [tx-go-creation (flatten
-                           (concat
-                             (for [game-object (:instances collection)
-                                   :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
-                               (make-ref-go self source-resource (:id game-object) game-object nil (:component-properties game-object) nil))
-                             (for [embedded (:embedded-instances collection)]
-                               (do
-                                 ;; Note: We only need to check that the
-                                 ;; EmbeddedInstanceDesc has been string-decoded
-                                 ;; here. Any EmbeddedComponentDescs inside will
-                                 ;; be validated by the game-object :load-fn.
-                                 (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
-                                 (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map (project/workspace project))]
+    (concat
+      (gu/set-properties-from-pb-map self GameObject$CollectionDesc collection
+        name :name
+        scale-along-z (protobuf/int->boolean :scale-along-z))
+      (let [tx-go-creation (flatten
+                             (concat
+                               (for [game-object (:instances collection)
+                                     :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
+                                 (make-ref-go self source-resource (:id game-object) game-object nil (:component-properties game-object) nil))
+                               (for [embedded (:embedded-instances collection)
+                                     :let [{:keys [id data] :as decoded-embedded-instance-desc}
+                                           (collection-string-data/string-decode-embedded-instance-desc ext->embedded-component-resource-type embedded)
+                                           prototype-desc (or data (:prototype decoded-embedded-instance-desc))]]
+                                 (do
+                                   ;; Note: We only need to check that the
+                                   ;; EmbeddedInstanceDesc has been string-decoded
+                                   ;; here. Any EmbeddedComponentDescs inside will
+                                   ;; be validated by the game-object :load-fn.
+                                   (collection-string-data/verify-string-decoded-embedded-instance-desc! decoded-embedded-instance-desc resource)
+                                   (make-embedded-go self project prototype-desc id decoded-embedded-instance-desc nil nil)))))
           id->nid (-> tx-go-creation
                       (g/tx-data-added-nodes)
                       (coll/into-> {}
@@ -885,17 +890,17 @@
                                                    children))))
                               (pair (:instances collection)
                                     (:embedded-instances collection))))]
-      (concat
-        tx-go-creation
-        (for [[child parent] child->parent
-              :let [child-id (id->nid child)
-                    parent-id (if parent (id->nid parent) self)]]
-          (if parent
-            (child-go-go parent-id child-id)
-            (child-coll-any self child-id)))))
-    (for [coll-instance (:collection-instances collection)
-          :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
-      (make-collection-instance self source-resource (:id coll-instance) coll-instance (:instance-properties coll-instance) nil))))
+        (concat
+          tx-go-creation
+          (for [[child parent] child->parent
+                :let [child-id (id->nid child)
+                      parent-id (if parent (id->nid parent) self)]]
+            (if parent
+              (child-go-go parent-id child-id)
+              (child-coll-any self child-id)))))
+      (for [coll-instance (:collection-instances collection)
+            :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
+        (make-collection-instance self source-resource (:id coll-instance) coll-instance (:instance-properties coll-instance) nil)))))
 
 (defn- sanitize-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]

@@ -68,7 +68,8 @@ gradle.projectsEvaluated {
                 }
                 commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=${project.bobDir}/generated",
                         "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
-                        "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
+                        "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto",
+                        "-I../../engine/gamesys/proto", "-I../../engine/particle/proto", "${protoFilePath}"
             }
         }
     }
@@ -98,7 +99,8 @@ task proto(type: Exec) {
         }
         commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=${project.bobDir}/generated",
                 "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
-                "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
+                "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto",
+                "-I../../engine/gamesys/proto", "-I../../engine/particle/proto", "${protoDir}/${protoFile}"
     }
 }
 

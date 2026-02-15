@@ -15,6 +15,7 @@
 (ns editor.game-object-common
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.localization :as localization]
@@ -85,19 +86,17 @@
     (if (nil? resource-type)
       embedded-component-desc ; Unknown resource-type. Leave unsanitized.
       (let [tag-opts (:tag-opts resource-type)
-            read-fn (:read-fn resource-type)
-            sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
-            unsanitized-data-string (:data embedded-component-desc)]
+            sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
         (try
-          (let [sanitized-data
-                (with-open [reader (StringReader. unsanitized-data-string)]
-                  (read-fn reader))
-
-                [embedded-component-desc sanitized-data]
-                (if sanitize-embedded-component-fn
-                  (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
-                  [embedded-component-desc sanitized-data])]
-            (assoc embedded-component-desc :data sanitized-data))
+          (let [decoded-embedded-component-desc (collection-string-data/string-decode-embedded-component-desc ext->embedded-component-resource-type embedded-component-desc)
+                decoded-data (:data decoded-embedded-component-desc)]
+            (if-not (map? decoded-data)
+              decoded-embedded-component-desc
+              (let [[decoded-embedded-component-desc sanitized-data]
+                    (if sanitize-embedded-component-fn
+                      (sanitize-embedded-component-fn decoded-embedded-component-desc decoded-data)
+                      [decoded-embedded-component-desc decoded-data])]
+                (assoc decoded-embedded-component-desc :data sanitized-data))))
           (catch Exception error
             ;; Leave unsanitized.
             (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception error)
@@ -151,9 +150,12 @@
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)]
     (fn [prototype-desc]
       (let [ext->embedded-component-resource-type (make-ext->embedded-component-resource-type-fn)]
-        (into (default-dependencies-fn prototype-desc)
-              (mapcat #(embedded-component-desc->dependencies % ext->embedded-component-resource-type))
-              (:embedded-components prototype-desc))))))
+        (into []
+              (util/distinct-by identity)
+              (concat
+                (default-dependencies-fn prototype-desc)
+                (mapcat #(embedded-component-desc->dependencies % ext->embedded-component-resource-type)
+                        (:embedded-components prototype-desc))))))))
 
 (defn embedded-component-instance-data [build-resource embedded-component-desc pose]
   {:pre [(workspace/build-resource? build-resource)

@@ -110,7 +110,7 @@
                       "../engine/gamesys/proto"
                       "../engine/graphics/proto"
                       "../engine/input/proto"
-                      "../engine/particle/proto/particle"
+                      "../engine/particle/proto"
                       "../engine/render/proto"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
@@ -118,6 +118,7 @@
 
   :protobuf-includes ["../engine/gameobject/proto"
                       "../engine/gamesys/proto"
+                      "../engine/particle/proto"
                       "../engine/graphics/proto"
                       "../engine/ddf/src"
                       "../engine/script/src"

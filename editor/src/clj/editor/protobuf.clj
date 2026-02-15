@@ -293,6 +293,7 @@ Macros currently mean no foreseeable performance gain, however."
                           :java-name (underscores-to-camel-case (.getName field-desc))
                           :field-type-key field-type-key
                           :field-rule field-rule
+                          :in-oneof (some? (.getContainingOneof field-desc))
                           :default default
                           :declared-default declared-default
                           :options (options (.getOptions field-desc))}))))
@@ -509,13 +510,21 @@ Macros currently mean no foreseeable performance gain, however."
   {:pre [(set? default-included-field-rules)
          (every? #{:optional :required} default-included-field-rules)]}
   (make-pb->clj-fn
-    (mapv (fn [[field-key {:keys [field-rule java-name] :as field-info}]]
+          (mapv (fn [[field-key {:keys [field-rule java-name in-oneof] :as field-info}]]
             (let [pb-value->clj (pb-value->clj-fn field-info default-included-field-rules)
                   repeated (= :repeated field-rule)
                   ^Method field-get-method (field-get-method class java-name repeated)
                   include-defaults (contains? default-included-field-rules field-rule)]
               (pair field-key
                     (cond
+                      (and include-defaults
+                           in-oneof)
+                      (let [field-has-value? (field-has-value-fn class java-name repeated)]
+                        (fn pb->field-clj-value [pb]
+                          (when (field-has-value? pb)
+                            (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
+                              (pb-value->clj field-pb-value)))))
+
                       (and include-defaults
                            (= :optional field-rule)
                            (message-field? field-info))

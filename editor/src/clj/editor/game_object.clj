@@ -639,10 +639,13 @@
                   transform-properties (select-transform-properties resource-type component)
                   properties (:properties component)]]
         (add-component self source-resource (:id component) transform-properties properties nil))
-      (for [{:keys [id type data] :as embedded-component-desc} (:embedded-components prototype-desc)]
-        (let [resource-type (ext->embedded-component-resource-type type)
-              transform-properties (select-transform-properties resource-type embedded-component-desc)]
-          (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource)
+      (for [embedded-component-desc (:embedded-components prototype-desc)
+            :let [{:keys [id type data] :as decoded-embedded-component-desc}
+                  (collection-string-data/string-decode-embedded-component-desc ext->embedded-component-resource-type embedded-component-desc)
+                  resource-type (ext->embedded-component-resource-type type)
+                  transform-properties (select-transform-properties resource-type decoded-embedded-component-desc)]]
+        (do
+          (collection-string-data/verify-string-decoded-embedded-component-desc! decoded-embedded-component-desc resource)
           (add-embedded-component self project type data id transform-properties false))))))
 
 (defn- sanitize-game-object [workspace prototype-desc]

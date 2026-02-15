@@ -14,16 +14,143 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
+
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesys.proto.Camera.CameraDesc;
+import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
+import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesys.proto.Label.LabelDesc;
+import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
+import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
+import com.dynamo.gamesys.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
+import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.google.protobuf.TextFormat;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
+
+    private static final List<String> TYPED_COMPONENT_TYPES = Arrays.asList(
+        "collisionobject",
+        "label",
+        "sprite",
+        "sound",
+        "model",
+        "factory",
+        "collectionfactory",
+        "particlefx",
+        "camera",
+        "collectionproxy");
+
+    private static EmbeddedComponentDesc makeTypedEmbeddedComponent(String type) {
+        EmbeddedComponentDesc.Builder builder = EmbeddedComponentDesc.newBuilder()
+            .setId(type)
+            .setType(type);
+
+        switch (type) {
+            case "collisionobject":
+                return builder.setCollisionobject(CollisionObjectDesc.newBuilder().buildPartial()).buildPartial();
+            case "label":
+                return builder.setLabel(LabelDesc.newBuilder().buildPartial()).buildPartial();
+            case "sprite":
+                return builder.setSprite(SpriteDesc.newBuilder().buildPartial()).buildPartial();
+            case "sound":
+                return builder.setSound(SoundDesc.newBuilder().buildPartial()).buildPartial();
+            case "model":
+                return builder.setModel(ModelDesc.newBuilder().buildPartial()).buildPartial();
+            case "factory":
+                return builder.setFactory(FactoryDesc.newBuilder().buildPartial()).buildPartial();
+            case "collectionfactory":
+                return builder.setCollectionfactory(CollectionFactoryDesc.newBuilder().buildPartial()).buildPartial();
+            case "particlefx":
+                return builder.setParticlefx(ParticleFX.newBuilder().buildPartial()).buildPartial();
+            case "camera":
+                return builder.setCamera(CameraDesc.newBuilder().buildPartial()).buildPartial();
+            case "collectionproxy":
+                return builder.setCollectionproxy(CollectionProxyDesc.newBuilder().buildPartial()).buildPartial();
+            default:
+                throw new IllegalArgumentException("Unsupported type: " + type);
+        }
+    }
+
+    private static String typedPayloadToLegacyData(EmbeddedComponentDesc typed) {
+        switch (typed.getPayloadCase()) {
+            case COLLISIONOBJECT:
+                return TextFormat.printToString(typed.getCollisionobject());
+            case LABEL:
+                return TextFormat.printToString(typed.getLabel());
+            case SPRITE:
+                return TextFormat.printToString(typed.getSprite());
+            case SOUND:
+                return TextFormat.printToString(typed.getSound());
+            case MODEL:
+                return TextFormat.printToString(typed.getModel());
+            case FACTORY:
+                return TextFormat.printToString(typed.getFactory());
+            case COLLECTIONFACTORY:
+                return TextFormat.printToString(typed.getCollectionfactory());
+            case PARTICLEFX:
+                return TextFormat.printToString(typed.getParticlefx());
+            case CAMERA:
+                return TextFormat.printToString(typed.getCamera());
+            case COLLECTIONPROXY:
+                return TextFormat.printToString(typed.getCollectionproxy());
+            default:
+                throw new IllegalArgumentException("Unexpected payload case: " + typed.getPayloadCase());
+        }
+    }
+
+    @Test
+    public void testTypedEmbeddedComponentPayloadProducesSameTypeAndBytesAsLegacyDataForAllBuiltins() throws Exception {
+
+        Method typeMethod = GameObjectBuilder.class.getDeclaredMethod("embeddedComponentType", EmbeddedComponentDesc.class);
+        typeMethod.setAccessible(true);
+        Method dataMethod = GameObjectBuilder.class.getDeclaredMethod("embeddedComponentDataBytes", EmbeddedComponentDesc.class);
+        dataMethod.setAccessible(true);
+
+        for (String type : TYPED_COMPONENT_TYPES) {
+            EmbeddedComponentDesc typed = makeTypedEmbeddedComponent(type);
+            EmbeddedComponentDesc legacy = EmbeddedComponentDesc.newBuilder()
+                .setId(type)
+                .setType(type)
+                .setData(typedPayloadToLegacyData(typed))
+                .buildPartial();
+
+            Assert.assertEquals(type, typeMethod.invoke(null, typed));
+            Assert.assertEquals(typeMethod.invoke(null, legacy), typeMethod.invoke(null, typed));
+            Assert.assertArrayEquals((byte[]) dataMethod.invoke(null, legacy), (byte[]) dataMethod.invoke(null, typed));
+        }
+    }
+
+    @Test
+    public void testUnknownEmbeddedComponentTypeFallsBackToLegacyFields() throws Exception {
+        EmbeddedComponentDesc desc = EmbeddedComponentDesc.newBuilder()
+            .setId("custom")
+            .setType("custom")
+            .setData("value: 1\n")
+            .build();
+
+        Method typeMethod = GameObjectBuilder.class.getDeclaredMethod("embeddedComponentType", EmbeddedComponentDesc.class);
+        typeMethod.setAccessible(true);
+        Method dataMethod = GameObjectBuilder.class.getDeclaredMethod("embeddedComponentDataBytes", EmbeddedComponentDesc.class);
+        dataMethod.setAccessible(true);
+
+        Assert.assertEquals("custom", typeMethod.invoke(null, desc));
+        Assert.assertArrayEquals("value: 1\n".getBytes(StandardCharsets.UTF_8), (byte[]) dataMethod.invoke(null, desc));
+    }
 
     @Test
     public void testProps() throws Exception {

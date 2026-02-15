@@ -418,9 +418,10 @@
   ;; Validate the collection-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
-  (doseq [embedded-instance-desc (:embedded-instances collection-desc)]
-    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc resource)
-    (let [prototype-desc (:data embedded-instance-desc)]
+  (doseq [embedded-instance-desc (:embedded-instances collection-desc)
+          :let [normalized-embedded-instance-desc (collection-string-data/normalize-embedded-instance-desc-payload embedded-instance-desc)]]
+    (collection-string-data/verify-string-decoded-embedded-instance-desc! normalized-embedded-instance-desc resource)
+    (let [prototype-desc (:data normalized-embedded-instance-desc)]
       (doseq [embedded-component-desc (:embedded-components prototype-desc)]
         (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))))
 

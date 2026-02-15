@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -55,9 +56,64 @@ import com.google.protobuf.TextFormat;
 public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     private Boolean ifObjectHasDynamicFactory = false;
 
-    private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
-        return d.getType().equals(type);
+    private static String embeddedComponentType(EmbeddedComponentDesc ec) {
+        switch (ec.getPayloadCase()) {
+            case COLLISIONOBJECT:
+                return "collisionobject";
+            case LABEL:
+                return "label";
+            case SPRITE:
+                return "sprite";
+            case SOUND:
+                return "sound";
+            case MODEL:
+                return "model";
+            case FACTORY:
+                return "factory";
+            case COLLECTIONFACTORY:
+                return "collectionfactory";
+            case PARTICLEFX:
+                return "particlefx";
+            case CAMERA:
+                return "camera";
+            case COLLECTIONPROXY:
+                return "collectionproxy";
+            case DATA:
+            case PAYLOAD_NOT_SET:
+            default:
+                return ec.getType();
+        }
     }
+
+    private static byte[] embeddedComponentDataBytes(EmbeddedComponentDesc ec) {
+        switch (ec.getPayloadCase()) {
+            case COLLISIONOBJECT:
+                return TextFormat.printToString(ec.getCollisionobject()).getBytes(StandardCharsets.UTF_8);
+            case LABEL:
+                return TextFormat.printToString(ec.getLabel()).getBytes(StandardCharsets.UTF_8);
+            case SPRITE:
+                return TextFormat.printToString(ec.getSprite()).getBytes(StandardCharsets.UTF_8);
+            case SOUND:
+                return TextFormat.printToString(ec.getSound()).getBytes(StandardCharsets.UTF_8);
+            case MODEL:
+                return TextFormat.printToString(ec.getModel()).getBytes(StandardCharsets.UTF_8);
+            case FACTORY:
+                return TextFormat.printToString(ec.getFactory()).getBytes(StandardCharsets.UTF_8);
+            case COLLECTIONFACTORY:
+                return TextFormat.printToString(ec.getCollectionfactory()).getBytes(StandardCharsets.UTF_8);
+            case PARTICLEFX:
+                return TextFormat.printToString(ec.getParticlefx()).getBytes(StandardCharsets.UTF_8);
+            case CAMERA:
+                return TextFormat.printToString(ec.getCamera()).getBytes(StandardCharsets.UTF_8);
+            case COLLECTIONPROXY:
+                return TextFormat.printToString(ec.getCollectionproxy()).getBytes(StandardCharsets.UTF_8);
+            case DATA:
+            case PAYLOAD_NOT_SET:
+            default:
+                return ec.getData().getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
     private boolean isComponentOfType(ComponentDesc d, String type) {
         return FilenameUtils.getExtension(d.getComponent()).equals(type);
     }
@@ -120,12 +176,13 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
         List<Task> embedTasks = new ArrayList<>();
 
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
-            byte[] data = ec.getData().getBytes();
+            String type = embeddedComponentType(ec);
+            byte[] data = embeddedComponentDataBytes(ec);
             long hash = MurmurHash.hash64(data, data.length);
 
-            IResource genResource = project.getGeneratedResource(hash, ec.getType());
+            IResource genResource = project.getGeneratedResource(hash, type);
             if (genResource == null) {
-                genResource = project.createGeneratedResource(hash, ec.getType());
+                genResource = project.createGeneratedResource(hash, type);
 
                 // TODO: This is a hack derived from the same problem with embedded gameobjects from collections (see CollectionBuilder.create)!
                 // If the file isn't created here <EmbeddedComponent>#create
@@ -173,10 +230,10 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 throw new CompileExceptionError(input, 0, "missing required field 'id'");
             }
 
-            byte[] data = ec.getData().getBytes();
+            byte[] data = embeddedComponentDataBytes(ec);
             long hash = MurmurHash.hash64(data, data.length);
 
-            IResource genResource = project.getGeneratedResource(hash, ec.getType());
+            IResource genResource = project.getGeneratedResource(hash, embeddedComponentType(ec));
 
             // TODO: We have to set content again here as distclean might have removed everything at this point (according to CollectionBuilder.java)
             genResource.setContent(data);

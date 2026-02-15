@@ -121,6 +121,13 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
         List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
         for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
+            // Optional singular protobuf fields return default values when unset.
+            // Skip them to avoid traversing/validating resources that are not
+            // part of the active payload (e.g. oneof alternatives).
+            if (fieldDescriptor.isOptional() && !fieldDescriptor.isRepeated() && !builder.hasField(fieldDescriptor)) {
+                continue;
+            }
+
             DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
             Descriptors.FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
             boolean isResource = (Boolean) options.getField(resourceDesc);
