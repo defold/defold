@@ -570,8 +570,6 @@ namespace dmGraphics
         if (stream_declaration)
         {
             uint32_t stream_count = stream_declaration->m_Streams.Size();
-
-            // Allocate streams array for the vertex declaration
             vd->m_Streams = new VertexDeclaration::Stream[stream_count];
 
             for (uint32_t i=0; i<stream_count; i++)

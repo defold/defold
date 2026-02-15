@@ -137,8 +137,8 @@ namespace dmGraphics
         uint8_t               : 4;
     };
 
-    // Single runtime representation for vertex attributes (descriptor + value pointer).
-    // Used everywhere after loading; DDF VertexAttribute is converted to this at load boundaries.
+    // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
+    // Should be used over the protobuf type when possible.
     struct VertexAttributeInfo
     {
         dmhash_t                       m_NameHash;

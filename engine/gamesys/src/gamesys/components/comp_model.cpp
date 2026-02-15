@@ -1573,8 +1573,10 @@ namespace dmGameSystem
         ro.m_VertexBufferOffsets[VX_DECL_INSTANCE_BUFFER] = world->m_InstanceBufferDataLocalSpace.Size();
 
         dmGraphics::VertexAttributeInfos material_infos;
+        dmGraphics::VertexAttributeInfos* attribute_infos = 0;
 
         int32_t first_free_index = FillTextures(&ro, component, material_index);
+
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -1608,7 +1610,11 @@ namespace dmGameSystem
 
                 FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
 
-                dmGraphics::VertexAttributeInfos* attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
+                if (attribute_infos == 0)
+                {
+                    attribute_infos = GetScratchVertexAttributeInfos(material_infos.m_NumInfos);
+                }
+
                 FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                             instance_render_item->m_DynamicVertexAttributeIndex,
                             instance_component->m_Resource->m_Materials[material_index].m_Attributes,

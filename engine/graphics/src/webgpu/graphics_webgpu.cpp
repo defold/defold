@@ -2153,11 +2153,9 @@ static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVer
 {
     VertexDeclaration* vd = new VertexDeclaration();
     memset(vd, 0, sizeof(VertexDeclaration));
+
     uint32_t stream_count = stream_declaration->m_Streams.Size();
-
     vd->m_StreamCount = stream_count;
-
-    // Allocate streams array for the vertex declaration
     vd->m_Streams = new VertexDeclaration::Stream[stream_count];
     for (uint32_t i = 0; i < stream_count; ++i)
     {

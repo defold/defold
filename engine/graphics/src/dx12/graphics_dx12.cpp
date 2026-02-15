@@ -1531,11 +1531,9 @@ namespace dmGraphics
         memset(vd, 0, sizeof(VertexDeclaration));
 
         uint32_t stream_count = stream_declaration->m_Streams.Size();
-
-        // Allocate streams array for the vertex declaration
         vd->m_Streams = new VertexDeclaration::Stream[stream_count];
-
         vd->m_Stride = 0;
+
         for (uint32_t i=0; i<stream_count; i++)
         {
             vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;

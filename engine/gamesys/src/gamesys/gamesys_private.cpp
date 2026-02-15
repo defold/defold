@@ -295,6 +295,25 @@ namespace dmGameSystem
         return -1;
     }
 
+    void CopyAttributeInfos(dmGraphics::VertexAttributeInfos* dst, dmGraphics::VertexAttributeInfos* src, dmGraphics::CoordinateSpace default_coordinate_space)
+    {
+        memcpy((void*) dst->m_Infos, (void*) src->m_Infos, sizeof(dmGraphics::VertexAttributeInfo) * src->m_NumInfos);
+
+        dst->m_NumInfos = src->m_NumInfos;
+        dst->m_VertexStride = src->m_VertexStride;
+        dst->m_StructSize = src->m_StructSize;
+
+        for (int i = 0; i < dst->m_NumInfos; ++i)
+        {
+            dmGraphics::VertexAttributeInfo& info = (dmGraphics::VertexAttributeInfo&) dst->m_Infos[i];
+
+            if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_DEFAULT)
+            {
+                info.m_CoordinateSpace = default_coordinate_space;
+            }
+        }
+    }
+
     // Prepares the list of attributes that could potentially overrides an already specified material attribute
     void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool,
         uint16_t component_dynamic_attribute_index,

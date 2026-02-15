@@ -1976,7 +1976,6 @@ static void LogFrameBufferError(GLenum status)
         memset(vd, 0, sizeof(VertexDeclaration));
 
         uint32_t stream_count = stream_declaration->m_Streams.Size();
-        // Allocate streams array for the vertex declaration
         vd->m_Streams = new VertexDeclaration::Stream[stream_count];
         vd->m_Stride = 0;
         for (uint32_t i = 0; i < stream_count; i++)
