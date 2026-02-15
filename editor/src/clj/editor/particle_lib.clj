@@ -167,12 +167,7 @@
     (:coordinate-space-world :coordinate-space-local) (graphics.types/coordinate-space-pb-int coordinate-space)
     Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
 
-(defn- attribute-info->particle-attribute-info
-  ^ParticleLibrary$VertexAttributeInfo
-  [^Pointer context
-   ^ParticleLibrary$VertexAttributeInfo particle-attribute-info
-   attribute-info
-   vertex-attribute-bytes]
+(defn- attribute-info->particle-attribute-info ^ParticleLibrary$VertexAttributeInfo [^Pointer context ^ParticleLibrary$VertexAttributeInfo particle-attribute-info attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
         attribute-semantic-type (graphics.types/semantic-type-pb-int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
