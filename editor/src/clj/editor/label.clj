@@ -44,6 +44,8 @@
 (set! *warn-on-reflection* true)
 
 (def label-icon "icons/32/Icons_39-GUI-Text-node.png")
+(def ^:private font-message (properties/label-message :label :font))
+(def ^:private material-message (properties/label-message :material))
 
 ; Render assets
 
@@ -232,8 +234,8 @@
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
 (g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets]
-  (or (when-let [errors (->> [[font :font "Font"]
-                              [material :material "Material"]]
+  (or (when-let [errors (->> [[font :font font-message]
+                              [material :material material-message]]
                           (keep (fn [[v prop-kw name]]
                                   (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
                           not-empty)]
@@ -283,7 +285,6 @@
             (dynamic label (properties/label-dynamic :label :pivot))
             (dynamic tooltip (properties/tooltip-dynamic :label :pivot)))
   (property blend-mode g/Any (default (protobuf/default Label$LabelDesc :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
   (property line-break g/Bool (default (protobuf/default Label$LabelDesc :line-break))
             (dynamic label (properties/label-dynamic :label :line-break))
@@ -299,8 +300,8 @@
                                             [:font-data :font-data]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
-                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? font "Font")
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? font "Font"))))
+                             (or (validation/prop-error :info _node-id :font validation/prop-nil? font font-message)
+                                 (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["font"]}))
@@ -315,8 +316,8 @@
                                             [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id material]
-                                  (or (validation/prop-error :info _node-id :image validation/prop-nil? material "Material")
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? material "Material"))))
+                             (or (validation/prop-error :info _node-id :material validation/prop-nil? material material-message)
+                                 (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))

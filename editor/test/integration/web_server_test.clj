@@ -275,7 +275,7 @@
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
-                                             (command-requests/router root progress/null-render-progress!)])))]
+                                             (command-requests/router root test-util/localization progress/null-render-progress!)])))]
           (let [url (http-server/local-url server)]
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))

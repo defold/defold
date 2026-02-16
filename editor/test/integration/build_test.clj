@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -850,7 +851,7 @@
           build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
           error-message (some :message (tree-seq :causes :causes build-error))]
       (is (g/error? build-error))
-      (is (= "The file '/MAIN/BUTTON_CLOUDY.png' could not be found." error-message)))))
+      (is (= (localization/message "error.resource-not-found" {"resource" "/MAIN/BUTTON_CLOUDY.png"}) error-message)))))
 
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"

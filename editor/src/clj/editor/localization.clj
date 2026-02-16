@@ -673,6 +673,4 @@
     items))
 
 ;; TODO:
-;;  - build errors
-;;  - missed things...
 ;;  - extensions: resource types, properties, outlines...

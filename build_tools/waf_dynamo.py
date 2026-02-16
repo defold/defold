@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
@@ -1274,7 +1274,8 @@ def android_package(task):
         proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % sdkinfo['path']
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        java_runtime_flags = task.env.get_flat('JAVA_RUNTIME_FLAGS')
+        ret = bld.exec_command('%s %s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], java_runtime_flags, proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
         if ret != 0:
             error('Error running proguard')
             return 1
@@ -1755,6 +1756,8 @@ def detect(conf):
 
     if not platform:
         platform = host_platform
+
+    conf.env['JAVA_RUNTIME_FLAGS'] = shlex.split(os.environ.get('DM_JAVA_RUNTIME_FLAGS', ''))
 
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform

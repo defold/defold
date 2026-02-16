@@ -32,6 +32,8 @@ def run_bob(task):
     output = run.env_command(env, args.split())
 
 def build(bld):
+    java_runtime_flags = os.environ.get('DM_JAVA_RUNTIME_FLAGS', '')
+
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
@@ -84,7 +86,7 @@ def build(bld):
 
     # Clean folder
     bld(rule = run_bob,
-        run_args = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test clean',
+        run_args = f'java {java_runtime_flags} -cp {classpath} com.dynamo.bob.Bob -root ./src/test clean',
         source = 'wscript',
         always = True)
 
@@ -96,12 +98,12 @@ def build(bld):
     for setting_file in settings:
         bld.add_group()
         bld(rule = run_bob,
-            run_args = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
+            run_args = f'java {java_runtime_flags} -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
             source = 'wscript',
             always = True)
 
     # Build main setup
-    bob_command = f'java -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s' % bob_flags
+    bob_command = f'java {java_runtime_flags} -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s' % bob_flags
     bld.add_group()
     bld(rule = run_bob,
         run_args = bob_command,

@@ -68,6 +68,9 @@
 (def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
 
 (def particlefx-ext "particlefx")
+(def image-message (properties/label-message :image))
+(def material-message (properties/label-message :material))
+(def animation-message (properties/label-message :particlefx :animation))
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -828,8 +831,8 @@
 
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
   (let [is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))]
-    (or (prop-resource-error :fatal _node-id :material material "Material")
-        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
+    (or (prop-resource-error :fatal _node-id :material material material-message)
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count image-message))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties
@@ -889,15 +892,15 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
-                                  (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
+                                  (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
 
   (property animation g/Str ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :animation))
             (dynamic tooltip (properties/tooltip-dynamic :particlefx :animation))
             (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
                              (when tile-source
-                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
+                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation animation-message)
+                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)))))
             (dynamic edit-type (g/fnk [anim-ids]
                                       (let [vals (seq anim-ids)]
                                         (properties/->choicebox vals)))))
@@ -918,11 +921,11 @@
                                  {:type resource/Resource
                                   :ext ["material"]}))
             (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
-                             (prop-resource-error :fatal _node-id :material material "Material")
+                             (prop-resource-error :fatal _node-id :material material material-message)
                              (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic tooltip (validation/blend-mode-tip blend-mode Particle$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$BlendMode))))
 
   (property particle-orientation g/Keyword (default (protobuf/default Particle$Emitter :particle-orientation))
@@ -957,7 +960,7 @@
             (dynamic visible (g/constantly false)))
 
   (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
-                  :max-particle-count :type :particle-orientation :inherit-velocity [(localization/message "property.particlefx.category.particle-life") ParticleProperties]])
+                  :max-particle-count :type :particle-orientation :inherit-velocity [(properties/label-message :particlefx.category :particle-life) ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
@@ -973,10 +976,10 @@
   (input emitter-indices g/Any)
   (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
   (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count material-shader texture-page-count animation anim-ids dep-build-targets]
-                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
+                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source image-message)
                                                             (validate-material _node-id material material-max-page-count material-shader texture-page-count)
-                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
-                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation animation-message)
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)]
                                                            (remove nil?)
                                                            (seq))]
                                       (g/error-aggregate errors))

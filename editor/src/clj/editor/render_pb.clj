@@ -82,6 +82,8 @@
                                     :filter ["material" "render_target" "compute"]
                                     :default nil}]}]}]})
 
+(def ^:private script-message (localization/message "form.label.render.script"))
+
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
     [:script] (g/set-property node-id :script value)
@@ -118,8 +120,8 @@
 
 (defn- build-errors
   [_node-id script named-render-resources]
-  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")
-                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" "Script"))]
+  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script script-message)
+                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" script-message))]
                                (for [{:keys [name path]} named-render-resources]
                                  (validation/prop-error :fatal _node-id :path validation/prop-resource-missing? path name)))
                          (remove nil?)

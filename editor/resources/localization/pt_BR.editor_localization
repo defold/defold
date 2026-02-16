@@ -1152,6 +1152,9 @@ property.collision-object.shape.diameter = Diâmetro
 property.collision-object.shape.dimensions = Dimensões
 property.collision-object.shape.height = Altura
 
+# Properties: compute
+
+
 # Properties: cubemap
 
 property.cubemap.back = Parte Traseira
@@ -1353,8 +1356,8 @@ outline.game-object = Objeto de Jogo
 outline.gui.fonts = Fontes
 outline.gui.layouts = Layouts
 outline.gui.layers = Camadas
-outline.gui.nodes = Nós
 outline.gui.materials = Materiais
+outline.gui.nodes = Nós
 outline.gui.textures = Texturas
 outline.non-editable-collection = Coleção Não Editável
 outline.non-editable-game-object = Objeto de Jogo Não Editável
@@ -1391,7 +1394,6 @@ resource.type.compute = Calcular
 resource.type.convexshape = Formato de Convex
 resource.type.cp = Programa de Computação
 resource.type.cpp = C++
-resource.type.custom = Recurso Personalizado
 resource.type.cubemap = Cubemap
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
@@ -1429,7 +1431,6 @@ resource.type.mesh = Malha
 resource.type.model = Modelo
 resource.type.model-scene = Cena do Modelo
 resource.type.objective-c = Objective-C
-resource.type.particlefx = Efeito de Partículas
 resource.type.plist = Lista de Propriedades
 resource.type.project = Projeto
 resource.type.properties = Propriedades
@@ -1704,7 +1705,6 @@ form.help.project.gui.max_animation_count = Número máximo de animações ativa
 form.label.project.gui.max_particle_count = Máximo de Partículas
 form.help.project.gui.max_particle_count = Número total máximo de partículas vivas em gui por coleção, 1024 por padrão
 form.label.project.gui.max_particlefx_count = Máximo de Efeito de Partículas
-form.help.project.gui.max_particlefx_count = Número máximo de nós de partículas por coleção
 
 form.label.project.label = Rótulo
 form.help.project.label = Configurações de Rótulo
@@ -1725,16 +1725,12 @@ form.help.project.model.max_count = Máximo de modelos, 128 por padrão
 form.label.project.model.split_meshes = Dividir Malhas
 form.help.project.model.split_meshes = Divida malhas com mais de 65536 vértices em novas malhas
 
-form.label.project.particle_fx = Efeito de Partículas
-form.help.project.particle_fx = Configurações relacionadas ao Efeito de Partículas
 form.label.project.particle_fx.max_particle_count = Máximo de Partículas
 form.help.project.particle_fx.max_particle_count = Número máximo de partículas vivas, limita o buffer de vértice da GPU, 1024 por padrão
 form.label.project.particle_fx.max_particle_buffer_count = Máximo de Partículas do Buffer
 form.help.project.particle_fx.max_particle_buffer_count = Número máximo de partículas por envio para a GPU, limita o uso de memória de CPU, 1024 por padrão
 form.label.project.particle_fx.max_count = Contagem Máxima
-form.help.project.particle_fx.max_count = Número máximo de componentes de efeitos de partícula, 64 por padrão
 form.label.project.particle_fx.max_emitter_count = Máximo de Emissores
-form.help.project.particle_fx.max_emitter_count = Número máximo de emissores de efeitos de partículas, 64 por padrão
 
 form.label.project.script = Script
 form.help.project.script = Configurações de script
@@ -1997,3 +1993,5 @@ quick-help.reopen-closed-file = Reabrir Arquivo Fechado
 quick-help.search-in-files = Buscar em Arquivos
 quick-help.build-and-run-project = Compilar e Executar Projeto
 quick-help.start-or-attach-debugger = Iniciar ou Conectar Depurador
+
+# Error Messages

@@ -1604,7 +1604,7 @@
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
-        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
+        post-save-actions (disk/write-save-data-to-disk! save-data nil localization nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
 
 (defn dirty-proj-paths [project]

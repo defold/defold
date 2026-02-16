@@ -44,6 +44,12 @@ cp build/default/model/empty.rigscenec ../model/empty.prebuilt_rigscenec
 cp build/default/model/empty_generated_0.animationsetc ../model/empty_generated_0.prebuilt_animationsetc
 cp build/default/model/empty.meshsetc ../model/empty.prebuilt_meshsetc
 cp build/default/model/empty.skeletonc ../model/empty.prebuilt_skeletonc
+cp build/default/model/fox.modelc ../model/fox.prebuilt_modelc
+cp build/default/model/fox.rigscenec ../model/fox.prebuilt_rigscenec
+cp build/default/model/fox_generated_0.animationsetc ../model/fox_generated_0.prebuilt_animationsetc
+cp build/default/model/fox.meshsetc ../model/fox.prebuilt_meshsetc
+cp build/default/model/fox.skeletonc ../model/fox.prebuilt_skeletonc
+cp build/default/model/fox_texture.texturec ../model/fox_texture.prebuilt_texturec
 
 # PBR untextured
 cp build/default/model/pbr_properties.modelc ../model/pbr_properties.prebuilt_modelc
