@@ -48,17 +48,22 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     public IResource changeExt(String ext) {
         // Used to create an output node
         String newPath = ResourceUtil.changeExt(path, ext);
+        boolean isBuildOutputPath = isOutput();
 
         if (minifyEnabled)
         {
             String buildDirectory = fileSystem.getBuildDirectory();
-            if (path.startsWith(buildDirectory))
+            if (isBuildOutputPath)
                 newPath = newPath.substring(buildDirectory.length()+1);
 
             newPath = ResourceUtil.minifyPath(newPath);
 
-            if (path.startsWith(buildDirectory))
+            if (isBuildOutputPath) {
+                while (newPath.startsWith("/") || newPath.startsWith("\\")) {
+                    newPath = newPath.substring(1);
+                }
                 newPath = buildDirectory + "/" + newPath;
+            }
         }
 
         IResource newResource = fileSystem.get(newPath);

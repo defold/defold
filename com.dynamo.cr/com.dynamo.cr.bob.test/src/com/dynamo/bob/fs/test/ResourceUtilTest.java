@@ -28,6 +28,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 
 public class ResourceUtilTest {
@@ -160,5 +162,23 @@ public class ResourceUtilTest {
         assertFalse(result.startsWith("/" + BUILD_DIR + "/"));
         assertTrue(result.endsWith(".spc"));
         assertNotEquals(input, result);
+    }
+
+    @Test
+    public void testMinifyBuildOutputPathDoesNotCreateDoubleSlashes() {
+        ResourceUtil.enableMinification(true);
+        ResourceUtil.registerMapping(".font", ".glyph_bankc");
+
+        DefaultFileSystem fileSystem = new DefaultFileSystem();
+        fileSystem.setRootDirectory(".");
+        fileSystem.setBuildDirectory(BUILD_DIR);
+
+        IResource input = fileSystem.get(BUILD_DIR + "/builtins/fonts/default.font");
+        IResource output = input.changeExt(".glyph_bankc");
+        String outputPath = output.getPath();
+
+        assertTrue(outputPath.startsWith(BUILD_DIR + "/"));
+        assertFalse(outputPath.startsWith(BUILD_DIR + "//"));
+        assertFalse(outputPath.contains("//"));
     }
 }
