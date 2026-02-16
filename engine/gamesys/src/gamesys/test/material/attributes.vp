@@ -10,7 +10,7 @@ varying vec4 var_color;
 
 void main()
 {
-    gl_Position   = position + center_position * 0.0;
+    gl_Position   = position + center_position;
     var_normal    = normal;
     var_texcoord0 = texcoord0;
     var_color = color;
