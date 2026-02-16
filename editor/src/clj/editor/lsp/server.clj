@@ -177,7 +177,7 @@
     (lsp-position->editor-cursor start)
     (lsp-position->editor-cursor end)))
 
-(defn- editor-cursor-range->lsp-range [{:keys [from to]}]
+(defn editor-cursor-range->lsp-range [{:keys [from to]}]
   {:start (editor-cursor->lsp-position from)
    :end (editor-cursor->lsp-position to)})
 

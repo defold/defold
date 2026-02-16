@@ -17,7 +17,6 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.util :as util]
             [reitit.core :as reitit]
@@ -27,7 +26,7 @@
            [java.io Closeable File IOException]
            [java.net InetSocketAddress URI URL]
            [java.nio.charset StandardCharsets]
-           [java.nio.file Files Path]
+           [java.nio.file Path]
            [java.util List]
            [org.apache.commons.io FilenameUtils]
            [org.apache.commons.io.output ByteArrayOutputStream]))

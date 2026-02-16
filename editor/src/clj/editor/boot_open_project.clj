@@ -217,7 +217,7 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
-                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))
+                                  (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
