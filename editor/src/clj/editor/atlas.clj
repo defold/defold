@@ -59,7 +59,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
-           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
+           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image]
            [java.lang.ref WeakReference]
@@ -591,29 +591,30 @@
     (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
     texture/non-paged-page-count))
 
-(defn- single-frame-animation-images? [animation-images]
-  (every? #(= 1 (count %)) animation-images))
+(defn- atlas-image-sort-key
+  [{:keys [path sprite-trim-mode]}]
+  [(resource/proj-path path)
+   (.getNumber ^Tile$SpriteTrimmingMode (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))])
 
-(defn- single-frame-animations? [animations]
-  (every? #(= 1 (count (:images %))) animations))
+(defn- explicit-animation-ids [anim-ddf]
+  (into #{} (keep :id) anim-ddf))
 
-(defn- sort-single-frame-animation-images [animation-images]
-  (if (single-frame-animation-images? animation-images)
-    (sort-by (comp resource/proj-path :path first) animation-images)
-    animation-images))
-
-(defn- sort-single-frame-animations [animations]
-  (if (single-frame-animations? animations)
-    (sort-by (comp resource/proj-path :path first :images) animations)
-    animations))
-
-(defn- sort-images-by-path-when-single-frame-animations [images animations]
-  (if (single-frame-animations? animations)
-    (sort-by (comp resource/proj-path :path) images)
-    images))
+;; Sort like in Bob
+(defn- sort-animations [animations anim-ddf]
+  (let [explicit-ids (explicit-animation-ids anim-ddf)
+        [explicit-animations top-level-image-animations]
+        (reduce (fn [[explicit implicit] animation]
+                  (if (contains? explicit-ids (:id animation))
+                    [(conj explicit animation) implicit]
+                    [explicit (conj implicit animation)]))
+                [[] []]
+                animations)]
+    ;; Bob keeps explicit animations in atlas order and appends sorted top-level image animations.
+    (into explicit-animations
+          (sort-by (comp atlas-image-sort-key first :images) top-level-image-animations))))
 
 (g/defnk produce-layout-data-generator
-  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
+  [_node-id animations anim-ddf all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
   ;; compiles a TextureSetProto$TextureSet including the animation data in
   ;; addition to generating the layout. This means that modifying a property on
@@ -624,12 +625,13 @@
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
   (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [sorted-animation-images (sort-single-frame-animation-images animation-images)
+      (let [sorted-animations (sort-animations animations anim-ddf)
+            sorted-animation-images (mapv :images sorted-animations)
             fake-animations (mapv make-animation
                                   (repeat "")
                                   sorted-animation-images)
             augmented-args (-> args
-                               (dissoc :_node-id :animation-images)
+                               (dissoc :_node-id :animations :anim-ddf)
                                (assoc :animations fake-animations
                                       :digest-ignored/error-node-id _node-id))]
         {:f generate-texture-set-data
@@ -678,9 +680,9 @@
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
   [anim-ddf animations layout-data all-atlas-images rename-patterns]
-  (let [sorted-animations (sort-single-frame-animations animations)
-        sorted-all-atlas-images (sort-images-by-path-when-single-frame-animations all-atlas-images sorted-animations)
-        explicit-animation-ids (into #{} (keep :id) anim-ddf)
+  (let [sorted-animations (sort-animations animations anim-ddf)
+        sorted-all-atlas-images (sort-by atlas-image-sort-key all-atlas-images)
+        explicit-animation-id-set (explicit-animation-ids anim-ddf)
         incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         animation-present-in-ddf? (comp coll/not-empty :images)
@@ -707,7 +709,7 @@
                                         (fn [{:keys [id images]}]
                                           (e/map (fn [image]
                                                    (murmur/hash64
-                                                     (if (contains? explicit-animation-ids id)
+                                                     (if (contains? explicit-animation-id-set id)
                                                        (texture-set-gen/resource-id (:path image) id rename-patterns)
                                                        (texture-set-gen/resource-id (:path image) rename-patterns))))
                                                  images)))

@@ -84,6 +84,19 @@
                (murmur/hash64 "left_hud")}
              (set animation-hashes))))))
 
+(deftest mixed-atlas-animation-order-matches-bob
+  (test-util/with-loaded-project
+    (let [atlas (test-util/resource-node project "/graphics/mixed_order.atlas")
+          ddf-texture-set (g/node-value atlas :texture-set)
+          animation-ids-in-ddf (mapv :id (:animations ddf-texture-set))]
+      (is (= ["anim_a"
+              "anim_b"
+              "anim_c"
+              "ball"
+              "pow"
+              "right_hud"]
+             animation-ids-in-ddf)))))
+
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
