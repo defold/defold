@@ -1,0 +1,38 @@
+images {
+  image: "/graphics/right_hud.png"
+}
+images {
+  image: "/graphics/ball.png"
+}
+images {
+  image: "/graphics/pow.png"
+}
+animations {
+  id: "anim_a"
+  images {
+    image: "/graphics/right_hud.png"
+  }
+  images {
+    image: "/graphics/ball.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+}
+animations {
+  id: "anim_b"
+  images {
+    image: "/graphics/right_hud.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+}
+animations {
+  id: "anim_c"
+  images {
+    image: "/graphics/right_hud.png"
+  }
+  images {
+    image: "/graphics/pow.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+}
+margin: 8
+extrude_borders: 2
