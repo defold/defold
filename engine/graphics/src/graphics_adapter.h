@@ -51,7 +51,7 @@ namespace dmGraphics
     typedef void (*FinalizeFn)();
     typedef void (*AppBootstrapFn)(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
     typedef void (*CloseWindowFn)(HContext context);
-    typedef dmPlatform::HWindow (*GetWindowFn)(HContext context);
+    typedef HWindow (*GetWindowFn)(HContext context);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
     typedef uint32_t (*GetWidthFn)(HContext context);
     typedef uint32_t (*GetHeightFn)(HContext context);

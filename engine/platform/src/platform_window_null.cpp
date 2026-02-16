@@ -14,23 +14,23 @@
 
 #include <dlib/log.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 #include "platform_window_constants.h"
+
+struct dmWindow
+{
+    WindowCreateParams m_CreateParams;
+    uint32_t           m_WindowWidth;
+    uint32_t           m_WindowHeight;
+    uint32_t           m_WindowOpened             : 1;
+    uint32_t           m_StateCursor              : 1;
+    uint32_t           m_StateCursorLock          : 1;
+    uint32_t           m_StateCursorAccelerometer : 1;
+    uint32_t           m_StateKeyboard            : 3;
+};
 
 namespace dmPlatform
 {
-    struct dmWindow
-    {
-        WindowParams m_CreateParams;
-        uint32_t     m_WindowWidth;
-        uint32_t     m_WindowHeight;
-        uint32_t     m_WindowOpened             : 1;
-        uint32_t     m_StateCursor              : 1;
-        uint32_t     m_StateCursorLock          : 1;
-        uint32_t     m_StateCursorAccelerometer : 1;
-        uint32_t     m_StateKeyboard            : 3;
-    };
-
     HWindow NewWindow()
     {
         dmWindow* wnd = new dmWindow();
@@ -43,11 +43,11 @@ namespace dmPlatform
         delete window;
     }
 
-    PlatformResult OpenWindow(HWindow window, const WindowParams& params)
+    WindowResult OpenWindow(HWindow window, const WindowCreateParams& params)
     {
         if (window->m_WindowOpened)
         {
-            return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
+            return WINDOW_RESULT_WINDOW_ALREADY_OPENED;
         }
 
         window->m_CreateParams = params;
@@ -55,7 +55,7 @@ namespace dmPlatform
         window->m_WindowWidth  = params.m_Width;
         window->m_WindowHeight = params.m_Height;
 
-        return PLATFORM_RESULT_OK;
+        return WINDOW_RESULT_OK;
     }
 
     void CloseWindow(HWindow window)
@@ -75,7 +75,7 @@ namespace dmPlatform
         return window->m_WindowHeight;
     }
 
-    bool GetSafeArea(HWindow window, SafeArea* out)
+    bool GetSafeArea(HWindow window, WindowSafeArea* out)
     {
         const uint32_t width = GetWindowWidth(window);
         const uint32_t height = GetWindowHeight(window);
@@ -109,6 +109,65 @@ namespace dmPlatform
         return 1.0f;
     }
 
+    uintptr_t GetProcAddress(HWindow window, const char* proc_name)
+    {
+        return 0;
+    }
+
+    int32_t GetKey(HWindow window, int32_t code)
+    {
+        return 0;
+    }
+
+    int32_t GetMouseButton(HWindow window, int32_t button)
+    {
+        return 0;
+    }
+
+    int32_t GetMouseWheel(HWindow window)
+    {
+        return 0;
+    }
+
+    void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
+    {
+        if (x) *x = 0;
+        if (y) *y = 0;
+    }
+
+    uint32_t GetTouchData(HWindow window, WindowTouchData* touch_data, uint32_t touch_data_count)
+    {
+        return 0;
+    }
+
+    bool GetAcceleration(HWindow window, float* x, float* y, float* z)
+    {
+        if (x) *x = 0.0f;
+        if (y) *y = 0.0f;
+        if (z) *z = 0.0f;
+        return false;
+    }
+
+    const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
+    {
+        return 0;
+    }
+
+    uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
+    {
+        return 0;
+    }
+
+    uint32_t GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
+    {
+        return 0;
+    }
+
+    uint32_t GetJoystickButtons(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
+    {
+        return 0;
+    }
+
     void SetWindowTitle(HWindow window, const char* title)
     {}
 
@@ -129,6 +188,9 @@ namespace dmPlatform
     void ShowWindow(HWindow window)
     {}
 
+    void HideWindow(HWindow window)
+    {}
+
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
     {}
 
@@ -141,35 +203,35 @@ namespace dmPlatform
     void SwapBuffers(HWindow window)
     {}
 
-    void SetDeviceState(HWindow window, DeviceState state, bool op1)
+    void SetDeviceState(HWindow window, WindowDeviceState state, bool op1)
     {
         SetDeviceState(window, state, op1, false);
     }
 
-    void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
+    void SetDeviceState(HWindow window, WindowDeviceState state, bool op1, bool op2)
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR:
+            case WINDOW_DEVICE_STATE_CURSOR:
                 window->m_StateCursor = op1;
                 window->m_StateCursorLock = !op1;
                 break;
-            case DEVICE_STATE_CURSOR_LOCK:
+            case WINDOW_DEVICE_STATE_CURSOR_LOCK:
                 // We don't distinguish between locked state and visible state on the null implementation
                 break;
-            case DEVICE_STATE_ACCELEROMETER:
+            case WINDOW_DEVICE_STATE_ACCELEROMETER:
                 window->m_StateCursorAccelerometer = op1;
                 break;
-            case DEVICE_STATE_KEYBOARD_DEFAULT:
+            case WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT:
                 window->m_StateKeyboard = op1 ? 1 : 0;
                 break;
-            case DEVICE_STATE_KEYBOARD_NUMBER_PAD:
+            case WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD:
                 window->m_StateKeyboard = op1 ? 2 : 0;
                 break;
-            case DEVICE_STATE_KEYBOARD_EMAIL:
+            case WINDOW_DEVICE_STATE_KEYBOARD_EMAIL:
                 window->m_StateKeyboard = op1 ? 3 : 0;
                 break;
-            case DEVICE_STATE_KEYBOARD_PASSWORD:
+            case WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD:
                 window->m_StateKeyboard = op1 ? 4 : 0;
                 break;
             default:
@@ -178,22 +240,52 @@ namespace dmPlatform
         }
     }
 
-    bool GetDeviceState(HWindow window, DeviceState state)
+    bool GetDeviceState(HWindow window, WindowDeviceState state)
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR:              return window->m_StateCursor;
-            case DEVICE_STATE_CURSOR_LOCK:         return window->m_StateCursorLock;
-            case DEVICE_STATE_ACCELEROMETER:       return window->m_StateCursorAccelerometer;
-            case DEVICE_STATE_KEYBOARD_DEFAULT:    return window->m_StateKeyboard == 1;
-            case DEVICE_STATE_KEYBOARD_NUMBER_PAD: return window->m_StateKeyboard == 2;
-            case DEVICE_STATE_KEYBOARD_EMAIL:      return window->m_StateKeyboard == 3;
-            case DEVICE_STATE_KEYBOARD_PASSWORD:   return window->m_StateKeyboard == 4;
+            case WINDOW_DEVICE_STATE_CURSOR:              return window->m_StateCursor;
+            case WINDOW_DEVICE_STATE_CURSOR_LOCK:         return window->m_StateCursorLock;
+            case WINDOW_DEVICE_STATE_ACCELEROMETER:       return window->m_StateCursorAccelerometer;
+            case WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT:    return window->m_StateKeyboard == 1;
+            case WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD: return window->m_StateKeyboard == 2;
+            case WINDOW_DEVICE_STATE_KEYBOARD_EMAIL:      return window->m_StateKeyboard == 3;
+            case WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD:   return window->m_StateKeyboard == 4;
             default:
                 dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
                 break;
         }
         return false;
+    }
+
+    bool GetDeviceState(HWindow window, WindowDeviceState state, int32_t op1)
+    {
+        return GetDeviceState(window, state);
+    }
+
+    void SetKeyboardCharCallback(HWindow window, FWindowAddKeyboardCharCallback cb, void* user_data)
+    {
+    }
+
+    void SetKeyboardMarkedTextCallback(HWindow window, FWindowSetMarkedTextCallback cb, void* user_data)
+    {
+    }
+
+    void SetKeyboardDeviceChangedCallback(HWindow window, FWindowDeviceChangedCallback cb, void* user_data)
+    {
+    }
+
+    void SetGamepadEventCallback(HWindow window, FWindowGamepadEventCallback cb, void* user_data)
+    {
+    }
+
+    void* AcquireAuxContext(HWindow window)
+    {
+        return 0;
+    }
+
+    void UnacquireAuxContext(HWindow window, void* aux_context)
+    {
     }
 
     int32_t TriggerCloseCallback(HWindow window)

@@ -136,7 +136,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
         dmMutex::HMutex                    m_AssetContainerMutex;
 
-        dmPlatform::HWindow                m_Window;
+        HWindow                            m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_BUFFERS][MAX_VERTEX_STREAM_COUNT];

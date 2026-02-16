@@ -59,7 +59,7 @@ namespace dmPlatform
         return glfwGetAndroidApp();
     }
 
-    bool GetSafeAreaAndroid(HWindow window, SafeArea* out)
+    bool GetSafeAreaAndroid(HWindow window, WindowSafeArea* out)
     {
         const int32_t window_width = (int32_t) GetWindowWidth(window);
         const int32_t window_height = (int32_t) GetWindowHeight(window);

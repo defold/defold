@@ -32,7 +32,7 @@
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 namespace dmMessage { struct URL; }
 
@@ -262,7 +262,7 @@ namespace dmGameSystem
         HJobContext             m_JobContext;
         dmScript::HContext      m_ScriptContext;
         dmConfigFile::HConfig   m_ConfigFile;
-        dmPlatform::HWindow     m_Window;
+        HWindow                 m_Window;
     };
 
 

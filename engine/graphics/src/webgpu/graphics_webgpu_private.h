@@ -195,7 +195,7 @@ namespace dmGraphics
         dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
-        dmPlatform::HWindow                m_Window;
+        HWindow m_Window;
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];

@@ -18,7 +18,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
@@ -59,15 +59,15 @@ public:
 
     struct CloseData
     {
-        bool m_ShouldClose;
+        int m_ShouldClose;
     };
 
-    HJobContext m_JobContext;
-    dmPlatform::HWindow m_Window;
-    dmGraphics::HContext m_Context;
-    dmGraphics::NullContext* m_NullContext;
-    ResizeData m_ResizeData;
-    CloseData m_CloseData;
+    HJobContext                 m_JobContext;
+    HWindow                     m_Window;
+    dmGraphics::HContext        m_Context;
+    dmGraphics::NullContext*    m_NullContext;
+    ResizeData                  m_ResizeData;
+    CloseData                   m_CloseData;
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
@@ -76,7 +76,7 @@ public:
         data->m_Height = height;
     }
 
-    static bool OnWindowClose(void* user_data)
+    static int OnWindowClose(void* user_data)
     {
         CloseData* data = (CloseData*)user_data;
         return data->m_ShouldClose;
@@ -86,7 +86,8 @@ public:
     {
         dmGraphics::InstallAdapter();
 
-        dmPlatform::WindowParams params;
+        WindowCreateParams params;
+        WindowCreateParamsInitialize(&params);
         params.m_ResizeCallback = OnWindowResize;
         params.m_ResizeCallbackUserData = &m_ResizeData;
         params.m_CloseCallback = OnWindowClose;
@@ -158,9 +159,9 @@ TEST_F(dmGraphicsTest, CloseWindow)
 
 TEST_F(dmGraphicsTest, TestWindowState)
 {
-    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED) ? true : false);
     dmGraphics::CloseWindow(m_Context);
-    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmGraphicsTest, TestWindowSize)
@@ -1978,11 +1979,11 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     // Request close
     m_NullContext->m_RequestWindowClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED) ? true : false);
     // Accept close
     m_CloseData.m_ShouldClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmGraphicsTest, TestTextureSupport)

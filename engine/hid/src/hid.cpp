@@ -19,7 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/utf8.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 #include <platform/platform_window_constants.h>
 
 #include "hid.h"
@@ -55,7 +55,7 @@ namespace dmHID
         context->m_GamepadConnectivityUserdata = callback_ctx;
     }
 
-    void SetWindow(HContext context, dmPlatform::HWindow window)
+    void SetWindow(HContext context, HWindow window)
     {
         context->m_Window = window;
     }
@@ -527,21 +527,21 @@ namespace dmHID
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
     {
-        dmPlatform::DeviceState device_state;
+        WindowDeviceState device_state;
 
         switch (type)
         {
             case KEYBOARD_TYPE_DEFAULT:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT;
                 break;
             case KEYBOARD_TYPE_NUMBER_PAD:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD;
                 break;
             case KEYBOARD_TYPE_EMAIL:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_EMAIL;
                 break;
             case KEYBOARD_TYPE_PASSWORD:
-                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD;
+                device_state = WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD;
                 break;
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
@@ -552,27 +552,27 @@ namespace dmHID
 
     void HideKeyboard(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT, false);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT, false);
     }
 
     void EnableAccelerometer(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_ACCELEROMETER, true);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_ACCELEROMETER, true);
     }
 
     void ShowMouseCursor(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, true);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_CURSOR, true);
     }
 
     void HideMouseCursor(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, false);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_CURSOR, false);
     }
 
     bool GetCursorVisible(HContext context)
     {
-        return !dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR_LOCK);
+        return !dmPlatform::GetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_CURSOR_LOCK);
     }
 
     dmhash_t CalcStateHash(HContext context)

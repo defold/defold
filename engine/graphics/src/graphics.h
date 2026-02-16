@@ -26,7 +26,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 namespace dmGraphics
 {
@@ -123,7 +123,7 @@ namespace dmGraphics
     {
         ContextParams();
 
-        dmPlatform::HWindow   m_Window;
+        HWindow               m_Window;
         HJobContext           m_JobContext;
         TextureFilter         m_DefaultTextureMinFilter;
         TextureFilter         m_DefaultTextureMagFilter;
@@ -290,7 +290,7 @@ namespace dmGraphics
      * @param context Graphics context handle
      * @return The window handle
      */
-    dmPlatform::HWindow GetWindow(HContext context);
+    HWindow GetWindow(HContext context);
 
     /**
      * Close the open window if any.
@@ -310,7 +310,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
+    uint32_t GetWindowStateParam(HContext context, WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.

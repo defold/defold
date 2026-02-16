@@ -38,6 +38,7 @@
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 #include "graphics_opengl_private.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_MACOS)
     // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -394,7 +395,7 @@ static void LogFrameBufferError(GLenum status)
         ChooseEAGLView() {
             // Let's us choose the CAEAGLLayer
             // Note: We don't need a valid window here (and we don't have access to one)
-            dmPlatform::SetiOSViewTypeOpenGL((dmPlatform::HWindow) 0);
+            dmPlatform::SetiOSViewTypeOpenGL((HWindow) 0);
         }
     } g_ChooseEAGLView;
     #endif
@@ -543,7 +544,7 @@ static void LogFrameBufferError(GLenum status)
         if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
             m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
 
         // Formats supported on all platforms
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
@@ -825,7 +826,7 @@ static void LogFrameBufferError(GLenum status)
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        dmPlatform::HWindow window = GetWindow(context);
+        HWindow window = GetWindow(context);
 
         /*
             Check in order
@@ -1513,7 +1514,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLPrintDeviceInfo(context);
         }
 
-        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
+        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_AUX_CONTEXT);
         if (context->m_AsyncProcessingSupport)
         {
             AcquireAuxContextOnThread(context, true);
@@ -1556,7 +1557,7 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static dmPlatform::HWindow OpenGLGetWindow(HContext _context)
+    static HWindow OpenGLGetWindow(HContext _context)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1567,7 +1568,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             PostDeleteTextures(context, true);
 
@@ -1626,7 +1627,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             context->m_Width  = width;
             context->m_Height = height;
@@ -1638,7 +1639,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }

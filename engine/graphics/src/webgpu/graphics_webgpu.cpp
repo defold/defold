@@ -23,7 +23,7 @@
 #include <dlib/thread.h>
 #include <dlib/hash.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
@@ -968,7 +968,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
     if (!context->m_MainRenderTarget)
     {
         context->m_MainRenderTarget                = new WebGPURenderTarget();
-        context->m_MainRenderTarget->m_Multisample = dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT);
+        context->m_MainRenderTarget->m_Multisample = dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT);
         if (!context->m_MainRenderTarget->m_Multisample)
             context->m_MainRenderTarget->m_Multisample = 1;
         else if (context->m_MainRenderTarget->m_Multisample != 1)
@@ -1155,7 +1155,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 {
     TRACE_CALL;
     context->m_Window = params.m_Window;
-    assert(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED));
+    assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
     context->m_OriginalWidth   = params.m_Width;
     context->m_OriginalHeight  = params.m_Height;
     context->m_PrintDeviceInfo = params.m_PrintDeviceInfo;
@@ -1434,7 +1434,7 @@ static void WebGPURunApplicationLoop(void* user_data, WindowStepMethod step_meth
 #endif
 }
 
-static dmPlatform::HWindow WebGPUGetWindow(HContext _context)
+static HWindow WebGPUGetWindow(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
@@ -1467,7 +1467,7 @@ static void WebGPUSetWindowSize(HContext _context, uint32_t width, uint32_t heig
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
         context->m_Width  = width;
         context->m_Height = height;
@@ -1480,7 +1480,7 @@ static void WebGPUResizeWindow(HContext _context, uint32_t width, uint32_t heigh
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
         dmPlatform::SetWindowSize(context->m_Window, width, height);
         WebGPUConfigure(context, width, height);
@@ -3635,7 +3635,7 @@ static void WebGPUCloseWindow(HContext _context)
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
         context->m_RenderPipelineCache.Iterate(WebGPUCleanupRenderPipelineCache, context);
         context->m_ComputePipelineCache.Iterate(WebGPUCleanupComputePipelineCache, context);

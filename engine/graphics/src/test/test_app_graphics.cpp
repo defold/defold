@@ -28,6 +28,7 @@
 #include "test_app_graphics.h"
 
 #include <dmsdk/graphics/graphics_vulkan.h>
+#include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
 
@@ -165,7 +166,7 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
-    dmPlatform::HWindow   m_Window;
+    HWindow               m_Window;
     dmGraphics::HContext  m_GraphicsContext;
     HJobContext           m_JobContext;
 
@@ -779,11 +780,11 @@ struct StorageBufferTest : ITest
 };
 #endif
 
-static bool OnWindowClose(void* user_data)
+static int OnWindowClose(void* user_data)
 {
     EngineCtx* engine = (EngineCtx*) user_data;
     engine->m_WindowClosed = 1;
-    return true;
+    return 1;
 }
 
 static void* EngineCreate(int argc, char** argv)
@@ -791,27 +792,28 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = &g_EngineCtx;
     engine->m_Window = dmPlatform::NewWindow();
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width                  = 512;
     window_params.m_Height                 = 512;
     window_params.m_Title                  = "Graphics Test App";
-    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
     }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     }
 
-    dmPlatform::PlatformResult pr = dmPlatform::OpenWindow(engine->m_Window, window_params);
-    if (dmPlatform::PLATFORM_RESULT_OK != pr)
+    WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
+    if (WINDOW_RESULT_OK != wr)
     {
-        dmLogError("Failed to open window: %d", pr);
+        dmLogError("Failed to open window: %d", wr);
         return 0;
     }
 
