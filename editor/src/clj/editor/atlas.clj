@@ -591,6 +591,27 @@
     (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
     texture/non-paged-page-count))
 
+(defn- single-frame-animation-images? [animation-images]
+  (every? #(= 1 (count %)) animation-images))
+
+(defn- single-frame-animations? [animations]
+  (every? #(= 1 (count (:images %))) animations))
+
+(defn- sort-single-frame-animation-images [animation-images]
+  (if (single-frame-animation-images? animation-images)
+    (sort-by (comp resource/proj-path :path first) animation-images)
+    animation-images))
+
+(defn- sort-single-frame-animations [animations]
+  (if (single-frame-animations? animations)
+    (sort-by (comp resource/proj-path :path first :images) animations)
+    animations))
+
+(defn- sort-images-by-path-when-single-frame-animations [images animations]
+  (if (single-frame-animations? animations)
+    (sort-by (comp resource/proj-path :path) images)
+    images))
+
 (g/defnk produce-layout-data-generator
   [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
@@ -603,9 +624,10 @@
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
   (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
-      (let [fake-animations (mapv make-animation
+      (let [sorted-animation-images (sort-single-frame-animation-images animation-images)
+            fake-animations (mapv make-animation
                                   (repeat "")
-                                  animation-images)
+                                  sorted-animation-images)
             augmented-args (-> args
                                (dissoc :_node-id :animation-images)
                                (assoc :animations fake-animations
@@ -655,12 +677,15 @@
   ;; contain the animation metadata since it was produced from fake animations.
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data all-atlas-images rename-patterns]
-  (let [incomplete-ddf-texture-set (:texture-set layout-data)
+  [anim-ddf animations layout-data all-atlas-images rename-patterns]
+  (let [sorted-animations (sort-single-frame-animations animations)
+        sorted-all-atlas-images (sort-images-by-path-when-single-frame-animations all-atlas-images sorted-animations)
+        explicit-animation-ids (into #{} (keep :id) anim-ddf)
+        incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         animation-present-in-ddf? (comp coll/not-empty :images)
         animations-in-ddf (filter animation-present-in-ddf?
-                                  animations)
+                                  sorted-animations)
         complete-ddf-animations (mapv complete-ddf-animation
                                       incomplete-ddf-animations
                                       animations-in-ddf)
@@ -676,13 +701,17 @@
         fixed-image-name-hashes (-> []
                                     (into
                                       (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
-                                      all-atlas-images)
+                                      sorted-all-atlas-images)
                                     (into
                                       (mapcat
                                         (fn [{:keys [id images]}]
-                                          (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
+                                          (e/map (fn [image]
+                                                   (murmur/hash64
+                                                     (if (contains? explicit-animation-ids id)
+                                                       (texture-set-gen/resource-id (:path image) id rename-patterns)
+                                                       (texture-set-gen/resource-id (:path image) rename-patterns))))
                                                  images)))
-                                      animations))
+                                      animations-in-ddf))
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
                                    :animations complete-ddf-animations
                                    :image-name-hashes fixed-image-name-hashes)]

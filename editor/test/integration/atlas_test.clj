@@ -21,7 +21,8 @@
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.murmur :as murmur]))
 
 (deftest valid-fps
   (test-util/with-loaded-project
@@ -58,6 +59,30 @@
                "diamond_dogs"
                "test_anim"}
              animation-ids-in-ddf)))))
+
+(deftest top-level-images-sorted-in-single-frame-atlas
+  (test-util/with-loaded-project
+    (let [atlas (test-util/resource-node project "/graphics/top_level_unsorted.atlas")
+          ddf-texture-set (g/node-value atlas :texture-set)
+          animation-ids-in-ddf (mapv :id (:animations ddf-texture-set))]
+      (is (= ["ball"
+              "left_hud"]
+             animation-ids-in-ddf)))))
+
+(deftest image-name-hashes-prefix-rules-match-bob
+  (test-util/with-loaded-project
+    (let [atlas (test-util/resource-node project "/graphics/atlas.atlas")
+          ddf-texture-set (g/node-value atlas :texture-set)
+          image-name-hashes (vec (:image-name-hashes ddf-texture-set))
+          tile-count (:tile-count ddf-texture-set)
+          animation-hashes (subvec image-name-hashes tile-count)]
+      (is (= [(murmur/hash64 "ball")
+              (murmur/hash64 "left_hud")]
+             (subvec image-name-hashes 0 tile-count)))
+      (is (= #{(murmur/hash64 "anim/ball")
+               (murmur/hash64 "ball")
+               (murmur/hash64 "left_hud")}
+             (set animation-hashes))))))
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system

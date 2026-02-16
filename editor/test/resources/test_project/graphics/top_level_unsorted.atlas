@@ -1,0 +1,8 @@
+images {
+  image: "/graphics/left_hud.png"
+}
+images {
+  image: "/graphics/ball.png"
+}
+margin: 0
+extrude_borders: 0
