@@ -14,7 +14,10 @@
 
 (ns editor.input
   (:require [schema.core :as s])
-  (:import [javafx.event EventType]
+  (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
+           [com.sun.jna Library Memory Native Pointer]
+           [com.sun.jna.ptr PointerByReference]
+           [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
 (set! *warn-on-reflection* true)
@@ -38,6 +41,48 @@
 
 (defn make-input-state []
   (->InputState #{} #{} #{} nil))
+
+(def ^:private mouse-capture-context (atom nil))
+
+(comment
+  (editor.ui/run-now (start-mouse-capture))
+  (editor.ui/run-now (stop-mouse-capture))
+  (editor.ui/run-now (get-x11-window))
+  :-)
+
+(defn- get-x11-window []
+  (try
+    (let [window-class (Class/forName "com.sun.glass.ui.Window")
+          get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
+          windows (.invoke get-windows-method nil (make-array Object 0))
+          first-window (.get windows 0)
+          get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))]
+      (.invoke get-native-window-method first-window (make-array Object 0)))
+    (catch Exception e
+      (println "Error getting X11 window:" e)
+      nil)))
+
+(defn start-mouse-capture []
+  (when-let [window (get-x11-window)]
+    (let [context (MouseCapture/MouseCapture_CreateContext (long window))]
+      (when-not (nil? context)
+        (when (MouseCapture/MouseCapture_StartCapture context)
+          (reset! mouse-capture-context context)
+          true)))))
+
+(defn stop-mouse-capture []
+  (when-let [context @mouse-capture-context]
+    (MouseCapture/MouseCapture_StopCapture context)
+    (MouseCapture/MouseCapture_DestroyContext context)
+    (reset! mouse-capture-context nil)
+    true))
+
+(defn poll-mouse-delta []
+  (when-let [context @mouse-capture-context]
+    (let [delta (MouseCapture$MouseDelta.)]
+      (when (MouseCapture/MouseCapture_PollDelta context delta)
+        {:dx (.dx delta)
+         :dy (.dy delta)}))))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
