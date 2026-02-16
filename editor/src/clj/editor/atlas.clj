@@ -59,7 +59,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
-           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback Tile$SpriteTrimmingMode]
+           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image]
            [java.lang.ref WeakReference]
@@ -591,11 +591,6 @@
     (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
     texture/non-paged-page-count))
 
-(defn- atlas-image-sort-key
-  [{:keys [path sprite-trim-mode]}]
-  [(resource/proj-path path)
-   (.getNumber ^Tile$SpriteTrimmingMode (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))])
-
 (defn- explicit-animation-ids [anim-ddf]
   (into #{} (keep :id) anim-ddf))
 
@@ -611,7 +606,7 @@
                 animations)]
     ;; Bob keeps explicit animations in atlas order and appends sorted top-level image animations.
     (into explicit-animations
-          (sort-by (comp atlas-image-sort-key first :images) top-level-image-animations))))
+          (sort-by (comp texture-set-gen/image-sort-key first :images) top-level-image-animations))))
 
 (g/defnk produce-layout-data-generator
   [_node-id animations anim-ddf all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
@@ -681,7 +676,7 @@
   ;; animations inside the embedded TextureSet with our animation properties.
   [anim-ddf animations layout-data all-atlas-images rename-patterns]
   (let [sorted-animations (sort-animations animations anim-ddf)
-        sorted-all-atlas-images (sort-by atlas-image-sort-key all-atlas-images)
+        sorted-all-atlas-images (sort-by texture-set-gen/image-sort-key all-atlas-images)
         explicit-animation-id-set (explicit-animation-ids anim-ddf)
         incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)

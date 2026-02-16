@@ -95,7 +95,7 @@
   [sprite-trim-mode]
   (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
 
-(defn- image-sort-key
+(defn image-sort-key
   [{:keys [path sprite-trim-mode]}]
   [(resource/proj-path path)
    (.getNumber ^Tile$SpriteTrimmingMode (sprite-trim-mode->enum sprite-trim-mode))])
