@@ -26,6 +26,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.gamesys.proto.ModelProto.Model;
@@ -95,9 +96,9 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
-        rigBuilder.setMeshSet(BuilderUtil.replaceExt(modelDescBuilder.getMesh(), ".meshsetc"));
+        rigBuilder.setMeshSet(ResourceUtil.changeExt(modelDescBuilder.getMesh(), ".meshsetc"));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            rigBuilder.setSkeleton(BuilderUtil.replaceExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
+            rigBuilder.setSkeleton(ResourceUtil.changeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
 
         if (modelDescBuilder.getAnimations().equals("")) {
@@ -105,13 +106,13 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
         else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
             // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
-            rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".animationsetc"));
+            rigBuilder.setAnimationSet(ResourceUtil.changeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
         else if(!modelDescBuilder.getAnimations().isEmpty()) {
             // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
             // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this collada file
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
-            rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
+            rigBuilder.setAnimationSet(ResourceUtil.changeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
             throw new CompileExceptionError(task.firstInput(), -1, "No animation set in model!");
         }
@@ -134,7 +135,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
                 IResource materialSourceResource = BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
                 materialBuilder.setName(material.getName());
-                materialBuilder.setMaterial(BuilderUtil.replaceExt(material.getMaterial(), ".material", ".materialc"));
+                materialBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(material.getMaterial(), ".material", ".materialc"));
 
                 List<Texture> texturesList = new ArrayList<>();
                 for (Texture t : material.getTexturesList()) {
@@ -179,7 +180,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
                 Material.Builder materialBuilder = Material.newBuilder();
                 materialBuilder.setName("default");
-                materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
+                materialBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(singleMaterial, ".material", ".materialc"));
 
                 List<Texture> texturesList = new ArrayList<>();
                 for (String t : modelDescBuilder.getTexturesList()) {

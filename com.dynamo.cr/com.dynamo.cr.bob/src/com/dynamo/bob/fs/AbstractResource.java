@@ -25,24 +25,43 @@ import org.apache.commons.io.FilenameUtils;
 
 public abstract class AbstractResource<F extends IFileSystem> implements IResource {
     protected F fileSystem;
-    protected String path;
+    protected String path; // Path relative to the current dir (or absolute). Starts with e.g. "build/default" build folder.
     private boolean cacheable = true;
+    private boolean isOutput = false;
+    private boolean minifyEnabled = true;
 
     public AbstractResource(F fileSystem, String path) {
         this.fileSystem = fileSystem;
         this.path = path;
+
+        this.isOutput = fileSystem != null &&
+                     (path.startsWith(fileSystem.getBuildDirectory() + "/")
+                     || path.startsWith(fileSystem.getBuildDirectory() + "\\"));
     }
 
     @Override
     public boolean isOutput() {
-        return path.startsWith(fileSystem.getBuildDirectory() + "/")
-        || path.startsWith(fileSystem.getBuildDirectory() + "\\");
+        return this.isOutput;
     }
 
     @Override
     public IResource changeExt(String ext) {
-        String newName = ResourceUtil.changeExt(path, ext);
-        IResource newResource = fileSystem.get(newName);
+        // Used to create an output node
+        String newPath = ResourceUtil.changeExt(path, ext);
+
+        if (minifyEnabled)
+        {
+            String buildDirectory = fileSystem.getBuildDirectory();
+            if (path.startsWith(buildDirectory))
+                newPath = newPath.substring(buildDirectory.length()+1);
+
+            newPath = ResourceUtil.minifyPath(newPath);
+
+            if (path.startsWith(buildDirectory))
+                newPath = buildDirectory + "/" + newPath;
+        }
+
+        IResource newResource = fileSystem.get(newPath);
         return newResource.output();
     }
 
@@ -64,7 +83,7 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
 
     @Override
     public String getAbsPath() {
-        return concat(fileSystem.getRootDirectory(), path);
+        return concat(fileSystem.getRootDirectory(), getPath());
     }
 
     @Override
@@ -122,4 +141,13 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     public boolean isCacheable() {
         return isOutput() && cacheable;
     }
+
+    @Override
+    public IResource disableMinifyPath() {
+        minifyEnabled = false;
+        return this;
+    }
+
+    @Override
+    public boolean isMinifyPath() { return minifyEnabled; }
 }

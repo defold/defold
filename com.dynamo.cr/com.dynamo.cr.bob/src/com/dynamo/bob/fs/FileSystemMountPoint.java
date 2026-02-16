@@ -149,5 +149,12 @@ public class FileSystemMountPoint implements IMountPoint {
         public boolean isCacheable() {
             return resource.isCacheable();
         }
+
+        @Override
+        public IResource disableMinifyPath() { return resource.disableMinifyPath(); }
+
+        @Override
+        public boolean isMinifyPath() { return resource.isMinifyPath(); }
+
     }
 }

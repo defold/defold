@@ -21,21 +21,6 @@ import com.dynamo.bob.util.BobNLS;
 
 public class BuilderUtil {
 
-    public static String replaceExt(String str, String from, String to) {
-        if (str.endsWith(from)) {
-            return str.substring(0, str.lastIndexOf(from)).concat(to);
-        }
-        return str;
-    }
-
-    public static String replaceExt(String str, String to) {
-        int last_dot = str.lastIndexOf(".");
-        if (last_dot != -1) {
-            return str.substring(0, last_dot).concat(to);
-        }
-        return str.concat(to);
-    }
-
     // Returns "dae" from "path/to.dae"
     public static String getSuffix(String path) {
         return path.substring(path.lastIndexOf(".") + 1);
