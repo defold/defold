@@ -12,10 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if defined(_WIN32)
-#include <winsock2.h>
-#endif
-
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -28,7 +24,6 @@
 #include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_native.h"
-#include "graphics_util.h"
 
 #include "test_graphics_util.h"
 

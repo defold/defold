@@ -15,7 +15,6 @@
 #include <dlib/math.h>
 
 #include "graphics.h"
-#include "graphics_util.h"
 
 namespace dmGraphics
 {

@@ -20,7 +20,6 @@
 
 #include "../graphics_private.h"
 
-
 namespace dmGraphics
 {
     const static uint32_t MAX_TEXTURE_COUNT = 32;

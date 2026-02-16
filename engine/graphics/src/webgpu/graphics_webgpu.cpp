@@ -28,7 +28,6 @@
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
-#include "../graphics_util.h"
 
 #include "../dmsdk/graphics/graphics_webgpu.h" // Includes webgpu.h (or webgpu_wagyu.h)
 
