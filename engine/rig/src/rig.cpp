@@ -1032,6 +1032,8 @@ namespace dmRig
         const float** normal_matrix,
         const float** positions_world_space,
         const float** positions_local_space,
+        const float** center_position_local_space,
+        const float** center_position_world_space,
         const float** normals,
         const float** tangents,
         const float** colors,
@@ -1047,6 +1049,8 @@ namespace dmRig
 
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsWorldSpace, positions_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsLocalSpace, positions_local_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_CenterPositionLocalSpace, center_position_local_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_CenterPositionWorldSpace, center_position_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_Normals, normals, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_Tangents, tangents, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_Colors, colors, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
@@ -1078,6 +1082,11 @@ namespace dmRig
         const float* uv_channels[] = { uv0, uv1 };
         uint32_t uv_channels_count = (uv0 ? 1 : 0) + (uv1 ? 1 : 0);
 
+        dmVMath::Vector4 center_local(0.0f, 0.0f, 0.0f, 1.0f);
+        dmVMath::Vector4 center_world = world_matrix * center_local;
+        const float* center_local_channels[] = { (float*)&center_local };
+        const float* center_world_channels[] = { (float*)&center_world };
+
         const float* world_matrix_channels[] = { (float*) &world_matrix };
         const float* normal_matrix_channels[] = { (float*) &normal_matrix };
         const float* position_world_channels[] = { positions_world };
@@ -1094,6 +1103,8 @@ namespace dmRig
             normal_matrix_channels,
             position_world_channels,
             position_local_channels,
+            center_local_channels,
+            center_world_channels,
             normals_channels,
             tangents_channels,
             colors_channels,

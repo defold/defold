@@ -182,6 +182,8 @@ namespace dmRig
         const float** normal_matrix,
         const float** positions_world_space,
         const float** positions_local_space,
+        const float** center_position_local_space,
+        const float** center_position_world_space,
         const float** normals,
         const float** tangents,
         const float** colors,

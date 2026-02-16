@@ -1253,6 +1253,8 @@ namespace dmParticle
         Vector4 color_to_write;
         dmVMath::Matrix4 world_matrix;
         float page_index;
+        Vector4 center_position_local(0.0f, 0.0f, 0.0f, 1.0f);
+        Vector4 center_position_world;
         dmGraphics::WriteAttributeParams write_params = {};
 
         const float* world_matrix_channel[] = { (float*) &world_matrix };
@@ -1261,6 +1263,8 @@ namespace dmParticle
         const float* position_local_channel[] = { (float*) position_local_flat };
         const float* color_channel[] = { (float*) &color_to_write };
         const float* tex_coord_channel[] = { tex_coord_flat };
+        const float* center_position_local_channel[] = { (float*) &center_position_local };
+        const float* center_position_world_channel[] = { (float*) &center_position_world };
 
         write_params.m_VertexAttributeInfos = &attribute_infos;
         write_params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
@@ -1269,6 +1273,8 @@ namespace dmParticle
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_WorldMatrix, world_matrix_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PageIndices, page_index_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_Colors, color_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_CenterPositionLocalSpace, center_position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_CenterPositionWorldSpace, center_position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
 
         // Per-vertex write streams
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsWorldSpace, position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
@@ -1396,6 +1402,11 @@ namespace dmParticle
             if (material_attribute_info_meta.m_HasAttributeWorldMatrix)
             {
                 world_matrix = dmTransform::ToMatrix4(particle_transform);
+            }
+
+            if (material_attribute_info_meta.m_HasAttributeCenterPositionWorld || material_attribute_info_meta.m_HasAttributeCenterPositionLocal)
+            {
+                center_position_world = Vector4(particle_transform.GetTranslation(), 1.0f);
             }
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;

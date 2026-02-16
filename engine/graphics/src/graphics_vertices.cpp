@@ -34,6 +34,8 @@ namespace dmGraphics
         uint8_t m_ChannelIndexNormalMatrix;
         uint8_t m_ChannelIndexPositionsLocalSpace;
         uint8_t m_ChannelIndexPositionsWorldSpace;
+        uint8_t m_ChannelIndexCenterPositionLocalSpace;
+        uint8_t m_ChannelIndexCenterPositionWorldSpace;
         uint8_t m_ChannelIndexNormals;
         uint8_t m_ChannelIndexTangents;
         uint8_t m_ChannelIndexColors;
@@ -113,7 +115,8 @@ namespace dmGraphics
     {
         return semantic_type == VertexAttribute::SEMANTIC_TYPE_POSITION ||
                semantic_type == VertexAttribute::SEMANTIC_TYPE_TANGENT ||
-               semantic_type == VertexAttribute::SEMANTIC_TYPE_COLOR;
+               semantic_type == VertexAttribute::SEMANTIC_TYPE_COLOR ||
+               semantic_type == VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION;
     }
 
     static inline uint32_t VectorTypeToMatrixRowColCount(VertexAttribute::VectorType vector_type)
@@ -371,6 +374,19 @@ namespace dmGraphics
             case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                 stream_desc = &params.m_NormalMatrix;
                 channel_index = unpack_state.m_ChannelIndexNormalMatrix++;
+                break;
+
+            case VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION:
+                if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
+                {
+                    stream_desc = &params.m_CenterPositionWorldSpace;
+                    channel_index = unpack_state.m_ChannelIndexCenterPositionWorldSpace++;
+                }
+                else
+                {
+                    stream_desc = &params.m_CenterPositionLocalSpace;
+                    channel_index = unpack_state.m_ChannelIndexCenterPositionLocalSpace++;
+                }
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NONE:
