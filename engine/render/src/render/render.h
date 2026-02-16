@@ -44,6 +44,7 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_PAGE_INDEX;
     extern const dmhash_t VERTEX_STREAM_WORLD_MATRIX;
     extern const dmhash_t VERTEX_STREAM_NORMAL_MATRIX;
+    extern const dmhash_t VERTEX_STREAM_CENTER_POSITION;
     extern const dmhash_t VERTEX_STREAM_BONE_WEIGHTS;
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;

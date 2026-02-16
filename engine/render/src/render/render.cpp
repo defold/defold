@@ -49,6 +49,7 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
     const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
     const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
+    const dmhash_t VERTEX_STREAM_CENTER_POSITION = dmHashString64("center_position");
     const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
     const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");

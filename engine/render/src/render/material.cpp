@@ -118,6 +118,11 @@ namespace dmRender
                 attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             }
         }
+        else if (name_hash == VERTEX_STREAM_CENTER_POSITION)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION;
+            attribute->m_CoordinateSpace  = dmGraphics::COORDINATE_SPACE_DEFAULT;
+        }
         else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
         {
             // Internal attribute used for instancing, does not have a semantic type.
