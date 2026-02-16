@@ -24,7 +24,6 @@
 #include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
 #include <render/font/font_renderer.h>
 #include <resource/resource.h>
 #include <resource/resource_util.h>

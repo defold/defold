@@ -28,7 +28,6 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/intersection.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
 #include <rig/rig.h>
 #include <render/render.h>
 #include <gameobject/gameobject_ddf.h>

@@ -26,6 +26,7 @@ namespace dmGameSystem
     static dmArray<dmGraphics::VertexAttributeInfo> g_VertexAttributeInfoStreams;
     static dmGraphics::VertexAttributeInfos         g_VertexAttributeInfos;
 
+    // Note: This is not thread-safe! In the future we should replace this with alloca or something else.
     dmGraphics::VertexAttributeInfos* GetScratchVertexAttributeInfos(uint32_t stream_count)
     {
         if (g_VertexAttributeInfoStreams.Size() < stream_count)
