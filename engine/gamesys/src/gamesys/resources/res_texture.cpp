@@ -185,7 +185,7 @@ namespace dmGameSystem
             if (!texture)
             {
                 dmGraphics::TextureCreationParams creation_params;
-                creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+                creation_params.m_Type = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
                 creation_params.m_Width = 1;
                 creation_params.m_Height = 1;
                 creation_params.m_OriginalWidth = 1;
