@@ -116,7 +116,7 @@ Acceptance:
 - Outline/properties panes come from view outputs (not direct mount points).
 - No regression in outline/properties wiring or split persistence.
 
-### ⏳ Phase 2: First policy rollout (small visible change)
+### ✅ Phase 2: First policy rollout (small visible change)
 
 1. Introduce first non-default view sidebar policy in a narrow scope.
 2. Form `WorkbenchView :sidebar-panes` emits only outline pane desc (no properties pane desc).
@@ -127,7 +127,7 @@ Acceptance:
 - Other views stay on default sidebar behavior.
 - No debugger behavior change.
 
-### Phase 3: Debugger unification in AppView
+### ⏳ Phase 3: Debugger unification in AppView
 
 1. Connect debugger state into `AppView`.
 2. In `AppView`, override active sidebar panes with debugger pane descs (call stack + variables) when conditions match.

@@ -2035,6 +2035,7 @@ form.label.camera.orthographic-zoom = Ортографический зум
 
 form.label.collectionproxy = Прокси коллекции
 form.label.collectionproxy.collection = Коллекция
+form.label.collectionproxy.exclude = Исключить
 
 form.label.render = Рендер
 form.label.render.script = Скрипт

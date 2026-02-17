@@ -34,7 +34,7 @@
 (def ^:private collection-message (properties/label-message :collection-proxy :collection))
 
 (g/defnk produce-form-data
-  [_node-id collection-resource]
+  [_node-id collection-resource exclude]
   {:form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
@@ -43,8 +43,12 @@
                :fields [{:path [:collection]
                          :localization-key "collectionproxy.collection"
                          :type :resource
-                         :filter "collection"}]}]
-   :values {[:collection] collection-resource}})
+                         :filter "collection"}
+                        {:path [:exclude]
+                         :localization-key "collectionproxy.exclude"
+                         :type :boolean}]}]
+   :values {[:collection] collection-resource
+            [:exclude] exclude}})
 
 (g/defnk produce-save-value
   [collection-resource exclude]

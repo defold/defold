@@ -2035,6 +2035,7 @@ form.label.camera.orthographic-zoom = Orthographic Zoom
 
 form.label.collectionproxy = Collection Proxy
 form.label.collectionproxy.collection = Collection
+form.label.collectionproxy.exclude = Exclude
 
 form.label.render = Render
 form.label.render.script = Script
