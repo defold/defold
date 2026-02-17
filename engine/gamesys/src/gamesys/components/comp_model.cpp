@@ -419,6 +419,8 @@ namespace dmGameSystem
                     return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
                     return name_hash == dmRender::VERTEX_STREAM_BONE_INDICES;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION:
+                    return name_hash == dmRender::VERTEX_STREAM_CENTER_POSITION;
                 default:break;
             }
         }
@@ -756,12 +758,15 @@ namespace dmGameSystem
     static uint8_t* WriteMeshAttributes(dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
         dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
+        dmVMath::Vector4 center_world(render_item->m_World.getTranslation(), 1.0f);
+
+        const float* world_matrix_channels[]  = { (float*) &render_item->m_World };
+        const float* normal_matrix_channels[] = { (float*) &normal_matrix };
+        const float* center_world_channels[]  = { (float*) &center_world };
 
     #define UNPACK_ATTRIBUTE_PTR(name) \
         (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
 
-        const float* world_matrix_channels[]  = { (float*) &render_item->m_World };
-        const float* normal_matrix_channels[] = { (float*) &normal_matrix };
         const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
         const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
         const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
@@ -770,8 +775,6 @@ namespace dmGameSystem
     #undef UNPACK_ATTRIBUTE_PTR
 
         uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
-        dmVMath::Vector4 center_world(render_item->m_World.getTranslation(), 1.0f);
-        const float* center_world_channels[] = { (float*)&center_world };
 
         dmGraphics::WriteAttributeParams params = {};
         dmRig::SetMeshWriteAttributeParams(&params,
