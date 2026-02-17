@@ -1163,7 +1163,7 @@
          last-index (int (last selected-indices))
          skin ^ExtendedTreeViewSkin (.getSkin tree-view)
          flow (.getVirtualFlowInstance skin)
-         last-visible-idx (int (.getIndex (.getLastVisibleCell flow)))]
+         last-visible-idx (or (some-> flow .getLastVisibleCell .getIndex int) 0)]
      (when (and (>= last-index first-index 0) (.shouldScrollTo skin first-index))
        (run-later
          (if (> last-index last-visible-idx)
