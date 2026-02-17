@@ -557,7 +557,9 @@
             ],
             "duplicate": false,
             "issue_number": 11851,
-            "labels": [],
+            "labels": [
+                "editor"
+            ],
             "mergecommit": "0b53309342d9b015013dd6f7594526af92864cb7",
             "pr_number": 11851,
             "referencecommits": [],
@@ -765,7 +767,9 @@
             ],
             "mergecommit": "ea9558f72593d325e5e27ba524f8c803b832c6e0",
             "pr_number": 11890,
-            "referencecommits": [],
+            "referencecommits": [
+                "c4e8856392ba66eb4a996582f09a99e47e125025"
+            ],
             "repository": "defold",
             "title": "Make `/command/build` respond on build completion",
             "type": "NEW",
@@ -851,8 +855,29 @@
             "title": "Added GLTF models to built-in assets.",
             "type": "NEW",
             "url": "https://github.com/defold/defold/pull/11660"
+        },
+        {
+            "author": "britzl",
+            "body": "Texture transcoding is now done on a thread during the resource preload step.",
+            "closed_issues": [
+                11825
+            ],
+            "duplicate": false,
+            "issue_number": 11825,
+            "labels": [
+                "task",
+                "engine",
+                "texture compression"
+            ],
+            "mergecommit": "f0024b56540584726d9b66dd2ead135f0492be2e",
+            "pr_number": 11895,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Moved texture transcoding to a thread during the resource preload step",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11895"
         }
     ],
-    "timestamp": 1771319823.372266,
+    "timestamp": 1771349941.445952,
     "version": "1.12.2"
 }
