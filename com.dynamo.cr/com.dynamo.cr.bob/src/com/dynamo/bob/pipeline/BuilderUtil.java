@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobNLS;
 
 public class BuilderUtil {
@@ -24,6 +25,15 @@ public class BuilderUtil {
     // Returns "dae" from "path/to.dae"
     public static String getSuffix(String path) {
         return path.substring(path.lastIndexOf(".") + 1);
+    }
+
+    /**
+     * Backward compatible shim for builders/extensions compiled against older bob.jar versions.
+     * Prefer {@link ResourceUtil#replaceExt(String, String, String)} in new code.
+     */
+    @Deprecated
+    public static String replaceExt(String path, String from, String to) {
+        return ResourceUtil.replaceExt(path, from, to);
     }
 
     public static IResource checkResource(Project project, IResource owner, String field, String path) throws CompileExceptionError {
