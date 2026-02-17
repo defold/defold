@@ -769,7 +769,6 @@ namespace dmGameSystem
         const float** world_matrix,
         const float** positions_world_space,
         const float** positions_local_space,
-        const float** center_position_local_space,
         const float** center_position_world_space,
         const float** uv_channels, uint8_t uv_channels_count,
         const float** pi_channels, uint8_t pi_channels_count)
@@ -786,8 +785,7 @@ namespace dmGameSystem
         // Global channels (data repeated per vertex)
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PageIndices, pi_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, pi_channels_count, true);
-        dmGraphics::SetWriteAttributeStreamDesc(&params->m_CenterPositionLocalSpace, center_position_local_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
-        dmGraphics::SetWriteAttributeStreamDesc(&params->m_CenterPositionWorldSpace, center_position_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_CenterPosition, center_position_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
     }
 
     static inline void GetPivot(const AnimationData* animation_data, float* out_x_pivot, float* out_y_pivot)
@@ -951,10 +949,9 @@ namespace dmGameSystem
         const float* world_matrix_channels[] = { (float*) &world_matrix };
         const float* local_position_channels[] = { (float*) scratch_positions_local->Begin() };
         const float* world_position_channels[] = { (float*) scratch_positions_world->Begin() };
-        dmVMath::Vector4 center_local(0.0f, 0.0f, 0.0f, 1.0f);
-        dmVMath::Vector4 center_world = world_matrix * center_local;
-        const float* center_local_channel[] = { (float*)&center_local };
-        const float* center_world_channel[] = { (float*)&center_world };
+
+        dmVMath::Vector4 center_world(world_matrix.getTranslation(), 1.0f);
+        const float* center_position_channels[] = { (float*) &center_world };
 
         dmGraphics::WriteAttributeParams params = {};
         FillWriteVertexAttributeParams(&params,
@@ -962,8 +959,7 @@ namespace dmGameSystem
             world_matrix_channels,
             world_position_channels,
             local_position_channels,
-            center_local_channel,
-            center_world_channel,
+            center_position_channels,
             (const float**) scratch_uv_ptrs,
             uv_channels_count,
             (const float**) scratch_pi_ptrs,
@@ -1414,17 +1410,15 @@ namespace dmGameSystem
                 const float* world_matrix_channel[]    = { (float*) &world_matrix };
                 const float* world_position_channels[] = { (float*) sprite_world->m_ScratchPositionWorld.Begin() };
                 const float* local_position_channels[] = { (float*) sprite_world->m_ScratchPositionLocal.Begin() };
-                dmVMath::Vector4 center_local(0.0f, 0.0f, 0.0f, 1.0f);
-                dmVMath::Vector4 center_world = world_matrix * center_local;
-                const float* center_local_channel[] = { (float*)&center_local };
-                const float* center_world_channel[] = { (float*)&center_world };
+
+                dmVMath::Vector4 center_world(world_matrix.getTranslation(), 1.0f);
+                const float* center_position_channels[] = { (float*) &center_world };
 
                 FillWriteVertexAttributeParams(&write_params, sprite_attribute_info_ptr,
                     world_matrix_channel,
                     world_position_channels,
                     local_position_channels,
-                    center_local_channel,
-                    center_world_channel,
+                    center_position_channels,
                     (const float**) scratch_uv_ptrs,
                     textures_num,
                     (const float**) scratch_pi_ptrs,
@@ -1532,10 +1526,9 @@ namespace dmGameSystem
                     const float* world_matrix_channel[]    = { (float*) &world_matrix };
                     const float* local_position_channels[] = { (float*) &positions_local };
                     const float* world_position_channels[] = { (float*) &positions_world };
-                    dmVMath::Vector4 center_local(0.0f, 0.0f, 0.0f, 1.0f);
-                    dmVMath::Vector4 center_world = world_matrix * center_local;
-                    const float* center_local_channel[] = { (float*)&center_local };
-                    const float* center_world_channel[] = { (float*)&center_world };
+                    
+                    dmVMath::Vector4 center_world(world_matrix.getTranslation(), 1.0f);
+                    const float* center_position_channels[] = { (float*) &center_world };
 
                     const uint8_t uv_channels_count = textures_num != 0 ? textures_num : 1;
                     const uint8_t pi_channels_count = textures_num != 0 ? textures_num : 1;
@@ -1545,8 +1538,7 @@ namespace dmGameSystem
                         world_matrix_channel,
                         world_position_channels,
                         local_position_channels,
-                        center_local_channel,
-                        center_world_channel,
+                        center_position_channels,
                         (const float**) scratch_uv_ptrs,
                         uv_channels_count,
                         (const float**) scratch_pi_ptrs,

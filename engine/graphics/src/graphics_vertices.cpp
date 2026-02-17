@@ -34,8 +34,7 @@ namespace dmGraphics
         uint8_t m_ChannelIndexNormalMatrix;
         uint8_t m_ChannelIndexPositionsLocalSpace;
         uint8_t m_ChannelIndexPositionsWorldSpace;
-        uint8_t m_ChannelIndexCenterPositionLocalSpace;
-        uint8_t m_ChannelIndexCenterPositionWorldSpace;
+        uint8_t m_ChannelIndexCenterPosition;
         uint8_t m_ChannelIndexNormals;
         uint8_t m_ChannelIndexTangents;
         uint8_t m_ChannelIndexColors;
@@ -379,13 +378,18 @@ namespace dmGraphics
             case VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION:
                 if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
                 {
-                    stream_desc = &params.m_CenterPositionWorldSpace;
-                    channel_index = unpack_state.m_ChannelIndexCenterPositionWorldSpace++;
+                    stream_desc = &params.m_CenterPosition;
+                    channel_index = unpack_state.m_ChannelIndexCenterPosition++;
                 }
                 else
                 {
-                    stream_desc = &params.m_CenterPositionLocalSpace;
-                    channel_index = unpack_state.m_ChannelIndexCenterPositionLocalSpace++;
+                    // A center position in local coordinate space will always be 0,0,0,1
+                    data->m_ElementCount = VectorTypeToElementCount(stream_desc->m_VectorType);
+                    data->m_IsMatrix     = VectorTypeIsMatrix(stream_desc->m_VectorType);
+                    data->m_VectorType   = stream_desc->m_VectorType;
+                    data->m_DataType     = VertexAttribute::TYPE_FLOAT;
+                    data->m_ValuePtr     = (const uint8_t*) g_SourceDataDefaultVectorOneAsW;
+                    return;
                 }
                 break;
 
