@@ -17,6 +17,9 @@
 
 #include <assert.h>
 #include <stdint.h>
+#if !defined(__cplusplus)
+    #include <stdbool.h>
+#endif
 #include "shared_library.h"
 #include "dalloca.h" // dmFixedMemAllocator
 
@@ -37,7 +40,7 @@
  *
  * @document
  * @name Hash
- * @language C++
+ * @language C
  */
 
 /*# dmhash_t type definition
@@ -144,19 +147,12 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
  */
 DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-
-#ifdef __cplusplus
-
 /*#
  * Hash state used for 32-bit incremental hashing
  * @struct
  * @name HashState32
  */
-struct HashState32
+typedef struct HashState32
 {
     uint32_t m_Hash;
     uint32_t m_Tail;
@@ -164,13 +160,15 @@ struct HashState32
     uint32_t m_Size;
     uint32_t m_ReverseHashEntryIndex;
 
+#ifdef __cplusplus
     HashState32() {}
 private:
     // Restrict copy-construction etc.
     HashState32(const HashState32&) {}
     void operator =(const HashState32&) {}
     void operator ==(const HashState32&) {}
-};
+#endif
+} HashState32;
 
 
 /*#
@@ -178,7 +176,7 @@ private:
  * @struct
  * @name HashState64
  */
-struct HashState64
+typedef struct HashState64
 {
     uint64_t m_Hash;
     uint64_t m_Tail;
@@ -186,13 +184,15 @@ struct HashState64
     uint32_t m_Size;
     uint32_t m_ReverseHashEntryIndex;
 
+#ifdef __cplusplus
     HashState64() {}
 private:
     // Restrict copy-construction etc.
     HashState64(const HashState64&) {}
     void operator =(const HashState64&) {}
     void operator ==(const HashState64&) {}
-};
+#endif
+} HashState64;
 
 
 /*#
@@ -288,11 +288,19 @@ DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
  * @param name [type: symbol] The name of the dmAllocator struct
  * @param size [type: size_t] The max size of the stack allocated context
  */
-#define DM_HASH_REVERSE_MEM(_NAME, _CAPACITY) \
-    uint8_t _NAME ## _mem_ ## __LINE__ [_CAPACITY]; \
-    dmFixedMemAllocator _NAME ## __LINE__; \
-    dmFixedMemAllocatorInit(& _NAME ## __LINE__, _CAPACITY, _NAME ## _mem_ ## __LINE__); \
-    dmAllocator& _NAME = (_NAME ## __LINE__).m_Allocator;
+#if defined(__cplusplus)
+    #define DM_HASH_REVERSE_MEM(_NAME, _CAPACITY) \
+        uint8_t _NAME ## _mem_ ## __LINE__ [_CAPACITY]; \
+        dmFixedMemAllocator _NAME ## __LINE__; \
+        dmFixedMemAllocatorInit(& _NAME ## __LINE__, _CAPACITY, _NAME ## _mem_ ## __LINE__); \
+        dmAllocator& _NAME = (_NAME ## __LINE__).m_Allocator;
+#else
+    #define DM_HASH_REVERSE_MEM(_NAME, _CAPACITY) \
+        uint8_t _NAME ## _mem_ ## __LINE__ [_CAPACITY]; \
+        dmFixedMemAllocator _NAME ## __LINE__; \
+        dmFixedMemAllocatorInit(& _NAME ## __LINE__, _CAPACITY, _NAME ## _mem_ ## __LINE__); \
+        dmAllocator _NAME = (_NAME ## __LINE__).m_Allocator;
+#endif
 
 
 /*# get string value from hash
@@ -343,6 +351,8 @@ DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64
  */
 DM_DLLEXPORT const char* dmHashReverseSafe32Alloc(dmAllocator* allocator, uint32_t hash);
 
-#endif // __cplusplus
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif // DMSDK_HASH_H
