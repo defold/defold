@@ -307,7 +307,7 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
         ASSERT_EQ(streams[ix].m_Type, type); \
         ASSERT_EQ(streams[ix].m_Normalize, normalize);
 
-    ASSERT_EQ(stream_declaration->m_StreamCount, 2);
+    ASSERT_EQ(stream_declaration->m_Streams.Size(), 2);
     TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
     TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
 
@@ -360,6 +360,57 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
 
     ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0][0].m_Size);
     ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0][1].m_Size);
+
+    dmGraphics::DeleteVertexDeclaration(vertex_declaration);
+    dmGraphics::DeleteVertexBuffer(vertex_buffer);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+TEST_F(dmGraphicsTest, VertexDeclarationMoreThan8Streams)
+{
+    // Create a vertex declaration with more than 8 streams (e.g. 10)
+    const uint32_t num_streams = 10;
+    float v[20]; // 2 vertices, 10 floats each (stream0..stream9 per vertex)
+    for (uint32_t i = 0; i < 20; ++i)
+    {
+        v[i] = (float) i;
+    }
+
+    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), (void*)v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        char name[16];
+        dmSnPrintf(name, sizeof(name), "stream%u", i);
+        dmGraphics::AddVertexStream(stream_declaration, name, 1, dmGraphics::TYPE_FLOAT, false);
+    }
+
+    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
+    dmGraphics::VertexDeclaration* vx = (dmGraphics::VertexDeclaration*) vertex_declaration;
+    ASSERT_EQ(num_streams, (uint32_t) vx->m_StreamCount);
+    ASSERT_EQ(num_streams * sizeof(float), (uint32_t) dmGraphics::GetVertexDeclarationStride(vertex_declaration));
+
+    dmGraphics::EnableVertexBuffer(m_Context, vertex_buffer, 0);
+    dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, 0);
+
+    // Verify that enabling the vertex declaration bound all streams correctly
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        ASSERT_EQ(4u, (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Size);
+        ASSERT_EQ(num_streams * sizeof(float), (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Stride);
+        const float* src = (const float*) m_NullContext->m_VertexStreams[0][i].m_Source;
+        ASSERT_NE((void*)0, (void*)src);
+        ASSERT_EQ((float)i, *src);
+    }
+
+    dmGraphics::DisableVertexDeclaration(m_Context, vertex_declaration);
+
+    // Verify all streams were disabled
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        ASSERT_EQ(0u, (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Size);
+    }
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -469,7 +520,6 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
     dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader, 0, 0);
-    const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
 
     dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
     ASSERT_EQ(1, null_program->m_UniformBuffers.Size());
@@ -721,12 +771,26 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     dmGraphics::VertexAttribute::VectorType value_vector_type,
     dmGraphics::VertexAttribute::VectorType vector_type)
 {
-    infos.m_Infos[infos.m_NumInfos].m_SemanticType    = semantic_type;
-    infos.m_Infos[infos.m_NumInfos].m_DataType        = data_type;
-    infos.m_Infos[infos.m_NumInfos].m_VectorType      = vector_type;
-    infos.m_Infos[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
-    infos.m_Infos[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    dmGraphics::VertexAttributeInfo* infos_array = (dmGraphics::VertexAttributeInfo*) infos.m_Infos;
+    infos_array[infos.m_NumInfos].m_SemanticType    = semantic_type;
+    infos_array[infos.m_NumInfos].m_DataType        = data_type;
+    infos_array[infos.m_NumInfos].m_VectorType      = vector_type;
+    infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
+    infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    infos_array[infos.m_NumInfos].m_ElementCount   = dmGraphics::VectorTypeToElementCount(vector_type);
     infos.m_NumInfos++;
+}
+
+static inline void InitializeVertexAttributeInfos(dmGraphics::VertexAttributeInfos& infos, uint32_t num_streams)
+{
+    dmGraphics::VertexAttributeInfo* infos_array = new dmGraphics::VertexAttributeInfo[num_streams];
+    memset(infos_array, 0, sizeof(dmGraphics::VertexAttributeInfo) * num_streams);
+    infos.m_Infos = infos_array;
+}
+
+static inline void DestroyVertexAttributeInfos(dmGraphics::VertexAttributeInfos& infos)
+{
+    delete[] (dmGraphics::VertexAttributeInfo*) infos.m_Infos;
 }
 
 static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& expected, const VectorTypeContainer<float>& actual)
@@ -743,6 +807,8 @@ static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& exp
 static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexAttribute::DataType data_type, dmGraphics::VertexAttribute::VectorType value_vector_type, const VectorTypeContainer<float>& expected)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 7);
+
     AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
     AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
     AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
@@ -759,11 +825,17 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
 
     dmGraphics::WriteAttributes((uint8_t*) &actual, 0, 1, params);
     AssertVectorTypeContainerFloat(expected, actual);
+
+    DestroyVertexAttributeInfos(attribute_infos);
 }
 
 TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 1);
+
+    dmGraphics::VertexAttributeInfo* mutable_infos = (dmGraphics::VertexAttributeInfo*) attribute_infos.m_Infos;
+
     AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
 
     dmGraphics::WriteAttributeParams params = {};
@@ -771,7 +843,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned byte
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
         attribute_infos.m_VertexStride = sizeof(uint8_t) * 4;
         float position_values[] = {128.0, 255.0};
         uint8_t expected[4]     = {128,   255, 0, 1};
@@ -785,7 +857,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed byte
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
         attribute_infos.m_VertexStride        = sizeof(int8_t) * 4;
         float position_values[]               = {-32.0, -16.0};
         int8_t expected[4]                    = {-32,   -16, 0, 1};
@@ -800,7 +872,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned short
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
         attribute_infos.m_VertexStride        = sizeof(uint16_t) * 4;
         float position_values[]               = {32768.0, 65535.0};
         uint16_t expected[4]                  = {32768,   65535, 0, 1};
@@ -815,7 +887,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed short
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
         attribute_infos.m_VertexStride        = sizeof(int16_t) * 4;
         float position_values[]               = {-16384.0, -32768.0};
         int16_t expected[4]                   = {-16384,   -32768, 0, 1};
@@ -830,7 +902,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned int
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
         attribute_infos.m_VertexStride        = sizeof(uint32_t) * 4;
         float position_values[]               = {128000.0, 13371337.0};
         uint32_t expected[4]                  = {128000,   13371337, 0, 1};
@@ -845,7 +917,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed int
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
         attribute_infos.m_VertexStride        = sizeof(int32_t) * 4;
         float position_values[]               = {-128000.0, -99999.0};
         int32_t expected[4]                   = {-128000,   -99999, 0, 1};
@@ -857,6 +929,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
         ASSERT_VEC(expected, actual, 4);
     }
+
+    DestroyVertexAttributeInfos(attribute_infos);
 }
 
 TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeNone)
@@ -1122,6 +1196,8 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
     float attribute_1_data[] = { -1.1, -1.2, -1.3, -1.4 };
 
     dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 3);
+
     AddAttribute(attribute_infos, attribute_0_data, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
     AddAttribute(attribute_infos, attribute_1_data, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
     AddAttribute(attribute_infos,                0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
@@ -1189,6 +1265,8 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
         ASSERT_VECF(expected[1], actual[1], 4);
         ASSERT_VECF(expected[2], actual[2], 4);
     }
+
+    DestroyVertexAttributeInfos(attribute_infos);
 }
 
 // position, color and tangent should have one as W, if there is not enough source data to copy from
@@ -1197,6 +1275,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
     // Position semantic
     {
         dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
@@ -1237,6 +1317,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
+
+        DestroyVertexAttributeInfos(attribute_infos);
     }
 
     // Color semantic
@@ -1244,6 +1326,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
         // No values available whatsoever
         {
             dmGraphics::VertexAttributeInfos attribute_infos;
+            InitializeVertexAttributeInfos(attribute_infos, 4);
+
             AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
             AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
             AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
@@ -1263,9 +1347,13 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
 
             dmGraphics::WriteAttributes((uint8_t*) &actual, 0, 1, params);
             AssertVectorTypeContainerFloat(expected, actual);
+
+            DestroyVertexAttributeInfos(attribute_infos);
         }
 
         dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
@@ -1295,11 +1383,15 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
+
+        DestroyVertexAttributeInfos(attribute_infos);
     }
 
     // Tangent semantic
     {
         dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
@@ -1338,6 +1430,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
+
+        DestroyVertexAttributeInfos(attribute_infos);
     }
 }
 

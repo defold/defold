@@ -172,7 +172,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
@@ -293,7 +293,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);

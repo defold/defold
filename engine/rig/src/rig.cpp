@@ -22,7 +22,6 @@
 #include <dmsdk/dlib/object_pool.h>
 #include <graphics/graphics.h>
 
-
 #include <stdio.h>
 
 namespace dmRig

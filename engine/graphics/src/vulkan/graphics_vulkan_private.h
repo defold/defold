@@ -426,6 +426,7 @@ namespace dmGraphics
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
         VertexDeclaration               m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;

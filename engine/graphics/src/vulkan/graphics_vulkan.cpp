@@ -2004,9 +2004,11 @@ bail:
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_StreamCount = stream_count;
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
 
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+        for (uint32_t i = 0; i < stream_count; ++i)
         {
             VertexStream& stream = stream_declaration->m_Streams[i];
 
@@ -2105,6 +2107,14 @@ bail:
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
+
+        if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
+        {
+            context->m_MainVertexDeclarationStreams[binding_index].SetCapacity(vertex_declaration->m_StreamCount);
+            context->m_MainVertexDeclarationStreams[binding_index].SetSize(vertex_declaration->m_StreamCount);
+        }
+        memset(context->m_MainVertexDeclarationStreams[binding_index].Begin(), 0, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        context->m_MainVertexDeclaration[binding_index].m_Streams = context->m_MainVertexDeclarationStreams[binding_index].Begin();
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
