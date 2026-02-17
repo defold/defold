@@ -17,6 +17,7 @@
             [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl.vertex2 :as vtx]
+            [editor.math :as math]
             [editor.graphics.types :as graphics.types]
             [editor.localization :as localization]
             [editor.properties :as properties]
@@ -460,7 +461,7 @@
                              :semantic-type-normal}}"
   [attribute-infos]
   (->> attribute-infos
-       (filter (comp #{:semantic-type-position :semantic-type-normal} :semantic-type))
+       (filter (comp #{:semantic-type-position :semantic-type-normal :semantic-type-center-position} :semantic-type))
        (iutil/group-into
          {} #{}
          #(:coordinate-space % :coordinate-space-local)
@@ -489,7 +490,8 @@
     :semantic-type-normal false
     :semantic-type-tangent false
     :semantic-type-world-matrix false
-    :semantic-type-normal-matrix false))
+    :semantic-type-normal-matrix false
+    :semantic-type-center-position false))
 
 (defn overridable-attribute-info? [attribute-info]
   (overridable-semantic-type? (:semantic-type attribute-info default-attribute-semantic-type)))
@@ -762,6 +764,13 @@
       (geom/as-array)
       (convert-double-values :semantic-type-none :vector-type-mat4 vector-type))) ; Semantic type does not matter for this.
 
+(defn- renderable-data->center-position-world-v4 [renderable-data]
+  (let [^Matrix4d world-transform (:world-transform renderable-data)
+        vertex-count (count (:position-data renderable-data))
+        t (math/translation world-transform)
+        center-v4 [(double (.-x t)) (double (.-y t)) (double (.-z t)) 1.0]]
+    (repeat vertex-count center-v4)))
+
 (defn put-attributes!
   ^VertexBuffer [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
@@ -862,6 +871,12 @@
                 ;; normal-matrix attributes.
                 (boolean (:has-semantic-type-normal-matrix renderable-data))
 
+                :semantic-type-center-position
+                ;; Center position is derived from the world transform (world space)
+                ;; or written as 0,0,0,1 (local space). We can supply it when we have
+                ;; a world transform.
+                (some? (:world-transform renderable-data))
+
                 false))))]
 
     (reduce (fn [reduce-info attribute]
@@ -940,7 +955,16 @@
                                       (fn renderable-data->normal-matrices [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
                                               matrix-values (mat4-double-values (:normal-transform renderable-data) vector-type)]
-                                          (repeat vertex-count matrix-values)))))
+                                          (repeat vertex-count matrix-values))))
+
+                    :semantic-type-center-position
+                    (case (:coordinate-space attribute)
+                      :coordinate-space-world
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->center-position-world-v4)
+                      ;; :coordinate-space-local: output 0,0,0,1 per vertex
+                      (put-renderables! attribute-byte-offset put-attribute-doubles!
+                                        (fn renderable-data->center-position-local [renderable-data]
+                                          (repeat (count (:position-data renderable-data)) [0.0 0.0 0.0 1.0])))))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides. If the material does not declare an

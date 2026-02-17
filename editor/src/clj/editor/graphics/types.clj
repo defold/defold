@@ -89,6 +89,7 @@
                         vec3-doubles-zero)
     :vector-type-vec4 (case semantic-type
                         :semantic-type-position vec4-doubles-xyz-zero-w-one
+                        :semantic-type-center-position vec4-doubles-xyz-zero-w-one
                         :semantic-type-color vec4-doubles-one
                         :semantic-type-tangent vec4-doubles-xyz-zero-w-one
                         vec4-doubles-zero)
@@ -522,6 +523,7 @@
     :bone-weights :semantic-type-bone-weights
     :mtx-world :semantic-type-world-matrix
     :mtx-normal :semantic-type-normal-matrix
+    :center-position :semantic-type-center-position
     :semantic-type-none))
 
 (defn infer-normalize

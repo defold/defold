@@ -162,7 +162,7 @@
 
         ;; TODO: You can't define a local-space attribute using defvertex.
         coordinate-space (case semantic-type
-                           (:semantic-type-position :semantic-type-normal :semantic-type-tangent) :coordinate-space-world
+                           (:semantic-type-position :semantic-type-normal :semantic-type-tangent :semantic-type-center-position) :coordinate-space-world
                            :coordinate-space-local)]
     {:name attribute-name
      :name-key attribute-key
