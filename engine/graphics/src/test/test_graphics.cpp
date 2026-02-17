@@ -1114,86 +1114,40 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeNone)
     }
 }
 
-// Test center position semantic with local and world coordinate space
+// Test center position semantic (world coordinate space)
 TEST_F(dmGraphicsTest, VertexAttributeCenterPositionSemantic)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
     attribute_infos.m_NumInfos = 0;
 
-    // First attribute: center position in local space (default coordinate space)
     AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-    attribute_infos.m_Infos[0].m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
+    attribute_infos.m_Infos[0].m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
 
-    // Second attribute: center position in world space
-    AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-    attribute_infos.m_Infos[1].m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
-
-    attribute_infos.m_VertexStride = sizeof(float) * 4 * 2;
+    attribute_infos.m_VertexStride = sizeof(float) * 4;
 
     dmGraphics::WriteAttributeParams params = {};
     params.m_VertexAttributeInfos = &attribute_infos;
     params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
 
-    // No engine data: both get default (0, 0, 0, 1)
+    // No engine data: default (0, 0, 0, 1)
     {
-        float actual[2][4] = {};
+        float actual[4] = {};
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
 
         float expected_default[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-        ASSERT_VECF(expected_default, actual[0], 4);
-        ASSERT_VECF(expected_default, actual[1], 4);
+        ASSERT_VECF(expected_default, actual, 4);
     }
 
-    // Engine provides local space center only
+    // Engine provides center position
     {
-        float center_local[] = {10.0f, 20.0f, 30.0f, 1.0f};
-        const float* center_local_channel[] = { center_local };
-        dmGraphics::SetWriteAttributeStreamDesc(&params.m_CenterPositionLocalSpace, center_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
-
-        float actual[2][4] = {};
-        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
-
-        ASSERT_VECF(center_local, actual[0], 4);
-        float expected_world_default[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-        ASSERT_VECF(expected_world_default, actual[1], 4);
-    }
-
-    // Engine provides world space center only
-    {
-        dmGraphics::WriteAttributeParams params2 = {};
-        params2.m_VertexAttributeInfos = &attribute_infos;
-        params2.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-
         float center_world[] = {100.0f, 200.0f, 300.0f, 1.0f};
         const float* center_world_channel[] = { center_world };
-        dmGraphics::SetWriteAttributeStreamDesc(&params2.m_CenterPositionWorldSpace, center_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_CenterPosition, center_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
 
-        float actual[2][4] = {};
-        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params2);
+        float actual[4] = {};
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
 
-        float expected_local_default[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-        ASSERT_VECF(expected_local_default, actual[0], 4);
-        ASSERT_VECF(center_world, actual[1], 4);
-    }
-
-    // Engine provides both local and world center
-    {
-        dmGraphics::WriteAttributeParams params3 = {};
-        params3.m_VertexAttributeInfos = &attribute_infos;
-        params3.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-
-        float center_local[] = {1.0f, 2.0f, 3.0f, 1.0f};
-        float center_world[] = {4.0f, 5.0f, 6.0f, 1.0f};
-        const float* center_local_channel[] = { center_local };
-        const float* center_world_channel[] = { center_world };
-        dmGraphics::SetWriteAttributeStreamDesc(&params3.m_CenterPositionLocalSpace, center_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
-        dmGraphics::SetWriteAttributeStreamDesc(&params3.m_CenterPositionWorldSpace, center_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
-
-        float actual[2][4] = {};
-        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params3);
-
-        ASSERT_VECF(center_local, actual[0], 4);
-        ASSERT_VECF(center_world, actual[1], 4);
+        ASSERT_VECF(center_world, actual, 4);
     }
 }
 
@@ -1426,6 +1380,7 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
     {
         dmGraphics::VertexAttributeInfos attribute_infos;
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        attribute_infos.m_Infos[0].m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
         dmGraphics::WriteAttributeParams params = {};
@@ -1447,7 +1402,7 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float actual[4]        = {};
 
             const float* center_values_channel[] = { center_values };
-            dmGraphics::SetWriteAttributeStreamDesc(&params.m_CenterPositionLocalSpace, center_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, true);
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_CenterPosition, center_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, true);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
@@ -1459,7 +1414,7 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float actual[4]        = {};
 
             const float* center_values_channel[] = { center_values };
-            dmGraphics::SetWriteAttributeStreamDesc(&params.m_CenterPositionLocalSpace, center_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, true);
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_CenterPosition, center_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, true);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
