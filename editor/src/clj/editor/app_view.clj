@@ -295,21 +295,24 @@
 (def ^:private ext-with-split-pane-props
   (fx/make-ext-with-props fx.split-pane/props))
 
-(g/defnk produce-right-split-desc [right-split ^:try outline-pane-desc]
+(defn- split-pane-item [pane-desc]
+  {:fx/type fx.anchor-pane/lifecycle
+   :split-pane/resizable-with-parent false
+   :children [(assoc pane-desc
+                :anchor-pane/left 0.0
+                :anchor-pane/right 0.0
+                :anchor-pane/top 0.0
+                :anchor-pane/bottom 0.0)]})
+
+(g/defnk produce-right-split-desc [right-split ^:try outline-pane-desc ^:try properties-pane-desc]
   {:fx/type fxui/ext-dedupe-identical-desc
-   :desc
-   {:fx/type ext-with-split-pane-props
-    :desc {:fx/type fxui/ext-value :value right-split}
-    :props {:items (cond-> []
-                           (and outline-pane-desc (not (g/error-value? outline-pane-desc)))
-                           (conj
-                             {:fx/type fx.anchor-pane/lifecycle
-                              :split-pane/resizable-with-parent false
-                              :children [(assoc outline-pane-desc
-                                           :anchor-pane/left 0.0
-                                           :anchor-pane/right 0.0
-                                           :anchor-pane/top 0.0
-                                           :anchor-pane/bottom 0.0)]}))}}})
+   :desc {:fx/type ext-with-split-pane-props
+          :desc {:fx/type fxui/ext-value :value right-split}
+          :props {:items (cond-> []
+                                 (and outline-pane-desc (not (g/error-value? outline-pane-desc)))
+                                 (conj (split-pane-item outline-pane-desc))
+                                 (and properties-pane-desc (not (g/error-value? properties-pane-desc)))
+                                 (conj (split-pane-item properties-pane-desc)))}}})
 
 (g/defnode AppView
   (property stage Stage)
@@ -325,6 +328,7 @@
   (property localization g/Any)
 
   (input outline-pane-desc g/Any)
+  (input properties-pane-desc g/Any)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)

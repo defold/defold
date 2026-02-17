@@ -190,7 +190,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          #_#_properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
@@ -239,8 +239,6 @@
                       (spit port-file-content))]
       (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
       (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
-      #_(localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
-      #_(localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
       (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
@@ -373,6 +371,7 @@
           (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :pane-desc app-view :outline-pane-desc)
+          (g/connect properties-view :pane-desc app-view :properties-pane-desc)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)

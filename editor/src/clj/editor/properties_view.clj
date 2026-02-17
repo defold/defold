@@ -14,8 +14,11 @@
 
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.label :as fx.label]
             [cljfx.fx.slider :as fx.slider]
+            [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -44,7 +47,7 @@
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.scene Node Parent]
+           [javafx.scene Node]
            [javafx.scene.control Slider]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]))
@@ -698,11 +701,7 @@
     (.requestFocus ^Node (.getSource e))
     (.consume e)))
 
-(fxui/defc grid-view
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization (:context props))
-              :key :localization-state}]}
-  [{:keys [localization-state properties context]}]
+(defn- grid-view [{:keys [localization-state properties context]}]
   (let [properties (properties/coalesce properties)
         selection-provider (->SelectionProvider (:original-node-ids properties))]
     {:fx/type fxui/vertical
@@ -763,20 +762,44 @@
                                   :catch {:fx/type error-view}})))))})))))
           (into []))}))
 
-(defn pane-view [{:keys [parent context selected-node-properties]}]
-  {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value :value parent}
-   :props {:children [{:fx/type fxui/scroll
-                       :anchor-pane/top 0
-                       :anchor-pane/bottom 0
-                       :anchor-pane/left 0
-                       :anchor-pane/right 0
-                       :content {:fx/type grid-view
-                                 :context context
-                                 :properties selected-node-properties}}]}})
+(def ^:private properties-message (localization/message "pane.properties"))
+
+(fxui/defc properties-pane-view
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [localization-state context selected-node-properties]}]
+  {:fx/type fx.v-box/lifecycle
+   :style-class ["fake-titled-pane"]
+   :children [{:fx/type fx.label/lifecycle
+               :style-class ["fake-titled-pane-label"]
+               :text (localization-state properties-message)}
+              {:fx/type fx.anchor-pane/lifecycle
+               :v-box/vgrow :always
+               :id "properties"
+               :children [{:fx/type fxui/scroll
+                           :anchor-pane/top 0.0
+                           :anchor-pane/bottom 0.0
+                           :anchor-pane/left 0.0
+                           :anchor-pane/right 0.0
+                           :content {:fx/type grid-view
+                                     :localization-state localization-state
+                                     :context context
+                                     :properties selected-node-properties}}]}]})
+
+(g/defnk produce-pane-desc
+  [workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
+  {:fx/type fxui/ext-dedupe-identical-desc
+   :desc {:fx/type properties-pane-view
+          :localization localization
+          :context {:workspace workspace
+                    :project project
+                    :app-view app-view
+                    :prefs prefs
+                    :localization localization
+                    :search-results-view search-results-view
+                    :color-dropper-view color-dropper-view}
+          :selected-node-properties selected-node-properties}})
 
 (g/defnode PropertiesView
-  (property parent-view Parent)
   (property prefs g/Any)
 
   (input workspace g/Any)
@@ -787,33 +810,17 @@
   (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output description g/Any :cached
-          (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
-            {:fx/type fxui/ext-dedupe-identical-desc
-             :desc {:fx/type pane-view
-                    :parent parent-view
-                    :context {:workspace workspace
-                              :project project
-                              :app-view app-view
-                              :prefs prefs
-                              :localization localization
-                              :search-results-view search-results-view
-                              :color-dropper-view color-dropper-view}
-                    :selected-node-properties selected-node-properties}})))
+  (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
-  (let [properties-view (first
-                          (g/tx-nodes-added
-                            (g/transact
-                              (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
-                                (g/connect workspace :_node-id view :workspace)
-                                (g/connect workspace :localization view :localization)
-                                (g/connect project :_node-id view :project)
-                                (g/connect app-view :_node-id view :app-view)
-                                (g/connect app-view :selected-node-properties view :selected-node-properties)
-                                (g/connect search-results-view :_node-id view :search-results-view)
-                                (g/connect color-dropper-view :_node-id view :color-dropper-view)))))]
-    (ui/node-timer!
-      parent 30 "refresh-properties-view"
-      #(fxui/advance-ui-user-data-component! parent ::properties-view (g/node-value properties-view :description)))
-    properties-view))
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes view-graph [view [PropertiesView :prefs prefs]]
+          (g/connect workspace :_node-id view :workspace)
+          (g/connect workspace :localization view :localization)
+          (g/connect project :_node-id view :project)
+          (g/connect app-view :_node-id view :app-view)
+          (g/connect app-view :selected-node-properties view :selected-node-properties)
+          (g/connect search-results-view :_node-id view :search-results-view)
+          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))
