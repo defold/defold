@@ -160,6 +160,7 @@
                   :pull-diagnostics :none
                   :goto-definition false
                   :find-references false
+                  :document-symbol false
                   :hover false
                   :rename false}]
                 [:on-publish-diagnostics

@@ -17,6 +17,7 @@
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.region :as fx.region]
             [cljfx.fx.split-pane :as fx.split-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
@@ -97,6 +98,7 @@
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
+           [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
@@ -304,15 +306,22 @@
                 :anchor-pane/top 0.0
                 :anchor-pane/bottom 0.0)]})
 
-(g/defnk produce-right-split-desc [right-split ^:try outline-pane-desc ^:try properties-pane-desc]
+(g/defnk produce-active-sidebar [active-view open-sidebar-panes ^:try outline-pane-desc ^:try properties-pane-desc]
+  (coll/into-> (get open-sidebar-panes active-view) []
+    (map #(case %
+            :outline outline-pane-desc
+            :properties properties-pane-desc
+            %))))
+
+(g/defnk produce-right-split-desc [right-split active-sidebar]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type ext-with-split-pane-props
           :desc {:fx/type fxui/ext-value :value right-split}
-          :props {:items (cond-> []
-                                 (and outline-pane-desc (not (g/error-value? outline-pane-desc)))
-                                 (conj (split-pane-item outline-pane-desc))
-                                 (and properties-pane-desc (not (g/error-value? properties-pane-desc)))
-                                 (conj (split-pane-item properties-pane-desc)))}}})
+          :props {:items (or (coll/not-empty
+                               (coll/into-> active-sidebar []
+                                 (remove g/error-value?)
+                                 (map split-pane-item)))
+                             [(split-pane-item {:fx/type fx.region/lifecycle})])}}})
 
 (g/defnode AppView
   (property stage Stage)
@@ -329,6 +338,7 @@
 
   (input outline-pane-desc g/Any)
   (input properties-pane-desc g/Any)
+  (input open-sidebar-panes g/Any :array :substitute gu/array-subst-remove-errors)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -342,6 +352,7 @@
   (input sub-selections-by-resource-node g/Any)
   (input debugger-execution-locations g/Any)
 
+  (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
@@ -359,6 +370,7 @@
                 {:view-id view-node-id
                  :view-type view-type}))))
 
+  (output active-sidebar g/Any :cached produce-active-sidebar)
   (output right-split-desc g/Any :cached produce-right-split-desc)
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
@@ -2158,6 +2170,8 @@
                             (fn [_animation-timer _elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
+                                  (when (NodeHelper/isTreeShowing right-split)
+                                    (refresh-right-split! app-view))
                                   (when refresh-requested?
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (g/with-auto-evaluation-context evaluation-context
@@ -2173,7 +2187,6 @@
                                   ;; Scene views are always refreshed, since they may play animations.
                                   ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
                                   (refresh-scene-views! app-view dt)))))]
-        (ui/node-timer! right-split 30 "refresh-right-split" #(refresh-right-split! app-view))
         (ui/timer-stop-on-closed! stage refresh-timer)
         [app-view refresh-timer]))))
 
@@ -2230,7 +2243,8 @@
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty app-view :open-dirty-views)))
+        (g/connect view :view-dirty app-view :open-dirty-views)
+        (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
     (.add tabs tab)
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))

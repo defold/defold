@@ -32,16 +32,15 @@ The new concept is called **Resource View Sidebar**:
 Define sidebar policy on the view node contract:
 - `WorkbenchView` exposes `:sidebar-panes` output.
 - `:sidebar-panes` value is either:
-  - an ordered vector of sidebar pane Cljfx descriptions, or
-  - a sentinel value meaning "use AppView default panes".
-- `WorkbenchView` exposes connected output `:view-sidebar-panes` as `[_node-id panes-or-sentinel]` for AppView aggregation.
+  - an ordered vector of sidebar pane Cljfx descriptions and/or sidebar sentinels (`:outline`, `:properties`).
+- `WorkbenchView` exposes connected output `:view-sidebar-panes` as `[_node-id panes]` for AppView aggregation.
 
 ### 2) App-level active sidebar selection
 
 In `AppView`:
 - Track sidebars for all open views via connected `:view-sidebar-panes` (similar to `:open-views` / `:open-dirty-views`).
 - Expose `:active-sidebar` derived from active tab's view-node-id.
-- Treat sentinel panes as default `Outline + Properties`.
+- Resolve sentinel panes (`:outline`, `:properties`) into corresponding pane descs.
 
 ### 3) AppView-owned sidebar renderer
 
@@ -82,7 +81,7 @@ Notes:
 ## Split Ownership Decision
 
 - `WorkbenchView :sidebar-panes` should not return a full Cljfx SplitPane description.
-- `WorkbenchView :sidebar-panes` should return pane Cljfx descriptions in order (or sentinel for default panes).
+- `WorkbenchView :sidebar-panes` should return pane Cljfx descriptions/sentinels in order.
 - `AppView` should be the only owner of split-pane creation and ids (`#right-split`).
 - This preserves split prefs compatibility while still allowing per-view sidebar composition.
 
@@ -101,12 +100,12 @@ Notes:
 - Keep JavaFX ids that are still referenced by persistence or command wiring.
 - Remove/rename ids only after their readers/writers are migrated.
 
-### Phase 1: Parity mode (same behavior)
+### ✅ Phase 1: Parity mode (same behavior)
 
-1. Add `WorkbenchView :sidebar-panes` plus connected `:view-sidebar-panes` (`[_node-id panes-or-sentinel]`).
-2. Use an explicit sentinel default in `WorkbenchView` (for example `::default-sidebar-panes`) when a view does not override panes.
+1. Add `WorkbenchView :sidebar-panes` plus connected `:view-sidebar-panes` (`[_node-id panes]`).
+2. Use explicit pane sentinels in `WorkbenchView` (`:outline`, `:properties`) so `:sidebar-panes` always returns a vector.
 3. Refactor `OutlineView` and `PropertiesView` to expose pane outputs instead of mounting into injected JavaFX nodes. Connect `OutlineView` and `PropertiesView` into `AppView` when they are constructed.
-4. Compute/store per-tab sidebar panes in `AppView` from `:view-sidebar-panes`, with sentinel fallback to default `Outline + Properties` pane descs.
+4. Compute/store per-tab sidebar panes in `AppView` from `:view-sidebar-panes`, resolving per-item sentinels to pane descs.
 5. Render right pane from `AppView` using active sidebar pane descs.
 6. Keep `#right-split` SplitPane in FXML as the persisted container, but make it content-empty by default and populated by `AppView` sidebar rendering (preserving split ids/prefs behavior).
 7. Keep debugger behavior unchanged: `debug_view` still controls right-pane vs debugger-pane visibility.
@@ -117,7 +116,7 @@ Acceptance:
 - Outline/properties panes come from view outputs (not direct mount points).
 - No regression in outline/properties wiring or split persistence.
 
-### Phase 2: First policy rollout (small visible change)
+### ⏳ Phase 2: First policy rollout (small visible change)
 
 1. Introduce first non-default view sidebar policy in a narrow scope.
 2. Form `WorkbenchView :sidebar-panes` emits only outline pane desc (no properties pane desc).

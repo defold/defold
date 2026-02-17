@@ -371,7 +371,8 @@
 (defn do-run-now [f]
   (if (on-ui-thread?)
     (f)
-    (let [p (promise)]
+    (let [f (bound-fn* f)
+          p (promise)]
       (do-run-later
         (fn []
           (try
@@ -385,7 +386,7 @@
 
 (defmacro run-now
   [& body]
-  `(do-run-now (bound-fn [] ~@body)))
+  `(do-run-now (fn [] ~@body)))
 
 (defmacro run-later
   [& body]
