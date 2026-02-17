@@ -14,8 +14,10 @@
 
 (ns editor.app-view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.split-pane :as fx.split-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -290,10 +292,30 @@
                                (-> .getStyleClass (.add "key-button")))
                              1 row)))))))))
 
+(def ^:private ext-with-split-pane-props
+  (fx/make-ext-with-props fx.split-pane/props))
+
+(g/defnk produce-right-split-desc [right-split ^:try outline-pane-desc]
+  {:fx/type fxui/ext-dedupe-identical-desc
+   :desc
+   {:fx/type ext-with-split-pane-props
+    :desc {:fx/type fxui/ext-value :value right-split}
+    :props {:items (cond-> []
+                           (and outline-pane-desc (not (g/error-value? outline-pane-desc)))
+                           (conj
+                             {:fx/type fx.anchor-pane/lifecycle
+                              :split-pane/resizable-with-parent false
+                              :children [(assoc outline-pane-desc
+                                           :anchor-pane/left 0.0
+                                           :anchor-pane/right 0.0
+                                           :anchor-pane/top 0.0
+                                           :anchor-pane/bottom 0.0)]}))}}})
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
   (property editor-tabs-split SplitPane)
+  (property right-split SplitPane)
   (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
@@ -302,6 +324,7 @@
   (property keymap g/Any)
   (property localization g/Any)
 
+  (input outline-pane-desc g/Any)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -331,6 +354,8 @@
               (when-let [view-type (editor-tab/view-type active-tab)]
                 {:view-id view-node-id
                  :view-type view-type}))))
+
+  (output right-split-desc g/Any :cached produce-right-split-desc)
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource-node+type g/Any :cached
@@ -2091,7 +2116,12 @@
     ;; The new focus owner is or belongs to an editor TabPane.
     (on-active-tab-changed! app-view prefs (ui/selected-tab editor-tab-pane) true)))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
+(defn- refresh-right-split! [app-view]
+  (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
+             right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
+    (fxui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2103,6 +2133,7 @@
                                                                      :stage stage
                                                                      :scene app-scene
                                                                      :editor-tabs-split editor-tabs-split
+                                                                     :right-split right-split
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
                                                                      :manip-space :world
@@ -2138,6 +2169,7 @@
                                   ;; Scene views are always refreshed, since they may play animations.
                                   ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
                                   (refresh-scene-views! app-view dt)))))]
+        (ui/node-timer! right-split 30 "refresh-right-split" #(refresh-right-split! app-view))
         (ui/timer-stop-on-closed! stage refresh-timer)
         [app-view refresh-timer]))))
 

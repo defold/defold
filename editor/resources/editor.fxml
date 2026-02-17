@@ -134,36 +134,7 @@
                     </AnchorPane>
                     <AnchorPane id="right-pane" prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
                       <children>
-                        <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                          <items>
-                            <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
-                              <children>
-                                <TitledPane id="outline-pane" animated="false" collapsible="false" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                  <content>
-                                    <AnchorPane prefHeight="200.0" prefWidth="200.0">
-                                      <children>
-                                        <TreeView id="outline" prefHeight="326.0" prefWidth="269.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-                                      </children>
-                                    </AnchorPane>
-                                  </content>
-                                </TitledPane>
-                              </children>
-                            </AnchorPane>
-                            <AnchorPane prefHeight="100.0" prefWidth="160.0">
-                              <children>
-                                <!-- DEFEDIT-1427. We used to have a TitledPane here, but TitledPane + ScrollPane + AnchorPane + running
-                                    animation sometimes stopped the rendering of the whole right-split. Replacing the TitledPane with a
-                                    VBox + Label as below is a workaround. -->
-                                <VBox styleClass="fake-titled-pane" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                  <children>
-                                    <Label id="properties-pane" styleClass="fake-titled-pane-label" text="Properties" />
-                                    <AnchorPane id="properties" VBox.vgrow="ALWAYS"/>
-                                  </children>
-                                </VBox>
-                              </children>
-                            </AnchorPane>
-                          </items>
-                        </SplitPane>
+                        <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                         <SplitPane id="debugger-data-split" visible="false" dividerPositions="0.33" orientation="VERTICAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                           <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                             <TitledPane animated="false" collapsible="false" text="Call Stack" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
