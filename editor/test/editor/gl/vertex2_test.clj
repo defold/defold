@@ -96,6 +96,20 @@
            :coordinate-space :coordinate-space-world}]
          (:attributes pos-1b))))
 
+(v/defvertex center-4f
+  (vec4.float center_position))
+
+(deftest center-position-attribute-compiled-correctly
+  (is (= [{:name "center_position"
+           :name-key :center-position
+           :data-type :type-float
+           :vector-type :vector-type-vec4
+           :normalize false
+           :semantic-type :semantic-type-center-position
+           :step-function :vertex-step-function-vertex
+           :coordinate-space :coordinate-space-world}]
+         (:attributes center-4f))))
+
 (v/defvertex pos-4f-uv-2f
   (vec4.float position)
   (vec2.float texcoord))

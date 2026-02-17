@@ -117,6 +117,12 @@
                (map (juxt identity graphics.types/engine-provided-semantic-type?))
                graphics.types/semantic-types))))
 
+(deftest default-attribute-doubles-center-position-test
+  (is (= [0.0 0.0 0.0 1.0]
+         (graphics.types/default-attribute-doubles
+           :semantic-type-center-position
+           :vector-type-vec4))))
+
 (deftest vector-type?-test
   (is (every? false? (map graphics.types/vector-type? random-values)))
   (is (every? true? (map graphics.types/vector-type? graphics.types/vector-types))))

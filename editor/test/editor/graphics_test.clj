@@ -225,6 +225,16 @@
     {:vector-type-vec4 [1.1 1.2 0.0 1.0]}
 
     :vector-type-vec3
+    {:vector-type-vec4 [1.1 1.2 1.3 1.0]}}
+
+   :semantic-type-center-position
+   {nil
+    {:vector-type-vec4 [0.0 0.0 0.0 1.0]}
+
+    :vector-type-vec2
+    {:vector-type-vec4 [1.1 1.2 0.0 1.0]}
+
+    :vector-type-vec3
     {:vector-type-vec4 [1.1 1.2 1.3 1.0]}}})
 
 (deftest convert-double-values-rule-declaration-test
@@ -274,6 +284,19 @@
                              0.0 0.0 0.0 1.0]}
          (get-in convert-double-values-rules
                  [:semantic-type-color nil]))))
+
+(deftest convert-double-values-center-position-test
+  ;; Center position should behave like position/tangent for default values
+  ;; and when upconverting from vec2/vec3 to vec4.
+  (is (= [0.0 0.0 0.0 1.0]
+         (graphics/convert-double-values
+           [] :semantic-type-center-position nil :vector-type-vec4)))
+  (is (= [1.1 1.2 0.0 1.0]
+         (graphics/convert-double-values
+           [1.1 1.2] :semantic-type-center-position :vector-type-vec2 :vector-type-vec4)))
+  (is (= [1.1 1.2 1.3 1.0]
+         (graphics/convert-double-values
+           [1.1 1.2 1.3] :semantic-type-center-position :vector-type-vec3 :vector-type-vec4))))
 
 (deftest convert-double-values-test
   (doseq [[semantic-type semantic-rules] convert-double-values-rules
