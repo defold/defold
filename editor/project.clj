@@ -310,9 +310,9 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.1.0.zip"
-                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.3.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.2.0.zip"
+                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.4.1.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.6.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
