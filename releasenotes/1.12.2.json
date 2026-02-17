@@ -150,7 +150,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "- When dragging and dropping, scroll just enough to make the items visible, rather than always at the top, which should help track movement of files/nodes\r\n- Center a resource when opening with right-click \"Show in Asset Browser\", rather than up top\r\n- Fix bug when auto-scrolling downwards with mouse drag-n-drop where it would scroll by a whole page, rather than gradually\r\n- Auto-scrolling now has variable speed depending on how close to the edge you move the mouse while dragging. It's also smoother!\r\n\r\nPotentially",
+            "body": "- When dragging and dropping, scroll just enough to make the items visible, rather than always at the top, which should help track movement of files/nodes\r\n- Center a resource when opening with right-click \"Show in Asset Browser\", rather than up top\r\n- Fix bug when auto-scrolling downwards with mouse drag-n-drop where it would scroll by a whole page, rather than gradually\r\n- Auto-scrolling now has variable speed depending on how close to the edge you move the mouse while dragging. It's also smoother!",
             "closed_issues": [
                 11711
             ],
@@ -278,7 +278,8 @@
             "closed_issues": [
                 9976,
                 11618,
-                11713
+                11713,
+                11381
             ],
             "duplicate": false,
             "issue_number": 9976,
@@ -556,7 +557,9 @@
             ],
             "duplicate": false,
             "issue_number": 11851,
-            "labels": [],
+            "labels": [
+                "editor"
+            ],
             "mergecommit": "0b53309342d9b015013dd6f7594526af92864cb7",
             "pr_number": 11851,
             "referencecommits": [],
@@ -566,66 +569,28 @@
             "url": "https://github.com/defold/defold/pull/11851"
         },
         {
-            "author": "ekharkunov",
-            "body": "",
-            "closed_issues": [
-                844
-            ],
-            "duplicate": false,
-            "issue_number": 844,
-            "labels": [
-                "Docker"
-            ],
-            "mergecommit": "e954fd219f5c2894dedc01fbdb2a34e8055c743a",
-            "pr_number": 848,
-            "referencecommits": [],
-            "repository": "extender",
-            "title": "Added new PS4/PS5 dockerfiles",
-            "type": "FIX",
-            "url": "https://github.com/defold/extender/pull/848"
-        },
-        {
-            "author": "Shaunmax",
-            "body": "**Describe the bug (REQUIRED)**\nI just updated the editor to the latest version and when tried to load an old project, the editor simply crashed.\n\n**To Reproduce (REQUIRED)**\nI tried opening multiple times and it kept crashing. \n\n**Expected behavior (REQUIRED)**\nThe editor should not crash.\n\n**Defold version (REQUIRED):**\n`1.11.1`\n\n**Platforms (REQUIRED):**\n`macOS Sequoia 15.7`\n\n**Editor Logs:** \n\n[editor2.2025-10-18.log](https://github.com/user-attachments/files/22988443/editor2.2025-10-18.log)",
+            "author": "matgis",
+            "body": "* Fixed various issues around the editors handling of symbolic links.\r\n* Fixed an exception when trying to paste files into the Asset Browser that were deleted from disk since they were placed on the clipboard.",
             "closed_issues": [
                 11381
             ],
-            "duplicate": false,
+            "duplicate": true,
             "issue_number": 11381,
             "labels": [
                 "bug",
                 "editor"
             ],
-            "mergecommit": null,
-            "pr_number": 11381,
+            "mergecommit": "06de913b91500ffa9f162b08954bc2e1b996a290",
+            "pr_number": 11814,
             "referencecommits": [],
             "repository": "defold",
-            "title": "Editor Crashing - when opening an old project.",
+            "title": "Fix issues around editor symlink handling",
             "type": "FIX",
-            "url": "https://github.com/defold/defold/issues/11381"
-        },
-        {
-            "author": "Kaiqgs",
-            "body": "**Bug description**\nWhen building extension with DLLs, they're not copied to build\n\n**To Reproduce**\nSteps to reproduce the behavior:\n1. Clone https://github.com/defold/extension-fmod (minimal repro)\n2. (optional)Launch editor \n3. Build in editor or w/ bob\n4. See error\n\n\n**Expected behavior**\nThe libs should be copied, linked or any other viable referencing. Similar to Mac & Linux.\n\n**Defold version**\n  - Version [1.12.2]\n\n**Platforms**\n - Platforms: [Windows]\n - OS: [Windows11]\n\n**Workaround:**\nCopy DLLs manually into the build folder.\n\n**Context**\nhttps://github.com/defold/extension-fmod/issues/29\n\n<details>\n\n<summary>Original (Portuguese) Error</summary>\n\n<img width=\"418\" height=\"169\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/7d4de2fd-846f-4767-9693-9ffd3eb1a2b7\" />\n\n<img width=\"424\" height=\"172\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/5b4b23ce-0cea-4320-af02-bc6b4dcbe359\" />\n\n</details>\n\n<details>\n\n<summary>Translated Error </summary>\n\n(AI Gen'ed translation, I could not switch OS language lol)\n\nThe code execution cannot proceed because fmod.dll was not found.\nReinstalling the program may fix this problem.\n<img width=\"1536\" height=\"1024\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/412c250a-117f-40ba-9627-98f23047589b\" />\n\nThe code execution cannot proceed because fmodstudio.dll was not found.\nReinstalling the program may fix this problem.\n<img width=\"1536\" height=\"1024\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/2318365e-e935-4c65-9f1a-01f5a08ee03c\" />\n\n</details>",
-            "closed_issues": [
-                11860
-            ],
-            "duplicate": false,
-            "issue_number": 11860,
-            "labels": [
-                "bug"
-            ],
-            "mergecommit": null,
-            "pr_number": 11860,
-            "referencecommits": [],
-            "repository": "defold",
-            "title": "Copy Dynamic Libs Into Build",
-            "type": "FIX",
-            "url": "https://github.com/defold/defold/issues/11860"
+            "url": "https://github.com/defold/defold/pull/11814"
         },
         {
             "author": "AGulev",
-            "body": "",
+            "body": "This fixes a problem where the HTML5 `resize_window_callback` function is executed every time a resize event occurs, even when the window size has not actually changed. The callback is now only executed when the window size changes compared to the previous stored values, not on every resize event.",
             "closed_issues": [
                 11844
             ],
@@ -665,7 +630,7 @@
         },
         {
             "author": "AGulev",
-            "body": "",
+            "body": "This fixes an issue with touch events being offset when using `gui.pick_node()` in combination with the new built-in safe area mode.",
             "closed_issues": [
                 11870
             ],
@@ -802,7 +767,9 @@
             ],
             "mergecommit": "ea9558f72593d325e5e27ba524f8c803b832c6e0",
             "pr_number": 11890,
-            "referencecommits": [],
+            "referencecommits": [
+                "c4e8856392ba66eb4a996582f09a99e47e125025"
+            ],
             "repository": "defold",
             "title": "Make `/command/build` respond on build completion",
             "type": "NEW",
@@ -810,7 +777,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "",
+            "body": "Dialog height is now limited to the height of the screen to prevent dialog content from overflowing outside of the visible area.",
             "closed_issues": [
                 11786
             ],
@@ -830,7 +797,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "",
+            "body": "Pressing Backspace (\u232b) now performs a Delete action on macOS.",
             "closed_issues": [
                 11000
             ],
@@ -851,7 +818,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "",
+            "body": "Error messages are now localized in the editor.",
             "closed_issues": [
                 5453
             ],
@@ -888,8 +855,29 @@
             "title": "Added GLTF models to built-in assets.",
             "type": "NEW",
             "url": "https://github.com/defold/defold/pull/11660"
+        },
+        {
+            "author": "britzl",
+            "body": "Texture transcoding is now done on a thread during the resource preload step.",
+            "closed_issues": [
+                11825
+            ],
+            "duplicate": false,
+            "issue_number": 11825,
+            "labels": [
+                "task",
+                "engine",
+                "texture compression"
+            ],
+            "mergecommit": "f0024b56540584726d9b66dd2ead135f0492be2e",
+            "pr_number": 11895,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Moved texture transcoding to a thread during the resource preload step",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11895"
         }
     ],
-    "timestamp": 1771317320.683892,
+    "timestamp": 1771349941.445952,
     "version": "1.12.2"
 }
