@@ -5099,11 +5099,11 @@ TEST_F(MaterialTest, CustomVertexAttributes)
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
     ASSERT_EQ(5, attribute_count);
-    ASSERT_EQ(dmHashString64("position"),         attributes[0].m_NameHash);
-    ASSERT_EQ(dmHashString64("normal"),            attributes[1].m_NameHash);
-    ASSERT_EQ(dmHashString64("texcoord0"),         attributes[2].m_NameHash);
-    ASSERT_EQ(dmHashString64("color"),            attributes[3].m_NameHash);
-    ASSERT_EQ(dmHashString64("center_position"),   attributes[4].m_NameHash);
+    ASSERT_EQ(dmHashString64("position"),        attributes[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("normal"),          attributes[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("texcoord0"),       attributes[2].m_NameHash);
+    ASSERT_EQ(dmHashString64("color"),           attributes[3].m_NameHash);
+    ASSERT_EQ(dmHashString64("center_position"), attributes[4].m_NameHash);
 
     ASSERT_EQ(2, attributes[0].m_ElementCount); // Position has been overridden!
     ASSERT_EQ(3, attributes[1].m_ElementCount);
@@ -5111,10 +5111,10 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     ASSERT_EQ(3, attributes[3].m_ElementCount);
     ASSERT_EQ(4, attributes[4].m_ElementCount); // vec4 center_position
 
-    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,       attributes[0].m_SemanticType);
-    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,           attributes[1].m_SemanticType); // No normal semantic type (yet)
-    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,       attributes[2].m_SemanticType);
-    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,          attributes[3].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,        attributes[0].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,            attributes[1].m_SemanticType); // No normal semantic type (yet)
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,        attributes[2].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,           attributes[3].m_SemanticType);
     ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION, attributes[4].m_SemanticType);
 
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);

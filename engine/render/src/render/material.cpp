@@ -121,7 +121,7 @@ namespace dmRender
         else if (name_hash == VERTEX_STREAM_CENTER_POSITION)
         {
             attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION;
-            attribute->m_CoordinateSpace  = dmGraphics::COORDINATE_SPACE_DEFAULT;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
         }
         else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
         {
