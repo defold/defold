@@ -177,8 +177,7 @@ namespace dmGraphics
         uint32_t m_HasAttributeWorldMatrix        : 1;
         uint32_t m_HasAttributeNormalMatrix       : 1;
         uint32_t m_HasAttributeNone               : 1;
-        uint32_t m_HasAttributeCenterPositionLocal : 1;
-        uint32_t m_HasAttributeCenterPositionWorld : 1;
+        uint32_t m_HasAttributeCenterPosition     : 1;
     };
 
     struct WriteAttributeStreamDesc
@@ -208,8 +207,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_Colors;
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
-        WriteAttributeStreamDesc    m_CenterPositionLocalSpace;
-        WriteAttributeStreamDesc    m_CenterPositionWorldSpace;
+        WriteAttributeStreamDesc    m_CenterPosition;
         VertexStepFunction          m_StepFunction;
     };
 
@@ -530,8 +528,7 @@ namespace dmGraphics
             metadata.m_HasAttributeNormalMatrix = true;
             break;
         case VertexAttribute::SEMANTIC_TYPE_CENTER_POSITION:
-            metadata.m_HasAttributeCenterPositionLocal |= coordinate_space == COORDINATE_SPACE_LOCAL;
-            metadata.m_HasAttributeCenterPositionWorld |= coordinate_space == COORDINATE_SPACE_WORLD;
+            metadata.m_HasAttributeCenterPosition = true;
             break;
         case VertexAttribute::SEMANTIC_TYPE_NONE:
             metadata.m_HasAttributeNone = true;

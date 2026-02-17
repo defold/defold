@@ -770,10 +770,7 @@ namespace dmGameSystem
     #undef UNPACK_ATTRIBUTE_PTR
 
         uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
-
-        dmVMath::Vector4 center_local(0.0f, 0.0f, 0.0f, 1.0f);
-        dmVMath::Vector4 center_world = render_item->m_World * center_local;
-        const float* center_local_channels[] = { (float*)&center_local };
+        dmVMath::Vector4 center_world(render_item->m_World.getTranslation(), 1.0f);
         const float* center_world_channels[] = { (float*)&center_world };
 
         dmGraphics::WriteAttributeParams params = {};
@@ -784,7 +781,6 @@ namespace dmGameSystem
             normal_matrix_channels,
             0, // World space positions are not supported by local space materials
             position_channels,
-            center_local_channels,
             center_world_channels,
             normal_channels,
             tangent_channels,
