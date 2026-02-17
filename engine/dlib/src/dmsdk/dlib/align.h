@@ -20,7 +20,7 @@
  *
  * @document
  * @name Align
- * @language C++
+ * @language C
  */
 
 /*# data structure alignment macro

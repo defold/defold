@@ -36,7 +36,7 @@ extern "C" {
  *
  * @document
  * @name Extension
- * @language C++
+ * @language C
  */
 
 /*# result enumeration
