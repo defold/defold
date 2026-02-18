@@ -22,7 +22,7 @@
 
 namespace dmDDF
 {
-    /*# SDK DDF (Defold Data Format) API documentation
+    /*# DDF (Defold Data Format) API documentation
      *
      * @document
      * @name Ddf
