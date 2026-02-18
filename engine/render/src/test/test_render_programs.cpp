@@ -20,6 +20,7 @@
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <script/script.h>
+#include <platform/window.hpp>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -40,7 +41,7 @@ namespace dmGraphics
 class RenderProgramTestBase : public jc_test_base_class
 {
 public:
-    dmPlatform::HWindow           m_Window;
+    HWindow                       m_Window;
     dmGraphics::HContext          m_GraphicsContext;
     dmRender::HRenderContext      m_RenderContext;
     dmRender::RenderContextParams m_Params;
@@ -49,7 +50,8 @@ public:
     {
         dmGraphics::InstallAdapter();
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         win_params.m_Width = 20;
         win_params.m_Height = 10;
         win_params.m_ContextAlphabits = 8;
@@ -170,7 +172,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
@@ -291,7 +293,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);

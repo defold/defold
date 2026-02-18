@@ -20,6 +20,7 @@
 #include <dlib/buffer.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>
+#include <platform/window.hpp>
 
 #include <sound/sound.h>
 #include <gameobject/component.h>
@@ -120,7 +121,7 @@ protected:
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_Config;
 
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
     HJobContext m_JobContext;
@@ -510,7 +511,8 @@ void GamesysTest<T>::SetUp()
     m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
-    dmPlatform::WindowParams win_params = {};
+    WindowCreateParams win_params;
+    WindowCreateParamsInitialize(&win_params);
     m_Window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(m_Window, win_params);
 

@@ -131,7 +131,7 @@ namespace dmGraphics
         if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
             m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -1060,7 +1060,7 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1209,7 +1209,7 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
@@ -2004,9 +2004,11 @@ bail:
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_StreamCount = stream_count;
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
 
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+        for (uint32_t i = 0; i < stream_count; ++i)
         {
             VertexStream& stream = stream_declaration->m_Streams[i];
 
@@ -2105,6 +2107,14 @@ bail:
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
+
+        if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
+        {
+            context->m_MainVertexDeclarationStreams[binding_index].SetCapacity(vertex_declaration->m_StreamCount);
+            context->m_MainVertexDeclarationStreams[binding_index].SetSize(vertex_declaration->m_StreamCount);
+        }
+        memset(context->m_MainVertexDeclarationStreams[binding_index].Begin(), 0, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        context->m_MainVertexDeclaration[binding_index].m_Streams = context->m_MainVertexDeclarationStreams[binding_index].Begin();
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
@@ -4849,7 +4859,7 @@ bail:
         }
     }
 
-    static dmPlatform::HWindow VulkanGetWindow(HContext context)
+    static HWindow VulkanGetWindow(HContext context)
     {
         return ((VulkanContext*) context)->m_Window;
     }

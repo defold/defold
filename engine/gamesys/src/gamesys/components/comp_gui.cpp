@@ -362,10 +362,11 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+        gui_world->m_ParticleAttributeInfos.m_Infos = new dmGraphics::VertexAttributeInfo[4];
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
 
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
@@ -379,6 +380,7 @@ namespace dmGameSystem
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
+        gui_world->m_ParticleAttributeInfos.m_StructSize   = sizeof(dmGraphics::VertexAttributeInfos);
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -476,6 +478,7 @@ namespace dmGameSystem
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
         delete[] gui_world->m_BoxVertexStreamDeclaration;
+        delete[] gui_world->m_ParticleAttributeInfos.m_Infos;
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;

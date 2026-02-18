@@ -1,0 +1,883 @@
+{
+    "issues": [
+        {
+            "author": "JosephFerano",
+            "body": "The \"New...\" right-click context menu in the Asset Browser was getting a bit tall, so now it is formatted as a grid with sub-categories that groups items together for more compact organization. Supports arbitrary group names and uncategorized resources.\r\n\r\n<img width=\"950\" height=\"719\" alt=\"image\" src=\"https://github.com/user-attachments/assets/2c94b339-92ad-4a75-8480-ba9cefb42309\" />",
+            "closed_issues": [
+                11597,
+                10761
+            ],
+            "duplicate": false,
+            "issue_number": 11597,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?",
+                "ux"
+            ],
+            "mergecommit": "3ea998b6b02a8ec2f0004e7f49a040960aeeb095",
+            "pr_number": 11645,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Asset Browser: Group by resources for \"New...\" menu",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11645"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The \"New...\" right-click context menu in the Asset Browser was getting a bit tall, so now it is formatted as a grid with sub-categories that groups items together for more compact organization. Supports arbitrary group names and uncategorized resources.\r\n\r\n<img width=\"950\" height=\"719\" alt=\"image\" src=\"https://github.com/user-attachments/assets/2c94b339-92ad-4a75-8480-ba9cefb42309\" />",
+            "closed_issues": [
+                10761
+            ],
+            "duplicate": true,
+            "issue_number": 10761,
+            "labels": [
+                "feature request",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "3ea998b6b02a8ec2f0004e7f49a040960aeeb095",
+            "pr_number": 11645,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Asset Browser: Group by resources for \"New...\" menu",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11645"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes a crash when mipmaps are enabled when using WebGPU on Chrome.",
+            "closed_issues": [
+                11567
+            ],
+            "duplicate": false,
+            "issue_number": 11567,
+            "labels": [
+                "engine",
+                "html5",
+                "webgpu"
+            ],
+            "mergecommit": "bdcb14187bf9945b3bfb703feaf88746eb2176d7",
+            "pr_number": 11648,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix WebGPU crash when mipmaps are enabled",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11648"
+        },
+        {
+            "author": "britzl",
+            "body": "It is now possible to select WebP and AVIF image files for the HTML5 Splash Image game.project field.",
+            "closed_issues": [
+                11717
+            ],
+            "duplicate": false,
+            "issue_number": 11717,
+            "labels": [
+                "feature request",
+                "editor",
+                "html5",
+                "quick win?"
+            ],
+            "mergecommit": "b5479d9a1e40f36a79a4f135be7f6726c7a6eacf",
+            "pr_number": 11734,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added support for WebP and AVIF image formats for the HTML5 splash screen",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11734"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, editor scripts can show images, supporting both project files and external URLs, e.g.:\r\n```lua\r\neditor.ui.show_dialog(editor.ui.dialog({\r\n    title = \"Images\",\r\n    content = editor.ui.horizontal({\r\n        padding = editor.ui.PADDING.LARGE,\r\n        children = {\r\n            editor.ui.image({image = \"/builtins/assets/images/logo/logo_256.png\", width = 64, height = 64}),\r\n            editor.ui.image({image = \"https://defold.com/images/assets/monarch-hero.jpg\"})\r\n        }\r\n    })\r\n}))\r\n```\r\n<img width=\"652\" height=\"443\" alt=\"Screenshot 2026-01-20 at 14 10 30\" src=\"https://github.com/user-attachments/assets/4703f47b-630f-407b-8565-899fa418a13d\" />",
+            "closed_issues": [
+                10220
+            ],
+            "duplicate": false,
+            "issue_number": 10220,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "3a5fcdc99a789f56ba774e0d58483d9ca7e62d89",
+            "pr_number": 11769,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `editor.ui.image()` editor script function",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11769"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "The engine can now create, bind and manipulating uniform buffer objects in runtime. These can then be used for immutable data storage inside the engine for storing things like PBR materials and light component data. There is no user facing code involved here yet, but it is a requirement for the upcoming light component refactor.",
+            "closed_issues": [
+                11751
+            ],
+            "duplicate": false,
+            "issue_number": 11751,
+            "labels": [
+                "engine",
+                "graphics"
+            ],
+            "mergecommit": "8a70f70dcbc8132669f9b59f18b05a77d3c54d00",
+            "pr_number": 11751,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Uniform buffer as first class object",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11751"
+        },
+        {
+            "author": "AGulev",
+            "body": "Throw a proper error when math is used in `go.property()`",
+            "closed_issues": [
+                11773
+            ],
+            "duplicate": false,
+            "issue_number": 11773,
+            "labels": [
+                "editor",
+                "bob"
+            ],
+            "mergecommit": "ae8e1d7aa7c9371072dde2308519f1136c40043e",
+            "pr_number": 11778,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed an issue where errors in `go.property()` might prevent the project from compiling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11778"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "- When dragging and dropping, scroll just enough to make the items visible, rather than always at the top, which should help track movement of files/nodes\r\n- Center a resource when opening with right-click \"Show in Asset Browser\", rather than up top\r\n- Fix bug when auto-scrolling downwards with mouse drag-n-drop where it would scroll by a whole page, rather than gradually\r\n- Auto-scrolling now has variable speed depending on how close to the edge you move the mouse while dragging. It's also smoother!",
+            "closed_issues": [
+                11711
+            ],
+            "duplicate": false,
+            "issue_number": 11711,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "e5bd7a94a30e5902148a66f172e9bbe2b335f39f",
+            "pr_number": 11752,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improved scrolling behavior in Assets Browser and Outline Pane",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11752"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Refactored the `dmGameObject::PropertyOptions` struct from dmSDK into an API that can be used to encapsulate multiple options from an options table in the lua script API (e.g `go.get / go.set`):\r\n\r\n```c++\r\ntypedef struct PropertyOptions* HPropertyOptions;\r\nuint32_t GetPropertyOptionsCount(HPropertyOptions options);\r\nPropertyResult GetPropertyOptionsIndex(HPropertyOptions options, uint32_t options_index, int32_t* result);\r\nPropertyResult GetPropertyOptionsKey(HPropertyOptions options, uint32_t options_index, dmhash_t* result);\r\n```\r\n\r\nSince this is an SDK change, certain adjustments are required in custom components:\r\n\r\n```c++\r\n// Old code:\r\ndmGameSystem::SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, set_constant_cb, component);\r\n\r\n// New code:\r\nint32_t value_index = 0;\r\ndmGameObject::GetPropertyOptionsIndex(params.m_Options, 0, &value_index);\r\ndmGameSystem::SetMaterialConstant(material, params.m_PropertyId, params.m_Value, value_index, set_constant_cb, component);\r\n```",
+            "closed_issues": [
+                11784
+            ],
+            "duplicate": false,
+            "issue_number": 11784,
+            "labels": [
+                "task",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "f96ce4aa3fdf822afea7a3341e081c22b6f1fc68",
+            "pr_number": 11788,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Property options refactor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11788"
+        },
+        {
+            "author": "vlaaad",
+            "body": "On some large projects:\r\n- The time to open the project was reduced by 50% (4m00s->2m01s on an example project)\r\n- Memory consumption after load was reduced by 71% (10.59GB->3.04Gb on the same project)\r\n- The time to perform a full build improved by 40% (13m50s->8m11s). \r\n\r\nThis was achieved by delaying the computation of data that is used for applying changes in the editor until it is actually needed, rather than computing it eagerly when loading the project. \r\n\r\nThe downside is that in some cases, the first time a change to a particular element is made, it will take longer than before (worst case: 6s->35s). It is noticeable only in some rare cases in large projects when changing resources that are widely used throughout the project (e.g., when changing a GUI button layout when the button is referenced in hundreds/thousands of places). Subsequent changes to the same element will be faster than before. \r\n\r\nOverall, the tradeoff is worth it, because previously, every user had to always pay this cost when opening the project, while now, the cost is only paid when actually making certain changes to edge case elements, and even then, the wait is significantly reduced (30s instead of 2m).",
+            "closed_issues": [
+                11787
+            ],
+            "duplicate": false,
+            "issue_number": 11787,
+            "labels": [
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "144347179dfa6b6c034f9985e7c8cb6dd74e9d3a",
+            "pr_number": 11787,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Significantly improve load time and memory consumption of large projects",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11787"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now the editor opens big projects a bit faster. As measured on an example big project, the load time reduced from 2m01s to 1m50s.",
+            "closed_issues": [
+                11799
+            ],
+            "duplicate": false,
+            "issue_number": 11799,
+            "labels": [
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "7b0f28bf648749be4e7d6faff8122296bdf9aed5",
+            "pr_number": 11799,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve project load time on big projects by 9%",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11799"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Previously, custom values defined in `game.project` via the `game.properties` or `ext.properties` would always be shown as strings upon restarting the editor. Now they are displayed with their correct types (e.g., checkboxes for booleans, list views for lists).",
+            "closed_issues": [
+                11293
+            ],
+            "duplicate": false,
+            "issue_number": 11293,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "97c05de2f4bfe0ce01e18f7f27ee32df6b0dad33",
+            "pr_number": 11801,
+            "referencecommits": [
+                "2275779f01d80871ac67b7f0fa0a2c8dfc511a58",
+                "f25eb19e2c6c252f690de44b8f826479ddc5721b"
+            ],
+            "repository": "defold",
+            "title": "Custom game.project fields now show the correct UI after editor restart",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11801"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes an issue when unloading and loading the same collection in a single frame.",
+            "closed_issues": [
+                11764
+            ],
+            "duplicate": false,
+            "issue_number": 11764,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "4a68c6d01f7704b2ef9f8fdee30a772a97720a4e",
+            "pr_number": 11804,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Handle proxy unload and load during the same frame",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11804"
+        },
+        {
+            "author": "matgis",
+            "body": "* Fixed various issues around the editors handling of symbolic links.\r\n* Fixed an exception when trying to paste files into the Asset Browser that were deleted from disk since they were placed on the clipboard.",
+            "closed_issues": [
+                9976,
+                11618,
+                11713,
+                11381
+            ],
+            "duplicate": false,
+            "issue_number": 9976,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "06de913b91500ffa9f162b08954bc2e1b996a290",
+            "pr_number": 11814,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues around editor symlink handling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11814"
+        },
+        {
+            "author": "matgis",
+            "body": "* Fixed various issues around the editors handling of symbolic links.\r\n* Fixed an exception when trying to paste files into the Asset Browser that were deleted from disk since they were placed on the clipboard.",
+            "closed_issues": [
+                11618
+            ],
+            "duplicate": true,
+            "issue_number": 11618,
+            "labels": [
+                "feature request",
+                "editor",
+                "bug"
+            ],
+            "mergecommit": "06de913b91500ffa9f162b08954bc2e1b996a290",
+            "pr_number": 11814,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues around editor symlink handling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11814"
+        },
+        {
+            "author": "matgis",
+            "body": "* Fixed various issues around the editors handling of symbolic links.\r\n* Fixed an exception when trying to paste files into the Asset Browser that were deleted from disk since they were placed on the clipboard.",
+            "closed_issues": [
+                11713
+            ],
+            "duplicate": true,
+            "issue_number": 11713,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "06de913b91500ffa9f162b08954bc2e1b996a290",
+            "pr_number": 11814,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues around editor symlink handling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11814"
+        },
+        {
+            "author": "AGulev",
+            "body": "DF smoothing for distance-field fonts is now computed in screen space rather than world space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport, ensuring stable edge thickness under camera zoom and perspective.\r\n\r\n<img width=\"600\" height=\"300\" alt=\"b_a_a\" src=\"https://github.com/user-attachments/assets/5d49cd98-92aa-4dbe-ab55-332f80f136c5\" />",
+            "closed_issues": [
+                9560,
+                11779,
+                9568
+            ],
+            "duplicate": false,
+            "issue_number": 9560,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "998374906df4e9f7ae3bc72aa6f6d4ede38ec141",
+            "pr_number": 11834,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues where DF fonts appear blurry in some cases.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11834"
+        },
+        {
+            "author": "AGulev",
+            "body": "DF smoothing for distance-field fonts is now computed in screen space rather than world space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport, ensuring stable edge thickness under camera zoom and perspective.\r\n\r\n<img width=\"600\" height=\"300\" alt=\"b_a_a\" src=\"https://github.com/user-attachments/assets/5d49cd98-92aa-4dbe-ab55-332f80f136c5\" />",
+            "closed_issues": [
+                11779
+            ],
+            "duplicate": true,
+            "issue_number": 11779,
+            "labels": [
+                "feature request",
+                "engine",
+                "font",
+                "render"
+            ],
+            "mergecommit": "998374906df4e9f7ae3bc72aa6f6d4ede38ec141",
+            "pr_number": 11834,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues where DF fonts appear blurry in some cases.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11834"
+        },
+        {
+            "author": "AGulev",
+            "body": "DF smoothing for distance-field fonts is now computed in screen space rather than world space. The renderer derives a pixels-per-local-unit scale from the current view-projection matrix and viewport, ensuring stable edge thickness under camera zoom and perspective.\r\n\r\n<img width=\"600\" height=\"300\" alt=\"b_a_a\" src=\"https://github.com/user-attachments/assets/5d49cd98-92aa-4dbe-ab55-332f80f136c5\" />",
+            "closed_issues": [
+                9568
+            ],
+            "duplicate": true,
+            "issue_number": 9568,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "998374906df4e9f7ae3bc72aa6f6d4ede38ec141",
+            "pr_number": 11834,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues where DF fonts appear blurry in some cases.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11834"
+        },
+        {
+            "author": "AGulev",
+            "body": "Distance-field font smoothing is now clamped at runtime to prevent text from becoming overly soft or gray when it becomes too small in pixel size. This typically happens when High DPI is turned off, the camera is heavily zoomed out, or the font scale is reduced too much.\r\n\r\n<img width=\"716\" height=\"58\" alt=\"CleanShot 2026-02-02 at 23 01 28@2x\" src=\"https://github.com/user-attachments/assets/8f914048-6c02-4fba-94e8-b08d761e542d\" />",
+            "closed_issues": [
+                8998
+            ],
+            "duplicate": false,
+            "issue_number": 8998,
+            "labels": [
+                "bug",
+                "engine",
+                "font",
+                "html5"
+            ],
+            "mergecommit": "c5699e1b7187858aeb46efed6d69863684ab63e2",
+            "pr_number": 11836,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix blurry distance field font in HTML5 when `High DPI` is off",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11836"
+        },
+        {
+            "author": "matgis",
+            "body": "Fixed an exception in the editor when a resource open in a code editor view became defective while the view had input focus.",
+            "closed_issues": [
+                11759,
+                11268,
+                6300
+            ],
+            "duplicate": false,
+            "issue_number": 11759,
+            "labels": [
+                "bug",
+                "editor",
+                "text-editor"
+            ],
+            "mergecommit": "b9311ed12ee7578088c7ea29d61c964c31a3b7c4",
+            "pr_number": 11837,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make code editor resilient against defective resource nodes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11837"
+        },
+        {
+            "author": "matgis",
+            "body": "Fixed an exception in the editor when a resource open in a code editor view became defective while the view had input focus.",
+            "closed_issues": [
+                11268
+            ],
+            "duplicate": true,
+            "issue_number": 11268,
+            "labels": [
+                "bug",
+                "editor",
+                "text-editor"
+            ],
+            "mergecommit": "b9311ed12ee7578088c7ea29d61c964c31a3b7c4",
+            "pr_number": 11837,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make code editor resilient against defective resource nodes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11837"
+        },
+        {
+            "author": "matgis",
+            "body": "Fixed an exception in the editor when a resource open in a code editor view became defective while the view had input focus.",
+            "closed_issues": [
+                6300
+            ],
+            "duplicate": true,
+            "issue_number": 6300,
+            "labels": [
+                "bug",
+                "editor",
+                "text-editor"
+            ],
+            "mergecommit": "b9311ed12ee7578088c7ea29d61c964c31a3b7c4",
+            "pr_number": 11837,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make code editor resilient against defective resource nodes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11837"
+        },
+        {
+            "author": "britzl",
+            "body": "This change improves the exception message when a required resource field is empty.\r\n\r\nFrom this forum discussion: https://forum.defold.com/t/cant-make-a-build/82323/3?u=britzl",
+            "closed_issues": [
+                11848
+            ],
+            "duplicate": false,
+            "issue_number": 11848,
+            "labels": [],
+            "mergecommit": "184d09da3c2548363e470b212cf86bbe01550cda",
+            "pr_number": 11848,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve the empty resource message in bob",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11848"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "`go.get`, `go.set` and `go.animate` can now be used to query or set custom vertex data for models. This will only be supported for the first mesh in the component, if the model file contains multiple meshes there is currently no way of indexing or referencing those. This will be added at a later time!\r\n\r\nNote: that this can be an expensive operation depending on how large the mesh is and if you are setting an instanced attribute or not. To learn more about instancing read [here](https://defold.com/manuals/material/#instancing), and to learn more about custom vertex formats read [here](https://defold.com/manuals/material/#setting-custom-vertex-attribute-data).\r\n\r\nThis example uses go.animate on the separate cubes to animate a custom vertex stream called \"custom_color\":\r\n\r\n```lua\r\nfor i = 1, 16 do\r\n    local rnd_color = vmath.vector4(math.random(), math.random(), math.random(), 1)\r\n    local rnd_time = math.random(2, 7)\r\n    go.animate(\"/go\" .. i .. \"#model\", \"custom_color\", go.PLAYBACK_LOOP_PINGPONG, rnd_color, go.EASING_INQUAD, rnd_time)\r\nend\r\n```\r\n\r\n![instancing_custom_vertex_formats](https://github.com/user-attachments/assets/d3e5b48f-e080-4c0a-a0da-8d09908a9fe2)\r\n\r\nTest project: \r\n[issue-9746-model-set-custom-attributes.zip](https://github.com/user-attachments/files/24735176/issue-9746-model-set-custom-attributes.zip)",
+            "closed_issues": [
+                9746
+            ],
+            "duplicate": false,
+            "issue_number": 9746,
+            "labels": [
+                "feature request",
+                "engine",
+                "model",
+                "render",
+                "community vote"
+            ],
+            "mergecommit": "a188712a7d1c89b220809292c684f435f2924811",
+            "pr_number": 11602,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add support for setting and getting custom attribute data for model components",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11602"
+        },
+        {
+            "author": "paweljarosz",
+            "body": "Added an official 3D Third Person Playground Defold sample game from https://github.com/defold/sample-third-person-playground to the Samples in the Defold Editor.",
+            "closed_issues": [
+                11616
+            ],
+            "duplicate": false,
+            "issue_number": 11616,
+            "labels": [
+                "task"
+            ],
+            "mergecommit": "e29a33f38ed7adda2ba73caeb401661c0d3eea0d",
+            "pr_number": 11644,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added 3D Third Person Playground as sample in the Editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11644"
+        },
+        {
+            "author": "AGulev",
+            "body": "Improve DF font rendering in the Editor\r\n\r\n<img width=\"4268\" height=\"1186\" alt=\"CleanShot 2026-02-04 at 16 23 04@2x\" src=\"https://github.com/user-attachments/assets/8e7a83f6-63ef-4613-8ee6-ed5fdc61f28e\" />",
+            "closed_issues": [
+                11851
+            ],
+            "duplicate": false,
+            "issue_number": 11851,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "0b53309342d9b015013dd6f7594526af92864cb7",
+            "pr_number": 11851,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make DF fonts sharp in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11851"
+        },
+        {
+            "author": "matgis",
+            "body": "* Fixed various issues around the editors handling of symbolic links.\r\n* Fixed an exception when trying to paste files into the Asset Browser that were deleted from disk since they were placed on the clipboard.",
+            "closed_issues": [
+                11381
+            ],
+            "duplicate": true,
+            "issue_number": 11381,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "06de913b91500ffa9f162b08954bc2e1b996a290",
+            "pr_number": 11814,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issues around editor symlink handling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11814"
+        },
+        {
+            "author": "AGulev",
+            "body": "This fixes a problem where the HTML5 `resize_window_callback` function is executed every time a resize event occurs, even when the window size has not actually changed. The callback is now only executed when the window size changes compared to the previous stored values, not on every resize event.",
+            "closed_issues": [
+                11844
+            ],
+            "duplicate": false,
+            "issue_number": 11844,
+            "labels": [
+                "bug",
+                "engine",
+                "html5"
+            ],
+            "mergecommit": "386029127fd00d6966d99d43a895a84dee55f5e1",
+            "pr_number": 11869,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Avoid unnecessary resize calls when the size hasn't changed.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11869"
+        },
+        {
+            "author": "matgis",
+            "body": "The editor will now ignore log files written by the engine runtime when scanning the project for changes. Previously, changes to these log files would cause the editor to reload external changes into the graph and clear the undo queue unless the log file patterns were explicitly listed in a `.defignore` file or configured to be written outside the project directory.\r\n\r\nPartially addresses #11408.",
+            "closed_issues": [
+                11875
+            ],
+            "duplicate": false,
+            "issue_number": 11875,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "533d2e5d065a8893d12099c37fb42a24ca0bdb58",
+            "pr_number": 11875,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Include engine log files among defignored patterns in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11875"
+        },
+        {
+            "author": "AGulev",
+            "body": "This fixes an issue with touch events being offset when using `gui.pick_node()` in combination with the new built-in safe area mode.",
+            "closed_issues": [
+                11870
+            ],
+            "duplicate": false,
+            "issue_number": 11870,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "e400b31ec53e2d7186df46dc1a59f55e52bbf27a",
+            "pr_number": 11874,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix the `gui.pick_node()` function when Safe Area is used",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11874"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "",
+            "closed_issues": [
+                10516
+            ],
+            "duplicate": false,
+            "issue_number": 10516,
+            "labels": [
+                "task",
+                "engine",
+                "render",
+                "quick win?"
+            ],
+            "mergecommit": "5694c7d712ddd9de0be6799a7d98500b5e7b8936",
+            "pr_number": 11883,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Remove redunant uniform keyword",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11883"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "The first iteration of getting and setting properties for particlefx emitters via `go.get` / `go.set` is now available:\r\n\r\n```lua\r\ngo.property(\"my_material\", resource.material())\r\nfunction init(self)\r\n    local cone_material  = go.get(\"#particlefx\", \"material\", { keys = {{ emitter_id = \"cone_emitter\" }}})\r\n    -- change the material for the next time the particlefx is played\r\n    go.set(\"#particlefx\", \"material\", self.my_material,  { keys = {{ emitter_id = \"cone_emitter\" }}})\r\nend\r\n```\r\n\r\nImportant note: The changes invoked via `go.set` will NOT affect the _currently_ playing particlefx, they will only have an effect when playing the fx next time. For example, if you want to change material in an input handler, you need to first stop the particlefx and then play it again:\r\n\r\n```lua\r\nfunction on_input(self, action_id, action)\r\n    if action_id == hash(\"space\") and action.released then\r\n        particlefx.stop(\"#particlefx\")\r\n        go.set(\"#particlefx\", \"material\", self.my_material, {keys = {{ emitter_id = \"cone_emitter\" }}})\r\n        particlefx.play(\"#particlefx\")\r\n    end\r\nend\r\n```\r\n\r\nThe properties we currently support for emitters are:\r\n* \"material\" - get and set the emitter material\r\n* \"image\" - get and set the emitter image, i.e atlas or tile source used for rendering\r\n* \"animation\" - get and set the animation (the animation must exist in the image!)\r\n\r\nAs this is the first iteration of this feature, very few properties are available. In the future, we hope to support more properties and even curved properties!",
+            "closed_issues": [
+                3417
+            ],
+            "duplicate": false,
+            "issue_number": 3417,
+            "labels": [
+                "feature request",
+                "engine",
+                "particlefx",
+                "community vote"
+            ],
+            "mergecommit": "a537ca76010675f47ce03954d7770b83bb366e45",
+            "pr_number": 11806,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Get and set properties from ParticleFX emitters",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11806"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                11885
+            ],
+            "duplicate": false,
+            "issue_number": 11885,
+            "labels": [],
+            "mergecommit": "055baa00fd4ad544aa5dbf0aedd9ee40f0b60b92",
+            "pr_number": 11885,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added dmsdk C api for Window creation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11885"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows developers to either use the precreated job system (named \"jobs\" in the context cache), or create their own when needed.\r\n\r\nFor non threaded targets (e.g. html5), the default job system is also updated on the main thread, as that where our synchronisation with Lua happens.",
+            "closed_issues": [
+                3575
+            ],
+            "duplicate": false,
+            "issue_number": 3575,
+            "labels": [
+                "task",
+                "feature request",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "cb44e588bb990386ee6f908942dfc567ab9f9638",
+            "pr_number": 11850,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added JobSystem C api to dmsdk",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11850"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Vertex shaders can now use more than 8 inputs, which was the previous limit. Now there is no limitation from the engine to how many input streams you can use, but please keep in mind that there are still GPU / driver limitations.",
+            "closed_issues": [
+                9547
+            ],
+            "duplicate": false,
+            "issue_number": 9547,
+            "labels": [
+                "feature request",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "49bcf0e5f1bd94a3f42ec0d882039c5b3930d8a6",
+            "pr_number": 11888,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support more than 8 vertex streams",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11888"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We made the HTTP command that triggers the editor build block until the build completes, and made it respond with the build status + compilation issues. This should make it much more useful for AI agents and third-party IDE integrations.\r\n\r\n## Example use\r\n### Successful build\r\n```sh\r\ncurl -X POST \"http://127.0.0.1:$(cat .internal/editor.port)/command/build\" --silent | jq\r\n{\r\n  \"success\": true,\r\n  \"issues\": []\r\n}\r\n```\r\n### Failed build\r\n```sh\r\ncurl -X POST \"http://127.0.0.1:$(cat .internal/editor.port)/command/build\" --silent | jq\r\n{\r\n  \"success\": false,\r\n  \"issues\": [\r\n    {\r\n      \"severity\": \"error\",\r\n      \"message\": \"go.property declaration should be a top-level statement\",\r\n      \"resource\": \"/main/logo.script\",\r\n      \"range\": {\r\n        \"start\": {\r\n          \"line\": 3,\r\n          \"character\": 4\r\n        },\r\n        \"end\": {\r\n          \"line\": 3,\r\n          \"character\": 35\r\n        }\r\n      }\r\n    }\r\n  ]\r\n}\r\n```\r\n### Minimal AGENTS.md to get started\r\n```md\r\n# Docs\r\nhttps://defold.com/llms.txt\r\n\r\n# Build\r\n- Read editor port from `.internal/editor.port`\r\n- Build game: `curl -X POST http://127.0.0.1:<PORT>/command/build`\r\n\r\n# Console\r\n- After launch, check logs at `http://127.0.0.1:<PORT>/console`.\r\n```",
+            "closed_issues": [
+                11733
+            ],
+            "duplicate": false,
+            "issue_number": 11733,
+            "labels": [
+                "task",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "ea9558f72593d325e5e27ba524f8c803b832c6e0",
+            "pr_number": 11890,
+            "referencecommits": [
+                "c4e8856392ba66eb4a996582f09a99e47e125025"
+            ],
+            "repository": "defold",
+            "title": "Make `/command/build` respond on build completion",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11890"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Dialog height is now limited to the height of the screen to prevent dialog content from overflowing outside of the visible area.",
+            "closed_issues": [
+                11786
+            ],
+            "duplicate": false,
+            "issue_number": 11786,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "159d302eeb71708d9a73e74989dc11d3d9ecaf7a",
+            "pr_number": 11803,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Limit max dialog height to the height of the screen",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11803"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Pressing Backspace (\u232b) now performs a Delete action on macOS.",
+            "closed_issues": [
+                11000
+            ],
+            "duplicate": false,
+            "issue_number": 11000,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "4ddbaf78fc9b49e9c6a9047f353d1c2fb11ec3a6",
+            "pr_number": 11811,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Backspace key (\u232b) now performs a Delete action on macOS",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11811"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Error messages are now localized in the editor.",
+            "closed_issues": [
+                5453
+            ],
+            "duplicate": false,
+            "issue_number": 5453,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "b460820c8288aa59945a4663f738821ab103404a",
+            "pr_number": 11878,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Localize error messages in the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11878"
+        },
+        {
+            "author": "paweljarosz",
+            "body": "Added GLTF (embedded with buffers) `.gltf` files as replacement for equivalent built-in Collada `.dae` files.\r\n\r\n- cube.gltf\r\n- quad.gltf\r\n- quad_2x2.gltf\r\n- sphere.gltf",
+            "closed_issues": [
+                11530
+            ],
+            "duplicate": false,
+            "issue_number": 11530,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "41047675bdae9cf0a9780f8907aec8bb53773a93",
+            "pr_number": 11660,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added GLTF models to built-in assets.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11660"
+        },
+        {
+            "author": "britzl",
+            "body": "Texture transcoding is now done on a thread during the resource preload step.",
+            "closed_issues": [
+                11825
+            ],
+            "duplicate": false,
+            "issue_number": 11825,
+            "labels": [
+                "task",
+                "engine",
+                "texture compression"
+            ],
+            "mergecommit": "f0024b56540584726d9b66dd2ead135f0492be2e",
+            "pr_number": 11895,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Moved texture transcoding to a thread during the resource preload step",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11895"
+        }
+    ],
+    "timestamp": 1771349941.445952,
+    "version": "1.12.2"
+}

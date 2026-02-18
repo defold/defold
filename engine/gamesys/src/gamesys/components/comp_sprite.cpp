@@ -1342,7 +1342,7 @@ namespace dmGameSystem
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
 
-        dmGraphics::VertexAttributeInfos sprite_attribute_info = {};
+        dmGraphics::VertexAttributeInfos* scratch_attribute_infos = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);
         dmGraphics::WriteAttributeParams write_params = {};
 
         for (uint32_t* i = begin; i != end; ++i)
@@ -1355,9 +1355,8 @@ namespace dmGameSystem
             float sp_height = component->m_Size.getY();
             uint8_t textures_num = component->m_NumTextures;
             AnimationData* animations = GetOrCreateAnimationData(sprite_world, component);
-    
+
             // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
-            dmGraphics::VertexAttributeInfos* sprite_attribute_info_ptr = material_attribute_info;
             if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
             {
                 FillAttributeInfos(&sprite_world->m_DynamicVertexAttributePool,
@@ -1365,9 +1364,12 @@ namespace dmGameSystem
                     component->m_Resource->m_DDF->m_Attributes.m_Data,
                     component->m_Resource->m_DDF->m_Attributes.m_Count,
                     material_attribute_info,
-                    &sprite_attribute_info);
-
-                sprite_attribute_info_ptr = &sprite_attribute_info;
+                    scratch_attribute_infos,
+                    dmGraphics::COORDINATE_SPACE_WORLD);
+            }
+            else
+            {
+                CopyAttributeInfos(scratch_attribute_infos, material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
             }
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
@@ -1405,7 +1407,7 @@ namespace dmGameSystem
                 const float* world_position_channels[] = { (float*) sprite_world->m_ScratchPositionWorld.Begin() };
                 const float* local_position_channels[] = { (float*) sprite_world->m_ScratchPositionLocal.Begin() };
 
-                FillWriteVertexAttributeParams(&write_params, sprite_attribute_info_ptr,
+                FillWriteVertexAttributeParams(&write_params, scratch_attribute_infos,
                     world_matrix_channel,
                     world_position_channels,
                     local_position_channels,
@@ -1473,7 +1475,7 @@ namespace dmGameSystem
                         world_matrix, vertex_offset, vertex_stride,
                         animations, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs,
                         &sprite_world->m_ScratchPositionWorld, &sprite_world->m_ScratchPositionLocal,
-                        sprite_attribute_info_ptr);
+                        scratch_attribute_infos);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
                     vertices      += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
@@ -1521,7 +1523,7 @@ namespace dmGameSystem
                     const uint8_t pi_channels_count = textures_num != 0 ? textures_num : 1;
 
                     FillWriteVertexAttributeParams(&write_params,
-                        sprite_attribute_info_ptr,
+                        scratch_attribute_infos,
                         world_matrix_channel,
                         world_position_channels,
                         local_position_channels,
@@ -1595,7 +1597,7 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;

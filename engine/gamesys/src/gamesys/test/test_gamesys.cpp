@@ -22,6 +22,7 @@
 #include "../../../../gui/src/gui_private.h"
 
 #include <render/font/fontmap.h>
+#include <platform/window.hpp>
 
 #include "gamesys/resources/res_compute.h"
 #include "gamesys/resources/res_font.h"
@@ -1876,14 +1877,15 @@ TEST_F(FontTest, ScriptAddRemoveFont)
 
 TEST_F(WindowTest, MouseLock)
 {
-    dmPlatform::WindowParams window_params = {};
-    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
 
     dmHID::NewContextParams hid_params = {};
     dmHID::HContext hid_context = dmHID::NewContext(hid_params);
     dmHID::Init(hid_context);
 
-    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
     dmHID::SetWindow(hid_context, window);
 
@@ -5038,7 +5040,7 @@ TEST_F(MaterialTest, CustomInstanceAttributes)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
     ASSERT_EQ(5, attribute_count);
@@ -5087,7 +5089,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    const dmGraphics::VertexAttribute* attributes;
+    const dmGraphics::VertexAttributeInfo* attributes;
     uint32_t attribute_count;
 
     // Attributes specified in the shader:
@@ -5181,6 +5183,73 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     dmResource::Release(m_Factory, material_res);
 }
 
+TEST_F(MaterialTest, ManyVertexStreamsLoad)
+{
+    // Material with vertex shader that has more than 8 attribute streams (10 total)
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_many_streams_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttributeInfo* attributes;
+    uint32_t attribute_count;
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+
+    ASSERT_EQ(10u, attribute_count);
+    ASSERT_EQ(dmHashString64("position"), attributes[0].m_NameHash);
+    for (uint32_t i = 0; i < 9; ++i)
+    {
+        char name[16];
+        dmSnPrintf(name, sizeof(name), "stream%u", i);
+        ASSERT_EQ(dmHashString64(name), attributes[1 + i].m_NameHash);
+    }
+
+    ASSERT_EQ(2u, attributes[0].m_ElementCount);
+    for (uint32_t i = 1; i < 10; ++i)
+        ASSERT_EQ(1u, attributes[i].m_ElementCount);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);
+    for (uint32_t i = 1; i < 10; ++i)
+        ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[i].m_DataType);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(MaterialTest, ManyVertexStreamsAttributeValues)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_many_streams_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttributeInfo* attributes;
+    uint32_t attribute_count;
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(10u, attribute_count);
+
+    const uint8_t* value_ptr;
+    uint32_t num_values;
+
+    for (uint32_t i = 0; i < 9; ++i)
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 1 + i, &value_ptr, &num_values);
+        ASSERT_NE((void*)0x0, value_ptr);
+        ASSERT_EQ(sizeof(float), num_values);
+        float value = *((const float*)value_ptr);
+        ASSERT_NEAR((float)i, value, EPSILON);
+    }
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 struct DynamicVertexAttributesContext
 {
     dmArray<dmGraphics::VertexAttribute> m_Attributes;
@@ -5227,7 +5296,7 @@ static void ValidateVertexAttributeTypeConversion(dmGameSystem::DynamicAttribute
     uint8_t value_buffer[sizeof(float) * 4];
     T* values = (T*) value_buffer;
 
-    dmGraphics::VertexAttribute attr = {};
+    dmGraphics::VertexAttributeInfo attr = {};
     attr.m_ElementCount = num_values;
     attr.m_DataType = data_type;
 

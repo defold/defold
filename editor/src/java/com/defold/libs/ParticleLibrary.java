@@ -119,11 +119,12 @@ public class ParticleLibrary {
         public int     coordinateSpace;
         public Pointer valuePtr;
         public int     valueVectorType;
+        public int     elementCount;
         public boolean normalize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("nameHash", "semanticType", "dataType", "vectorType", "stepFunction", "coordinateSpace", "valuePtr", "valueVectorType", "normalize");
+            return Arrays.asList("nameHash", "semanticType", "dataType", "vectorType", "stepFunction", "coordinateSpace", "valuePtr", "valueVectorType", "elementCount", "normalize");
         }
     }
 
@@ -132,14 +133,15 @@ public class ParticleLibrary {
             structSize = size();
         }
 
-        public VertexAttributeInfo[] infos = new VertexAttributeInfo[8]; // ==> dmGraphics::MAX_VERTEX_STREAM_COUNT
-        public int                   vertexStride;
-        public int                   numInfos;
-        public int                   structSize;
+        // Pointer to an array of native VertexAttributeInfo structs, matching dmGraphics::VertexAttributeInfos::m_Infos.
+        public Pointer infos;
+        public int     numInfos;
+        public int     vertexStride;
+        public int     structSize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("infos", "vertexStride", "numInfos", "structSize");
+            return Arrays.asList("infos", "numInfos", "vertexStride", "structSize");
         }
     }
 

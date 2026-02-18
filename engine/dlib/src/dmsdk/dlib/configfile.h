@@ -29,8 +29,7 @@ extern "C" {
  *
  * @document
  * @name ConfigFile
- * @namespace dmConfigFile
- * @language C++
+ * @language C
  */
 
 /*# HConfigFile type definition

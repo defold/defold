@@ -15,6 +15,7 @@
 #include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
 #include  <glfw/glfw_native.h> // for glfwAppBootstrap
@@ -577,6 +578,8 @@ namespace dmGraphics
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
+
+        sd->m_Streams.SetCapacity(8);
         return sd;
     }
 
@@ -594,20 +597,19 @@ namespace dmGraphics
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
     {
-        if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
+        if (stream_declaration->m_Streams.Full())
         {
-            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)",
-                dmHashReverseSafe64(name_hash), MAX_VERTEX_STREAM_COUNT);
-            return;
+            stream_declaration->m_Streams.OffsetCapacity(8);
         }
 
-        uint8_t stream_index = stream_declaration->m_StreamCount;
-        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
-        stream_declaration->m_Streams[stream_index].m_Size      = size;
-        stream_declaration->m_Streams[stream_index].m_Type      = type;
-        stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
-        stream_declaration->m_Streams[stream_index].m_Stream    = stream_index;
-        stream_declaration->m_StreamCount++;
+        VertexStream stream;
+        stream.m_NameHash  = name_hash;
+        stream.m_Size      = size;
+        stream.m_Type      = type;
+        stream.m_Normalize = normalize;
+        stream.m_Stream    = stream_declaration->m_Streams.Size();
+
+        stream_declaration->m_Streams.Push(stream);
     }
 
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
@@ -617,6 +619,13 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        // Free dynamically allocated stream storage if present
+        if (vertex_declaration && vertex_declaration->m_Streams)
+        {
+            delete [] vertex_declaration->m_Streams;
+            vertex_declaration->m_Streams = 0;
+            vertex_declaration->m_StreamCount = 0;
+        }
         delete vertex_declaration;
     }
 
@@ -636,9 +645,8 @@ namespace dmGraphics
 
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
     {
-        uint32_t count = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             if (streams[i].m_NameHash == name_hash)
             {
@@ -1692,15 +1700,15 @@ namespace dmGraphics
     ///////////////////////////////////////////////////
     ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
 
-    dmPlatform::HWindow GetWindow(HContext context)
+    HWindow GetWindow(HContext context)
     {
         return g_functions.m_GetWindow(context);
     }
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), WINDOW_STATE_REFRESH_RATE);
     }
-    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state)
+    uint32_t GetWindowStateParam(HContext context, WindowState state)
     {
         return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), state);
     }

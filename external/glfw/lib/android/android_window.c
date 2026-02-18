@@ -387,6 +387,7 @@ void glfwAndroidFlushEvents()
     memcpy(app_commands, g_AppCommands, num_app_commands * sizeof(int));
     g_NumAppCommands = 0;
 
+    static struct InputEvent* flush_input_events = 0;
     static int flush_input_events_capacity = 0;
     int num_input_events = g_NumAppInputEvents;
     if (num_input_events > flush_input_events_capacity)
@@ -395,7 +396,6 @@ void glfwAndroidFlushEvents()
         flush_input_events = realloc(flush_input_events, num_input_events * sizeof(struct InputEvent));
     }
 
-    static struct InputEvent* flush_input_events = 0;
     struct InputEvent* input_events = 0;
     if (num_input_events > 0)
     {

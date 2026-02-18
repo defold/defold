@@ -32,13 +32,13 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
+#include <platform/window.hpp>
+
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 
 #include "graphics_dx12_private.h"
-
-#include <platform/platform_window.h>
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
@@ -369,7 +369,7 @@ namespace dmGraphics
         DXGI_FORMAT color_format = DXGI_FORMAT_R8G8B8A8_UNORM;
         DXGI_FORMAT depth_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupSupportedTextureFormats(context);
 
@@ -423,7 +423,7 @@ namespace dmGraphics
 
         // increment fenceValue for next frame
         current_frame_resource.m_FenceValue++;
-        assert(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
     }
 
     static HContext DX12NewContext(const ContextParams& params)
@@ -436,7 +436,7 @@ namespace dmGraphics
 
             if (context)
             {
-                assert(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED));
+                assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
             }
 
             if (!DX12Initialize(context))
@@ -659,7 +659,7 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
 
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
         }
     }
@@ -668,7 +668,7 @@ namespace dmGraphics
     {
     }
 
-    static dmPlatform::HWindow DX12GetWindow(HContext _context)
+    static HWindow DX12GetWindow(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
         return context->m_Window;
@@ -696,7 +696,7 @@ namespace dmGraphics
     {
         assert(_context);
         DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
@@ -706,7 +706,7 @@ namespace dmGraphics
     {
         assert(_context);
         DX12Context* context = (DX12Context*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
@@ -1522,8 +1522,11 @@ namespace dmGraphics
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
         vd->m_Stride = 0;
-        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+
+        for (uint32_t i=0; i<stream_count; i++)
         {
             vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
             vd->m_Streams[i].m_Location  = -1;
@@ -1534,7 +1537,7 @@ namespace dmGraphics
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        vd->m_StreamCount = stream_count;
 
         return vd;
     }
@@ -1849,7 +1852,17 @@ namespace dmGraphics
         fs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_FragmentModule->m_Data;
 
         uint32_t stream_count = 0;
-        D3D12_INPUT_ELEMENT_DESC input_layout[MAX_VERTEX_STREAM_COUNT] = {};
+        dmArray<D3D12_INPUT_ELEMENT_DESC> input_layout;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexDeclaration[i])
+            {
+                stream_count += context->m_CurrentVertexDeclaration[i]->m_StreamCount;
+            }
+        }
+
+        input_layout.SetCapacity(stream_count);
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
@@ -1858,8 +1871,8 @@ namespace dmGraphics
                 for (int j = 0; j < context->m_CurrentVertexDeclaration[i]->m_StreamCount; ++j)
                 {
                     VertexDeclaration::Stream& stream = context->m_CurrentVertexDeclaration[i]->m_Streams[j];
-                    D3D12_INPUT_ELEMENT_DESC& desc    = input_layout[stream_count];
 
+                    D3D12_INPUT_ELEMENT_DESC desc;
                     desc.SemanticName         = "TEXCOORD";
                     desc.SemanticIndex        = stream.m_Location;
                     desc.Format               = GetDXGIFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
@@ -1867,15 +1880,14 @@ namespace dmGraphics
                     desc.AlignedByteOffset    = stream.m_Offset;
                     desc.InputSlotClass       = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
                     desc.InstanceDataStepRate = 0;
-
-                    stream_count++;
+                    input_layout.Push(desc);
                 }
             }
         }
 
         D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
         inputLayoutDesc.NumElements             = stream_count;
-        inputLayoutDesc.pInputElementDescs      = input_layout;
+        inputLayoutDesc.pInputElementDescs      = input_layout.Begin();
 
         CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
             D3D12_FILL_MODE_SOLID,

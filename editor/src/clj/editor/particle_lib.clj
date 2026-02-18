@@ -22,7 +22,7 @@
            [com.dynamo.graphics.proto Graphics$CoordinateSpace]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
-           [com.sun.jna Pointer]
+           [com.sun.jna Pointer Structure]
            [com.sun.jna.ptr IntByReference]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
@@ -171,7 +171,7 @@
     (:coordinate-space-world :coordinate-space-local) (graphics.types/coordinate-space-pb-int coordinate-space)
     Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
 
-(defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
+(defn- attribute-info->particle-attribute-info ^ParticleLibrary$VertexAttributeInfo [^Pointer context ^ParticleLibrary$VertexAttributeInfo particle-attribute-info attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
         attribute-semantic-type (graphics.types/semantic-type-pb-int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
@@ -182,8 +182,8 @@
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
                                 (.capacity attribute-bytes))
-        particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
-        context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)]
+        context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)
+        element-count (graphics.types/vector-type-component-count (:vector-type attribute-info))]
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
@@ -192,20 +192,30 @@
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueVectorType) attribute-vector-type)
+    (set! (. particle-attribute-info elementCount) (int element-count))
     (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 
 (defn- make-particle-attribute-infos [^Pointer context vertex-description vertex-attribute-bytes]
   (let [vertex-stride (:size vertex-description)
         attribute-infos (:attributes vertex-description)
-        infos (ParticleLibrary$VertexAttributeInfos.)
         num-attribute-infos (count attribute-infos)]
     (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
-    (doseq [i (range num-attribute-infos)]
-      (aset (.infos infos) i (attribute-info->particle-attribute-info context (get attribute-infos i) vertex-attribute-bytes)))
-    (set! (. infos vertexStride) (int vertex-stride))
-    (set! (. infos numInfos) (int num-attribute-infos))
-    infos))
+    (let [first-particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
+          particle-attribute-info-array (.toArray first-particle-attribute-info num-attribute-infos)
+          infos (ParticleLibrary$VertexAttributeInfos.)]
+      (doseq [i (range num-attribute-infos)]
+        (attribute-info->particle-attribute-info context
+                                                 (aget ^objects particle-attribute-info-array i)
+                                                 (get attribute-infos i)
+                                                 vertex-attribute-bytes))
+      ;; Sync each struct to native memory so the native library sees our data
+      (doseq [i (range num-attribute-infos)]
+        (.write ^Structure (aget ^objects particle-attribute-info-array i)))
+      (set! (. infos infos) (.getPointer ^ParticleLibrary$VertexAttributeInfo (aget ^objects particle-attribute-info-array 0)))
+      (set! (. infos numInfos) (int num-attribute-infos))
+      (set! (. infos vertexStride) (int vertex-stride))
+      infos)))
 
 (defn- emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
   (or (get (:raw-vbufs sim) emitter-index)

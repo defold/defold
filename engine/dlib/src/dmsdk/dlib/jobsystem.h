@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-/*# SDK Job System API documentation
+/*# Job System for asynchronous tasks
  *
  * Job system for asynchronous work with optional worker threads.
  *
@@ -34,7 +34,6 @@ extern "C" {
  *
  * @document
  * @name Job System
- * @path engine/dlib/src/dmsdk/dlib/jobsystem.h
  * @language C
  */
 

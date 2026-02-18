@@ -387,8 +387,8 @@ namespace dmGraphics
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        dmPlatform::HWindow                m_Window;
-        dmPlatform::WindowResizeCallback   m_WindowResizeCallback;
+        HWindow                            m_Window;
+        FWindowResizeCallback              m_WindowResizeCallback;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                      m_PipelineCache;
@@ -426,6 +426,7 @@ namespace dmGraphics
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
         VertexDeclaration               m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
@@ -558,7 +559,7 @@ namespace dmGraphics
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
-    VkResult     CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    VkResult     CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 
     bool         LoadVulkanLibrary();
     void         LoadVulkanFunctions(VkInstance vk_instance);

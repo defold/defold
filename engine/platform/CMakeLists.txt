@@ -14,12 +14,16 @@ set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 set(PLATFORM_USE_GLFW3 OFF)
 if(DEFOLD_IS_PRIVATE_VENDOR)
     # Private vendor (e.g., Switch): only include native window integration
-    set(_platform_glfw_sources "${PLAT_SRC_DIR}/nx64/platform_window_native.cpp")
+    set(_platform_glfw_sources
+        "${PLAT_SRC_DIR}/window.cpp"
+        "${PLAT_SRC_DIR}/nx64/platform_window_native.cpp")
 else()
     defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
     if (_GLFW_VERSION EQUAL 3)
         set(PLATFORM_USE_GLFW3 ON)
-        set(_platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3.cpp")
+        set(_platform_glfw_sources
+            "${PLAT_SRC_DIR}/window.cpp"
+            "${PLAT_SRC_DIR}/platform_window_glfw3.cpp")
         if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
             list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_osx.mm")
         elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
@@ -28,7 +32,9 @@ else()
             list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw3_win32.cpp")
         endif()
     else()
-        set(_platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
+        set(_platform_glfw_sources
+            "${PLAT_SRC_DIR}/window.cpp"
+            "${PLAT_SRC_DIR}/platform_window_glfw.cpp")
         if (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
             list(APPEND _platform_glfw_sources "${PLAT_SRC_DIR}/platform_window_glfw_ios.mm")
         elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
@@ -47,7 +53,9 @@ if (PLATFORM_USE_GLFW3)
 endif()
 
 # platform_null
-defold_add_library(platform_null STATIC "${PLAT_SRC_DIR}/platform_window_null.cpp")
+defold_add_library(platform_null STATIC
+    "${PLAT_SRC_DIR}/window.cpp"
+    "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}")
 target_compile_definitions(platform_null PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
@@ -79,6 +87,15 @@ file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
 if(_DEFOLD_PLATFORM_HEADERS)
     install(FILES ${_DEFOLD_PLATFORM_HEADERS} DESTINATION include/platform)
 endif()
+
+install(FILES
+    "${PLAT_SRC_DIR}/window.h"
+    "${PLAT_SRC_DIR}/window.hpp"
+    DESTINATION include/platform)
+
+install(FILES
+    "${PLAT_SRC_DIR}/dmsdk/platform/window.h"
+    DESTINATION sdk/include/dmsdk/platform)
 
 # ********************* Tests *********************
 

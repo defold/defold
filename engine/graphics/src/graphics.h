@@ -26,7 +26,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 namespace dmGraphics
 {
@@ -69,7 +69,6 @@ namespace dmGraphics
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R   = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
@@ -123,7 +122,7 @@ namespace dmGraphics
     {
         ContextParams();
 
-        dmPlatform::HWindow   m_Window;
+        HWindow               m_Window;
         HJobContext           m_JobContext;
         TextureFilter         m_DefaultTextureMinFilter;
         TextureFilter         m_DefaultTextureMagFilter;
@@ -138,6 +137,8 @@ namespace dmGraphics
         uint8_t               : 4;
     };
 
+    // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
+    // Should be used over the protobuf type when possible.
     struct VertexAttributeInfo
     {
         dmhash_t                       m_NameHash;
@@ -148,6 +149,7 @@ namespace dmGraphics
         CoordinateSpace                m_CoordinateSpace;
         const uint8_t*                 m_ValuePtr;
         VertexAttribute::VectorType    m_ValueVectorType;
+        uint32_t                       m_ElementCount;  // Number of vector/matrix elements (e.g. 1 for a single vec4, 4 for array of 4 vec4s)
         bool                           m_Normalize;
     };
 
@@ -159,10 +161,10 @@ namespace dmGraphics
             m_StructSize = sizeof(*this);
         }
 
-        VertexAttributeInfo m_Infos[MAX_VERTEX_STREAM_COUNT];
-        uint32_t            m_VertexStride;
-        uint32_t            m_NumInfos;
-        uint32_t            m_StructSize;
+        const dmGraphics::VertexAttributeInfo* m_Infos;
+        uint32_t                               m_NumInfos;
+        uint32_t                               m_VertexStride;
+        uint32_t                               m_StructSize;
     };
 
     struct VertexAttributeInfoMetadata
@@ -221,7 +223,7 @@ namespace dmGraphics
             bool     m_Normalize;
         };
 
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        Stream*            m_Streams;
         dmhash_t           m_PipelineHash; // Vulkan
         uint16_t           m_StreamCount;
         uint16_t           m_Stride;
@@ -290,7 +292,7 @@ namespace dmGraphics
      * @param context Graphics context handle
      * @return The window handle
      */
-    dmPlatform::HWindow GetWindow(HContext context);
+    HWindow GetWindow(HContext context);
 
     /**
      * Close the open window if any.
@@ -310,7 +312,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
+    uint32_t GetWindowStateParam(HContext context, WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.
@@ -414,6 +416,7 @@ namespace dmGraphics
     uint32_t         GetAttributeCount(HProgram prog);
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    void             GetAttributeValues(const VertexAttributeInfo& info, const uint8_t** data_ptr, uint32_t* data_size);
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
@@ -461,6 +464,30 @@ namespace dmGraphics
     // Asset handle helpers
     const char* GetAssetTypeLiteral(AssetType type);
     bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+    void        InvalidateGraphicsHandles(HContext context);
+
+    /** checks if the texture format is compressed
+     * @name IsFormatTranscoded
+     * @param format TextureImage::CompressionType
+     * @return true if the format is compressed
+     */
+    bool IsFormatTranscoded(TextureImage::CompressionType format);
+
+    /** checks if the texture format is compressed
+     * @name Transcode
+     * @param path The path of the texture
+     * @param image The input image
+     * @param format The desired output format
+     * @param images An array of transcoded mipmaps
+     * @param sizes An array of transcoded mipmap sizes
+     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
+     * @param format TextureImage::CompressionType
+     * @return true if the format is transcoded
+     */
+    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
+
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
 
     static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
     {
@@ -622,31 +649,6 @@ namespace dmGraphics
         }
         return 0;
     }
-
-    void InvalidateGraphicsHandles(HContext context);
-
-    /** checks if the texture format is compressed
-     * @name IsFormatTranscoded
-     * @param format TextureImage::CompressionType
-     * @return true if the format is compressed
-     */
-    bool IsFormatTranscoded(TextureImage::CompressionType format);
-
-    /** checks if the texture format is compressed
-     * @name Transcode
-     * @param path The path of the texture
-     * @param image The input image
-     * @param format The desired output format
-     * @param images An array of transcoded mipmaps
-     * @param sizes An array of transcoded mipmap sizes
-     * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
-     * @param format TextureImage::CompressionType
-     * @return true if the format is transcoded
-     */
-    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
-
-    uint32_t    GetTypeSize(Type type);
-    const char* GetGraphicsTypeLiteral(Type type);
 
     // Test functions:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
