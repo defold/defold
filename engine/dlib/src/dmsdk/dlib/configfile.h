@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-/*# SDK ConfigFile API documentation
+/*# ConfigFile API documentation
  *
  * Configuration file access functions.
  * The configuration file is compiled version of the [file:game.project] file.

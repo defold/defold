@@ -24,7 +24,7 @@
     #include <dmsdk/dlib/file_descriptor_posix.h>
 #endif
 
-/*# SDK File Descriptor API documentation
+/*# File Descriptor API documentation
  * File Descriptor functions.
  *
  * @document

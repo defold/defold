@@ -19,7 +19,7 @@
 #include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 
-/*# SDK Gui Component Property API documentation
+/*# Gui Component Property API documentation
  *
  * Per-property registration functions for GUI component extensions.
  *

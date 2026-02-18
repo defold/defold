@@ -20,7 +20,7 @@
 #include <jni.h>
 #include <android_native_app_glue.h> // For ANativeActivity
 
-/*# SDK Android API documentation
+/*# Android API documentation
  * Android utility functions
  *
  * @document

@@ -20,7 +20,7 @@
 // Cannot forward declate enums
 #include <dmsdk/dlib/socket.h>
 
-/*# SDK Secure socket API documentation
+/*# Secure socket API documentation
  *
  * Secure socket functions.
  *

@@ -17,7 +17,7 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-/*# SDK Vector Math API documentation
+/*# Vector Math API documentation
  * Vector Math functions.
  *
  * @document

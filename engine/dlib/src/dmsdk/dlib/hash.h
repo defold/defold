@@ -35,7 +35,7 @@
         #error "DM_HASH_FMT was not defined!"
 #endif
 
-/*# SDK Hash API documentation
+/*# Hash API documentation
  * Hash functions.
  *
  * @document

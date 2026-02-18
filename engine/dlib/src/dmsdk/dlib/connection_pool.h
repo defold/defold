@@ -26,7 +26,7 @@ namespace dmSSLSocket
     typedef struct SSLSocket* Socket;
 }
 
-/*# SDK Connection pool API documentation
+/*# Connection pool API documentation
  *
  * Connection pool
  *
