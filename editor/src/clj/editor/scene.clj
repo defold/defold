@@ -1089,6 +1089,7 @@
         current-camera (g/node-value camera-node :local-camera)
         prefs (g/node-value camera-node :prefs)
         {:keys [mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} current-input
+        mouse-delta (i/poll-mouse-delta)
         is-secondary-button (or (contains? mouse-buttons :secondary)
                                 (g/node-value camera-node :free-camera-mode))
         shift (contains? modifiers :shift)
@@ -1106,14 +1107,16 @@
         up (if walking-mode
              (Vector3d. 0.0 1.0 0.0)
              (c/camera-up-vector current-camera))
+        ;; _ (println mouse-delta)
         [camera-after-look free-camera] (if is-secondary-button
-                                          (c/look camera-node
-                                                  current-camera
-                                                  free-camera
-                                                  cursor-pos
-                                                  cursor-lock-pos
-                                                  (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
-                                                  (prefs/get prefs [:scene :perspective-camera :invert-y]))
+                                          (let [{:keys [dx dy]} (or mouse-delta {:dx 0.0 :dy 0.0})]
+                                            (c/look-delta camera-node
+                                                          current-camera
+                                                          free-camera
+                                                          (- (double dx))
+                                                          (- (double dy))
+                                                          (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
+                                                          (prefs/get prefs [:scene :perspective-camera :invert-y])))
                                           [current-camera free-camera])
         key-for-command (fn [cmd] (some-> (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                           (.getCode)))
@@ -1135,11 +1138,7 @@
         final-camera (c/wasd-move camera-node camera-after-look free-camera target-dir speed dt)]
     (g/set-property! camera-node :free-camera free-camera)
     (when (not= final-camera current-camera)
-      (set-camera! camera-node current-camera final-camera false))
-    (when (and is-secondary-button cursor-lock-pos)
-      (let [robot (:robot current-input)
-            [x y] cursor-lock-pos]
-        (.mouseMove robot x y)))))
+      (set-camera! camera-node current-camera final-camera false))))
 
 (defn augment-action [view action]
   (let [x          (:x action)
@@ -1700,21 +1699,26 @@
         (when-let [tab-content (find-tab-content image-view)]
           (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
         (g/set-property! camera-id :free-camera-mode true)
-        (g/update-property! view-id :input-state assoc :cursor-lock-pos [(:screen-x action) (:screen-y action)]))
+        #_(g/update-property! view-id :input-state assoc :cursor-lock-pos [(:screen-x action) (:screen-y action)])
+        (println "captured")
+        (i/start-mouse-capture))
 
       :mouse-released
       (when (= :secondary (:button action))
         (when-let [tab-content (find-tab-content image-view)]
           (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
         (g/set-property! camera-id :free-camera-mode false)
-        (g/update-property! view-id :input-state assoc :cursor-lock-pos nil))
+        #_(g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
+        (println "released")
+        (i/stop-mouse-capture))
 
       nil)))
 
 (defn- cancel-free-camera-mode! [view-id image-view]
   (let [camera-id (view->camera view-id)]
     (g/set-property! camera-id :free-camera-mode false)
-    (g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
+    #_(g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
+    (i/stop-mouse-capture)
     (g/set-property! camera-id :cursor-type :default)
     (when-let [tab-content (find-tab-content image-view)]
       (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))))

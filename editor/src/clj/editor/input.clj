@@ -44,12 +44,6 @@
 
 (def ^:private mouse-capture-context (atom nil))
 
-(comment
-  (editor.ui/run-now (start-mouse-capture))
-  (editor.ui/run-now (stop-mouse-capture))
-  (editor.ui/run-now (get-x11-window))
-  :-)
-
 (defn- get-x11-window []
   (try
     (let [window-class (Class/forName "com.sun.glass.ui.Window")
@@ -63,10 +57,10 @@
       nil)))
 
 (defn start-mouse-capture []
-  (when-let [window (get-x11-window)]
+  (when-let [window (editor.ui/run-now (get-x11-window))]
     (let [context (MouseCapture/MouseCapture_CreateContext (long window))]
       (when-not (nil? context)
-        (when (MouseCapture/MouseCapture_StartCapture context)
+        (when-let [ret-val (MouseCapture/MouseCapture_StartCapture context)]
           (reset! mouse-capture-context context)
           true)))))
 
@@ -177,3 +171,9 @@
            (let [code (:key-code action)]
              (or (.isLetterKey code) (.isDigitKey code))))
       (update :pressed-keys disj (:key-code action)))))
+
+(comment
+  (start-mouse-capture)
+  (stop-mouse-capture)
+  (editor.ui/run-now (get-x11-window))
+  :-)

@@ -1,7 +1,7 @@
-
 #include "mouse_capture.h"
 #include <string.h>
 #include <X11/extensions/XInput2.h>
+#include <X11/cursorfont.h>
 
 namespace dmMouseCapture
 {
@@ -9,18 +9,27 @@ namespace dmMouseCapture
     {
         Display* m_Display;
         Window m_Window;
-        Cursor m_InvisibleCursor;
+        Cursor m_BlankCursor;
+        Cursor m_OriginalCursor;
         int m_XIOpcode;
         bool m_Capturing;
-        bool m_OwnsDisplay;
+        bool m_HasOriginalCursor;
         MouseDelta m_AccumulatedDelta;
     };
 
-    HContext CreateContext(Window window)
+    static Cursor CreateBlankCursor(Display* display, Window window)
     {
-        if (!window)
-            return nullptr;
+        static char data[1] = {0};
+        Pixmap blank = XCreateBitmapFromData(display, window, data, 1, 1);
+        XColor dummy;
+        memset(&dummy, 0, sizeof(dummy));
+        Cursor cursor = XCreatePixmapCursor(display, blank, blank, &dummy, &dummy, 0, 0);
+        XFreePixmap(display, blank);
+        return cursor;
+    }
 
+    HContext CreateContext()
+    {
         Display* display = XOpenDisplay(NULL);
         if (!display)
             return nullptr;
@@ -41,39 +50,27 @@ namespace dmMouseCapture
 
         Context* ctx = new Context();
         ctx->m_Display = display;
-        ctx->m_Window = window;
+        ctx->m_Window = None;
+        ctx->m_BlankCursor = None;
+        ctx->m_OriginalCursor = None;
         ctx->m_XIOpcode = xi_opcode;
         ctx->m_Capturing = false;
-        ctx->m_OwnsDisplay = true;
+        ctx->m_HasOriginalCursor = false;
         ctx->m_AccumulatedDelta.dx = 0.0;
         ctx->m_AccumulatedDelta.dy = 0.0;
-
-        Pixmap blank = XCreatePixmap(display, window, 1, 1, 1);
-        XColor dummy = {0};
-        ctx->m_InvisibleCursor = XCreatePixmapCursor(display, blank, blank,
-                                                      &dummy, &dummy, 0, 0);
-        XFreePixmap(display, blank);
 
         return ctx;
     }
 
-    bool StartCapture(HContext context)
+    // NOTE: We tried using XGrabPointer, however, according to a JDK issue, JavaFX Glass is indeed using XGrabPointer
+    // so when testing, the function would return `AlreadyGrabbed`, so we have to use this recentering technique
+    // https://bugs.openjdk.org/browse/JDK-8096597?focusedId=13791606&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13791606
+    bool StartCapture(HContext context, unsigned long window)
     {
-        if (!context || context->m_Capturing)
+        if (!context || context->m_Capturing || window == None)
             return false;
 
-        int result = XGrabPointer(context->m_Display,
-                                  context->m_Window,
-                                  True,
-                                  PointerMotionMask | ButtonPressMask | ButtonReleaseMask,
-                                  GrabModeAsync,
-                                  GrabModeAsync,
-                                  context->m_Window,
-                                  context->m_InvisibleCursor,
-                                  CurrentTime);
-
-        if (result != GrabSuccess)
-            return false;
+        context->m_Window = (Window)window;
 
         Window root = DefaultRootWindow(context->m_Display);
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
@@ -85,6 +82,16 @@ namespace dmMouseCapture
         evmask.mask = mask_bytes;
         XISetMask(mask_bytes, XI_RawMotion);
         XISelectEvents(context->m_Display, root, &evmask, 1);
+
+        context->m_BlankCursor = CreateBlankCursor(context->m_Display, context->m_Window);
+        XDefineCursor(context->m_Display, context->m_Window, context->m_BlankCursor);
+
+        XWindowAttributes attrs;
+        XGetWindowAttributes(context->m_Display, context->m_Window, &attrs);
+        XWarpPointer(context->m_Display, None, context->m_Window, 0, 0, 0, 0,
+                     attrs.width / 2, attrs.height / 2);
+
+        XFlush(context->m_Display);
 
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
@@ -98,8 +105,6 @@ namespace dmMouseCapture
         if (!context || !context->m_Capturing)
             return;
 
-        XUngrabPointer(context->m_Display, CurrentTime);
-
         Window root = DefaultRootWindow(context->m_Display);
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
@@ -110,6 +115,16 @@ namespace dmMouseCapture
         evmask.mask = mask_bytes;
         XISelectEvents(context->m_Display, root, &evmask, 1);
 
+        XUndefineCursor(context->m_Display, context->m_Window);
+        if (context->m_BlankCursor != None)
+        {
+            XFreeCursor(context->m_Display, context->m_BlankCursor);
+            context->m_BlankCursor = None;
+        }
+
+        XFlush(context->m_Display);
+
+        context->m_Window = None;
         context->m_Capturing = false;
     }
 
@@ -140,9 +155,9 @@ namespace dmMouseCapture
                         {
                             if (XIMaskIsSet(raw->valuators.mask, i))
                             {
-                                if (i == 0) // X axis
+                                if (i == 0)
                                     context->m_AccumulatedDelta.dx += raw_vals[val_idx];
-                                else if (i == 1) // Y axis
+                                else if (i == 1)
                                     context->m_AccumulatedDelta.dy += raw_vals[val_idx];
                                 val_idx++;
                             }
@@ -152,6 +167,12 @@ namespace dmMouseCapture
                 }
             }
         }
+
+        XWindowAttributes attrs;
+        XGetWindowAttributes(context->m_Display, context->m_Window, &attrs);
+        XWarpPointer(context->m_Display, None, context->m_Window, 0, 0, 0, 0,
+                     attrs.width / 2, attrs.height / 2);
+        XFlush(context->m_Display);
 
         *out_delta = context->m_AccumulatedDelta;
 
@@ -167,26 +188,22 @@ namespace dmMouseCapture
         if (context->m_Capturing)
             StopCapture(context);
 
-        XFreeCursor(context->m_Display, context->m_InvisibleCursor);
-
-        if (context->m_OwnsDisplay)
-            XCloseDisplay(context->m_Display);
-
+        XCloseDisplay(context->m_Display);
         delete context;
     }
 }
 
 extern "C" {
-    void* MouseCapture_CreateContext(Window window) {
-        return dmMouseCapture::CreateContext(window);
+    void* MouseCapture_CreateContext() {
+        return dmMouseCapture::CreateContext();
     }
 
     void MouseCapture_DestroyContext(void* context) {
         dmMouseCapture::DestroyContext((dmMouseCapture::HContext)context);
     }
 
-    bool MouseCapture_StartCapture(void* context) {
-        return dmMouseCapture::StartCapture((dmMouseCapture::HContext)context);
+    bool MouseCapture_StartCapture(void* context, unsigned long window) {
+        return dmMouseCapture::StartCapture((dmMouseCapture::HContext)context, window);
     }
 
     void MouseCapture_StopCapture(void* context) {

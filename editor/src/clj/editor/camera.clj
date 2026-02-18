@@ -764,20 +764,12 @@
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
-
-(defn look [camera-node current-camera free-camera cursor-pos cursor-lock-pos look-sensitivity invert-y?]
-  (let [raw-dx (if cursor-lock-pos
-                 (- (first cursor-lock-pos) (first cursor-pos))
-                 (first cursor-pos))
-        raw-dy (if cursor-lock-pos
-                 (- (second cursor-lock-pos) (second cursor-pos))
-                 (second cursor-pos))
-        smoothed-look-delta (:smoothed-look-delta free-camera)
+(defn look-delta [camera-node current-camera free-camera dx dy look-sensitivity invert-y?]
+  (let [smoothed-look-delta (:smoothed-look-delta free-camera)
         [prev-dx prev-dy] smoothed-look-delta
         look-smoothing (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :mouse-smoothing])
-        smooth-dx (+ prev-dx (* look-smoothing (- raw-dx prev-dx)))
-        smooth-dy (+ prev-dy (* look-smoothing (- raw-dy prev-dy)))]
-
+        smooth-dx (+ prev-dx (* look-smoothing (- dx prev-dx)))
+        smooth-dy (+ prev-dy (* look-smoothing (- dy prev-dy)))]
     (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
       (let [smooth-dy (* smooth-dy (if invert-y? -1 1))
             [rx ry rz] (math/quat->euler (:rotation current-camera))
@@ -788,7 +780,6 @@
             new-camera (assoc current-camera :rotation new-rotation)
             new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
             new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
-        ;; NOTE: Do not set the :focus-distance because floating point rounding errors accumulate
         [(assoc new-camera :rotation new-rotation :focus-point new-focus)
          (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
