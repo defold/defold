@@ -856,8 +856,8 @@
         (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
           image :image
           sprite-trim-mode :sprite-trim-mode
-          pivot-x :pivot-x
-          pivot-y :pivot-y)
+          pivot-x (double :pivot-x)
+          pivot-y (double :pivot-y))
         (attach-fn parent atlas-image)))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
