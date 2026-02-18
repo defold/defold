@@ -18,7 +18,7 @@
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_buffer.h>
 #include <dmsdk/gamesys/resources/res_mesh.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 namespace dmGameSystem
 {

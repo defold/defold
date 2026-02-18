@@ -152,14 +152,15 @@ static void* EngineCreate(int argc, char** argv)
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
 
-    dmGraphics::ContextParams graphics_context_params = {};
-    graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    dmGraphics::ContextParams graphics_context_params;
+    dmGraphics::ContextParamsInitialize(&graphics_context_params);
+    graphics_context_params.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls = false;
     graphics_context_params.m_Window = engine->m_Window;
 
     dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL);
-    dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
+    dmGraphics::HContext graphics_context = dmGraphics::NewContext(&graphics_context_params);
     if (graphics_context == 0x0)
     {
         dmLogFatal("Unable to create the graphics context.");

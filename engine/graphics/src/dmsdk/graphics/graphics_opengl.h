@@ -15,7 +15,7 @@
 #ifndef DMSDK_GRAPHICS_OPENGL_H
 #define DMSDK_GRAPHICS_OPENGL_H
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 /*# Graphics API documentation
  *

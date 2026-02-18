@@ -19,7 +19,7 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 #include <dmsdk/render/render.h>
 
 namespace dmRigDDF

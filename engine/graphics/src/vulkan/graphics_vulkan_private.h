@@ -564,7 +564,7 @@ namespace dmGraphics
     bool         LoadVulkanLibrary();
     void         LoadVulkanFunctions(VkInstance vk_instance);
 
-    bool         NativeInit(const struct ContextParams& params);
+    bool         NativeInit(const ContextParams& params);
     void         NativeExit();
     void         NativeBeginFrame(HContext context);
     bool         NativeInitializeContext(HContext context);

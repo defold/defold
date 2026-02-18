@@ -21,7 +21,7 @@
 #include <dlib/log.h>
 #include <dmsdk/dlib/math.h> // min
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 #include "render.h"
 #include "render_private.h"
 

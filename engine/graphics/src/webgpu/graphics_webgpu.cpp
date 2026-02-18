@@ -1260,10 +1260,10 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
     }
 
-    context->m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+    context->m_DefaultTextureMinFilter = (TextureFilter)params.m_DefaultTextureMinFilter;
     if (context->m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
         context->m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
-    context->m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+    context->m_DefaultTextureMagFilter = (TextureFilter)params.m_DefaultTextureMagFilter;
     if (context->m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
         context->m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 

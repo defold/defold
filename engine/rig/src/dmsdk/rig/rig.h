@@ -23,10 +23,10 @@
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/graphics/graphics.h>
 
 #include <ddf/ddf.h>
 #include <rig/rig_ddf.h>
+#include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
 {

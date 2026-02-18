@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 #include <dlib/hash.h>
 #include <script/script.h>

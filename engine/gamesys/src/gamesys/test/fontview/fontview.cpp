@@ -144,12 +144,13 @@ namespace dmFontView
             context->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
             dmHID::Init(context->m_HidContext);
 
-            dmGraphics::InstallAdapter();
+            dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
             dmGraphics::ContextParams graphics_context_params;
+            dmGraphics::ContextParamsInitialize(&graphics_context_params);
             graphics_context_params.m_Window = context->m_Window;
 
-            context->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+            context->m_GraphicsContext = dmGraphics::NewContext(&graphics_context_params);
 
             dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
 

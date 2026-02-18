@@ -45,6 +45,12 @@ const float EPSILON = 0.000001f;
 
 using namespace dmVMath;
 
+extern "C"
+{
+    int dmGraphicsCTestContextParamsInitialize(void);
+    int dmGraphicsCTestLifecycle(void);
+}
+
 template<bool ASYNCHRONOUS>
 class dmGraphicsTestT : public jc_test_base_class
 {
@@ -84,7 +90,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams params;
         WindowCreateParamsInitialize(&params);
@@ -110,11 +116,12 @@ public:
         else
             m_JobContext = 0;
 
-        dmGraphics::ContextParams context_params = dmGraphics::ContextParams();
+        dmGraphics::ContextParams context_params;
+        dmGraphics::ContextParamsInitialize(&context_params);
         context_params.m_Window                  = m_Window;
         context_params.m_JobContext              = m_JobContext;
 
-        m_Context = dmGraphics::NewContext(context_params);
+        m_Context = dmGraphics::NewContext(&context_params);
         m_NullContext = (dmGraphics::NullContext*) m_Context;
         m_NullContext->m_UseAsyncTextureLoad = 0;
 
@@ -148,7 +155,9 @@ TEST_F(dmGraphicsTest, NewDeleteContext)
 TEST_F(dmGraphicsTest, DoubleNewContext)
 {
     ASSERT_NE((void*)0, m_Context);
-    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext(dmGraphics::ContextParams()));
+    dmGraphics::ContextParams context_params;
+    dmGraphics::ContextParamsInitialize(&context_params);
+    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext(&context_params));
 }
 
 TEST_F(dmGraphicsTest, CloseWindow)
@@ -2263,6 +2272,12 @@ TEST_F(dmGraphicsTest, TestGraphicsNativeSymbols)
     dmGraphics::GetNativeAndroidApp();
     dmGraphics::GetNativeX11Window();
     dmGraphics::GetNativeX11GLXContext();
+}
+
+TEST(GraphicsCAPI, Basic)
+{
+    ASSERT_EQ(0, dmGraphicsCTestContextParamsInitialize());
+    ASSERT_EQ(0, dmGraphicsCTestLifecycle());
 }
 
 extern "C" void dmExportedSymbols();

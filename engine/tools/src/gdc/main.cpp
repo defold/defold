@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
@@ -123,11 +123,12 @@ int main(int argc, char *argv[])
     dmPlatform::ShowWindow(window);
 
     dmGraphics::ContextParams graphics_context_params;
-    graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    dmGraphics::ContextParamsInitialize(&graphics_context_params);
+    graphics_context_params.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_Window                  = window;
 
-    dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
+    dmGraphics::HContext graphics_context = dmGraphics::NewContext(&graphics_context_params);
     if (graphics_context == 0x0)
     {
         dmLogFatal("Unable to create the graphics context.");

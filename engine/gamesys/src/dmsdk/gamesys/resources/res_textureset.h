@@ -20,7 +20,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/gamesys/resources/res_texture.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 #include <dmsdk/physics/physics.h>
 #include <gamesys/texture_set_ddf.h>
 

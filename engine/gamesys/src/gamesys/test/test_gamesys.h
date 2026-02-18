@@ -521,14 +521,15 @@ void GamesysTest<T>::SetUp()
     dmHID::SetWindow(m_HidContext, m_Window);
 
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
     dmGraphics::ResetDrawCount(); // for the unit test
 
     dmGraphics::ContextParams graphics_context_params;
+    dmGraphics::ContextParamsInitialize(&graphics_context_params);
     graphics_context_params.m_Window = m_Window;
     graphics_context_params.m_JobContext = m_JobContext;
 
-    m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+    m_GraphicsContext = dmGraphics::NewContext(&graphics_context_params);
 
     dmScript::ContextParams script_context_params = {};
     script_context_params.m_Factory = m_Factory;

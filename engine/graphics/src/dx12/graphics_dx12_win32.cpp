@@ -26,8 +26,8 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
 {
     memset(context, 0, sizeof(*context));
     context->m_NumFramesInFlight       = MAX_FRAMES_IN_FLIGHT;
-    context->m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-    context->m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+    context->m_DefaultTextureMinFilter = (TextureFilter)params.m_DefaultTextureMinFilter;
+    context->m_DefaultTextureMagFilter = (TextureFilter)params.m_DefaultTextureMagFilter;
     context->m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
     context->m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
     context->m_Window                  = params.m_Window;
@@ -91,7 +91,7 @@ static void SetupSampleDesc(DXGI_SAMPLE_DESC* sample_desc)
     sample_desc->Quality = 0;
 }
 
-DX12Context* DX12NativeCreate(const struct ContextParams& params)
+DX12Context* DX12NativeCreate(const ContextParams& params)
 {
     DX12Context* context = new DX12Context;
     g_DX12Context = context; // for CHECK_HR_ERROR to work

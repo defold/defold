@@ -527,44 +527,44 @@ namespace dmEngine
         delete engine;
     }
 
-    dmGraphics::TextureFilter ConvertMinTextureFilter(const char* filter)
+    TextureFilter ConvertMinTextureFilter(const char* filter)
     {
         if (strcmp(filter, "linear") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_LINEAR;
+            return TEXTURE_FILTER_LINEAR;
         }
         else if (strcmp(filter, "nearest") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_NEAREST;
+            return TEXTURE_FILTER_NEAREST;
         }
         else if (strcmp(filter, "nearest_mipmap_nearest") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+            return TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
         }
         else if (strcmp(filter, "nearest_mipmap_linear") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+            return TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
         }
         else if (strcmp(filter, "linear_mipmap_nearest") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+            return TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
         }
         else if (strcmp(filter, "linear_mipmap_linear") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+            return TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
         }
-        return (dmGraphics::TextureFilter) -1;
+        return (TextureFilter) -1;
     }
 
-    dmGraphics::TextureFilter ConvertMagTextureFilter(const char* filter)
+    TextureFilter ConvertMagTextureFilter(const char* filter)
     {
         if (strcmp(filter, "linear") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_LINEAR;
+            return TEXTURE_FILTER_LINEAR;
         }
         else
         {
-            return dmGraphics::TEXTURE_FILTER_NEAREST;
+            return TEXTURE_FILTER_NEAREST;
         }
     }
 
@@ -1102,6 +1102,7 @@ namespace dmEngine
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
+        dmGraphics::ContextParamsInitialize(&graphics_context_params);
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
@@ -1115,7 +1116,7 @@ namespace dmEngine
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
-        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        engine->m_GraphicsContext = dmGraphics::NewContext(&graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
             dmLogFatal("Unable to create the graphics context.");

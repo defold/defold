@@ -300,7 +300,7 @@ namespace dmGraphics
     bool            DX12IsSupported();
     DXGI_FORMAT     DX12GetBackBufferFormat();
 
-    DX12Context*    DX12NativeCreate(const struct ContextParams& params);
+    DX12Context*    DX12NativeCreate(const ContextParams& params);
     bool            DX12NativeInitialize(DX12Context* context);
     void            DX12NativeDestroy(DX12Context* context);
     void            DX12NativeBeginFrame(DX12Context* context);

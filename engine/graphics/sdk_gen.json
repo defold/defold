@@ -1,0 +1,30 @@
+{
+    "basepath": "src",
+
+    "includes": [
+        "src",
+        "../dlib/src",
+        "../platform/src",
+        "${DYNAMO_HOME}/sdk/include"
+    ],
+
+    "files": [
+        {"file": "src/dmsdk/graphics/graphics.h", "languages": {
+            "cpp": {
+                "namespace": "dmGraphics",
+                "rename": {
+                    "HGraphicsContext": "HContext",
+                    "GraphicsCreateParams": "ContextParams",
+                    "GraphicsContextParamsInitialize": "ContextParamsInitialize",
+                    "GraphicsNewContext": "NewContext",
+                    "GraphicsDeleteContext": "DeleteContext",
+                    "GraphicsInstallAdapter": "InstallAdapter",
+                    "GraphicsBeginFrame": "BeginFrame",
+                    "GraphicsFlip": "Flip",
+                    "GraphicsCloseWindow": "CloseWindow",
+                    "GraphicsFinalize": "Finalize"
+                }
+            }
+        }}
+    ]
+}

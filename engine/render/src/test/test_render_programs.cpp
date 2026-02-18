@@ -48,7 +48,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);
@@ -60,9 +60,10 @@ public:
         dmPlatform::OpenWindow(m_Window, win_params);
 
         dmGraphics::ContextParams graphics_context_params;
+        dmGraphics::ContextParamsInitialize(&graphics_context_params);
         graphics_context_params.m_Window = m_Window;
 
-        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        m_GraphicsContext = dmGraphics::NewContext(&graphics_context_params);
 
         dmScript::ContextParams script_context_params = {};
         script_context_params.m_GraphicsContext = m_GraphicsContext;

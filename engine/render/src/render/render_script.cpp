@@ -3112,7 +3112,7 @@ namespace dmRender
 #undef REGISTER_FORMAT_CONSTANT
 
 #define REGISTER_FILTER_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FILTER_##name); \
+        lua_pushnumber(L, (lua_Number) TEXTURE_FILTER_##name); \
         lua_setfield(L, -2, "FILTER_"#name);
 
         REGISTER_FILTER_CONSTANT(LINEAR);

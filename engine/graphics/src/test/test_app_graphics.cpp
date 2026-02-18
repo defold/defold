@@ -823,9 +823,10 @@ static void* EngineCreate(int argc, char** argv)
     job_thread_create_param.m_ThreadCount = 1;
     engine->m_JobContext = JobSystemCreate(&job_thread_create_param);
 
-    dmGraphics::ContextParams graphics_context_params = {};
-    graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    dmGraphics::ContextParams graphics_context_params;
+    dmGraphics::ContextParamsInitialize(&graphics_context_params);
+    graphics_context_params.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
     graphics_context_params.m_UseValidationLayers     = 1;
     graphics_context_params.m_Window                  = engine->m_Window;
@@ -833,7 +834,7 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Height                  = 512;
     graphics_context_params.m_JobContext              = engine->m_JobContext;
 
-    engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+    engine->m_GraphicsContext = dmGraphics::NewContext(&graphics_context_params);
 
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();

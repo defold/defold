@@ -99,7 +99,7 @@ protected:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);
@@ -110,12 +110,13 @@ protected:
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
 
-        dmGraphics::ContextParams graphics_context_params = {};
+        dmGraphics::ContextParams graphics_context_params;
+        dmGraphics::ContextParamsInitialize(&graphics_context_params);
         graphics_context_params.m_Window                  = m_Window;
-        graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
-        graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+        graphics_context_params.m_DefaultTextureMinFilter = TEXTURE_FILTER_DEFAULT;
+        graphics_context_params.m_DefaultTextureMagFilter = TEXTURE_FILTER_DEFAULT;
 
-        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        m_GraphicsContext = dmGraphics::NewContext(&graphics_context_params);
         dmRender::RenderContextParams params;
         dmScript::ContextParams script_context_params = {};
         script_context_params.m_GraphicsContext = m_GraphicsContext;

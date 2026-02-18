@@ -32,6 +32,7 @@ class State(object):
     def __init__(self):
         self.struct_types = []
         self.enum_types = []
+        self.typedefs = []
         self.struct_typedefs = []
         self.function_typedefs = []
         self.functions = []
@@ -79,6 +80,12 @@ def is_struct_typedef(inp):
 
 def is_function_typedef(inp):
     n = _find_node(inp, ['TypedefDecl', 'PointerType', 'ParenType', 'FunctionProtoType'])
+    return n is not None
+
+def is_enum_typedef(inp):
+    n = _find_node(inp, ['TypedefDecl', 'ElaboratedType', 'EnumType'])
+    if not n:
+        n = _find_node(inp, ['TypedefDecl', 'EnumType'])
     return n is not None
 
 ##############################################################################
@@ -181,6 +188,12 @@ def parse(data, inp, state):
         elif is_function_typedef(decl):
             doc = extract_documentation(data, decl, Documentation())
             state.function_typedefs.append( (decl, doc) )
+
+        elif kind in ['TypedefDecl']:
+            if is_enum_typedef(decl):
+                continue
+            doc = extract_documentation(data, decl, Documentation())
+            state.typedefs.append( (decl, doc) )
 
         elif kind in ['FunctionDecl']:
             doc = extract_documentation(data, decl, Documentation())
@@ -362,7 +375,6 @@ if __name__ == "__main__":
     if not result:
         print("Generation failed for", args.input)
         sys.exit(1)
-
 
 
 

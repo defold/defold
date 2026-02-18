@@ -19,7 +19,7 @@
 #include <render/material_ddf.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 namespace dmIntersection
 {

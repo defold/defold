@@ -15,7 +15,7 @@
 #ifndef DMSDK_GRAPHICS_WEBGPU_H
 #define DMSDK_GRAPHICS_WEBGPU_H
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 #ifdef __EMSCRIPTEN__
     #if defined(DM_GRAPHICS_WEBGPU_WAGYU)

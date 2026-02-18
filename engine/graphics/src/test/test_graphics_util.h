@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 #include <graphics/graphics_ddf.h>
 

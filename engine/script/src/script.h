@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/script/script.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 #include <dlib/vmath.h>
 #include <dlib/hash.h>

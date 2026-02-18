@@ -54,11 +54,35 @@ def gen_doc_header(name, brief, description, language, namespace, source):
 def get_indent(indent):
     return '    ' * indent
 
-def _find_doc(docs, name):
-    for doc in docs['items']:
-        if doc.get('name', '') == name:
-            return doc
-    return None
+def _normalize_language(language):
+    if language is None:
+        return None
+    return language.strip().lower()
+
+def _find_doc(docs, name, language=None):
+    candidates = [doc for doc in docs['items'] if doc.get('name', '') == name]
+    if not candidates:
+        return None
+
+    preferred_language = _normalize_language(language)
+    if preferred_language is not None:
+        for doc in candidates:
+            if _normalize_language(doc.get('language', None)) == preferred_language:
+                return doc
+        for doc in candidates:
+            if _normalize_language(doc.get('language', None)) is None:
+                return doc
+
+    return candidates[0]
+
+def _has_language_tagged_docs(docs):
+    if _normalize_language(docs.get('language', None)) is not None:
+        return True
+
+    for doc in docs.get('items', []):
+        if _normalize_language(doc.get('language', None)) is not None:
+            return True
+    return False
 
 def _add_line(lines, tag, s):
     if s is None:
@@ -86,7 +110,7 @@ def _format_doc_lines(lines, indent):
     return ('\n' + indent_str + ' * ').join(lines)
 
 def gen_doc(docs, name, renamed, indent=1, language='C++'):
-    doc = _find_doc(docs, name)
+    doc = _find_doc(docs, name, language=language)
     if not doc:
         return f"""    /*#
         * Generated from [ref:{name}]
@@ -215,6 +239,22 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     ignores = info.get('ignore', [])
     prefixes = info.get('rename', {})
 
+    for decl, doc in state.typedefs:
+        n = decl['name']
+        if n in ignores:
+            continue
+        renamed = rename_symbols(prefixes, n)
+        if renamed != n:
+            typedef_type = n
+        else:
+            typedef_type = decl['type']['qualType']
+            typedef_type = rename_symbols(prefixes, typedef_type)
+
+        out_doc = gen_doc(docs, decl['name'], renamed)
+        l(out_doc)
+        l('    typedef %s %s;' % (typedef_type, renamed))
+        l('')
+
     for enum_type, doc in state.enum_types:
         n = enum_type.name
         if n in ignores:
@@ -287,10 +327,9 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     l('')
     l('#endif // #define DMSDK_' + basename.upper())
 
-    # Workaround, until we have proper multi language support.
-    # We attach the C documentation at the end of this file.
-    add_c_docs(docs)
+    # Legacy fallback for headers without @language tags.
+    if not _has_language_tagged_docs(docs):
+        add_c_docs(docs)
 
     l('') # always have a newline at the end
     return out_lines
-

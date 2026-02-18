@@ -16,7 +16,7 @@
 #include "res_texture.h"
 #include "gamesys_private.h"
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 #include <resource/resource.h>
 #include <dlib/log.h>

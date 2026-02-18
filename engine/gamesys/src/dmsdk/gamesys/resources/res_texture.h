@@ -15,7 +15,7 @@
 #ifndef DMSDK_GAMESYS_RES_TEXTURE_H
 #define DMSDK_GAMESYS_RES_TEXTURE_H
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 namespace dmGameSystem
 {

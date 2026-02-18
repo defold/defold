@@ -15,7 +15,7 @@
 #ifndef DM_SCRIPT_GRAPHICS_H
 #define DM_SCRIPT_GRAPHICS_H
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 struct lua_State;
 

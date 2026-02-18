@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 
 #include <dlib/hash.h>
 #include <dlib/jobsystem.h>
@@ -115,26 +115,6 @@ namespace dmGraphics
     {
         BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
         AttachmentToBufferType();
-    };
-
-    // Parameters structure for NewContext
-    struct ContextParams
-    {
-        ContextParams();
-
-        HWindow               m_Window;
-        HJobContext           m_JobContext;
-        TextureFilter         m_DefaultTextureMinFilter;
-        TextureFilter         m_DefaultTextureMagFilter;
-        uint32_t              m_Width;
-        uint32_t              m_Height;
-        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
-        uint8_t               m_VerifyGraphicsCalls : 1;
-        uint8_t               m_PrintDeviceInfo : 1;
-        uint8_t               m_RenderDocSupport : 1;           // Vulkan, XBox only
-        uint8_t               m_UseValidationLayers : 1;        // Vulkan, XBox only
-        uint8_t               : 4;
     };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
@@ -255,7 +235,7 @@ namespace dmGraphics
      * Currently, there can only be one context active at a time.
      * @return New graphics context
      */
-    HContext NewContext(const ContextParams& params);
+    HContext NewContext(const ContextParams* params);
 
     /**
      * Destroy device
@@ -267,7 +247,7 @@ namespace dmGraphics
      * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
      * @return True if a graphics backend could be created, false otherwise.
      */
-    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
+    bool InstallAdapter(AdapterFamily family);
     AdapterFamily GetAdapterFamily(const char* adapter_name);
 
     /**

@@ -531,8 +531,8 @@ static void LogFrameBufferError(GLenum status)
         m_ModificationVersion     = 1;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_DefaultTextureMinFilter = (TextureFilter)params.m_DefaultTextureMinFilter;
+        m_DefaultTextureMagFilter = (TextureFilter)params.m_DefaultTextureMagFilter;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;

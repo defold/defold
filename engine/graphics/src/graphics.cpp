@@ -143,7 +143,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
             default:break;
         }
-        return "<unknown dmGraphics::AdapterFamily>";
+        return "<unknown AdapterFamily>";
     }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
@@ -286,14 +286,6 @@ namespace dmGraphics
 
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
-    ContextParams::ContextParams()
-    {
-        memset(this, 0x0, sizeof(*this));
-        m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-        m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
-        m_SwapInterval            = 1;
-    }
-
     AttachmentToBufferType::AttachmentToBufferType()
     {
         memset(m_AttachmentToBufferType, 0x0, sizeof(m_AttachmentToBufferType));
@@ -302,9 +294,14 @@ namespace dmGraphics
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }
 
-    HContext NewContext(const ContextParams& params)
+    void ContextParamsInitialize(ContextParams* params)
     {
-        return g_functions.m_NewContext(params);
+        ::GraphicsContextParamsInitialize(params);
+    }
+
+    HContext NewContext(const ContextParams* params)
+    {
+        return ::GraphicsNewContext(params);
     }
 
     HContext GetInstalledContext()
@@ -1655,31 +1652,12 @@ namespace dmGraphics
 
     void DeleteContext(HContext context)
     {
-        g_functions.m_DeleteContext(context);
+        ::GraphicsDeleteContext(context);
     }
 
     bool InstallAdapter(AdapterFamily family)
     {
-        if (g_adapter)
-        {
-            return true;
-        }
-
-        bool result = SelectAdapterByFamily(family);
-
-        if (!result)
-        {
-            result = SelectAdapterByPriority();
-        }
-
-        if (result)
-        {
-            dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
-            return true;
-        }
-
-        dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
-        return false;
+        return ::GraphicsInstallAdapter((::AdapterFamily)family);
     }
 
     AdapterFamily GetInstalledAdapterFamily()
@@ -1693,8 +1671,7 @@ namespace dmGraphics
 
     void Finalize()
     {
-        if (g_functions.m_Finalize)
-            g_functions.m_Finalize();
+        ::GraphicsFinalize();
     }
 
     ///////////////////////////////////////////////////
@@ -1765,7 +1742,7 @@ namespace dmGraphics
     ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
     void CloseWindow(HContext context)
     {
-        g_functions.m_CloseWindow(context);
+        ::GraphicsCloseWindow(context);
     }
     uint32_t GetDisplayDpi(HContext context)
     {
@@ -1793,11 +1770,11 @@ namespace dmGraphics
     }
     void BeginFrame(HContext context)
     {
-        g_functions.m_BeginFrame(context);
+        ::GraphicsBeginFrame(context);
     }
     void Flip(HContext context)
     {
-        g_functions.m_Flip(context);
+        ::GraphicsFlip(context);
     }
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -2197,5 +2174,81 @@ namespace dmGraphics
     {
         Program* p = (Program*)prog;
         return &p->m_ShaderMeta;
+    }
+}
+
+extern "C"
+{
+    void GraphicsContextParamsInitialize(GraphicsCreateParams* params)
+    {
+        if (params == 0x0)
+        {
+            return;
+        }
+
+        memset(params, 0x0, sizeof(*params));
+        params->m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+        params->m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+        params->m_SwapInterval            = 1;
+    }
+
+    HGraphicsContext GraphicsNewContext(const GraphicsCreateParams* params)
+    {
+        if (params == 0x0)
+        {
+            return 0x0;
+        }
+
+        return dmGraphics::g_functions.m_NewContext(*params);
+    }
+
+    void GraphicsDeleteContext(HGraphicsContext context)
+    {
+        dmGraphics::g_functions.m_DeleteContext((dmGraphics::HContext)context);
+    }
+
+    bool GraphicsInstallAdapter(AdapterFamily family)
+    {
+        if (dmGraphics::g_adapter)
+        {
+            return true;
+        }
+
+        bool result = dmGraphics::SelectAdapterByFamily((dmGraphics::AdapterFamily)family);
+
+        if (!result)
+        {
+            result = dmGraphics::SelectAdapterByPriority();
+        }
+
+        if (result)
+        {
+            dmLogInfo("Installed graphics device '%s'", dmGraphics::GetAdapterFamilyLiteral(dmGraphics::g_adapter->m_Family));
+            return true;
+        }
+
+        dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
+        return false;
+    }
+
+    void GraphicsBeginFrame(HGraphicsContext context)
+    {
+        dmGraphics::g_functions.m_BeginFrame((dmGraphics::HContext)context);
+    }
+
+    void GraphicsFlip(HGraphicsContext context)
+    {
+        dmGraphics::g_functions.m_Flip((dmGraphics::HContext)context);
+    }
+
+    void GraphicsCloseWindow(HGraphicsContext context)
+    {
+        dmGraphics::g_functions.m_CloseWindow((dmGraphics::HContext)context);
+    }
+
+    void GraphicsFinalize(void)
+    {
+        if (dmGraphics::g_functions.m_Finalize)
+            dmGraphics::g_functions.m_Finalize();
     }
 }

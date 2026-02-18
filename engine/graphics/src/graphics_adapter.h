@@ -16,7 +16,7 @@
 #define DM_GRAPHICS_ADAPTER_H
 
 #include <dlib/hash.h>
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 #include <dmsdk/dlib/vmath.h>
 
 namespace dmGraphics

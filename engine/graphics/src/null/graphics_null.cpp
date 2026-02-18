@@ -72,8 +72,8 @@ namespace dmGraphics
     NullContext::NullContext(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
-        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_DefaultTextureMinFilter = (TextureFilter)params.m_DefaultTextureMinFilter;
+        m_DefaultTextureMagFilter = (TextureFilter)params.m_DefaultTextureMagFilter;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
@@ -438,7 +438,6 @@ namespace dmGraphics
 
     static void NullDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
-        NullContext* context = (NullContext*)_context;
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
         NullDisableUniformBuffer(_context, uniform_buffer);

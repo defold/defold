@@ -15,7 +15,7 @@
 #ifndef DMSDK_GAMESYS_RES_MATERIAL_H
 #define DMSDK_GAMESYS_RES_MATERIAL_H
 
-#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/graphics/graphics.hpp>
 #include <dmsdk/render/render.h>
 
 namespace dmGameSystem

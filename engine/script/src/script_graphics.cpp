@@ -635,6 +635,10 @@ namespace dmScript
         lua_pushnumber(L, (lua_Number) dmGraphics:: enum_name); \
         lua_setfield(L, -2, #name);
 
+    #define SET_GRAPHICS_ENUM_C(name) \
+        lua_pushnumber(L, (lua_Number) name); \
+        lua_setfield(L, -2, #name);
+
     #define SET_TEXTUREFORMAT_IF_SUPPORTED(name) \
         if (graphics_context && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
         { \
@@ -719,13 +723,13 @@ namespace dmScript
         }
 
         // TextureFilter
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_DEFAULT);
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_NEAREST);
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_LINEAR);
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST);
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR);
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST);
-        SET_GRAPHICS_ENUM(TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_DEFAULT);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_NEAREST);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_LINEAR);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST);
+        SET_GRAPHICS_ENUM_C(TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR);
 
         // TextureUsageFlag
         SET_GRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
@@ -785,6 +789,7 @@ namespace dmScript
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32UI);
 
     #undef SET_GRAPHICS_ENUM_NAMED
+    #undef SET_GRAPHICS_ENUM_C
     #undef SET_GRAPHICS_ENUM
     #undef SET_TEXTUREFORMAT_IF_SUPPORTED
 
