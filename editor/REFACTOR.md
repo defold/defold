@@ -138,17 +138,31 @@ Acceptance:
 Acceptance:
 - Debugging transitions (suspend/resume/stop) correctly switch sidebar item set.
 
-### ⏳ Phase 4: Code sidebar policy rollout
+### ⏳ Phase 4: LSP structure sync plumbing
+
+1. Implement `documentSymbol` synchronization in the LSP manager for viewed code resources.
+2. Keep structure state up to date on open and on text changes (including typing), with debounce and stale-response protection.
+3. Expose synchronized structure data to code views through graph properties/outputs (no view-owned request orchestration).
+4. Ensure lifecycle correctness on view close/resource close/server restart.
+
+Acceptance:
+- Structure data for viewed code resources is refreshed automatically from LSP.
+- Structure remains up to date during typing without request storms or stale updates overriding newer state.
+- View close/open and server restart transitions do not leave stale structure state.
+
+### ⏳ Phase 5: Code sidebar policy rollout
 
 1. Implement code-focused sidebar policies:
    - `.script` views emit structure + properties pane descs
    - other code views emit structure pane desc
-2. Keep `AppView` as the sole sidebar renderer/owner for these policies.
-3. Remove ids only when no persistence/command readers remain.
+2. Render structure pane from synchronized structure data produced in Phase 4.
+3. Keep `AppView` as the sole sidebar renderer/owner for these policies.
+4. Remove ids only when no persistence/command readers remain.
 
 Acceptance:
 - `.script` resources show `Structure + Properties`.
 - Other code resources show `Structure` only.
+- Structure pane content stays synchronized with typed edits.
 - Policy switching works by active tab without debugger regressions.
 
 ## Code Touchpoints

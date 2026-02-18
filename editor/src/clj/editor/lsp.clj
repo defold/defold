@@ -437,6 +437,25 @@
              lines (g/node-value resource-node :lines evaluation-context)]
          (sync-modified-lines-of-existing-node! state resource source-value lines))))))
 
+(defn- cancel-debounce-fns! [state]
+  (run! a/close! (vals (:debounce state)))
+  (assoc state :debounce {}))
+
+(defn- schedule-debounce [state id timeout-ms f]
+  {:pre [(some? id) (pos-int? timeout-ms) (ifn? f)]}
+  (let [{:keys [debounce]} state]
+    (some-> (debounce id) a/close!)
+    (let [cancel-ch (a/chan)]
+      (a/go
+        (let [[_ ch] (a/alts! [(a/timeout timeout-ms) cancel-ch])]
+          (when-not (identical? ch cancel-ch)
+            (>! (:in state)
+                (bound-fn invoke-after-debounce [state]
+                  (if (identical? cancel-ch ((:debounce state) id))
+                    (f (update state :debounce dissoc id))
+                    state))))))
+      (assoc state :debounce (assoc debounce id cancel-ch)))))
+
 (s/def ::new-servers (s/coll-of ::server :kind set?))
 
 (defn set-servers [new-servers]
@@ -506,6 +525,8 @@
                        ;; inverse :resource->view-node, a map from view node id
                        ;; to resource, used for performance
                        :view-node->resource {}
+                       ;; map from debounce id to cancel-ch (close to cancel)
+                       :debounce {}
                        ;; map {resource {:lines ["code..."] :version int}},
                        ;; indicates that the resource is open
                        ;; invariant: every viewed resource must be open
@@ -517,7 +538,9 @@
         (if (and (nil? value) (= ch in))
           (try
             (when dev (swap! running-lsps dissoc in))
-            ((set-servers #{}) state)
+            (-> state
+                (cancel-debounce-fns!)
+                ((set-servers #{})))
             (catch Throwable e (error-reporting/report-exception! e)))
           (recur
             (try
