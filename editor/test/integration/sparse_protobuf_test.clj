@@ -304,40 +304,48 @@
        (class? (resource-type->pb-class resource-type))))
 
 (defn- sparse-pb-map [^Class pb-class pb-path ^long depth-limit]
-  (->> pb-class
-       (protobuf/field-infos)
-       (into {}
-             (keep
-               (fn [[field-key {:keys [default field-rule field-type-key options type]}]]
-                 (let [pb-path (conj pb-path field-key)
+  (let [required-field-defaults (protobuf/required-default-value pb-class)
+        field-infos (protobuf/field-infos pb-class)]
+    (coll/into-> field-infos {}
+      (keep
+        (fn [[field-key field-info]]
+          (let [pb-path (conj pb-path field-key)
+                field-kind (:field-kind field-info)
 
-                       [specific-value is-required]
-                       (unwrap-pb-field-value (get-in pb-field-values pb-path))
+                [specific-value is-required]
+                (unwrap-pb-field-value (get-in pb-field-values pb-path))
 
-                       value
-                       (cond
-                         (exactly? specific-value)
-                         (unwrap-exactly specific-value)
+                value
+                (cond
+                  (exactly? specific-value)
+                  (unwrap-exactly specific-value)
 
-                         (or is-required
-                             (= :required field-rule)
-                             (and (pos? depth-limit)
-                                  (not (:runtime-only options))))
-                         (cond
-                           (= :message field-type-key)
-                           (sparse-pb-map type pb-path (dec depth-limit))
+                  (or is-required
+                      (= :pb-field-kind/required field-kind)
+                      (and (pos? depth-limit)
+                           (not (:runtime-only (:options field-info)))))
+                  (cond
+                    (= :message (:value-type-kw field-info))
+                    (sparse-pb-map (:value-class field-info) pb-path (dec depth-limit))
 
-                           (some? specific-value)
-                           specific-value
+                    (some? specific-value)
+                    specific-value
 
-                           (= :required field-rule)
-                           default))]
+                    (= :pb-field-kind/required field-kind)
+                    (required-field-defaults field-key)))]
 
-                   (when (some? value)
-                     (pair field-key
-                           (case field-rule
-                             :repeated (vector value)
-                             value)))))))))
+            (when (some? value)
+              (pair field-key
+                    (case field-kind
+                      (:pb-field-kind/list)
+                      [value]
+
+                      (:pb-field-kind/map)
+                      (let [key (protobuf/field-type-default (:key-type-kw field-info))]
+                        {key value})
+
+                      (:pb-field-kind/optional :pb-field-kind/required)
+                      value)))))))))
 
 (defn- sparse-protobuf-content-by-proj-path [workspace]
   (into (sorted-map)

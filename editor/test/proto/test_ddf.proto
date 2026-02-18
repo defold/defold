@@ -55,7 +55,9 @@ message NestedDefaults {
     optional string optional_without_default = 3;
     optional NestedDefaultsSubMsg optional_message = 4;
     repeated NestedDefaultsSubMsg repeated_message = 5;
-    repeated int32 repeated_int = 6;
+    map<string, NestedDefaultsSubMsg> mapped_message = 6;
+    repeated int32 repeated_int = 7;
+    map<string, int32> mapped_int = 8;
 }
 
 message NestedRequiredsSubMsg {
@@ -68,6 +70,7 @@ message NestedRequireds {
     required NestedRequiredsSubMsg required_message = 1;
     optional NestedRequiredsSubMsg optional_message = 2;
     repeated NestedRequiredsSubMsg repeated_message = 3;
+    map<string, NestedRequiredsSubMsg> mapped_message = 4;
 }
 
 message ResourceFields {
@@ -160,4 +163,16 @@ message ResourceDefaultedRepeatedlyNested {
 
 message ResourceRepeatedRepeatedlyNested {
     repeated ResourceRepeated repeateds = 1;
+}
+
+message ResourceSimpleMapNested {
+    map<string, ResourceSimple> simples = 1;
+}
+
+message ResourceDefaultedMapNested {
+    map<string, ResourceDefaulted> defaulteds = 1;
+}
+
+message ResourceRepeatedMapNested {
+    map<string, ResourceRepeated> repeateds = 1;
 }

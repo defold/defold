@@ -15,7 +15,7 @@
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
@@ -116,6 +116,12 @@
   (let [m {:simples [{:image "/path/1.png"}
                      {:image "/path/2.png"}]}
         new-m (round-trip TestDdf$ResourceSimpleRepeatedlyNested m)]
+    (is (= m new-m))))
+
+(deftest map-msgs
+  (let [m {:simples {"a" {:image "/path/1.png"}
+                     "b" {:image "/path/2.png"}}}
+        new-m (round-trip TestDdf$ResourceSimpleMapNested m)]
     (is (= m new-m))))
 
 (deftest repeated-uints
@@ -294,7 +300,10 @@
   (is (= [[:repeated [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedNested)))
   (is (= [[[:simples] :image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimpleRepeatedlyNested)))
   (is (= [[[:defaulteds] {:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaultedRepeatedlyNested)))
-  (is (= [[[:repeateds] [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedRepeatedlyNested))))
+  (is (= [[[:repeateds] [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedRepeatedlyNested)))
+  (is (= [[#{:simples} :image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimpleMapNested)))
+  (is (= [[#{:defaulteds} {:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaultedMapNested)))
+  (is (= [[#{:repeateds} [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedMapNested))))
 
 (deftest get-field-value-paths-fn-test
   (testing "Simple"
@@ -436,7 +445,86 @@
             {:repeateds [{:images ["/image00.png"
                                    "/image01.png"]}
                          {:images ["/image10.png"
-                                   "/image11.png"]}]})))))
+                                   "/image11.png"]}]}))))
+
+  (testing "Simple map nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:simples} :image]])
+            {})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:simples} :image]])
+            {:simples {}})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:simples} :image]])
+            {:simples {"a" {}
+                       "b" {}}})))
+    (is (= [[[:simples "a" :image] nil]
+            [[:simples "b" :image] nil]]
+           ((protobuf/get-field-value-paths-fn [[#{:simples} :image]])
+            {:simples {"a" {:image nil}
+                       "b" {:image nil}}})))
+    (is (= [[[:simples "a" :image] "/image0.png"]
+            [[:simples "b" :image] "/image1.png"]]
+           ((protobuf/get-field-value-paths-fn [[#{:simples} :image]])
+            {:simples {"a" {:image "/image0.png"}
+                       "b" {:image "/image1.png"}}}))))
+
+  (testing "Defaulted map nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:defaulteds} {:image "/default.png"}]])
+            {})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:defaulteds} {:image "/default.png"}]])
+            {:defaulteds {}})))
+    (is (= [[[:defaulteds "a" :image] "/default.png"]
+            [[:defaulteds "b" :image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[#{:defaulteds} {:image "/default.png"}]])
+            {:defaulteds {"a" {}
+                          "b" {}}})))
+    (is (= [[[:defaulteds "a" :image] "/default.png"]
+            [[:defaulteds "b" :image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[#{:defaulteds} {:image "/default.png"}]])
+            {:defaulteds {"a" {:image nil}
+                          "b" {:image nil}}})))
+    (is (= [[[:defaulteds "a" :image] "/image0.png"]
+            [[:defaulteds "b" :image] "/image1.png"]]
+           ((protobuf/get-field-value-paths-fn [[#{:defaulteds} {:image "/default.png"}]])
+            {:defaulteds {"a" {:image "/image0.png"}
+                          "b" {:image "/image1.png"}}}))))
+
+  (testing "Repeated map nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:repeateds} [:images]]])
+            {})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:repeateds} [:images]]])
+            {:repeateds {}})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:repeateds} [:images]]])
+            {:repeateds {"a" {}
+                         "b" {}}})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[#{:repeateds} [:images]]])
+            {:repeateds {"a" {:images []}
+                         "b" {:images []}}})))
+    (is (= [[[:repeateds "a" :images 0] nil]
+            [[:repeateds "a" :images 1] nil]
+            [[:repeateds "b" :images 0] nil]
+            [[:repeateds "b" :images 1] nil]]
+           ((protobuf/get-field-value-paths-fn [[#{:repeateds} [:images]]])
+            {:repeateds {"a" {:images [nil
+                                       nil]}
+                         "b" {:images [nil
+                                       nil]}}})))
+    (is (= [[[:repeateds "a" :images 0] "/image00.png"]
+            [[:repeateds "a" :images 1] "/image01.png"]
+            [[:repeateds "b" :images 0] "/image10.png"]
+            [[:repeateds "b" :images 1] "/image11.png"]]
+           ((protobuf/get-field-value-paths-fn [[#{:repeateds} [:images]]])
+            {:repeateds {"a" {:images ["/image00.png"
+                                       "/image01.png"]}
+                         "b" {:images ["/image10.png"
+                                       "/image11.png"]}}})))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-with-defaults
@@ -475,8 +563,20 @@
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
            :required-string "overridden required_string"
            :optional-with-default "overridden with_default"
@@ -494,8 +594,17 @@
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
                                 :optional-bool false)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "overridden optional_string"
+                                  :optional-int 11
+                                  :optional-quat [1.0 2.0 3.0 4.0]
+                                  :optional-enum :enum-val0
+                                  :optional-bool false)}
            :repeated-int [0
-                          1])))
+                          1]
+           :mapped-int {"a" 0
+                        "b" 1})))
   (is (= {:required-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -505,7 +614,11 @@
           :repeated-message [{}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (protobuf/make-map-with-defaults TestDdf$NestedRequireds
            :required-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string "overridden required_string"
@@ -519,7 +632,12 @@
                               (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string "overridden required_string"
                                 :required-quat [1.0 2.0 3.0 4.0]
-                                :required-enum :enum-val1)])))
+                                :required-enum :enum-val1)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string "overridden required_string"
+                                  :required-quat [1.0 2.0 3.0 4.0]
+                                  :required-enum :enum-val1)})))
   (is (= {:optional-resource "/overridden optional_resource"}
          (protobuf/make-map-with-defaults TestDdf$ResourceFields
            :optional-resource "/overridden optional_resource"))))
@@ -542,7 +660,17 @@
                               :optional-int 11
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
-                              :optional-bool false}]}
+                              :optional-bool false}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
            :required-string ""
            :optional-with-default "overridden with_default"
@@ -559,7 +687,14 @@
                                 :optional-int 11
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
-                                :optional-bool false)])))
+                                :optional-bool false)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "overridden optional_string"
+                                  :optional-int 11
+                                  :optional-quat [1.0 2.0 3.0 4.0]
+                                  :optional-enum :enum-val0
+                                  :optional-bool false)})))
   (is (= {:required-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -569,7 +704,11 @@
           :repeated-message [{}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (protobuf/make-map-with-defaults TestDdf$NestedRequireds
            :required-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string ""
@@ -583,7 +722,12 @@
                               (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string ""
                                 :required-quat [0.0 0.0 0.0 1.0]
-                                :required-enum :enum-val0)])))
+                                :required-enum :enum-val0)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string ""
+                                  :required-quat [0.0 0.0 0.0 1.0]
+                                  :required-enum :enum-val0)})))
   (is (= {:optional-resource "/default"}
          (protobuf/make-map-with-defaults TestDdf$ResourceFields
            :optional-resource "/default"))))
@@ -656,8 +800,20 @@ required_message {
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (read-map-with-defaults TestDdf$NestedDefaults "
 required_string: 'overridden required_string'
 optional_with_default: 'overridden with_default'
@@ -688,8 +844,36 @@ repeated_message {
   optional_enum: ENUM_VAL0
   optional_bool: false
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'overridden optional_string'
+    optional_int: 11
+    optional_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    optional_enum: ENUM_VAL0
+    optional_bool: false
+  }
+}
 repeated_int: 0
-repeated_int: 1")))
+repeated_int: 1
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 1
+}")))
   (is (= {:optional-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -701,7 +885,13 @@ repeated_int: 1")))
                               :required-enum :enum-val1}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (read-map-with-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: 'overridden required_string'
@@ -742,6 +932,32 @@ repeated_message {
     w: 4.0
   }
   required_enum: ENUM_VAL1
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
 }")))
   (is (= {:optional-resource "/overridden optional_resource"}
          (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/overridden optional_resource'"))))
@@ -765,8 +981,20 @@ repeated_message {
                               :optional-quat [0.0 0.0 0.0 1.0]
                               :optional-enum :enum-val1
                               :optional-bool true}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}}
           :repeated-int [0
-                         0]}
+                         0]
+          :mapped-int {"a" 0
+                       "b" 0}}
          (read-map-with-defaults TestDdf$NestedDefaults "
 required_string: ''
 optional_with_default: 'default'
@@ -797,8 +1025,36 @@ repeated_message {
   optional_enum: ENUM_VAL1
   optional_bool: true
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'default'
+    optional_int: 10
+    optional_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    optional_enum: ENUM_VAL1
+    optional_bool: true
+  }
+}
 repeated_int: 0
-repeated_int: 0")))
+repeated_int: 0
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 0
+}")))
   (is (= {:optional-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -810,7 +1066,13 @@ repeated_int: 0")))
                               :required-enum :enum-val0}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (read-map-with-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: ''
@@ -851,6 +1113,32 @@ repeated_message {
     w: 1.0
   }
   required_enum: ENUM_VAL0
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
 }")))
   (is (= {:optional-resource "/default"}
          (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
@@ -895,8 +1183,16 @@ repeated_message {
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
            :required-string "overridden required_string"
            :optional-with-default "overridden with_default"
@@ -914,8 +1210,17 @@ repeated_message {
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
                                 :optional-bool false)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "overridden optional_string"
+                                  :optional-int 11
+                                  :optional-quat [1.0 2.0 3.0 4.0]
+                                  :optional-enum :enum-val0
+                                  :optional-bool false)}
            :repeated-int [0
-                          1])))
+                          1]
+           :mapped-int {"a" 0
+                        "b" 1})))
   (is (= {:optional-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -925,7 +1230,11 @@ repeated_message {
           :repeated-message [{}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (protobuf/make-map-without-defaults TestDdf$NestedRequireds
            :optional-message (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string "overridden required_string"
@@ -939,7 +1248,12 @@ repeated_message {
                               (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string "overridden required_string"
                                 :required-quat [1.0 2.0 3.0 4.0]
-                                :required-enum :enum-val1)])))
+                                :required-enum :enum-val1)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string "overridden required_string"
+                                  :required-quat [1.0 2.0 3.0 4.0]
+                                  :required-enum :enum-val1)})))
   (is (= {:optional-resource "/overridden optional_resource"}
          (protobuf/make-map-without-defaults TestDdf$ResourceFields
            :optional-resource "/overridden optional_resource"))))
@@ -948,8 +1262,12 @@ repeated_message {
   (is (= {:required-string ""
           :repeated-message [{}
                              {}]
+          :mapped-message {"a" {}
+                           "b" {}}
           :repeated-int [0
-                         0]}
+                         0]
+          :mapped-int {"a" 0
+                       "b" 0}}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
            :required-string ""
            :optional-with-default "default"
@@ -967,8 +1285,17 @@ repeated_message {
                                 :optional-quat [0.0 0.0 0.0 1.0]
                                 :optional-enum :enum-val1
                                 :optional-bool true)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "default"
+                                  :optional-int 10
+                                  :optional-quat [0.0 0.0 0.0 1.0]
+                                  :optional-enum :enum-val1
+                                  :optional-bool true)}
            :repeated-int [0
-                          0])))
+                          0]
+           :mapped-int {"a" 0
+                        "b" 0})))
   (is (= {:optional-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -978,7 +1305,11 @@ repeated_message {
           :repeated-message [{}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (protobuf/make-map-without-defaults TestDdf$NestedRequireds
            :optional-message (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string ""
@@ -992,7 +1323,12 @@ repeated_message {
                               (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string ""
                                 :required-quat [0.0 0.0 0.0 1.0]
-                                :required-enum :enum-val0)])))
+                                :required-enum :enum-val0)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string ""
+                                  :required-quat [0.0 0.0 0.0 1.0]
+                                  :required-enum :enum-val0)})))
   (is (= {:optional-resource "/default"}
          (protobuf/make-map-without-defaults TestDdf$ResourceFields
            :optional-resource "/default"))))
@@ -1051,8 +1387,16 @@ required_message {
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (read-map-without-defaults TestDdf$NestedDefaults "
 required_string: 'overridden required_string'
 optional_with_default: 'overridden with_default'
@@ -1083,8 +1427,36 @@ repeated_message {
   optional_enum: ENUM_VAL0
   optional_bool: false
 }
+mapped_value {
+  key: 'a'
+  value {
+  }
+}
+mapped_value {
+  key: 'b'
+  value {
+    optional_string: 'overridden optional_string'
+    optional_int: 11
+    optional_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    optional_enum: ENUM_VAL0
+    optional_bool: false
+  }
+}
 repeated_int: 0
-repeated_int: 1")))
+repeated_int: 1
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 1
+}")))
   (is (= {:optional-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -1096,7 +1468,13 @@ repeated_int: 1")))
                               :required-enum :enum-val1}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (read-map-without-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: 'overridden required_string'
@@ -1137,6 +1515,32 @@ repeated_message {
     w: 4.0
   }
   required_enum: ENUM_VAL1
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
 }")))
   (is (= {:optional-resource "/overridden optional_resource"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/overridden optional_resource'"))))
@@ -1145,8 +1549,12 @@ repeated_message {
   (is (= {:required-string ""
           :repeated-message [{}
                              {}]
+          :mapped-message {"a" {}
+                           "b" {}}
           :repeated-int [0
-                         0]}
+                         0]
+          :mapped-int {"a" 0
+                       "b" 0}}
          (read-map-without-defaults TestDdf$NestedDefaults "
 required_string: ''
 optional_with_default: 'default'
@@ -1177,8 +1585,36 @@ repeated_message {
   optional_enum: ENUM_VAL1
   optional_bool: true
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'default'
+    optional_int: 10
+    optional_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    optional_enum: ENUM_VAL1
+    optional_bool: true
+  }
+}
 repeated_int: 0
-repeated_int: 0")))
+repeated_int: 0
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 0
+}")))
   (is (= {:required-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -1187,7 +1623,13 @@ repeated_int: 0")))
                               :required-enum :enum-val0}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (read-map-without-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: ''
@@ -1228,6 +1670,32 @@ repeated_message {
     w: 1.0
   }
   required_enum: ENUM_VAL0
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
 }")))
   (is (= {:optional-resource "/default"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
