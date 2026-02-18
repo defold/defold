@@ -619,13 +619,33 @@
   [lsp new-servers]
   (lsp (set-servers new-servers)))
 
+(defn- set-view-document-symbols [resource document-symbols]
+  (bound-fn [state]
+    (when-let [view-node (-> state :resource->view-node (get resource))]
+      (ui/run-later
+        (g/transact
+          (g/set-property view-node :document-symbols document-symbols))))
+    state))
+
+(defn- request-document-symbols [state resource]
+  (let [{:keys [in]} state
+        responses-ch (a/chan 1 cat)]
+    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
+    (send-requests!
+      state responses-ch
+      :capabilities-pred :document-symbol
+      :language (resource/language resource)
+      :requests [(lsp.server/document-symbols resource)]
+      :timeout-ms 3000)))
+
 (defn- do-open-view [state view-node resource lines]
   (if (resource-viewed? state resource)
     state
     (let [state (-> state
                     (update :resource->view-node assoc resource view-node)
                     (update :view-node->resource assoc view-node resource)
-                    (ensure-resource-open! resource lines))]
+                    (ensure-resource-open! resource lines)
+                    (request-document-symbols resource))]
       (ui/run-later
         (g/transact
           (concat
