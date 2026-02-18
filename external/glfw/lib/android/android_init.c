@@ -249,17 +249,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
             // application will attempt to open the GL window before it has regained focus.
             g_appLaunchInterrupted = 1;
         }
-
-        if (_glfwWin.clientAPI != GLFW_NO_API)
-        {
-            spinlock_lock(&_glfwWinAndroid.m_RenderLock);
-
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.surface = EGL_NO_SURFACE;
-
-            spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
-        }
-        computeIconifiedState();
+        // Defer surface teardown to the engine thread to avoid blocking the looper.
         break;
     case APP_CMD_GAINED_FOCUS:
         break;
@@ -282,7 +272,9 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
-        // See _glfwPlatformSwapBuffers for handling of orientation changes
+    case APP_CMD_WINDOW_REDRAW_NEEDED:
+    case APP_CMD_CONTENT_RECT_CHANGED:
+        // See glfwAndroidFlushEvents for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
         g_AppResumed = false;
@@ -1050,21 +1042,23 @@ int _glfwPlatformTerminate( void )
      // Wait for gl context destruction
     while (_glfwWinAndroid.display != EGL_NO_DISPLAY)
     {
-        int ident;
-        int events;
-        struct android_poll_source* source;
+        void* data = NULL;
+        int ident = ALooper_pollOnce(300, NULL, NULL, &data);
 
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        if (ident >= 0 && data != NULL)
         {
-            // Process this event.
-            if (source != NULL) {
-                source->process(g_AndroidApp, source);
-            }
-            if (g_AndroidApp->destroyRequested) {
-                // App requested exit. It doesn't wait when thread work finished because app is in background already.
-                // App will never end up here from within the app itself, only using OS functions.
-                return GL_TRUE;
-            }
+            struct android_poll_source* source = (struct android_poll_source*)data;
+            source->process(g_AndroidApp, source);
+        }
+        if (g_AndroidApp->destroyRequested) {
+            // App requested exit. It doesn't wait when thread work finished because app is in background already.
+            // App will never end up here from within the app itself, only using OS functions.
+            return GL_TRUE;
+        }
+        if (ident == ALOOPER_POLL_ERROR)
+        {
+            LOGF("ALooper_pollOnce returned an error");
+            return GL_TRUE;
         }
     }
 

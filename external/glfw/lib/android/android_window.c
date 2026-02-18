@@ -45,6 +45,7 @@
 #include "android_log.h"
 #include "android_util.h"
 #include "android_joystick.h"
+#include "android_jni.h"
 
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
@@ -58,6 +59,8 @@ int g_KeyboardActive = 0;
 int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
 int g_SpecialKeyActive = -1;
+static int g_PendingResize = 0;
+static int g_PendingResizeBecauseOfInsets = 0;
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeBackspace(JNIEnv* env, jobject obj)
 {
@@ -85,6 +88,11 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNativ
     if (write(_glfwWinAndroid.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         LOGF("Failed to write command");
     }
+}
+
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetPendingResizeBecauseOfInsets(JNIEnv* env, jobject obj)
+{
+    g_PendingResizeBecauseOfInsets = 1;
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextNative(JNIEnv* env, jobject obj, jstring text)
@@ -178,7 +186,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
         computeIconifiedState();
     }
-    
+
     _glfwTerminateJoysticks();
 
     return GL_TRUE;
@@ -290,14 +298,18 @@ static void _glfwPlatformSwapBuffersNoLock( void )
             }
         }
     }
-
     /*
-     The preferred way of handling orientation changes is probably
-     in APP_CMD_CONFIG_CHANGED or APP_CMD_WINDOW_RESIZED but occasionally
-     the wrong previous orientation is reported (Tested on Samsung S2 GTI9100 4.1.2).
-     This might very well be a bug..
+     Handle orientation/size changes when signaled by APP_CMD_CONFIG_CHANGED,
+     APP_CMD_WINDOW_RESIZED or APP_CMD_CONTENT_RECT_CHANGED. Some devices
+     report the old EGL size at the time of the event, so we defer the query
+     until a swap occurs.
      */
-    update_width_height_info(&_glfwWin, &_glfwWinAndroid, 0);
+    if (g_PendingResize || g_PendingResizeBecauseOfInsets)
+    {
+        update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
+        g_PendingResize = 0;
+        g_PendingResizeBecauseOfInsets = 0;
+    }
 }
 
 void _glfwPlatformSwapBuffers( void )
@@ -350,19 +362,15 @@ static void CreateGLSurface()
     // We might have tried to create the surface just as we received an APP_CMD_TERM_WINDOW on the looper thread
     if (_glfwWinAndroid.surface != EGL_NO_SURFACE)
     {
-        // This thread attachment is a workaround for this crash 
+        // This thread attachment is a workaround for this crash
         // https://github.com/defold/defold/issues/6956
-        // only on Android 13 
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
+        // only on Android 13
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
 
         make_current(&_glfwWinAndroid);
-        
-        if (vm != 0)
-        {
-            (*vm)->DetachCurrentThread(vm);
-        }
+
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
 
         computeIconifiedState();
@@ -373,14 +381,52 @@ void glfwAndroidFlushEvents()
 {
     spinlock_lock(&g_EventLock);
 
-    for (int i = 0; i < g_NumAppCommands; ++i)
+    int app_commands[MAX_APP_COMMANDS];
+    int num_app_commands = 0;
+    num_app_commands = g_NumAppCommands;
+    memcpy(app_commands, g_AppCommands, num_app_commands * sizeof(int));
+    g_NumAppCommands = 0;
+
+    static int flush_input_events_capacity = 0;
+    static struct InputEvent* flush_input_events = 0;
+    int num_input_events = g_NumAppInputEvents;
+    if (num_input_events > flush_input_events_capacity)
     {
-        int cmd = g_AppCommands[i];
+        flush_input_events_capacity = num_input_events;
+        flush_input_events = realloc(flush_input_events, num_input_events * sizeof(struct InputEvent));
+    }
+
+    struct InputEvent* input_events = 0;
+    if (num_input_events > 0)
+    {
+        memcpy(flush_input_events, g_AppInputEvents, num_input_events * sizeof(struct InputEvent));
+        input_events = flush_input_events;
+    }
+    g_NumAppInputEvents = 0;
+
+    spinlock_unlock(&g_EventLock);
+
+    for (int i = 0; i < num_app_commands; ++i)
+    {
+        int cmd = app_commands[i];
 
         LOGV("handleCommand (main thread): %s", _glfwGetAndroidCmdName(cmd));
 
         switch(cmd)
         {
+        case APP_CMD_TERM_WINDOW:
+            if (_glfwWin.clientAPI != GLFW_NO_API)
+            {
+                spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+
+                destroy_gl_surface(&_glfwWinAndroid);
+                _glfwWinAndroid.surface = EGL_NO_SURFACE;
+
+                spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
+            }
+            computeIconifiedState();
+            break;
+
         case APP_CMD_INIT_WINDOW:
             // We don't get here the first time around, but from the second and onwards
             // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
@@ -398,6 +444,16 @@ void glfwAndroidFlushEvents()
             }
             break;
 
+        case APP_CMD_WINDOW_RESIZED:
+        case APP_CMD_CONFIG_CHANGED:
+        case APP_CMD_CONTENT_RECT_CHANGED:
+            g_PendingResize = 1;
+            computeIconifiedState();
+            break;
+
+        case APP_CMD_WINDOW_REDRAW_NEEDED:
+            break;
+
         case APP_CMD_PAUSE:
             if(_glfwWin.windowFocusCallback)
                 _glfwWin.windowFocusCallback(0); // invokes Lua callbacks
@@ -409,7 +465,6 @@ void glfwAndroidFlushEvents()
 
         }
     }
-    g_NumAppCommands = 0;
 
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
     if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
@@ -421,26 +476,23 @@ void glfwAndroidFlushEvents()
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;
-    if (g_NumAppInputEvents > 0)
+    if (num_input_events > 0)
     {
         env = g_AndroidApp->activity->env;
         vm = g_AndroidApp->activity->vm;
         (*vm)->AttachCurrentThread(vm, &env, NULL);
     }
 
-    for (int i = 0; i < g_NumAppInputEvents; ++i)
+    for (int i = 0; i < num_input_events; ++i)
     {
-        struct InputEvent* event = &g_AppInputEvents[i];
+        struct InputEvent* event = &input_events[i];
         _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
     }
-    g_NumAppInputEvents = 0;
 
     if (vm != 0)
     {
         (*vm)->DetachCurrentThread(vm);
     }
-
-    spinlock_unlock(&g_EventLock);
 }
 
 void androidDestroyWindow( void )
@@ -473,27 +525,26 @@ void _glfwPlatformPollEvents( void )
 // Called from the looper thread
 void glfwAndroidPollEvents()
 {
-    int ident;
-    int events;
-    struct android_poll_source* source;
-
     int timeoutMillis = 0;
     if (_glfwWin.iconified) {
         timeoutMillis = 300;
     }
-    while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
-    {
-        timeoutMillis = 0;
-        // Process this event.
-        if (source != NULL) {
-            source->process(_glfwWinAndroid.app, source);
-        }
+    void* data = NULL;
+    int ident = ALooper_pollOnce(timeoutMillis, NULL, NULL, &data);
 
-        if (_glfwWinAndroid.app->destroyRequested) {
-            androidDestroyWindow();
-            // OS is destroyng the app. All the other events doesn't matter in this case.
-            return;
-        }
+    if (ident >= 0 && data != NULL) {
+        struct android_poll_source* source = (struct android_poll_source*)data;
+        source->process(_glfwWinAndroid.app, source);
+    }
+    if (ident == ALOOPER_POLL_ERROR) {
+        LOGF("ALooper_pollOnce returned an error");
+        return;
+    }
+
+    if (_glfwWinAndroid.app->destroyRequested) {
+        androidDestroyWindow();
+        // OS is destroyng the app. All the other events doesn't matter in this case.
+        return;
     }
 }
 
@@ -644,6 +695,64 @@ void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
     (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, set_immersive_mode, immersive_mode, display_cutout);
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
+}
+
+int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
+{
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return 0;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID get_safe_area_insets = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getSafeAreaInsets", "()[I");
+    if (!get_safe_area_insets)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jintArray array = (jintArray)(*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_safe_area_insets);
+    if (!array)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jsize len = (*lJNIEnv)->GetArrayLength(lJNIEnv, array);
+    if (len < 4)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jint* values = (*lJNIEnv)->GetIntArrayElements(lJNIEnv, array, NULL);
+    if (!values)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    *left = values[0];
+    *top = values[1];
+    *right = values[2];
+    *bottom = values[3];
+
+    (*lJNIEnv)->ReleaseIntArrayElements(lJNIEnv, array, values, JNI_ABORT);
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    return 1;
 }
 
 //========================================================================
