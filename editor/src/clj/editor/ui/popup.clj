@@ -51,7 +51,7 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
-(defmulti settings-row (fn [_app-view _prefs _prefs-path _popup option] (last option)))
+(defmulti settings-row (fn [_app-view _prefs _prefs-path _popup option] option))
 
 (defn- ensure-focus-traversable! [^Control control]
   (ui/observe (.focusTraversableProperty control)
