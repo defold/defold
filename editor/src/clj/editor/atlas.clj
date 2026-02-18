@@ -242,10 +242,10 @@
                                               :precision 0.1})))
 
   (property pivot-x g/Num
-            (default (protobuf/default AtlasProto$AtlasImage :pivot-x))
+            (default (double (protobuf/default AtlasProto$AtlasImage :pivot-x)))
             (dynamic visible (g/constantly false)))
   (property pivot-y g/Num
-            (default (protobuf/default AtlasProto$AtlasImage :pivot-y))
+            (default (double (protobuf/default AtlasProto$AtlasImage :pivot-y)))
             (dynamic visible (g/constantly false)))
 
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))

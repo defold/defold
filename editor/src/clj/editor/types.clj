@@ -68,6 +68,7 @@
 
 ;; note - Int32 is a schema, not a value type
 (def Int32   (s/both s/Int (s/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
+(def Float64 (s/pred #(instance? Double %) "double"))
 
 (g/deftype Icon    s/Str)
 
@@ -205,8 +206,8 @@
    contents :- (s/maybe BufferedImage)
    width    :- Int32
    height   :- Int32
-   pivot-x  :- s/Num
-   pivot-y  :- s/Num
+   pivot-x  :- Float64
+   pivot-y  :- Float64
    sprite-trim-mode :- sprite-trim-modes]
   ImageHolder
   (contents [this] contents))
