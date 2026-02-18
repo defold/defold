@@ -127,7 +127,7 @@ Acceptance:
 - Other views stay on default sidebar behavior.
 - No debugger behavior change.
 
-### ⏳ Phase 3: Debugger unification in AppView
+### ✅ Phase 3: Debugger unification in AppView
 
 1. Connect debugger state into `AppView`.
 2. In `AppView`, override active sidebar panes with debugger pane descs (call stack + variables) when conditions match.
@@ -138,7 +138,7 @@ Acceptance:
 Acceptance:
 - Debugging transitions (suspend/resume/stop) correctly switch sidebar item set.
 
-### Phase 4: Code sidebar policy rollout
+### ⏳ Phase 4: Code sidebar policy rollout
 
 1. Implement code-focused sidebar policies:
    - `.script` views emit structure + properties pane descs

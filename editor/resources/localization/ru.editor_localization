@@ -584,6 +584,8 @@ pane.curve-editor = Редактор Кривых
 pane.build-errors = Ошибки Сборки
 pane.search-results = Результаты Поиска
 pane.breakpoints = Точки останова
+pane.debugger.call-stack = Стек Вызовов
+pane.debugger.variables = Переменные
 
 # Assets
 

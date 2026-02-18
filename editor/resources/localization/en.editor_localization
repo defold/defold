@@ -584,6 +584,8 @@ pane.curve-editor = Curve Editor
 pane.build-errors = Build Errors
 pane.search-results = Search Results
 pane.breakpoints = Breakpoints
+pane.debugger.call-stack = Call Stack
+pane.debugger.variables = Variables
 
 # Assets
 

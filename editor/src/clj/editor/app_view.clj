@@ -306,12 +306,19 @@
                 :anchor-pane/top 0.0
                 :anchor-pane/bottom 0.0)]})
 
-(g/defnk produce-active-sidebar [active-view open-sidebar-panes ^:try outline-pane-desc ^:try properties-pane-desc]
-  (coll/into-> (get open-sidebar-panes active-view) []
-    (map #(case %
-            :outline outline-pane-desc
-            :properties properties-pane-desc
-            %))))
+(defn- debuggable-resource?
+  [resource]
+  (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
+
+(g/defnk produce-active-sidebar
+  [active-view active-resource open-sidebar-panes debugger-sidebar-panes ^:try outline-pane-desc ^:try properties-pane-desc]
+  (if (and debugger-sidebar-panes (debuggable-resource? active-resource))
+    debugger-sidebar-panes
+    (coll/into-> (get open-sidebar-panes active-view) []
+      (map #(case %
+              :outline outline-pane-desc
+              :properties properties-pane-desc
+              %)))))
 
 (g/defnk produce-right-split-desc [right-split active-sidebar]
   {:fx/type fxui/ext-dedupe-identical-desc
@@ -350,6 +357,7 @@
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
+  (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
 
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
