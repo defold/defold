@@ -138,7 +138,7 @@ Acceptance:
 Acceptance:
 - Debugging transitions (suspend/resume/stop) correctly switch sidebar item set.
 
-### ⏳ Phase 4: LSP structure sync plumbing
+### ✅ Phase 4: LSP structure sync plumbing
 
 1. Implement `documentSymbol` synchronization in the LSP manager for viewed code resources.
 2. Keep structure state up to date on open and on text changes (including typing), with debounce and stale-response protection.
@@ -164,6 +164,15 @@ Acceptance:
 - Other code resources show `Structure` only.
 - Structure pane content stays synchronized with typed edits.
 - Policy switching works by active tab without debugger regressions.
+
+
+### LEFTOVER TODOS
+
+1. ✅ Use fake title panes everywhere
+2. Outline tree view still may be positioned wrong!
+2. Selection/containment sync
+3. Solve outline commands situation when the outline view is hidden.... when outline is not shown, we delete the resource node instead of deleting text!! super crazy behavior! outline view is currently expected to always be updated!
+4. Take a single symbols from responses, if error, keep old.
 
 ## Code Touchpoints
 

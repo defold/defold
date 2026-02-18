@@ -1037,6 +1037,18 @@
       resolve-label-color
       resolve-tooltip))
 
+(defn titled-pane
+  "Fake titled pane as a simple vbox with a title label and growing content."
+  [{:keys [title content] :as props}]
+  (-> props
+      (dissoc :title :content)
+      (assoc :fx/type vertical
+             :children [{:fx/type label
+                         :style-class "fake-titled-pane-label"
+                         :text title}
+                        (assoc content :v-box/vgrow :always)])
+      (add-style-classes "fake-titled-pane")))
+
 (defn resolve-input-color [props]
   (let [color (:color props ::not-found)]
     (case color

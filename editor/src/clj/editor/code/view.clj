@@ -28,7 +28,6 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text-field :as fx.text-field]
-            [cljfx.fx.titled-pane :as fx.titled-pane]
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.tree-view :as fx.tree-view]
@@ -1360,10 +1359,8 @@
                                (conj {:fx/type fxui/label :text detail :color :hint}))}})
 
 (defn structure-pane [{:keys [document-symbols]}]
-  {:fx/type fx.titled-pane/lifecycle
-   :animated false
-   :collapsible false
-   :text "Structure" ;; todo localize
+  {:fx/type fxui/titled-pane
+   :title "Structure" ;; todo localize
    :content {:fx/type fx.tree-view/lifecycle
              :show-root false
              :cell-factory {:fx/cell-type fx.tree-cell/lifecycle

@@ -14,11 +14,8 @@
 
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
-            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.label :as fx.label]
             [cljfx.fx.slider :as fx.slider]
-            [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -767,23 +764,14 @@
 (fxui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state context selected-node-properties]}]
-  {:fx/type fx.v-box/lifecycle
-   :style-class ["fake-titled-pane"]
-   :children [{:fx/type fx.label/lifecycle
-               :style-class ["fake-titled-pane-label"]
-               :text (localization-state properties-message)}
-              {:fx/type fx.anchor-pane/lifecycle
-               :v-box/vgrow :always
-               :id "properties"
-               :children [{:fx/type fxui/scroll
-                           :anchor-pane/top 0.0
-                           :anchor-pane/bottom 0.0
-                           :anchor-pane/left 0.0
-                           :anchor-pane/right 0.0
-                           :content {:fx/type grid-view
-                                     :localization-state localization-state
-                                     :context context
-                                     :properties selected-node-properties}}]}]})
+  {:fx/type fxui/titled-pane
+   :title (localization-state properties-message)
+   :content {:fx/type fxui/scroll
+             :id "properties"
+             :content {:fx/type grid-view
+                       :localization-state localization-state
+                       :context context
+                       :properties selected-node-properties}}})
 
 (g/defnk produce-pane-desc
   [workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]

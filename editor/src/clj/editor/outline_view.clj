@@ -15,7 +15,6 @@
 (ns editor.outline-view
   (:require [cljfx.api :as fx]
             [cljfx.ext.tree-view :as fx.ext.tree-view]
-            [cljfx.fx.titled-pane :as fx.titled-pane]
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -269,10 +268,8 @@
 (fxui/defc outline-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state] :as props}]
-  {:fx/type fx.titled-pane/lifecycle
-   :animated false
-   :collapsible false
-   :text (localization-state outline-message)
+  {:fx/type fxui/titled-pane
+   :title (localization-state outline-message)
    :content (assoc props :fx/type outline-tree-view)})
 
 (g/defnk produce-pane-desc

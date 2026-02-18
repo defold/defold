@@ -18,7 +18,6 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
-            [cljfx.fx.titled-pane :as fx.titled-pane]
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-view :as fx.tree-view]
             [clojure.java.io :as io]
@@ -130,10 +129,8 @@
 (fxui/defc call-stack-pane
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [call-stack-view localization-state]}]
-  {:fx/type fx.titled-pane/lifecycle
-   :animated false
-   :collapsible false
-   :text (localization-state call-stack-pane-label)
+  {:fx/type fxui/titled-pane
+   :title (localization-state call-stack-pane-label)
    :content {:fx/type ext-with-list-view-props
              :desc {:fx/type fxui/ext-value
                     :value call-stack-view}
@@ -152,10 +149,8 @@
 (fxui/defc variables-pane
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [variables-view localization-state]}]
-  {:fx/type fx.titled-pane/lifecycle
-   :animated false
-   :collapsible false
-   :text (localization-state variables-pane-label)
+  {:fx/type fxui/titled-pane
+   :title (localization-state variables-pane-label)
    :content {:fx/type ext-with-tree-view-props
              :desc {:fx/type fxui/ext-value
                     :value variables-view}
