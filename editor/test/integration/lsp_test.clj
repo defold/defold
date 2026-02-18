@@ -177,6 +177,7 @@
 
 (g/defnode LSPViewNode
   (property diagnostics g/Any (default []))
+  (property document-symbols g/Any (default []))
   (property completion-trigger-characters g/Any (default #{})))
 
 (deftest start-open-order-test

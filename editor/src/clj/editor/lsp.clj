@@ -389,6 +389,43 @@
   (and (capability-open-close? capabilities)
        (not= :none (text-sync-kind capabilities))))
 
+(defn- document-symbol-refresh-debounce-id [resource]
+  (pair ::lsp.server/document-symbol resource))
+
+(defn- set-view-document-symbols [resource document-symbols]
+  (bound-fn [state]
+    (when-let [view-node (-> state :resource->view-node (get resource))]
+      (ui/run-later
+        (g/transact
+          (g/set-property view-node :document-symbols document-symbols))))
+    state))
+
+(defn- request-document-symbols [state resource]
+  (let [{:keys [in]} state
+        responses-ch (a/chan 1 cat)]
+    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
+    (send-requests!
+      state responses-ch
+      :capabilities-pred :document-symbol
+      :language (resource/language resource)
+      :requests [(lsp.server/document-symbols resource)]
+      :timeout-ms 3000)))
+
+(defn- schedule-debounce [state id timeout-ms f]
+  {:pre [(some? id) (pos-int? timeout-ms) (ifn? f)]}
+  (let [{:keys [debounce]} state]
+    (some-> (debounce id) a/close!)
+    (let [cancel-ch (a/chan)]
+      (a/go
+        (let [[_ ch] (a/alts! [(a/timeout timeout-ms) cancel-ch])]
+          (when-not (identical? ch cancel-ch)
+            (>! (:in state)
+                (bound-fn invoke-after-debounce [state]
+                  (if (identical? cancel-ch ((:debounce state) id))
+                    (f (update state :debounce dissoc id))
+                    state))))))
+      (assoc state :debounce (assoc debounce id cancel-ch)))))
+
 (defn- notify-interested-servers!
   [state resource & {:keys [message-fn message capabilities-pred]
                      :or {capabilities-pred any?}}]
@@ -426,7 +463,12 @@
                         (case (text-sync-kind capabilities)
                           :incremental @incremental-change-delay
                           :full @full-text-change-delay)))
-        (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})))))
+        (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
+                (resource-viewed? state resource)
+                (schedule-debounce
+                  (document-symbol-refresh-debounce-id resource)
+                  300
+                  #(request-document-symbols % resource)))))))
 
 (defn- close-resource! [state resource]
   {:pre [(resource-open? state resource)]}
@@ -491,21 +533,6 @@
 (defn- cancel-debounce-fns! [state]
   (run! a/close! (vals (:debounce state)))
   (assoc state :debounce {}))
-
-(defn- schedule-debounce [state id timeout-ms f]
-  {:pre [(some? id) (pos-int? timeout-ms) (ifn? f)]}
-  (let [{:keys [debounce]} state]
-    (some-> (debounce id) a/close!)
-    (let [cancel-ch (a/chan)]
-      (a/go
-        (let [[_ ch] (a/alts! [(a/timeout timeout-ms) cancel-ch])]
-          (when-not (identical? ch cancel-ch)
-            (>! (:in state)
-                (bound-fn invoke-after-debounce [state]
-                  (if (identical? cancel-ch ((:debounce state) id))
-                    (f (update state :debounce dissoc id))
-                    state))))))
-      (assoc state :debounce (assoc debounce id cancel-ch)))))
 
 (s/def ::new-servers (s/coll-of ::server :kind set?))
 
@@ -619,25 +646,6 @@
   [lsp new-servers]
   (lsp (set-servers new-servers)))
 
-(defn- set-view-document-symbols [resource document-symbols]
-  (bound-fn [state]
-    (when-let [view-node (-> state :resource->view-node (get resource))]
-      (ui/run-later
-        (g/transact
-          (g/set-property view-node :document-symbols document-symbols))))
-    state))
-
-(defn- request-document-symbols [state resource]
-  (let [{:keys [in]} state
-        responses-ch (a/chan 1 cat)]
-    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
-    (send-requests!
-      state responses-ch
-      :capabilities-pred :document-symbol
-      :language (resource/language resource)
-      :requests [(lsp.server/document-symbols resource)]
-      :timeout-ms 3000)))
-
 (defn- do-open-view [state view-node resource lines]
   (if (resource-viewed? state resource)
     state
@@ -658,12 +666,21 @@
   [lsp view-node resource lines]
   (lsp #(do-open-view % view-node resource lines)))
 
+(defn- cancel-document-symbols-refresh [state resource]
+  (let [{:keys [debounce]} state
+        debounce-id (document-symbol-refresh-debounce-id resource)]
+    (if-let [cancel-ch (debounce debounce-id)]
+      (do (a/close! cancel-ch)
+          (assoc state :debounce (dissoc debounce debounce-id)))
+      state)))
+
 (defn- do-close-view [state view-node]
   (let [resource (get-in state [:view-node->resource view-node])]
     (if (resource-viewed? state resource)
       (-> state
           (update :resource->view-node dissoc resource)
           (update :view-node->resource dissoc view-node)
+          (cancel-document-symbols-refresh resource)
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
@@ -991,17 +1008,6 @@
     @p))
 
 (comment
-
-  (let [resource (g/node-value (dev/active-resource) :resource)]
-    ((g/graph-value 1 :lsp) (fn [state]
-                              (let [ch (a/chan 1)]
-                                (a/take! ch tap>)
-                                (send-requests!
-                                  state ch
-                                  :capabilities-pred :document-symbol
-                                  :language (resource/language resource)
-                                  :timeout-ms 10000
-                                  :requests [(lsp.server/document-symbols resource)])))))
 
   (val (first @running-lsps))
   ;; Restart all servers:
