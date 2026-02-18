@@ -1319,6 +1319,7 @@
                                                                 (remove (:ignored-completion-trigger-characters grammar #{})))
                                                               [completion-trigger-characters
                                                                (:completion-trigger-characters grammar)])))
+  (property document-symbols g/Any (default []) (dynamic visible (g/constantly false)))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))

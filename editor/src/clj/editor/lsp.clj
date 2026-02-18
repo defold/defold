@@ -232,6 +232,57 @@
             (server-response-update-state (:result response) server state))))
       state)))
 
+(defn- cancel-requests [responses-ch servers]
+  (fn [{:keys [server->server-state requests] :as state}]
+    ;; The request might be absent if all servers responded before the timeout.
+    (if (contains? requests responses-ch)
+      (do
+        (a/close! responses-ch)
+        (reduce
+          (fn [state server]
+            ;; The server might be absent if it died before the timeout
+            (if (contains? server->server-state server)
+              ;; Also, the server might be restarted by now, which means it's
+              ;; not guaranteed that it will have responses-ch in its requests
+              ;; map, but it's not a problem for dissoc
+              (update-in state [:server->server-state server :requests] dissoc responses-ch)
+              state))
+          (assoc state :requests (dissoc requests responses-ch))
+          servers))
+      state)))
+
+(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms]
+                                             :or {capabilities-pred any?}}]
+  {:pre [(not= (some? requests) (some? requests-fn))
+         (pos-int? timeout-ms)
+         (not (contains? (:requests state) responses-ch))]}
+  (let [requests-fn (or requests-fn (constantly requests))
+        server->requests (->> state
+                              :server->server-state
+                              (eduction
+                                (mapcat
+                                  (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
+                                    (when (and (= :running status)
+                                               (capabilities-pred capabilities)
+                                               (or (nil? language) (contains? languages language)))
+                                      (eduction
+                                        (map #(pair server %))
+                                        (requests-fn server server-state))))))
+                              (util/group-into {} [] key val))]
+    (if (zero? (count server->requests))
+      (do (a/close! responses-ch) state)
+      (do
+        (doseq [[server requests] server->requests
+                request requests]
+          (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch)))
+        (a/go
+          (<! (a/timeout timeout-ms))
+          (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
+        (reduce-kv (fn [state server requests]
+                     (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
+                   (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
+                   server->requests)))))
+
 (s/def ::chan lsp.async/chan?)
 (s/def :editor.lsp.server-state/diagnostics (s/nilable (s/map-of ::resource ::lsp.server/diagnostics-result)))
 (s/def :editor.lsp.server-state/capabilities ::lsp.server/capabilities)
@@ -699,57 +750,6 @@
    (get-node-lsp (g/now) node))
   ([basis node]
    (get-graph-lsp basis (g/node-id->graph-id node))))
-
-(defn- cancel-requests [responses-ch servers]
-  (fn [{:keys [server->server-state requests] :as state}]
-    ;; The request might be absent if all servers responded before the timeout.
-    (if (contains? requests responses-ch)
-      (do
-        (a/close! responses-ch)
-        (reduce
-          (fn [state server]
-            ;; The server might be absent if it died before the timeout
-            (if (contains? server->server-state server)
-              ;; Also, the server might be restarted by now, which means it's
-              ;; not guaranteed that it will have responses-ch in its requests
-              ;; map, but it's not a problem for dissoc
-              (update-in state [:server->server-state server :requests] dissoc responses-ch)
-              state))
-          (assoc state :requests (dissoc requests responses-ch))
-          servers))
-      state)))
-
-(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms]
-                                             :or {capabilities-pred any?}}]
-  {:pre [(not= (some? requests) (some? requests-fn))
-         (pos-int? timeout-ms)
-         (not (contains? (:requests state) responses-ch))]}
-  (let [requests-fn (or requests-fn (constantly requests))
-        server->requests (->> state
-                              :server->server-state
-                              (eduction
-                                (mapcat
-                                  (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
-                                    (when (and (= :running status)
-                                               (capabilities-pred capabilities)
-                                               (or (nil? language) (contains? languages language)))
-                                      (eduction
-                                        (map #(pair server %))
-                                        (requests-fn server server-state))))))
-                              (util/group-into {} [] key val))]
-    (if (zero? (count server->requests))
-      (do (a/close! responses-ch) state)
-      (do
-        (doseq [[server requests] server->requests
-                request requests]
-          (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch)))
-        (a/go
-          (<! (a/timeout timeout-ms))
-          (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
-        (reduce-kv (fn [state server requests]
-                     (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
-                   (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
-                   server->requests)))))
 
 (defn- notify-workspace-diagnostics-callback! [resources callback]
   (fn [state]
