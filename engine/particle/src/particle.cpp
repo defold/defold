@@ -1334,13 +1334,12 @@ namespace dmParticle
                 particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
             }
 
-            Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
-            Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
-            Vector3 x       = dmTransform::Apply(particle_transform, x_local);
-            Vector3 y       = dmTransform::Apply(particle_transform, y_local);
-
             if (material_attribute_info_meta.m_HasAttributeWorldPosition)
             {
+                Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
+                Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
+                Vector3 x       = dmTransform::Apply(particle_transform, x_local);
+                Vector3 y       = dmTransform::Apply(particle_transform, y_local);
                 position_world_flat[0] = -x - y + particle_transform.GetTranslation();
                 position_world_flat[1] = -x + y + particle_transform.GetTranslation();
                 position_world_flat[2] = x + y + particle_transform.GetTranslation();
@@ -1351,11 +1350,14 @@ namespace dmParticle
 
             if (material_attribute_info_meta.m_HasAttributeLocalPosition)
             {
-                position_local_flat[0] = -x - y;
-                position_local_flat[1] = -x + y;
-                position_local_flat[2] = x + y;
+                // Pixel local coordinates (like sprites): apply size to local extents
+                Vector3 x_local_pixel = Vector3(width_factor * size.getX(), 0.0f, 0.0f);
+                Vector3 y_local_pixel = Vector3(0.0f, height_factor * size.getY(), 0.0f);
+                position_local_flat[0] = -x_local_pixel - y_local_pixel;
+                position_local_flat[1] = -x_local_pixel + y_local_pixel;
+                position_local_flat[2] = x_local_pixel + y_local_pixel;
                 position_local_flat[3] = position_local_flat[2];
-                position_local_flat[4] = x - y;
+                position_local_flat[4] = x_local_pixel - y_local_pixel;
                 position_local_flat[5] = position_local_flat[0];
             }
 
