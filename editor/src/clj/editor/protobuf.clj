@@ -35,7 +35,7 @@ Macros currently mean no foreseeable performance gain, however."
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
            [java.nio.charset StandardCharsets]
-           [java.util Collection]
+           [java.util Collection Map]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
@@ -79,6 +79,46 @@ Macros currently mean no foreseeable performance gain, however."
   (and (class? value)
        (not= Message value)
        (.isAssignableFrom Message value)))
+
+(declare underscores-to-camel-case)
+
+(defn- pb-desc-class-name-raw
+  ^String [^Descriptors$Descriptor desc]
+  (if-some [containing-desc (.getContainingType desc)]
+    (.intern (str (pb-desc-class-name-raw containing-desc) "$" (.getName desc)))
+    (let [file-desc (.getFile desc)
+          file-options (.getOptions file-desc)
+          package-name (.getJavaPackage file-options)
+          class-name (.getName desc)
+
+          ;; The rules around auto-generated outer class names have changed in
+          ;; Protobuf Edition 2024. We might need to revise our fallback code in
+          ;; case we upgrade. Luckily, we specify it explicitly in most cases.
+          ;; See: https://protobuf.dev/reference/java/java-proto-names/
+          outer-class-name
+          (or (not-empty (.getJavaOuterClassname file-options))
+              (-> file-desc .getName FilenameUtils/getBaseName underscores-to-camel-case))]
+
+      (.intern (str package-name "." outer-class-name "$" class-name)))))
+
+(def ^String pb-desc-class-name (fn/memoize pb-desc-class-name-raw))
+
+(defn- pb-desc-class-raw
+  ^Class [^Descriptors$Descriptor desc]
+  (let [class-name (pb-desc-class-name desc)]
+    (Class/forName class-name)))
+
+(def ^Class pb-desc-class (fn/memoize pb-desc-class-raw))
+
+(defn pb-field-desc-class-raw
+  ^Class [^Descriptors$FieldDescriptor field-desc]
+  ;; TODO(protobuf-maps): We might not be able to call .getDefaultValue on
+  ;; required fields or optional fields without a declared default.
+  (if (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+    (pb-desc-class (.getMessageType field-desc))
+    (class (.getDefaultValue field-desc))))
+
+(def pb-field-desc-class (fn/memoize pb-field-desc-class-raw))
 
 (defn- new-builder
   ^Message$Builder [^Class cls]
@@ -137,29 +177,50 @@ Macros currently mean no foreseeable performance gain, however."
 (defn pb-enum->int ^long [val-or-desc]
   (-> val-or-desc as-enum-desc .getNumber))
 
-(defn- pb-primitive->clj-fn [field-type-key]
-  (case field-type-key
+(defn- pb-primitive->clj-fn [value-type-kw]
+  (case value-type-kw
     :enum pb-enum->val
     :bool boolean ; Java reflection returns unique Boolean instances. We want either Boolean/TRUE or Boolean/FALSE.
     :message (throw (IllegalArgumentException. "Non-primitive protobuf types are not supported."))
     identity))
 
-(defn- pb-primitive->clj [pb-value field-type-key]
-  (let [pb-value->clj (pb-primitive->clj-fn field-type-key)]
+(defn- pb-primitive->clj [pb-value value-type-kw]
+  (let [pb-value->clj (pb-primitive->clj-fn value-type-kw)]
     (pb-value->clj pb-value)))
 
 (declare ^:private pb->clj-fn)
-
-(defn- pb-value->clj-fn [{:keys [field-type-key] :as field-info} default-included-field-rules]
-  (let [pb-value->clj
-        (case field-type-key
-          :message (pb->clj-fn (:type field-info) default-included-field-rules)
-          (pb-primitive->clj-fn field-type-key))]
-    (if (not= :repeated (:field-rule field-info))
-      pb-value->clj
-      (fn repeated-pb-value->clj [^Collection values]
+(defn- pb-value->clj-fn [field-info default-included-field-rules]
+  (case (:field-kind field-info)
+    :pb-field-kind/list
+    (let [{:keys [value-class value-type-kw]} field-info
+          value->clj (case value-type-kw
+                       :message (pb->clj-fn value-class default-included-field-rules)
+                       (pb-primitive->clj-fn value-type-kw))]
+      (fn repeated-pb-value->clj-vector [^Collection values]
         (when-not (.isEmpty values)
-          (mapv pb-value->clj values))))))
+          (mapv value->clj values))))
+
+    :pb-field-kind/map
+    ;; The key type can any scalar type except for floating point types and
+    ;; bytes. Neither enum nor proto messages are valid key types. The value
+    ;; type can be any type except another map. Ordering of map values is
+    ;; undefined but sorted by key in text-based file formats.
+    (let [{:keys [key-type-kw value-class value-type-kw]} field-info
+          key->clj (pb-primitive->clj-fn key-type-kw)
+          value->clj (case value-type-kw
+                       :message (pb->clj-fn value-class default-included-field-rules)
+                       (pb-primitive->clj-fn value-type-kw))
+          entry->clj (coll/pair-fn key->clj value->clj)]
+      (fn map-pb-value->clj-map [^Map entries]
+        (when-not (.isEmpty entries)
+          (coll/into-> entries {}
+            (map entry->clj)))))
+
+    (:pb-field-kind/optional :pb-field-kind/required)
+    (let [{:keys [value-class value-type-kw]} field-info]
+      (case value-type-kw
+        :message (pb->clj-fn value-class default-included-field-rules)
+        (pb-primitive->clj-fn value-type-kw)))))
 
 (def ^:private methods-by-name
   (fn/memoize
@@ -223,12 +284,7 @@ Macros currently mean no foreseeable performance gain, however."
           (.getField field-options runtime-only-desc)
           (assoc :runtime-only true)))
 
-(defn field-value-class [^Class class ^Descriptors$FieldDescriptor field-desc]
-  (let [java-name (underscores-to-camel-case (.getName field-desc))
-        field-accessor-name (str "get" java-name)]
-    (.getReturnType (lookup-method class field-accessor-name))))
-
-(def ^:private field-type->key
+(def ^:private pb-field-type->field-type-kw
   {Descriptors$FieldDescriptor$Type/BOOL :bool
    Descriptors$FieldDescriptor$Type/BYTES :bytes
    Descriptors$FieldDescriptor$Type/DOUBLE :double
@@ -247,6 +303,15 @@ Macros currently mean no foreseeable performance gain, however."
    Descriptors$FieldDescriptor$Type/STRING :string
    Descriptors$FieldDescriptor$Type/UINT32 :uint-32
    Descriptors$FieldDescriptor$Type/UINT64 :uint-64})
+
+(defn field-type-default [field-type-kw]
+  (case field-type-kw
+    (:bool) Boolean/FALSE
+    (:double) (Double/valueOf 0.0)
+    (:float) (Float/valueOf (float 0.0))
+    (:int-32 :sfixed-32 :sint-32 :uint-32) (Integer/valueOf 0)
+    (:int-64 :sfixed-64 :sint-64 :uint-64) (Long/valueOf 0)
+    (:string) ""))
 
 (defn- field-get-method-raw
   ^Method [^Class cls java-name repeated]
@@ -279,33 +344,71 @@ Macros currently mean no foreseeable performance gain, however."
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field-desc]
                  (let [field-key (field->key field-desc)
-                       field-rule (cond (.isRepeated field-desc) :repeated
-                                        (.isRequired field-desc) :required
-                                        (.isOptional field-desc) :optional
+                       is-map-field (.isMapField field-desc)
+                       is-repeated-field (.isRepeated field-desc)
+                       is-optional-field (.isOptional field-desc)
+                       is-required-field (.isRequired field-desc)
+                       field-kind (cond is-map-field :pb-field-kind/map
+                                        is-repeated-field :pb-field-kind/list
+                                        is-optional-field :pb-field-kind/optional
+                                        is-required-field :pb-field-kind/required
                                         :else (assert false))
-                       field-type-key (field-type->key (.getType field-desc))
-                       default (when (not= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-                                 (pb-primitive->clj (.getDefaultValue field-desc) field-type-key))
-                       declared-default (when (.hasDefaultValue field-desc)
-                                          default)]
+                       ;; TODO(protobuf-maps): Remove field-rule once everything has been ported to field-kind.
+                       field-rule (cond is-repeated-field :repeated
+                                        is-required-field :required
+                                        is-optional-field :optional
+                                        :else (assert false))
+
+                       [key-info value-info]
+                       (if (.isMapField field-desc)
+                         (let [map-entry-desc (.getMessageType field-desc)
+                               key-field-desc (.findFieldByName map-entry-desc "key")
+                               value-field-desc (.findFieldByName map-entry-desc "value")
+                               key-info {:key-type-kw (pb-field-type->field-type-kw (.getType key-field-desc))
+                                         :key-class (pb-field-desc-class key-field-desc)}
+                               value-info {:value-type-kw (pb-field-type->field-type-kw (.getType value-field-desc))
+                                           :value-class (pb-field-desc-class value-field-desc)}]
+                           (pair key-info value-info))
+                         (let [value-type-kw (pb-field-type->field-type-kw (.getType field-desc))
+                               value-info (cond-> {:value-type-kw value-type-kw
+                                                   :value-class (pb-field-desc-class field-desc)}
+                                                  (.hasDefaultValue field-desc) ; Declared default in .proto file. Optional primitive fields only.
+                                                  (assoc :value-default (pb-primitive->clj (.getDefaultValue field-desc) value-type-kw)))]
+                           (pair nil value-info)))]
+
                    (pair field-key
-                         {:type (field-value-class cls field-desc)
-                          :java-name (underscores-to-camel-case (.getName field-desc))
-                          :field-type-key field-type-key
-                          :field-rule field-rule
-                          :default default
-                          :declared-default declared-default
-                          :options (options (.getOptions field-desc))}))))
+                         (coll/merge
+                           key-info
+                           value-info
+                           {:java-name (underscores-to-camel-case (.getName field-desc))
+                            :field-kind field-kind
+                            :field-rule field-rule
+                            :options (options (.getOptions field-desc))})))))
           (.getFields desc))))
 
 (def field-infos (fn/memoize field-infos-raw))
 
 (defn resource-field? [field-info]
-  (and (= :string (:field-type-key field-info))
-       (true? (:resource (:options field-info)))))
+  (case (:field-kind field-info)
+    (:pb-field-kind/list :pb-field-kind/optional :pb-field-kind/required)
+    (and (= :string (:value-type-kw field-info))
+         (true? (:resource (:options field-info))))
+
+    (:pb-field-kind/map)
+    false))
 
 (defn message-field? [field-info]
-  (= :message (:field-type-key field-info)))
+  (case (:field-kind field-info)
+    (:pb-field-kind/list :pb-field-kind/optional :pb-field-kind/required)
+    (= :message (:value-type-kw field-info))
+
+    (:pb-field-kind/map)
+    false))
+
+(defn map-field? [field-info]
+  (case (:field-kind field-info)
+    (:pb-field-kind/list :pb-field-kind/optional :pb-field-kind/required) false
+    (:pb-field-kind/map) true))
 
 (def field-key-set
   "Returns the set of field keywords applicable to the supplied protobuf Class."
@@ -313,7 +416,7 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn- declared-default [^Class cls field]
   (if-some [field-info (get (field-infos cls) field)]
-    (:declared-default field-info)
+    (:value-default field-info)
     (throw (ex-info (format "Field '%s' does not exist in protobuf class '%s'."
                             field
                             (.getName cls))
@@ -366,6 +469,18 @@ Macros currently mean no foreseeable performance gain, however."
       repeated ResourceRepeated repeateds = 1;
   }
 
+  message ResourceSimpleMapNested {
+    map<string, ResourceSimple> simples = 1;
+  }
+
+  message ResourceDefaultedMapNested {
+      map<string, ResourceDefaulted> defaulteds = 1;
+  }
+
+  message ResourceRepeatedMapNested {
+      map<string, ResourceRepeated> repeateds = 1;
+  }
+
   (resource-field-path-specs-raw ResourceSimple)    => [ [:image] ]
   (resource-field-path-specs-raw ResourceDefaulted) => [ [{:image '/default.png'}] ]
   (resource-field-path-specs-raw ResourceRepeated)  => [ [[:images]] ]
@@ -376,23 +491,42 @@ Macros currently mean no foreseeable performance gain, however."
 
   (resource-field-path-specs-raw ResourceSimpleRepeatedlyNested)    => [ [[:simples] :image] ]
   (resource-field-path-specs-raw ResourceDefaultedRepeatedlyNested) => [ [[:defaulteds] {:image '/default.png'}] ]
-  (resource-field-path-specs-raw ResourceRepeatedRepeatedlyNested)  => [ [[:repeateds] [:images]] ]"
+  (resource-field-path-specs-raw ResourceRepeatedRepeatedlyNested)  => [ [[:repeateds] [:images]] ]
+
+  (resource-field-path-specs-raw ResourceSimpleMapNested)    => [ [#{:simples} :image] ]
+  (resource-field-path-specs-raw ResourceDefaultedMapNested) => [ [#{:defaulteds} {:image '/default.png'}] ]
+  (resource-field-path-specs-raw ResourceRepeatedMapNested)  => [ [#{:repeateds} [:images]] ]"
   [^Class class]
   (into []
         (comp
           (map (fn [[key field-info]]
                  (cond
                    (resource-field? field-info)
-                   (case (:field-rule field-info)
-                     :repeated [[[key]]]
-                     :required [[key]]
-                     :optional (if-some [field-default (declared-default class key)]
-                                 [[{key field-default}]]
-                                 [[key]]))
+                   (case (:field-kind field-info)
+                     :pb-field-kind/list
+                     [[[key]]]
+
+                     :pb-field-kind/map
+                     (assert false "Protobuf map fields cannot be resource fields.")
+
+                     :pb-field-kind/optional
+                     (if-some [field-default (:value-default field-info)]
+                       [[{key field-default}]]
+                       [[key]])
+
+                     :pb-field-kind/required
+                     [[key]])
+
+                   (map-field? field-info)
+                   ;; No need to look at keys since they can't be messages.
+                   (let [sub-paths (resource-field-path-specs (:value-class field-info))]
+                     (when-not (coll/empty? sub-paths)
+                       (let [prefix [#{key}]]
+                         (mapv (partial into prefix) sub-paths))))
 
                    (message-field? field-info)
-                   (let [sub-paths (resource-field-path-specs (:type field-info))]
-                     (when (seq sub-paths)
+                   (let [sub-paths (resource-field-path-specs (:value-class field-info))]
+                     (when-not (coll/empty? sub-paths)
                        (let [prefix (if (= :repeated (:field-rule field-info))
                                       [[key]]
                                       [key])]
@@ -470,7 +604,19 @@ Macros currently mean no foreseeable performance gain, however."
                         (fn [index repeated-field-value]
                           (let [field-path (conj field-path index)]
                             (sub-path-fn field-path repeated-field-value))))
-                      repeated-field-values)))))))))
+                      repeated-field-values))))
+
+          (set? field-path-spec-token)
+          (let [field (first field-path-spec-token)]
+            (fn [field-path pb-map]
+              (let [field-path (conj field-path field)
+                    map-entries (get pb-map field)]
+                (into []
+                      (coll/mapcat
+                        (fn [[map-key map-value]]
+                          (let [field-path (conj field-path map-key)]
+                            (sub-path-fn field-path map-value))))
+                      map-entries)))))))))
 
 (def ^:private get-field-value-path-fn (fn/memoize get-field-value-path-fn-raw))
 
@@ -508,6 +654,7 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- pb->clj-fn-raw [^Class class default-included-field-rules]
   {:pre [(set? default-included-field-rules)
          (every? #{:optional :required} default-included-field-rules)]}
+  ;; TODO(protobuf-maps): Convert to field-kind and support map fields.
   (make-pb->clj-fn
     (mapv (fn [[field-key {:keys [field-rule java-name] :as field-info}]]
             (let [pb-value->clj (pb-value->clj-fn field-info default-included-field-rules)
@@ -520,7 +667,7 @@ Macros currently mean no foreseeable performance gain, however."
                            (= :optional field-rule)
                            (message-field? field-info))
                       (let [field-has-value? (field-has-value-fn class java-name repeated)
-                            default-field-value (default-message (:type field-info) default-included-field-rules)]
+                            default-field-value (default-message (:value-class field-info) default-included-field-rules)]
                         (fn pb->field-clj-value [pb]
                           (if (field-has-value? pb)
                             (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
@@ -1259,8 +1406,13 @@ Macros currently mean no foreseeable performance gain, however."
     (keep (fn [[key value :as entry]]
             (when (some? value)
               (let [field-info (key->field-info key)]
-                (case (:field-rule field-info)
-                  :optional
+                (case (:field-kind field-info)
+                  :pb-field-kind/map
+                  (when (and (not (coll/empty? value))
+                             (not= (key->default key) value))
+                    entry)
+
+                  :pb-field-kind/optional
                   (when (if (resource-field? field-info)
                           (if (= "" value)
                             (not= "" (key->default key))
@@ -1270,7 +1422,7 @@ Macros currently mean no foreseeable performance gain, however."
                                    (= (key->default key) value))))
                     entry)
 
-                  :repeated
+                  :pb-field-kind/list
                   (when (and (not (coll/empty? value))
                              (not= (key->default key) value))
                     (let [as-vec (vec value)]
@@ -1278,7 +1430,7 @@ Macros currently mean no foreseeable performance gain, however."
                         entry
                         (pair key as-vec))))
 
-                  :required
+                  :pb-field-kind/required
                   (when-not (and (message-field? field-info)
                                  (coll/empty? value))
                     entry)
@@ -1390,3 +1542,51 @@ Macros currently mean no foreseeable performance gain, however."
 
               (text-util/string->text-match re-pattern)
               (assoc :value value)))))
+
+;; TODO(protobuf-maps): Remove!
+(comment
+  (let [^Class struct-pb-class
+        com.dynamo.proto.DdfStruct$Struct
+
+        ;; Struct
+        struct-desc (pb-class->descriptor struct-pb-class)
+
+        ;; Struct.fields
+        struct-fields-field-desc (first (.getFields struct-desc))
+
+        ;; Struct$FieldEntry
+        struct-fields-entry-desc (.getMessageType struct-fields-field-desc)
+
+        ;; Struct$FieldEntry.key
+        key-field-desc (.findFieldByName struct-fields-entry-desc "key")
+
+        ;; Struct$FieldEntry.value
+        value-field-desc (.findFieldByName struct-fields-entry-desc "value")
+
+        ;; Struct$Value
+        value-desc (.getMessageType value-field-desc)]
+
+    (pb-field-desc-class value-field-desc)))
+
+;; TODO(protobuf-maps): Remove!
+(comment
+  (pb-class->descriptor com.defold.editor.test.TestDdf$SubMsg)
+  (pb-desc-class-name (pb-class->descriptor com.defold.editor.test.TestDdf$SubMsg))
+
+  (slurp "test/resources/save_data_project/checked01.light")
+
+  (let [bad-class com.dynamo.proto.DdfStruct
+        pb-class com.dynamo.proto.DdfStruct$Struct
+        fields-field-info (:fields (field-infos-raw pb-class))
+        content (slurp "test/resources/save_data_project/checked01.light")]
+
+    (str->map-without-defaults com.dynamo.gamesys.proto.GameSystem$LightDesc content)
+
+    (with-open [reader (StringReader. content)]
+      (let [light-desc (read-pb com.dynamo.gamesys.proto.GameSystem$LightDesc reader)
+            struct (.getData light-desc)]
+        (-> (.getFields struct)
+            (coll/into-> {}
+              (map (fn [[key value]]
+                     [(keyword key)
+                      value]))))))))

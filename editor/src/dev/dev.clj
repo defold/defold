@@ -71,7 +71,7 @@
   (:import [com.defold.util WeakInterner]
            [com.dynamo.bob Platform]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
-           [com.google.protobuf Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
            [editor.code.data Cursor CursorRange]
            [editor.gl.pass RenderPass]
            [editor.gl.vertex2 VertexBuffer]
@@ -1323,26 +1323,56 @@
                    (build-output-infos->diff-data bob-build-output-infos)
                    opts))))
 
-(defn pb-class-info
-  ([^Class pb-class]
-   (pb-class-info pb-class fn/constantly-true))
-  ([^Class pb-class field-info-predicate]
-   (into (sorted-map)
-         (keep (fn [^Descriptors$FieldDescriptor field-desc]
-                 (let [field-name (.getName field-desc)
-                       field-value-class (protobuf/field-value-class pb-class field-desc)
-                       field-rule (cond (.isRepeated field-desc) :repeated
-                                        (.isRequired field-desc) :required
-                                        (.isOptional field-desc) :optional
-                                        :else (assert false))
-                       field-info (cond-> {:value-type field-value-class
-                                           :field-rule field-rule}
+(defn- pb-field-rule
+  [^Descriptors$FieldDescriptor field-desc]
+  (cond
+    (.isRepeated field-desc) :repeated
+    (.isRequired field-desc) :required
+    (.isOptional field-desc) :optional
+    :else (assert false)))
 
-                                          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-                                          (assoc :message (pb-class-info field-value-class field-info-predicate)))]
-                   (when (field-info-predicate field-info)
-                     (pair field-name field-info)))))
-         (.getFields (protobuf/pb-class->descriptor pb-class)))))
+(defn- pb-desc-info-impl
+  [^Descriptors$Descriptor desc seen-descs field-info-predicate]
+  (letfn [(recurse [^Descriptors$FieldDescriptor field-desc]
+            (when (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+              (let [value-desc (.getMessageType field-desc)]
+                (when-not (contains? seen-descs value-desc)
+                  (let [seen-descs (conj seen-descs value-desc)]
+                    (pb-desc-info-impl value-desc seen-descs field-info-predicate))))))]
+    (into (sorted-map)
+          (keep (fn [^Descriptors$FieldDescriptor field-desc]
+                  (let [{:keys [key-info value-info]}
+                        (if (.isMapField field-desc)
+                          (let [map-entry-desc (.getMessageType field-desc)
+                                key-field-desc (.findFieldByName map-entry-desc "key")
+                                value-field-desc (.findFieldByName map-entry-desc "value")
+                                key-class (protobuf/pb-field-desc-class key-field-desc)
+                                value-class (protobuf/pb-field-desc-class value-field-desc)
+                                value-message (recurse value-field-desc)]
+                            {:key-info {:key-class key-class}
+                             :value-info (cond-> {:value-class value-class}
+                                                 value-message (assoc :value-message value-message))})
+                          (let [value-class (protobuf/pb-field-desc-class field-desc)
+                                value-message (recurse field-desc)]
+                            {:value-info (cond-> {:value-class value-class}
+                                                 value-message (assoc :value-message value-message))}))
+
+                        field-name (.getName field-desc)
+                        field-rule (pb-field-rule field-desc)
+                        field-info (coll/merge {:field-rule field-rule}
+                                               key-info
+                                               value-info)]
+                    (when (field-info-predicate field-info)
+                      (pair field-name field-info)))))
+          (.getFields desc))))
+
+(defn pb-desc-info
+  ([^Descriptors$Descriptor desc]
+   (pb-desc-info-impl desc #{} fn/constantly-true))
+  ([^Descriptors$Descriptor desc field-info-predicate]
+   (pb-desc-info-impl desc #{} field-info-predicate)))
+
+(def pb-class-info (comp pb-desc-info protobuf/pb-class->descriptor))
 
 (defn pb-resource-type-info
   ([workspace]
@@ -1354,8 +1384,8 @@
                    (let [read-defaults (:read-defaults test-info)
                          pb-class-info (pb-class-info pb-class field-info-predicate)]
                      (pair ext {:read-defaults read-defaults
-                                :value-type pb-class
-                                :message pb-class-info})))))
+                                :value-class pb-class
+                                :value-message pb-class-info})))))
          (workspace/get-resource-type-map workspace))))
 
 (defn pb-resource-exts-that-read-defaults [workspace]
@@ -1364,11 +1394,11 @@
 (def class-name-comparator #(compare (.getName ^Class %1) (.getName ^Class %2)))
 
 (defn resource-pb-classes [workspace]
-  (letfn [(info->value-types [{:keys [message value-type]}]
-            (cond->> (mapcat info->value-types (vals message))
-                     (and message value-type) (cons value-type)))]
+  (letfn [(info->value-classes [{:keys [value-class value-message]}]
+            (cond->> (mapcat info->value-classes (vals value-message))
+                     (and value-message value-class) (cons value-class)))]
     (into (sorted-set-by class-name-comparator)
-          (mapcat info->value-types)
+          (mapcat info->value-classes)
           (vals (pb-resource-type-info workspace)))))
 
 (defn resource-pb-class-field-types
@@ -1378,9 +1408,9 @@
    (into (sorted-map-by class-name-comparator)
          (keep (fn [^Class pb-class]
                  (some->> (into (sorted-map)
-                                (keep (fn [[field-name {:keys [^Class value-type] :as field-info}]]
+                                (keep (fn [[field-name {:keys [^Class value-class] :as field-info}]]
                                         (when (field-info-predicate field-info)
-                                          (pair field-name value-type))))
+                                          (pair field-name value-class))))
                                 (pb-class-info pb-class))
                           (not-empty)
                           (pair pb-class))))
