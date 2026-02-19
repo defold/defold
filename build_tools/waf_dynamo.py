@@ -331,29 +331,40 @@ def apidoc_extract_task(bld, root, paths):
 
         return elements
 
+    def extract_docs(bld, root, src):
+        docs = defaultdict(list)
+        # Gather data
+        for s in src:
+            key = _keyfrompath(s, root)
+            elements = _parse_source(s)
+            for k,v in elements.items():
+                docs[key] = docs[key] + v
+        all_docs.update(docs)
+        return docs
+
     def write_docs(task):
-        src = task.inputs[0].relpath()
-        tgt = task.outputs[0].abspath()
-        elements = _parse_source(src)
-        docs = "".join(f"{v}" for k, v in elements.items())
-        with open(tgt, 'w+', encoding='utf-8') as out_f:
-            out_f.write('\n'.join(docs))
+        for o in task.outputs:
+            name = os.path.splitext(o.name)[0] # remove .apidoc
+            docs = all_docs[name]
+            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
+                out_f.write('\n'.join(docs))
 
     if not getattr(Options.options, 'skip_apidocs', False):
         # paths can be both files and folders
         # we need to expand to a full list of source files to extract docs from
-        fullpaths = []
+        src = []
         for path in paths:
             fullpath = os.path.join(root, path)
             if os.path.isfile(fullpath):
-                fullpaths.append(fullpath)
+                src.append(fullpath)
             else:
-                fullpaths.extend(_findfiles(fullpath))
+                src.extend(_findfiles(fullpath))
 
-        for src in fullpaths:
-            key = _keyfrompath(src, root)
-            tgt = key + '.apidoc'
-            bld(rule=write_docs, name='apidoc_extract', source = src, target = tgt)
+        docs = extract_docs(bld, root, src)
+        target = []
+        for key in docs.keys():
+            target.append(key + '.apidoc')
+        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
 # Add single dmsdk file.
