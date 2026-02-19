@@ -39,6 +39,7 @@
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -1725,3 +1726,12 @@
     ;; ResizableImageView uses fitToWidth and fitToHeight internally during
     ;; resize, ignoring externally set values
     :props (dissoc fx.image-view/props :fit-to-width :fit-to-height)))
+
+
+(defn- customize-tree-view! [tree-view]
+  (ui/customize-tree-view! tree-view {:double-click-expand true}))
+
+(defn tree-view [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created customize-tree-view!
+   :desc (assoc props :fx/type fx.tree-view/lifecycle)})

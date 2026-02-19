@@ -458,7 +458,7 @@
                           (.setId "debugger-call-stack"))
         variables-view (doto (TreeView.)
                          (.setId "debugger-variables")
-                         (ui/customize-tree-view! {:double-click-expand? true})
+                         (ui/customize-tree-view! {:double-click-expand true})
                          (.setShowRoot false))
         view-id (setup-view! (g/make-node! view-graph DebugView
                                            :localization localization

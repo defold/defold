@@ -1268,7 +1268,7 @@
   [^TreeView tree-view opts]
   (.addEventFilter tree-view KeyEvent/KEY_PRESSED custom-tree-view-key-pressed-event-filter)
   (.addEventFilter tree-view MouseEvent/MOUSE_PRESSED custom-tree-view-mouse-pressed-event-filter)
-  (when-not (:double-click-expand? opts)
+  (when-not (:double-click-expand opts)
     (.addEventFilter tree-view MouseEvent/MOUSE_RELEASED ignore-event-filter)))
 
 (extend-protocol HasSelectionModel

@@ -15,6 +15,7 @@
 (ns editor.code.view
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
+            [cljfx.ext.tree-view :as fx.ext.tree-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
@@ -88,7 +89,7 @@
            [javafx.geometry HPos Point2D Rectangle2D VPos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
-           [javafx.scene.control Button CheckBox Tab TextField]
+           [javafx.scene.control Button CheckBox Tab TextField TreeItem TreeView]
            [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
@@ -1349,7 +1350,7 @@
            :children (document-symbol-items (:children document-symbol))})
         document-symbols))
 
-(defn- describe-document-symbol [{:keys [name kind tags detail selection-range]}]
+(defn- describe-document-symbol [{:keys [name kind tags detail selection-range containment-range]}]
   {:graphic {:fx/type fxui/horizontal
              :alignment :left
              :spacing :small
@@ -1358,15 +1359,40 @@
                                (not (coll/empty? detail))
                                (conj {:fx/type fxui/label :text detail :color :hint}))}})
 
-(defn structure-pane [{:keys [document-symbols]}]
+(defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
+  (when maybe-item
+    (set-properties! view-node :navigation
+                     (data/select-and-frame (get-property view-node :lines)
+                                            (get-property view-node :layout)
+                                            (:selection-range (.getValue maybe-item))))))
+
+(defn- focus-code-editor! [view-node]
+  (.requestFocus ^Canvas (get-property view-node :canvas)))
+
+(defn- handle-structure-pane-key-pressed! [view-node ^KeyEvent event]
+  (when (= KeyCode/ENTER (.getCode event))
+    (navigate-to-document-symbol! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
+    (focus-code-editor! view-node)
+    (.consume event)))
+
+(defn- handle-structure-pane-mouse-clicked! [view-node ^MouseEvent e]
+  (when (ui/double-click-event? e)
+    (focus-code-editor! view-node)
+    (.consume e)))
+
+(defn structure-pane [{:keys [document-symbols view-node]}]
   {:fx/type fxui/titled-pane
    :title "Structure" ;; todo localize
-   :content {:fx/type fx.tree-view/lifecycle
-             :show-root false
-             :cell-factory {:fx/cell-type fx.tree-cell/lifecycle
-                            :describe describe-document-symbol}
-             :root {:fx/type fx.tree-item/lifecycle
-                    :children (document-symbol-items document-symbols)}}})
+   :content {:fx/type fx.ext.tree-view/with-selection-props
+             :props {:on-selected-item-changed #(navigate-to-document-symbol! view-node %)}
+             :desc {:fx/type fxui/tree-view
+                    :show-root false
+                    :on-key-pressed #(handle-structure-pane-key-pressed! view-node %)
+                    :on-mouse-clicked #(handle-structure-pane-mouse-clicked! view-node %)
+                    :cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                                   :describe describe-document-symbol}
+                    :root {:fx/type fx.tree-item/lifecycle
+                           :children (document-symbol-items document-symbols)}}}})
 
 ;; endregion
 
@@ -1449,12 +1475,15 @@
   (property completions-selected-index g/Any (dynamic visible (g/constantly false)))
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
 
-  (output sidebar-panes g/Any (g/fnk [document-symbols node-id+type+resource]
-                                (cond-> []
-                                        document-symbols
-                                        (conj {:fx/type structure-pane :document-symbols document-symbols})
-                                        (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
-                                        (conj :properties))))
+  (output sidebar-panes g/Any :cached (g/fnk [_node-id document-symbols node-id+type+resource]
+                                        (cond-> []
+                                                document-symbols
+                                                (conj {:fx/type fxui/ext-dedupe-identical-desc
+                                                       :desc {:fx/type structure-pane
+                                                              :document-symbols document-symbols
+                                                              :view-node _node-id}})
+                                                (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
+                                                (conj :properties))))
 
   ;; the cursor position for which we show the hover.
   (property hover-showing-cursor g/Any (dynamic visible (g/constantly false)))
@@ -3132,10 +3161,6 @@
 
 (defn- set-bar-ui-type! [ui-type]
   (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property ui-type)))
-
-(defn- focus-code-editor! [view-node]
-  (let [^Canvas canvas (g/node-value view-node :canvas)]
-    (.requestFocus canvas)))
 
 (defn- try-parse-row [^long document-row-count ^String value]
   ;; Returns nil for an empty string.

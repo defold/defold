@@ -776,7 +776,7 @@
             (g/set-property! outline-view :tree-selection (ui/selection tree-view)))))
     (doto tree-view
       (.setSkin (ExtendedTreeViewSkin. tree-view))
-      (ui/customize-tree-view! {:double-click-expand? true})
+      (ui/customize-tree-view! {:double-click-expand true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e 
                             (drag-detected project outline-view e)
