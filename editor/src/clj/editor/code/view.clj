@@ -31,7 +31,6 @@
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-item :as fx.tree-item]
-            [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as mutator]
@@ -1352,7 +1351,7 @@
 
 (defn- describe-document-symbol [document-symbol]
   (if document-symbol
-    (let [{:keys [name kind tags detail selection-range containment-range]} document-symbol]
+    (let [{:keys [name kind detail]} document-symbol]
       {:graphic {:fx/type fxui/horizontal
                  :alignment :left
                  :spacing :small
@@ -1381,7 +1380,7 @@
 (defn- handle-structure-pane-mouse-clicked! [view-node ^MouseEvent e]
   (when (ui/double-click-event? e)
     (let [^TreeItem selected-item (-> e ^TreeView (.getSource) .getSelectionModel .getSelectedItem)]
-      (if (and selected-item (not (.isExpanded selected-item)))
+      (if (and selected-item (not (.isLeaf selected-item)) (not (.isExpanded selected-item)))
         (.setExpanded selected-item true)
         (focus-code-editor! view-node)))
     (.consume e)))
