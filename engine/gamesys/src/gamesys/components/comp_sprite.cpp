@@ -1433,18 +1433,21 @@ namespace dmGameSystem
                 uint32_t num_vertices = sprite_world->m_ScratchPositionWorld.Size();
                 for (uint32_t vertex_index = 0; vertex_index < num_vertices; ++vertex_index)
                 {
-                    // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
-                    Vector4 local_pos(
-                        sprite_world->m_ScratchPositionWorld[vertex_index].getX() * sp_width,
-                        sprite_world->m_ScratchPositionWorld[vertex_index].getY() * sp_height,
-                        0.0f, 1.0f);
-                    if (has_local_position_attribute)
+                    if (has_local_position_attribute || has_world_position_attribute)
                     {
-                        sprite_world->m_ScratchPositionLocal[vertex_index] = local_pos;
-                    }
-                    if (has_world_position_attribute)
-                    {
-                        sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * local_pos;
+                        // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
+                        Vector4 local_pos(
+                            sprite_world->m_ScratchPositionWorld[vertex_index].getX() * sp_width,
+                            sprite_world->m_ScratchPositionWorld[vertex_index].getY() * sp_height,
+                            0.0f, 1.0f);
+                        if (has_local_position_attribute)
+                        {
+                            sprite_world->m_ScratchPositionLocal[vertex_index] = local_pos;
+                        }
+                        if (has_world_position_attribute)
+                        {
+                            sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * local_pos;
+                        }
                     }
                     vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, write_params);
                 }
