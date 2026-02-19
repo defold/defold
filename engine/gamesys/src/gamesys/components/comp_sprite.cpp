@@ -976,15 +976,13 @@ namespace dmGameSystem
                 float py = ys[y] - 0.5f;
                 Point3 p = Point3(px - pivot_x, py - pivot_y, 0);
 
+                // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
+                Vector4 local_pos(p.getX() * sp_width, p.getY() * sp_height, 0.0f, 1.0f);
                 if (has_local_position_attribute)
                 {
-                    (*scratch_positions_local)[vertex_index] = Vector4(
-                        p.getX() * sp_width,
-                        p.getY() * sp_height,
-                        0.0f, 1.0f);
+                    (*scratch_positions_local)[vertex_index] = local_pos;
                 }
-
-                (*scratch_positions_world)[vertex_index] = world_matrix * p;
+                (*scratch_positions_world)[vertex_index] = world_matrix * local_pos;
 
                 vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, 1, params);
             }
@@ -1419,15 +1417,16 @@ namespace dmGameSystem
                 uint32_t num_vertices = sprite_world->m_ScratchPositionWorld.Size();
                 for (uint32_t vertex_index = 0; vertex_index < num_vertices; ++vertex_index)
                 {
+                    // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
+                    Vector4 local_pos(
+                        sprite_world->m_ScratchPositionWorld[vertex_index].getX() * sp_width,
+                        sprite_world->m_ScratchPositionWorld[vertex_index].getY() * sp_height,
+                        0.0f, 1.0f);
                     if (has_local_position_attribute)
                     {
-                        sprite_world->m_ScratchPositionLocal[vertex_index] = Vector4(
-                            sprite_world->m_ScratchPositionWorld[vertex_index].getX() * sp_width,
-                            sprite_world->m_ScratchPositionWorld[vertex_index].getY() * sp_height,
-                            0.0f, 1.0f);
+                        sprite_world->m_ScratchPositionLocal[vertex_index] = local_pos;
                     }
-
-                    sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * sprite_world->m_ScratchPositionWorld[vertex_index];
+                    sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * local_pos;
                     vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, write_params);
                 }
 
@@ -1471,10 +1470,21 @@ namespace dmGameSystem
                 //      submitting more vertices than needed.
                 if (component->m_UseSlice9)
                 {
-                    CreateVertexDataSlice9(component, vertices, indices, sprite_world->m_Is16BitIndex, has_local_position_attribute,
-                        world_matrix, vertex_offset, vertex_stride,
-                        animations, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs,
-                        &sprite_world->m_ScratchPositionWorld, &sprite_world->m_ScratchPositionLocal,
+                    CreateVertexDataSlice9(
+                        component,
+                        vertices,
+                        indices,
+                        sprite_world->m_Is16BitIndex,
+                        has_local_position_attribute,
+                        world_matrix,
+                        vertex_offset,
+                        vertex_stride,
+                        animations,
+                        sprite_world->m_ScratchUVs,
+                        scratch_uv_ptrs,
+                        scratch_pi_ptrs,
+                        &sprite_world->m_ScratchPositionWorld,
+                        &sprite_world->m_ScratchPositionLocal,
                         scratch_attribute_infos);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
@@ -1500,19 +1510,27 @@ namespace dmGameSystem
                     float y0 = -0.5f - pivot_y;
                     float y1 =  0.5f - pivot_y;
 
-                    Vector4 positions_world[] = {
-                        world_matrix * Point3(x0, y0, 0.0f),
-                        world_matrix * Point3(x0, y1, 0.0f),
-                        world_matrix * Point3(x1, y1, 0.0f),
-                        world_matrix * Point3(x1, y0, 0.0f)};
-
                     Vector4 positions_local[4];
+                    Vector4 positions_world[4];
+
                     if (has_local_position_attribute)
                     {
                         positions_local[0] = Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
                         positions_local[1] = Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
                         positions_local[2] = Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
                         positions_local[3] = Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
+
+                        positions_world[0] = world_matrix * positions_local[0];
+                        positions_world[1] = world_matrix * positions_local[1];
+                        positions_world[2] = world_matrix * positions_local[2];
+                        positions_world[3] = world_matrix * positions_local[3];
+                    }
+                    else
+                    {
+                        positions_world[0] = world_matrix * Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
+                        positions_world[1] = world_matrix * Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
+                        positions_world[2] = world_matrix * Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
+                        positions_world[3] = world_matrix * Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
                     }
 
                     const float* world_matrix_channel[]    = { (float*) &world_matrix };
@@ -1688,9 +1706,8 @@ namespace dmGameSystem
     {
         Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
-        size.setZ(1.f);
-        Matrix4 w = dmVMath::AppendScale(world * local, size);
+        // World matrix is position + rotation only; size is applied when producing world-space positions
+        Matrix4 w = world * local;
         if (!sub_pixels)
         {
             Vector4 position = w.getCol3();
@@ -1960,9 +1977,10 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
             UpdateTransform(component, sub_pixels);
-            // we need to consider the full scale here
-            // I.e. we want the length of the diagonal C, where C = X + Y
-            float radius_sq = dmVMath::LengthSqr((component->m_World.getCol(0).getXYZ() + component->m_World.getCol(1).getXYZ()) * 0.5f);
+            // Bounding radius: world matrix has no scale, so incorporate size
+            Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
+            Vector3 half_diagonal = (component->m_World.getCol(0).getXYZ() * size.getX() + component->m_World.getCol(1).getXYZ() * size.getY()) * 0.5f;
+            float radius_sq = dmVMath::LengthSqr(half_diagonal);
             world->m_BoundingVolumes[i] = radius_sq;
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -1988,8 +2006,9 @@ namespace dmGameSystem
             const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
             float pivot_x = 0.f, pivot_y = 0.f;
             GetPivot(anim_data, &pivot_x, &pivot_y);
-            Point3 pivot(-pivot_x, -pivot_y, 0.f);
-            Vector3 world_pos = (component->m_World * pivot).getXYZ();
+            Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
+            Point3 pivot_scaled(-pivot_x * size.getX(), -pivot_y * size.getY(), 0.f);
+            Vector3 world_pos = (component->m_World * Vector4(pivot_scaled.getX(), pivot_scaled.getY(), 0.f, 1.f)).getXYZ();
 
             bool intersect = dmIntersection::TestFrustumSphereSq(frustum, Point3(world_pos), radius_sq);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
@@ -2538,8 +2557,9 @@ namespace dmGameSystem
                     break;
                 }
                 case 3:
-                    // the size is baked into this matrix as the scale
-                    value = Vector4(transform.GetScale());
+                    // world_size: size is not in the matrix, return component size * scale
+                    value = Vector4(dmVMath::MulPerElem(component->m_Size, component->m_Scale));
+                    value.setZ(1.0f);
                     break;
                 default: return false;
             }
