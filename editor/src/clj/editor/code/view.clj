@@ -1350,14 +1350,17 @@
            :children (document-symbol-items (:children document-symbol))})
         document-symbols))
 
-(defn- describe-document-symbol [{:keys [name kind tags detail selection-range containment-range]}]
-  {:graphic {:fx/type fxui/horizontal
-             :alignment :left
-             :spacing :small
-             :children (cond-> [{:fx/type code-type-icon :type kind}
-                                {:fx/type fxui/label :text name}]
-                               (not (coll/empty? detail))
-                               (conj {:fx/type fxui/label :text detail :color :hint}))}})
+(defn- describe-document-symbol [document-symbol]
+  (if document-symbol
+    (let [{:keys [name kind tags detail selection-range containment-range]} document-symbol]
+      {:graphic {:fx/type fxui/horizontal
+                 :alignment :left
+                 :spacing :small
+                 :children (cond-> [{:fx/type code-type-icon :type kind}
+                                    {:fx/type fxui/label :text name}]
+                                   (not (coll/empty? detail))
+                                   (conj {:fx/type fxui/label :text detail :color :hint}))}})
+    {}))
 
 (defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
   (when maybe-item
@@ -1377,7 +1380,10 @@
 
 (defn- handle-structure-pane-mouse-clicked! [view-node ^MouseEvent e]
   (when (ui/double-click-event? e)
-    (focus-code-editor! view-node)
+    (let [^TreeItem selected-item (-> e ^TreeView (.getSource) .getSelectionModel .getSelectedItem)]
+      (if (and selected-item (not (.isExpanded selected-item)))
+        (.setExpanded selected-item true)
+        (focus-code-editor! view-node)))
     (.consume e)))
 
 (defn structure-pane [{:keys [document-symbols view-node]}]

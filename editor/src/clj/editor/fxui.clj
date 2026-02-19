@@ -1729,7 +1729,7 @@
 
 
 (defn- customize-tree-view! [tree-view]
-  (ui/customize-tree-view! tree-view {:double-click-expand true}))
+  (ui/customize-tree-view! tree-view {:double-click-expand false}))
 
 (defn tree-view [props]
   {:fx/type fx/ext-on-instance-lifecycle
