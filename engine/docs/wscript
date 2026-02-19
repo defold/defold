@@ -8,6 +8,7 @@ blddir = 'build'
 
 import waflib.Utils
 import sys, os, re, fnmatch
+import shutil
 import waflib.Options
 import waf_dynamo
 import TestContext
@@ -85,22 +86,12 @@ def build(bld):
     apidoc_extract_task(bld, _findfiles("../sdk/src/cs/dmsdk", exts))
     apidoc_extract_task(bld, _findfiles("../sound/src/dmsdk", exts))
 
-    # Find all the built .apidoc files in the engine tree
-    apidoc_files = []
-    for root, dirs, files in os.walk('.'):
+    # Find all the generated .apidoc files in build/ and copy them to src/
+    for root, dirs, files in os.walk('build'):
         for filename in fnmatch.filter(files, '*.apidoc'):
-            apidoc_files.append(os.path.join(root, filename))
-    # Concat per namespace into 'src'
-    namespace_files = {}
-    for apidoc_file in apidoc_files:
-        namespace, _ = os.path.splitext(os.path.basename(apidoc_file))
-        if namespace not in namespace_files:
-            namespace_files[namespace] = []
-        namespace_files[namespace].append(apidoc_file)
-    for ns, files in namespace_files.items():
-        comments = '\n'.join([waflib.Utils.readf(f, encoding='utf-8') for f in files])
-        with open('src/%s.apidoc_' % ns, 'w') as out_f:
-            out_f.write(comments)
+            shutil.copy(os.path.join(root, filename), os.path.join("src", filename))
+
+    # Convert all src/*.apidoc files into their final formats (json, sdoc, md etc)
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 
