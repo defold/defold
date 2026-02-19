@@ -47,7 +47,7 @@
 
 (def ^:private editable-attribute-optional-field-defaults
   (-> Graphics$VertexAttribute
-      (protobuf/default-message #{:optional})
+      (protobuf/optional-field-defaults)
       (dissoc :binary-values :double-values :long-values :name-hash)))
 
 (defn- attribute->editable-attribute [attribute]

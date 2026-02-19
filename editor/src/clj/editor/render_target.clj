@@ -167,7 +167,7 @@
         depth-stencil-attachment-format :format
         depth-stencil-attachment-texture-storage :texture-storage))))
 
-(def ^:private default-pb-depth-stencil-attachment (protobuf/default-message RenderTarget$RenderTargetDesc$DepthStencilAttachment #{:required}))
+(def ^:private default-pb-depth-stencil-attachment (protobuf/required-field-defaults RenderTarget$RenderTargetDesc$DepthStencilAttachment))
 
 (defn- sanitize-render-target [render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.

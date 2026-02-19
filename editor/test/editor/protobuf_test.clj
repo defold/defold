@@ -1427,12 +1427,12 @@ repeated_message {
   optional_enum: ENUM_VAL0
   optional_bool: false
 }
-mapped_value {
+mapped_message {
   key: 'a'
   value {
   }
 }
-mapped_value {
+mapped_message {
   key: 'b'
   value {
     optional_string: 'overridden optional_string'

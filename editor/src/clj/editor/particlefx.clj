@@ -197,7 +197,7 @@
         :points points
         :spread spread))))
 
-(def ^:private default-pb-spline-point (protobuf/default-message Particle$SplinePoint #{:required}))
+(def ^:private default-pb-spline-point (protobuf/required-field-defaults Particle$SplinePoint))
 
 (defn- significant-pb-property? [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.

@@ -303,7 +303,7 @@
        (class? (resource-type->pb-class resource-type))))
 
 (defn- sparse-pb-map [^Class pb-class pb-path ^long depth-limit]
-  (let [required-field-defaults (protobuf/required-default-value pb-class)
+  (let [required-field-defaults (protobuf/required-field-defaults pb-class)
         field-infos (protobuf/field-infos pb-class)]
     (coll/into-> field-infos {}
       (keep
