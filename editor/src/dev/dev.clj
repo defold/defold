@@ -1323,7 +1323,7 @@
                    (build-output-infos->diff-data bob-build-output-infos)
                    opts))))
 
-(defn- pb-field-rule
+(defn- pb-field-kind
   [^Descriptors$FieldDescriptor field-desc]
   (cond
     (.isRepeated field-desc) :repeated
@@ -1358,8 +1358,8 @@
                                                  value-message (assoc :value-message value-message))}))
 
                         field-name (.getName field-desc)
-                        field-rule (pb-field-rule field-desc)
-                        field-info (coll/merge {:field-rule field-rule}
+                        field-kind (pb-field-kind field-desc)
+                        field-info (coll/merge {:field-kind field-kind}
                                                key-info
                                                value-info)]
                     (when (field-info-predicate field-info)
