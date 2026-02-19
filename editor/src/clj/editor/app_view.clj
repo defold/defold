@@ -311,27 +311,38 @@
   (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
 
 (g/defnk produce-active-sidebar
-  [active-view active-resource open-sidebar-panes debugger-sidebar-panes ^:try outline-pane-desc ^:try properties-pane-desc]
+  [active-view active-resource open-sidebar-panes debugger-sidebar-panes ^:try properties-pane-desc]
   (if (and debugger-sidebar-panes (debuggable-resource? active-resource))
     debugger-sidebar-panes
     (coll/into-> (get open-sidebar-panes active-view) []
       (map #(case %
-              :outline outline-pane-desc
+              :outline {:fx/type fx/ext-get-ref :ref :outline}
               :properties properties-pane-desc
               %)))))
 
 (g/defnk produce-outline-active [active-view open-sidebar-panes]
   (coll/any? #(= :outline %) (get open-sidebar-panes active-view)))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar]
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
   {:fx/type fxui/ext-dedupe-identical-desc
-   :desc {:fx/type ext-with-split-pane-props
-          :desc {:fx/type fxui/ext-value :value right-split}
-          :props {:items (or (coll/not-empty
-                               (coll/into-> active-sidebar []
-                                 (remove g/error-value?)
-                                 (map split-pane-item)))
-                             [(split-pane-item {:fx/type fx.region/lifecycle})])}}})
+   :desc {:fx/type fx/ext-let-refs
+          ;; If outline is active (requested by the view), we want to ensure
+          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; This is necessary because outline view defines commands on the
+          ;; :workbench context which is available throughout the editor, but
+          ;; expects the outline view to be up to date.
+          :refs (if outline-active
+                  {:outline (if (g/error-value? outline-pane-desc)
+                              (split-pane-item {:fx/type fx.region/lifecycle})
+                              outline-pane-desc)}
+                  {})
+          :desc {:fx/type ext-with-split-pane-props
+                 :desc {:fx/type fxui/ext-value :value right-split}
+                 :props {:items (or (coll/not-empty
+                                      (coll/into-> active-sidebar []
+                                        (remove g/error-value?)
+                                        (map split-pane-item)))
+                                    [(split-pane-item {:fx/type fx.region/lifecycle})])}}}})
 
 (g/defnode AppView
   (property stage Stage)
