@@ -1349,6 +1349,15 @@
            :children (document-symbol-items (:children document-symbol))})
         document-symbols))
 
+(defn- summarize-document-symbol-detail [detail]
+  (let [detail-length-limit 50]
+    (if (< detail-length-limit (count detail))
+      (-> detail
+          (subs 0 (dec detail-length-limit))
+          (string/replace #"\R+" " ")
+          (str "…"))
+      (string/replace detail #"\R+" " "))))
+
 (defn- describe-document-symbol [document-symbol]
   (if document-symbol
     (let [{:keys [name kind detail]} document-symbol]
@@ -1358,7 +1367,9 @@
                  :children (cond-> [{:fx/type code-type-icon :type kind}
                                     {:fx/type fxui/label :text name}]
                                    (not (coll/empty? detail))
-                                   (conj {:fx/type fxui/label :text detail :color :hint}))}})
+                                   (conj {:fx/type fxui/label
+                                          :text (summarize-document-symbol-detail detail)
+                                          :color :hint}))}})
     {}))
 
 (defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
