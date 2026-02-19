@@ -205,31 +205,48 @@
          (server-response-update-state [_ server state]
            (state-updater state server result)))))))
 
-(defn- on-server-response [server responses-ch response]
+(def ^:private content-modified-error-code
+  "See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#errorCodes
+
+  The server detected that the document content has changed during result
+  computation, we can simply retry the request"
+  -32801)
+
+(defn- retriable-error? [response]
+  (= content-modified-error-code (-> response :error :code)))
+
+(defn- on-server-response [server responses-ch {:keys [request response retries]}]
   (fn [{:keys [requests] :as state}]
     ;; might be absent if the request is cancelled due to a timeout
     (if (contains? requests responses-ch)
-      (let [remaining-responses (dec (requests responses-ch))]
-        (cond
-          (:error response) (when-not (Boolean/getBoolean "defold.tests")
-                              (log/warn :message "Language server responded with error" :server server :error (:error response)))
-          (some? (:result response)) (a/put! responses-ch (server-response-value (:result response))))
-        (let [state (if (zero? remaining-responses)
-                      (do (a/close! responses-ch)
-                          (-> state
-                              (update :requests dissoc responses-ch)
-                              (update-in [:server->server-state server :requests] dissoc responses-ch)))
-                      (-> state
-                          (assoc-in [:requests responses-ch] remaining-responses)
-                          (update-in [:server->server-state server :requests]
-                                     (fn [state-requests]
-                                       (let [remaining-server-responses (dec (state-requests responses-ch))]
-                                         (if (zero? remaining-server-responses)
-                                           (dissoc state-requests responses-ch)
-                                           (assoc state-requests responses-ch remaining-server-responses)))))))]
-          (if (:error response)
-            state
-            (server-response-update-state (:result response) server state))))
+      (if (and (retriable-error? response) (pos? retries))
+        ;; retry
+        (let [server-in (get-in state [:server->server-state server :in])]
+          (a/put! server-in (lsp.server/finalize-request request responses-ch (dec retries)))
+          state)
+        ;; respond
+        (let [{:keys [error result]} response]
+          (when (and error (not (Boolean/getBoolean "defold.tests")))
+            (log/warn :message "Language server responded with error" :server server :error error))
+          (when (some? result)
+            (a/put! responses-ch (server-response-value result)))
+          (let [remaining-responses (dec (requests responses-ch))
+                state (if (zero? remaining-responses)
+                        (do (a/close! responses-ch)
+                            (-> state
+                                (update :requests dissoc responses-ch)
+                                (update-in [:server->server-state server :requests] dissoc responses-ch)))
+                        (-> state
+                            (assoc-in [:requests responses-ch] remaining-responses)
+                            (update-in [:server->server-state server :requests]
+                                       (fn [state-requests]
+                                         (let [remaining-server-responses (dec (state-requests responses-ch))]
+                                           (if (zero? remaining-server-responses)
+                                             (dissoc state-requests responses-ch)
+                                             (assoc state-requests responses-ch remaining-server-responses)))))))]
+            (if error
+              state
+              (server-response-update-state result server state)))))
       state)))
 
 (defn- cancel-requests [responses-ch servers]
@@ -402,13 +419,8 @@
 
 (defn- request-document-symbols [state resource]
   (let [{:keys [in]} state
-        ;; We only want a first response - we don't merge outlines if there
-        ;; are multiple servers for same language. First one wins!
-        responses-ch (a/chan (a/dropping-buffer 1))]
-    (a/go
-      (when-let [first-response (<! responses-ch)]
-        ;; TODO: drain the rest of the responses!
-        (>! in (set-view-document-symbols resource first-response))))
+        responses-ch (a/chan 1 cat)]
+    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
     (send-requests!
       state responses-ch
       :capabilities-pred :document-symbol

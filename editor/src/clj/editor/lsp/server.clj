@@ -99,17 +99,22 @@
   (->jsonrpc [this _ _]
     (throw (ex-info "Can't send raw request: use finalize-request first" {:request this}))))
 
-(defn finalize-request [^RawRequest raw-request id]
-  (reify Message
-    (->jsonrpc [_ project on-response]
-      (let [ch (a/chan 1)
-            result-converter (.-result-converter raw-request)
-            request (lsp.jsonrpc/notification->request (.-notification raw-request) ch)]
-        (a/take! ch (fn [response]
-                      (on-response
-                        id
-                        (cond-> response (not (:error response)) (update :result result-converter project)))))
-        request))))
+(defn finalize-request
+  ([^RawRequest raw-request id]
+   (finalize-request raw-request id 3))
+  ([^RawRequest raw-request id retries]
+   (reify Message
+     (->jsonrpc [_ project on-response]
+       (let [ch (a/chan 1)
+             result-converter (.-result-converter raw-request)
+             request (lsp.jsonrpc/notification->request (.-notification raw-request) ch)]
+         (a/take! ch (fn [response]
+                       (on-response
+                         id
+                         {:request raw-request
+                          :retries retries
+                          :response (cond-> response (not (:error response)) (update :result result-converter project))})))
+         request)))))
 
 (defn- raw-request [notification result-converter]
   (->RawRequest notification result-converter))
