@@ -168,10 +168,7 @@ Acceptance:
 
 ### LEFTOVER TODOS
 
-1. ✅ Use fake title panes everywhere
-2. Outline tree view still may be positioned wrong!
-3. Selection/containment sync
-4. Take a single symbols from responses, if error, keep old. Still getting content modified errors!
+1. Selection/containment sync
 
 ## Code Touchpoints
 

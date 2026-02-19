@@ -215,14 +215,23 @@
 (defn- retriable-error? [response]
   (= content-modified-error-code (-> response :error :code)))
 
-(defn- on-server-response [server responses-ch {:keys [request response retries]}]
+(defn- on-server-response [server responses-ch {:keys [request response retries retry-delay-ms]}]
   (fn [{:keys [requests] :as state}]
     ;; might be absent if the request is cancelled due to a timeout
     (if (contains? requests responses-ch)
       (if (and (retriable-error? response) (pos? retries))
         ;; retry
-        (let [server-in (get-in state [:server->server-state server :in])]
-          (a/put! server-in (lsp.server/finalize-request request responses-ch (dec retries)))
+        (do
+          (a/go
+            (<! (a/timeout retry-delay-ms))
+            (>! (:in state)
+                (bound-fn [{:keys [requests] :as state}]
+                  ;; since retry is delayed, the request might have become cancelled!
+                  (when (contains? requests responses-ch)
+                    ;; and the server could have become stopped!
+                    (when-let [server-in (get-in state [:server->server-state server :in])]
+                      (a/put! server-in (lsp.server/finalize-request request responses-ch (dec retries) retry-delay-ms))))
+                  state)))
           state)
         ;; respond
         (let [{:keys [error result]} response]
@@ -268,12 +277,19 @@
           servers))
       state)))
 
-(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms]
-                                             :or {capabilities-pred any?}}]
+(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms retries]
+                                             :or {capabilities-pred any?
+                                                  retries 3}}]
   {:pre [(not= (some? requests) (some? requests-fn))
+         (nat-int? retries)
          (pos-int? timeout-ms)
          (not (contains? (:requests state) responses-ch))]}
   (let [requests-fn (or requests-fn (constantly requests))
+        retry-delay-ms (if (pos? retries)
+                         ;; additionally divide the retry delay by 2 since the
+                         ;; server needs time to compute the results
+                         (max 1 (quot timeout-ms (* 2 retries)))
+                         0)
         server->requests (->> state
                               :server->server-state
                               (eduction
@@ -291,7 +307,7 @@
       (do
         (doseq [[server requests] server->requests
                 request requests]
-          (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch)))
+          (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch retries retry-delay-ms)))
         (a/go
           (<! (a/timeout timeout-ms))
           (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
