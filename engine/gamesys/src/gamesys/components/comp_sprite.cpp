@@ -804,6 +804,7 @@ namespace dmGameSystem
         uint8_t* vertices,
         uint8_t* indices,
         bool is_indices_16_bit,
+        bool has_world_position_attribute,
         bool has_local_position_attribute,
         const Matrix4& world_matrix,
         uint32_t vertex_offset,
@@ -938,7 +939,11 @@ namespace dmGameSystem
         ys[1] = sy * slice9.getW();
         ys[2] = 1 - sy * slice9.getY();
 
-        EnsureSize(*scratch_positions_world, SPRITE_VERTEX_COUNT_SLICE9);
+        if (has_world_position_attribute)
+        {
+            EnsureSize(*scratch_positions_world, SPRITE_VERTEX_COUNT_SLICE9);
+        }
+
         if (has_local_position_attribute)
         {
             EnsureSize(*scratch_positions_local, SPRITE_VERTEX_COUNT_SLICE9);
@@ -971,18 +976,25 @@ namespace dmGameSystem
         {
             for (int x=0; x<4; x++)
             {
-                // convert from [0,1] to [-0.5, 0.5]
-                float px = xs[x] - 0.5f;
-                float py = ys[y] - 0.5f;
-                Point3 p = Point3(px - pivot_x, py - pivot_y, 0);
-
-                // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
-                Vector4 local_pos(p.getX() * sp_width, p.getY() * sp_height, 0.0f, 1.0f);
-                if (has_local_position_attribute)
+                if (has_local_position_attribute || has_world_position_attribute)
                 {
-                    (*scratch_positions_local)[vertex_index] = local_pos;
+                    // convert from [0,1] to [-0.5, 0.5]
+                    float px = xs[x] - 0.5f;
+                    float py = ys[y] - 0.5f;
+                    Point3 p = Point3(px - pivot_x, py - pivot_y, 0);
+
+                    // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
+                    Vector4 local_pos(p.getX() * sp_width, p.getY() * sp_height, 0.0f, 1.0f);
+
+                    if (has_local_position_attribute)
+                    {
+                        (*scratch_positions_local)[vertex_index] = local_pos;
+                    }
+                    if (has_world_position_attribute)
+                    {
+                        (*scratch_positions_world)[vertex_index] = world_matrix * local_pos;
+                    }
                 }
-                (*scratch_positions_world)[vertex_index] = world_matrix * local_pos;
 
                 vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, 1, params);
             }
@@ -1321,8 +1333,8 @@ namespace dmGameSystem
         return anim_data;
     }
 
-    static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info, 
-        bool has_local_position_attribute, uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    static void CreateVertexData(SpriteWorld* sprite_world, dmGraphics::VertexAttributeInfos* material_attribute_info,
+        uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("CreateVertexData");
 
@@ -1369,6 +1381,10 @@ namespace dmGameSystem
             {
                 CopyAttributeInfos(scratch_attribute_infos, material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
             }
+
+            dmGraphics::VertexAttributeInfoMetadata attribute_infos_meta = dmGraphics::GetVertexAttributeInfosMetaData(*scratch_attribute_infos);
+            bool has_local_position_attribute = attribute_infos_meta.m_HasAttributeLocalPosition;
+            bool has_world_position_attribute = attribute_infos_meta.m_HasAttributeWorldPosition;
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             const uint32_t vb_buffer_offset = vertices - sprite_world->m_VertexBufferData;
@@ -1426,7 +1442,10 @@ namespace dmGameSystem
                     {
                         sprite_world->m_ScratchPositionLocal[vertex_index] = local_pos;
                     }
-                    sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * local_pos;
+                    if (has_world_position_attribute)
+                    {
+                        sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * local_pos;
+                    }
                     vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, write_params);
                 }
 
@@ -1475,6 +1494,7 @@ namespace dmGameSystem
                         vertices,
                         indices,
                         sprite_world->m_Is16BitIndex,
+                        has_world_position_attribute,
                         has_local_position_attribute,
                         world_matrix,
                         vertex_offset,
@@ -1513,24 +1533,20 @@ namespace dmGameSystem
                     Vector4 positions_local[4];
                     Vector4 positions_world[4];
 
-                    if (has_local_position_attribute)
+                    if (has_local_position_attribute || has_world_position_attribute)
                     {
                         positions_local[0] = Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
                         positions_local[1] = Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
                         positions_local[2] = Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
                         positions_local[3] = Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
 
-                        positions_world[0] = world_matrix * positions_local[0];
-                        positions_world[1] = world_matrix * positions_local[1];
-                        positions_world[2] = world_matrix * positions_local[2];
-                        positions_world[3] = world_matrix * positions_local[3];
-                    }
-                    else
-                    {
-                        positions_world[0] = world_matrix * Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
-                        positions_world[1] = world_matrix * Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
-                        positions_world[2] = world_matrix * Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
-                        positions_world[3] = world_matrix * Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
+                        if (has_world_position_attribute)
+                        {
+                            positions_world[0] = world_matrix * positions_local[0];
+                            positions_world[1] = world_matrix * positions_local[1];
+                            positions_world[2] = world_matrix * positions_local[2];
+                            positions_world[3] = world_matrix * positions_local[3];
+                        }
                     }
 
                     const float* world_matrix_channel[]    = { (float*) &world_matrix };
@@ -1623,8 +1639,7 @@ namespace dmGameSystem
         uint8_t* vb_iter  = vb_begin;
         uint8_t* ib_iter  = ib_begin;
 
-        dmGraphics::VertexAttributeInfoMetadata material_attribute_info_meta = dmGraphics::GetVertexAttributeInfosMetaData(material_attribute_info);
-        CreateVertexData(sprite_world, &material_attribute_info, material_attribute_info_meta.m_HasAttributeLocalPosition, &vb_iter, &ib_iter, buf, begin, end);
+        CreateVertexData(sprite_world, &material_attribute_info, &vb_iter, &ib_iter, buf, begin, end);
 
         sprite_world->m_VertexBufferWritePtr = vb_iter;
         sprite_world->m_IndexBufferWritePtr = ib_iter;
@@ -2008,7 +2023,7 @@ namespace dmGameSystem
             GetPivot(anim_data, &pivot_x, &pivot_y);
             Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
             Point3 pivot_scaled(-pivot_x * size.getX(), -pivot_y * size.getY(), 0.f);
-            Vector3 world_pos = (component->m_World * Vector4(pivot_scaled.getX(), pivot_scaled.getY(), 0.f, 1.f)).getXYZ();
+            Vector3 world_pos = (component->m_World * pivot_scaled).getXYZ();
 
             bool intersect = dmIntersection::TestFrustumSphereSq(frustum, Point3(world_pos), radius_sq);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;

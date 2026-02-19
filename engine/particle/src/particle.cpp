@@ -1246,8 +1246,8 @@ namespace dmParticle
                 ddf->m_Pivot.getZ()));
         }
 
-        Vector3 position_world_flat[6];
-        Vector3 position_local_flat[6];
+        Point3 position_world_flat[6];
+        Point3 position_local_flat[6];
         float tex_coord_flat[6 * 2];
 
         Vector4 color_to_write;
@@ -1337,11 +1337,11 @@ namespace dmParticle
             // Local space has size applied (like sprites); world matrix has no scale so view_proj * mtx_world * position_local == view_proj * position_world
             float hx = width_factor * size.getX();
             float hy = height_factor * size.getY();
-            position_local_flat[0] = Vector3(-hx, -hy, 0.0f);
-            position_local_flat[1] = Vector3(-hx,  hy, 0.0f);
-            position_local_flat[2] = Vector3( hx,  hy, 0.0f);
+            position_local_flat[0] = Point3(-hx, -hy, 0.0f);
+            position_local_flat[1] = Point3(-hx,  hy, 0.0f);
+            position_local_flat[2] = Point3( hx,  hy, 0.0f);
             position_local_flat[3] = position_local_flat[2];
-            position_local_flat[4] = Vector3( hx, -hy, 0.0f);
+            position_local_flat[4] = Point3( hx, -hy, 0.0f);
             position_local_flat[5] = position_local_flat[0];
 
             dmTransform::Transform particle_transform_no_scale = particle_transform;
@@ -1352,8 +1352,7 @@ namespace dmParticle
             {
                 for (int i = 0; i < 6; ++i)
                 {
-                    Vector4 p_local(position_local_flat[i].getX(), position_local_flat[i].getY(), position_local_flat[i].getZ(), 1.0f);
-                    position_world_flat[i] = (world_matrix * p_local).getXYZ();
+                    position_world_flat[i] = Point3((world_matrix * position_local_flat[i]).getXYZ());
                 }
             }
 
