@@ -530,6 +530,54 @@ namespace dmGraphics
      */
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
 
+    /*# delete a shader program
+     * delete a shader program
+     * @name DeleteProgram
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param program [type:HProgram] program handle
+     */
+    void DeleteProgram(HContext context, HProgram program);
+
+    /*# enable a shader program for rendering
+     * enable a shader program for rendering
+     * @name EnableProgram
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param program [type:HProgram] program handle
+     */
+    void EnableProgram(HContext context, HProgram program);
+
+    /*# disable the currently active shader program
+     * disable the currently active shader program
+     * @name DisableProgram
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     */
+    void DisableProgram(HContext context);
+
+    /*# bind a sampler uniform to a texture unit
+     * bind a sampler uniform to a texture unit
+     * @name SetSampler
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param location [type:HUniformLocation] uniform location
+     * @param unit [type:int32_t] texture unit index
+     */
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
+
+    /*# set viewport rectangle
+     * set viewport rectangle
+     * @name SetViewport
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param x [type:int32_t] x coordinate
+     * @param y [type:int32_t] y coordinate
+     * @param width [type:int32_t] width
+     * @param height [type:int32_t] height
+     */
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+
     /*# find uniform location by hashed uniform name
      * find uniform location by hashed uniform name
      * @name ProgramFindUniformLocationHash

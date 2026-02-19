@@ -1880,8 +1880,7 @@ namespace dmGraphics
     }
     void DeleteProgram(HContext context, HProgram program)
     {
-        DestroyProgram((Program*) program);
-        g_functions.m_DeleteProgram(context, program);
+        ::ProgramDelete((::HGraphicsContext)context, (::HProgram)program);
     }
     ShaderDesc::Language GetProgramLanguage(HProgram program)
     {
@@ -1893,11 +1892,11 @@ namespace dmGraphics
     }
     void EnableProgram(HContext context, HProgram program)
     {
-        g_functions.m_EnableProgram(context, program);
+        ::ProgramEnable((::HGraphicsContext)context, (::HProgram)program);
     }
     void DisableProgram(HContext context)
     {
-        g_functions.m_DisableProgram(context);
+        ::ProgramDisable((::HGraphicsContext)context);
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
     {
@@ -1922,11 +1921,11 @@ namespace dmGraphics
     }
     void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
-        g_functions.m_SetSampler(context, location, unit);
+        ::ProgramSetSampler((::HGraphicsContext)context, (::HUniformLocation)location, unit);
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
-        g_functions.m_SetViewport(context, x, y, width, height);
+        ::GraphicsSetViewport((::HGraphicsContext)context, x, y, width, height);
     }
     void EnableState(HContext context, State state)
     {
@@ -2441,6 +2440,32 @@ extern "C"
     {
         if (dmGraphics::g_functions.m_Finalize)
             dmGraphics::g_functions.m_Finalize();
+    }
+
+    void ProgramDelete(HGraphicsContext context, HProgram program)
+    {
+        dmGraphics::DestroyProgram((dmGraphics::Program*)program);
+        dmGraphics::g_functions.m_DeleteProgram((dmGraphics::HContext)context, (dmGraphics::HProgram)program);
+    }
+
+    void ProgramEnable(HGraphicsContext context, HProgram program)
+    {
+        dmGraphics::g_functions.m_EnableProgram((dmGraphics::HContext)context, (dmGraphics::HProgram)program);
+    }
+
+    void ProgramDisable(HGraphicsContext context)
+    {
+        dmGraphics::g_functions.m_DisableProgram((dmGraphics::HContext)context);
+    }
+
+    void ProgramSetSampler(HGraphicsContext context, HUniformLocation location, int32_t unit)
+    {
+        dmGraphics::g_functions.m_SetSampler((dmGraphics::HContext)context, (dmGraphics::HUniformLocation)location, unit);
+    }
+
+    void GraphicsSetViewport(HGraphicsContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    {
+        dmGraphics::g_functions.m_SetViewport((dmGraphics::HContext)context, x, y, width, height);
     }
 
     ::HUniformLocation ProgramFindUniformLocationHash(::HProgram program, dmhash_t name_hash)

@@ -723,49 +723,6 @@ namespace dmGraphics
      */
     HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
 
-    /*#
-     * Delete a shader program
-     * @name DeleteProgram
-     * @param context [type:HContext] Graphics context
-     * @param program [type:HProgram] Program handle
-     */
-    void DeleteProgram(HContext context, HProgram program);
-
-    /*#
-     * Enable a shader program for rendering
-     * @name EnableProgram
-     * @param context [type:HContext] Graphics context
-     * @param program [type:HProgram] Program handle
-     */
-    void EnableProgram(HContext context, HProgram program);
-
-    /*#
-     * Disable the currently active shader program
-     * @name DisableProgram
-     * @param context [type:HContext] Graphics context
-     */
-    void DisableProgram(HContext context);
-
-    /*#
-     * Bind a sampler uniform to a texture unit
-     * @name SetSampler
-     * @param context [type:HContext] Graphics context
-     * @param location [type:HUniformLocation] Uniform location
-     * @param unit [type:int32_t] Texture unit index
-     */
-    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
-
-    /*#
-     * Set viewport rectangle
-     * @name SetViewport
-     * @param context [type:HContext] Graphics context
-     * @param x [type:int32_t] X coordinate
-     * @param y [type:int32_t] Y coordinate
-     * @param width [type:int32_t] Width
-     * @param height [type:int32_t] Height
-     */
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
-
     /*# check if an extension is supported
      * @name IsExtensionSupported
      * @param context [type:dmGraphics::HContext] the context

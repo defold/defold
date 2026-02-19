@@ -66,7 +66,12 @@
                     "VertexDeclarationDelete": "DeleteVertexDeclaration",
                     "VertexDeclarationEnable": "EnableVertexDeclaration",
                     "VertexDeclarationDisable": "DisableVertexDeclaration",
-                    "VertexDeclarationGetStreamOffset": "GetVertexStreamOffset"
+                    "VertexDeclarationGetStreamOffset": "GetVertexStreamOffset",
+                    "ProgramDelete": "DeleteProgram",
+                    "ProgramEnable": "EnableProgram",
+                    "ProgramDisable": "DisableProgram",
+                    "ProgramSetSampler": "SetSampler",
+                    "GraphicsSetViewport": "SetViewport"
                 }
             }
         }}

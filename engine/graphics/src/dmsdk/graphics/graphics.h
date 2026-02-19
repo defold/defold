@@ -451,6 +451,13 @@ typedef struct GraphicsCreateParams
     uint8_t                                       : 4;
 } GraphicsCreateParams;
 
+/*# install graphics adapter
+ * @name GraphicsInstallAdapter
+ * @param family [type:AdapterFamily] graphics adapter family
+ * @return ok [type:bool] true if adapter was installed, false otherwise
+ */
+bool GraphicsInstallAdapter(AdapterFamily family);
+
 /*# initialize context creation parameters
  * @name GraphicsContextParamsInitialize
  * @param params [type:GraphicsCreateParams*] parameter struct to initialize
@@ -470,18 +477,28 @@ HGraphicsContext GraphicsNewContext(const GraphicsCreateParams* params);
  */
 void GraphicsDeleteContext(HGraphicsContext context);
 
-/*# install graphics adapter
- * @name GraphicsInstallAdapter
- * @param family [type:AdapterFamily] graphics adapter family
- * @return ok [type:bool] true if adapter was installed, false otherwise
- */
-bool GraphicsInstallAdapter(AdapterFamily family);
-
 /*# begin frame
  * @name GraphicsBeginFrame
  * @param context [type:HGraphicsContext] graphics context handle
  */
 void GraphicsBeginFrame(HGraphicsContext context);
+
+/*# present frame
+ * @note Must match each call to GraphicsBeginFrame() with GraphicsFlip()
+ * @name GraphicsFlip
+ * @param context [type:HGraphicsContext] graphics context handle
+ */
+void GraphicsFlip(HGraphicsContext context);
+
+/*# set viewport rectangle
+ * @name GraphicsSetViewport
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param x [type:int32_t] x coordinate
+ * @param y [type:int32_t] y coordinate
+ * @param width [type:int32_t] width
+ * @param height [type:int32_t] height
+ */
+void GraphicsSetViewport(HGraphicsContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
 /*# clear buffers in the current render target
  * @name GraphicsClear
@@ -505,12 +522,6 @@ void GraphicsClear(HGraphicsContext context, uint32_t flags, uint8_t red, uint8_
  * @param instance_count [type:uint32_t] instance count
  */
 void GraphicsDraw(HGraphicsContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
-
-/*# present frame
- * @name GraphicsFlip
- * @param context [type:HGraphicsContext] graphics context handle
- */
-void GraphicsFlip(HGraphicsContext context);
 
 /*# close graphics window
  * @name GraphicsCloseWindow
@@ -702,6 +713,34 @@ void IndexBufferSetSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, 
  * @return supported [type:bool] true if supported
  */
 bool IndexBufferIsFormatSupported(HGraphicsContext context, IndexBufferFormat format);
+
+/*# delete a shader program
+ * @name ProgramDelete
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param program [type:HProgram] program handle
+ */
+void ProgramDelete(HGraphicsContext context, HProgram program);
+
+/*# enable a shader program for rendering
+ * @name ProgramEnable
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param program [type:HProgram] program handle
+ */
+void ProgramEnable(HGraphicsContext context, HProgram program);
+
+/*# disable the currently active shader program
+ * @name ProgramDisable
+ * @param context [type:HGraphicsContext] graphics context handle
+ */
+void ProgramDisable(HGraphicsContext context);
+
+/*# bind a sampler uniform to a texture unit
+ * @name ProgramSetSampler
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param location [type:HUniformLocation] uniform location
+ * @param unit [type:int32_t] texture unit index
+ */
+void ProgramSetSampler(HGraphicsContext context, HUniformLocation location, int32_t unit);
 
 /*# find uniform location by hashed uniform name
  * @name ProgramFindUniformLocationHash
