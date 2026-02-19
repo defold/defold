@@ -256,6 +256,33 @@ namespace dmGraphics
      */
     void BeginFrame(HContext context);
 
+    /*# clear buffers in the current render target
+     * clear buffers in the current render target
+     * @name Clear
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param flags [type:uint32_t] buffer clear mask using BUFFER_TYPE_* bits
+     * @param red [type:uint8_t] red clear value
+     * @param green [type:uint8_t] green clear value
+     * @param blue [type:uint8_t] blue clear value
+     * @param alpha [type:uint8_t] alpha clear value
+     * @param depth [type:float] depth clear value
+     * @param stencil [type:uint32_t] stencil clear value
+     */
+    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
+
+    /*# draw primitives from currently bound buffers
+     * draw primitives from currently bound buffers
+     * @name Draw
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param prim_type [type:PrimitiveType] primitive topology
+     * @param first [type:uint32_t] first vertex index
+     * @param count [type:uint32_t] vertex count
+     * @param instance_count [type:uint32_t] instance count
+     */
+    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
     /*# present frame
      * present frame
      * @name Flip
@@ -389,6 +416,139 @@ namespace dmGraphics
      * @return offset [type:uint32_t] stream offset or 0xFFFFFFFF if not found
      */
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
+
+    /*# create a vertex buffer
+     * create a vertex buffer
+     * @name NewVertexBuffer
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param size [type:uint32_t] buffer size in bytes
+     * @param data [type:const void*] initial data
+     * @param usage [type:BufferUsage] buffer usage hint
+     * @return buffer [type:HVertexBuffer] vertex buffer handle
+     */
+    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void * data, BufferUsage usage);
+
+    /*# delete a vertex buffer
+     * delete a vertex buffer
+     * @name DeleteVertexBuffer
+     * @language C++
+     * @param buffer [type:HVertexBuffer] vertex buffer handle
+     */
+    void DeleteVertexBuffer(HVertexBuffer buffer);
+
+    /*# upload vertex buffer data
+     * upload vertex buffer data
+     * @name SetVertexBufferData
+     * @language C++
+     * @param buffer [type:HVertexBuffer] vertex buffer handle
+     * @param size [type:uint32_t] data size in bytes
+     * @param data [type:const void*] source data
+     * @param usage [type:BufferUsage] buffer usage hint
+     */
+    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void * data, BufferUsage usage);
+
+    /*# upload partial vertex buffer data
+     * upload partial vertex buffer data
+     * @name SetVertexBufferSubData
+     * @language C++
+     * @param buffer [type:HVertexBuffer] vertex buffer handle
+     * @param offset [type:uint32_t] destination offset in bytes
+     * @param size [type:uint32_t] data size in bytes
+     * @param data [type:const void*] source data
+     */
+    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void * data);
+
+    /*# bind a vertex buffer
+     * bind a vertex buffer
+     * @name EnableVertexBuffer
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param buffer [type:HVertexBuffer] vertex buffer handle
+     * @param binding_index [type:uint32_t] binding index
+     */
+    void EnableVertexBuffer(HContext context, HVertexBuffer buffer, uint32_t binding_index);
+
+    /*# unbind a vertex buffer
+     * unbind a vertex buffer
+     * @name DisableVertexBuffer
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param buffer [type:HVertexBuffer] vertex buffer handle
+     */
+    void DisableVertexBuffer(HContext context, HVertexBuffer buffer);
+
+    /*# create an index buffer
+     * create an index buffer
+     * @name NewIndexBuffer
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param size [type:uint32_t] buffer size in bytes
+     * @param data [type:const void*] initial data
+     * @param usage [type:BufferUsage] buffer usage hint
+     * @return buffer [type:HIndexBuffer] index buffer handle
+     */
+    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void * data, BufferUsage usage);
+
+    /*# delete an index buffer
+     * delete an index buffer
+     * @name DeleteIndexBuffer
+     * @language C++
+     * @param buffer [type:HIndexBuffer] index buffer handle
+     */
+    void DeleteIndexBuffer(HIndexBuffer buffer);
+
+    /*# upload index buffer data
+     * upload index buffer data
+     * @name SetIndexBufferData
+     * @language C++
+     * @param buffer [type:HIndexBuffer] index buffer handle
+     * @param size [type:uint32_t] data size in bytes
+     * @param data [type:const void*] source data
+     * @param usage [type:BufferUsage] buffer usage hint
+     */
+    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void * data, BufferUsage usage);
+
+    /*# upload partial index buffer data
+     * upload partial index buffer data
+     * @name SetIndexBufferSubData
+     * @language C++
+     * @param buffer [type:HIndexBuffer] index buffer handle
+     * @param offset [type:uint32_t] destination offset in bytes
+     * @param size [type:uint32_t] data size in bytes
+     * @param data [type:const void*] source data
+     */
+    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void * data);
+
+    /*# check index buffer format support
+     * check index buffer format support
+     * @name IsIndexBufferFormatSupported
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param format [type:IndexBufferFormat] index format
+     * @return supported [type:bool] true if supported
+     */
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
+
+    /*# find uniform location by hashed uniform name
+     * find uniform location by hashed uniform name
+     * @name ProgramFindUniformLocationHash
+     * @language C++
+     * @param program [type:HProgram] program handle
+     * @param name_hash [type:dmhash_t] hash of the uniform name
+     * @return location [type:HUniformLocation] uniform location, or INVALID_UNIFORM_LOCATION if not found
+     */
+    HUniformLocation ProgramFindUniformLocationHash(HProgram program, dmhash_t name_hash);
+
+    /*# find uniform location by uniform name
+     * find uniform location by uniform name
+     * @name ProgramFindUniformLocation
+     * @language C++
+     * @param program [type:HProgram] program handle
+     * @param name [type:const char*] uniform name
+     * @return location [type:HUniformLocation] uniform location, or INVALID_UNIFORM_LOCATION if not found
+     */
+    HUniformLocation ProgramFindUniformLocation(HProgram program, const char * name);
 
 
 } // namespace dmGraphics

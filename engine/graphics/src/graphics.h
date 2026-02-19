@@ -348,6 +348,8 @@ namespace dmGraphics
 
     uint32_t GetVertexBufferSize(HVertexBuffer vertex_buffer);
     uint32_t GetIndexBufferSize(HIndexBuffer buffer);
+    uint32_t GetMaxElementsVertices(HContext context);
+    uint32_t GetMaxElementsIndices(HContext context);
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
@@ -357,7 +359,18 @@ namespace dmGraphics
 
     bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
 
+    struct Uniform
+    {
+        char*            m_Name;
+        dmhash_t         m_NameHash;
+        HUniformLocation m_Location;
+        Type             m_Type;
+        uint32_t         m_Count;
+    };
+
     // Attributes
+    uint32_t         GetUniformCount(HProgram prog);
+    void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc);
     uint32_t         GetAttributeCount(HProgram prog);
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);

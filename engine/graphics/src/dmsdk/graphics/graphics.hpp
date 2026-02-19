@@ -578,25 +578,6 @@ namespace dmGraphics
     };
 
     /*#
-     * Shader uniform metadata
-     * @struct
-     * @name Uniform
-     * @member m_Name [type:char*] Uniform name
-     * @member m_NameHash [type:dmhash_t] Hash of the uniform name
-     * @member m_Location [type:HUniformLocation] Uniform location handle
-     * @member m_Type [type:Type] Uniform value type
-     * @member m_Count [type:uint32_t] Uniform element count
-     */
-    struct Uniform
-    {
-        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
-        dmhash_t         m_NameHash;
-        HUniformLocation m_Location;
-        Type             m_Type;
-        uint32_t         m_Count;
-    };
-
-    /*#
      * Texture creation parameters.
      *
      * Defines how a texture is created, initialized, and used.
@@ -732,150 +713,6 @@ namespace dmGraphics
     };
 
     /*#
-     * Clear buffers in the current render target
-     * @name Clear
-     * @param context [type:HContext] Graphics context
-     * @param flags [type:uint32_t] Buffer clear mask using BUFFER_TYPE_* bits
-     * @param red [type:uint8_t] Red clear value
-     * @param green [type:uint8_t] Green clear value
-     * @param blue [type:uint8_t] Blue clear value
-     * @param alpha [type:uint8_t] Alpha clear value
-     * @param depth [type:float] Depth clear value
-     * @param stencil [type:uint32_t] Stencil clear value
-     */
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
-
-    /*#
-     * Create new vertex buffer with initial data
-     * @name NewVertexBuffer
-     * @param context [type:dmGraphics::HContext] the context
-     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type:void*] the data
-     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
-     * @return buffer [type:dmGraphics::HVertexBuffer] the vertex buffer
-     */
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
-
-    /*#
-     * Delete vertex buffer
-     * @name DeleteVertexBuffer
-     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
-     */
-    void DeleteVertexBuffer(HVertexBuffer buffer);
-
-    /*#
-     * Set vertex buffer data
-     * @name SetVertexBufferData
-     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
-     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type:void*] the data
-     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
-     */
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
-
-    /*#
-     * Set subset of vertex buffer data
-     * @name SetVertexBufferSubData
-     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
-     * @param offset [type:uint32_t] the offset into the desination buffer (in bytes)
-     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type:void*] the data
-     */
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
-
-    /*#
-     * Enable a vertex buffer binding
-     * @name EnableVertexBuffer
-     * @param context [type:HContext] Graphics context
-     * @param vertex_buffer [type:HVertexBuffer] Vertex buffer handle
-     * @param binding_index [type:uint32_t] Binding index
-     */
-    void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
-
-    /*#
-     * Disable a vertex buffer binding
-     * @name DisableVertexBuffer
-     * @param context [type:HContext] Graphics context
-     * @param vertex_buffer [type:HVertexBuffer] Vertex buffer handle
-     */
-    void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
-
-    /*#
-     * Get the max number of vertices allowed by the system in a vertex buffer
-     * @name GetMaxElementsVertices
-     * @param context [type:dmGraphics::HContext] the context
-     * @return count [type:uint32_t] the count
-     */
-    uint32_t GetMaxElementsVertices(HContext context);
-
-    /*#
-     * Create new index buffer with initial data
-     * @note The caller need to track if the indices are 16 or 32 bit.
-     * @name NewIndexBuffer
-     * @param context [type:dmGraphics::HContext] the context
-     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type:void*] the data
-     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
-     * @return buffer [type:dmGraphics::HIndexBuffer] the index buffer
-     */
-    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
-
-    /*#
-     * Delete the index buffer
-     * @name DeleteIndexBuffer
-     * @param buffer [type:dmGraphics::HIndexBuffer] the index buffer
-     */
-    void DeleteIndexBuffer(HIndexBuffer buffer);
-
-    /*#
-     * Set index buffer data
-     * @name SetIndexBufferData
-     * @param buffer [type:dmGraphics::HIndexBuffer] the buffer
-     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type:void*] the data
-     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
-     */
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
-
-    /*#
-     * Set subset of index buffer data
-     * @name SetIndexBufferSubData
-     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
-     * @param offset [type:uint32_t] the offset into the desination buffer (in bytes)
-     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type:void*] the data
-     */
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
-
-    /*#
-     * Check if the index format is supported
-     * @name IsIndexBufferFormatSupported
-     * @param context [type:dmGraphics::HContext] the context
-     * @param format [type:dmGraphics::IndexBufferFormat] the format
-     * @param result [type:bool] true if the format is supoprted
-     */
-    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
-
-    /*#
-     * Get the max number of indices allowed by the system in an index buffer
-     * @name GetMaxElementsIndices
-     * @param context [type:dmGraphics::HContext] the context
-     * @return count [type:uint32_t] the count
-     */
-    uint32_t GetMaxElementsIndices(HContext context);
-
-    /*#
-     * Draw primitives from currently bound buffers
-     * @name Draw
-     * @param context [type:HContext] Graphics context
-     * @param prim_type [type:PrimitiveType] Primitive topology
-     * @param first [type:uint32_t] First vertex
-     * @param count [type:uint32_t] Vertex count
-     * @param instance_count [type:uint32_t] Number of instances
-     */
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
-
-    /*#
      * Create a shader program
      * @name NewProgram
      * @param context [type:HContext] Graphics context
@@ -908,23 +745,6 @@ namespace dmGraphics
      * @param context [type:HContext] Graphics context
      */
     void DisableProgram(HContext context);
-
-    /*#
-     * Get uniform count from a shader program
-     * @name GetUniformCount
-     * @param prog [type:HProgram] Program handle
-     * @return count [type:uint32_t] Number of uniforms
-     */
-    uint32_t GetUniformCount(HProgram prog);
-
-    /*#
-     * Get uniform metadata by index
-     * @name GetUniform
-     * @param prog [type:HProgram] Program handle
-     * @param index [type:uint32_t] Uniform index
-     * @param uniform [type:Uniform*] Output uniform metadata
-     */
-    void GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
 
     /*#
      * Bind a sampler uniform to a texture unit

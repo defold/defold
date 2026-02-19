@@ -1784,23 +1784,23 @@ namespace dmGraphics
     }
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
-        g_functions.m_Clear(context, flags, red, green, blue, alpha, depth, stencil);
+        ::GraphicsClear(context, flags, red, green, blue, alpha, depth, stencil);
     }
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return g_functions.m_NewVertexBuffer(context, size, data, buffer_usage);
+        return ::VertexBufferNew(context, size, data, (::BufferUsage)buffer_usage);
     }
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        g_functions.m_DeleteVertexBuffer(buffer);
+        ::VertexBufferDelete((::HVertexBuffer)buffer);
     }
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        g_functions.m_SetVertexBufferData(buffer, size, data, buffer_usage);
+        ::VertexBufferSetData((::HVertexBuffer)buffer, size, data, (::BufferUsage)buffer_usage);
     }
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
+        ::VertexBufferSetSubData((::HVertexBuffer)buffer, offset, size, data);
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
@@ -1812,19 +1812,19 @@ namespace dmGraphics
     }
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return g_functions.m_NewIndexBuffer(context, size, data, buffer_usage);
+        return ::IndexBufferNew(context, size, data, (::BufferUsage)buffer_usage);
     }
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        g_functions.m_DeleteIndexBuffer(buffer);
+        ::IndexBufferDelete((::HIndexBuffer)buffer);
     }
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        g_functions.m_SetIndexBufferData(buffer, size, data, buffer_usage);
+        ::IndexBufferSetData((::HIndexBuffer)buffer, size, data, (::BufferUsage)buffer_usage);
     }
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
+        ::IndexBufferSetSubData((::HIndexBuffer)buffer, offset, size, data);
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
     {
@@ -1832,7 +1832,7 @@ namespace dmGraphics
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
-        return g_functions.m_IsIndexBufferFormatSupported(context, format);
+        return ::IndexBufferIsFormatSupported(context, (::IndexBufferFormat)format);
     }
     uint32_t GetMaxElementsIndices(HContext context)
     {
@@ -1856,11 +1856,11 @@ namespace dmGraphics
     }
     void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
-        return g_functions.m_EnableVertexBuffer(context, vertex_buffer, binding_index);
+        ::VertexBufferEnable(context, (::HVertexBuffer)vertex_buffer, binding_index);
     }
     void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
     {
-        g_functions.m_DisableVertexBuffer(context, vertex_buffer);
+        ::VertexBufferDisable(context, (::HVertexBuffer)vertex_buffer);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
@@ -1868,7 +1868,7 @@ namespace dmGraphics
     }
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
-        g_functions.m_Draw(context, prim_type, first, count, instance_count);
+        ::GraphicsDraw(context, (::PrimitiveType)prim_type, first, count, instance_count);
     }
     void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
@@ -2305,6 +2305,71 @@ extern "C"
         return dmGraphics::GetVertexStreamOffset((dmGraphics::HVertexDeclaration)vertex_declaration, name_hash);
     }
 
+    void GraphicsClear(HGraphicsContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
+    {
+        dmGraphics::g_functions.m_Clear((dmGraphics::HContext)context, flags, red, green, blue, alpha, depth, stencil);
+    }
+
+    void GraphicsDraw(HGraphicsContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
+    {
+        dmGraphics::g_functions.m_Draw((dmGraphics::HContext)context, (dmGraphics::PrimitiveType)prim_type, first, count, instance_count);
+    }
+
+    HVertexBuffer VertexBufferNew(HGraphicsContext context, uint32_t size, const void* data, BufferUsage usage)
+    {
+        return (HVertexBuffer)dmGraphics::g_functions.m_NewVertexBuffer((dmGraphics::HContext)context, size, data, (dmGraphics::BufferUsage)usage);
+    }
+
+    void VertexBufferDelete(HVertexBuffer buffer)
+    {
+        dmGraphics::g_functions.m_DeleteVertexBuffer((dmGraphics::HVertexBuffer)buffer);
+    }
+
+    void VertexBufferSetData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage usage)
+    {
+        dmGraphics::g_functions.m_SetVertexBufferData((dmGraphics::HVertexBuffer)buffer, size, data, (dmGraphics::BufferUsage)usage);
+    }
+
+    void VertexBufferSetSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        dmGraphics::g_functions.m_SetVertexBufferSubData((dmGraphics::HVertexBuffer)buffer, offset, size, data);
+    }
+
+    void VertexBufferEnable(HGraphicsContext context, HVertexBuffer buffer, uint32_t binding_index)
+    {
+        dmGraphics::g_functions.m_EnableVertexBuffer((dmGraphics::HContext)context, (dmGraphics::HVertexBuffer)buffer, binding_index);
+    }
+
+    void VertexBufferDisable(HGraphicsContext context, HVertexBuffer buffer)
+    {
+        dmGraphics::g_functions.m_DisableVertexBuffer((dmGraphics::HContext)context, (dmGraphics::HVertexBuffer)buffer);
+    }
+
+    HIndexBuffer IndexBufferNew(HGraphicsContext context, uint32_t size, const void* data, BufferUsage usage)
+    {
+        return (HIndexBuffer)dmGraphics::g_functions.m_NewIndexBuffer((dmGraphics::HContext)context, size, data, (dmGraphics::BufferUsage)usage);
+    }
+
+    void IndexBufferDelete(HIndexBuffer buffer)
+    {
+        dmGraphics::g_functions.m_DeleteIndexBuffer((dmGraphics::HIndexBuffer)buffer);
+    }
+
+    void IndexBufferSetData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage usage)
+    {
+        dmGraphics::g_functions.m_SetIndexBufferData((dmGraphics::HIndexBuffer)buffer, size, data, (dmGraphics::BufferUsage)usage);
+    }
+
+    void IndexBufferSetSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        dmGraphics::g_functions.m_SetIndexBufferSubData((dmGraphics::HIndexBuffer)buffer, offset, size, data);
+    }
+
+    bool IndexBufferIsFormatSupported(HGraphicsContext context, IndexBufferFormat format)
+    {
+        return dmGraphics::g_functions.m_IsIndexBufferFormatSupported((dmGraphics::HContext)context, (dmGraphics::IndexBufferFormat)format);
+    }
+
     void GraphicsContextParamsInitialize(GraphicsCreateParams* params)
     {
         if (params == 0x0)
@@ -2376,5 +2441,27 @@ extern "C"
     {
         if (dmGraphics::g_functions.m_Finalize)
             dmGraphics::g_functions.m_Finalize();
+    }
+
+    ::HUniformLocation ProgramFindUniformLocationHash(::HProgram program, dmhash_t name_hash)
+    {
+        uint32_t uniform_count = dmGraphics::GetUniformCount(program);
+        for (uint32_t i = 0; i < uniform_count; ++i)
+        {
+            dmGraphics::Uniform uniform;
+            dmGraphics::GetUniform(program, i, &uniform);
+            if (uniform.m_NameHash == name_hash)
+            {
+                return uniform.m_Location;
+            }
+        }
+
+        return dmGraphics::INVALID_UNIFORM_LOCATION;
+    }
+
+    ::HUniformLocation ProgramFindUniformLocation(::HProgram program, const char* name)
+    {
+        dmhash_t name_hash = dmHashString64(name);
+        return ProgramFindUniformLocationHash(program, name_hash);
     }
 }

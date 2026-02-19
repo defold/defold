@@ -53,6 +53,30 @@ typedef struct VertexDeclaration* HVertexDeclaration;
  */
 typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
+/*# program handle
+ * @typedef
+ * @name HProgram
+ */
+typedef uintptr_t HProgram;
+
+/*# vertex buffer handle
+ * @typedef
+ * @name HVertexBuffer
+ */
+typedef uintptr_t HVertexBuffer;
+
+/*# index buffer handle
+ * @typedef
+ * @name HIndexBuffer
+ */
+typedef uintptr_t HIndexBuffer;
+
+/*# uniform location handle
+ * @typedef
+ * @name HUniformLocation
+ */
+typedef int64_t HUniformLocation;
+
 /*# vertex attribute
  * @typedef
  * @name VertexAttribute
@@ -294,6 +318,106 @@ typedef enum TextureFormat
     TEXTURE_FORMAT_COUNT
 } TextureFormat;
 
+/*# primitive drawing modes
+ * @enum
+ * @name PrimitiveType
+ * @member PRIMITIVE_LINES
+ * @member PRIMITIVE_TRIANGLES
+ * @member PRIMITIVE_TRIANGLE_STRIP
+ */
+typedef enum PrimitiveType
+{
+    PRIMITIVE_LINES          = 0,
+    PRIMITIVE_TRIANGLES      = 1,
+    PRIMITIVE_TRIANGLE_STRIP = 2,
+} PrimitiveType;
+
+/*# buffer usage hint
+ * @enum
+ * @name BufferUsage
+ * @member BUFFER_USAGE_STREAM_DRAW
+ * @member BUFFER_USAGE_STATIC_DRAW
+ * @member BUFFER_USAGE_DYNAMIC_DRAW
+ */
+typedef enum BufferUsage
+{
+    BUFFER_USAGE_STREAM_DRAW  = 0,
+    BUFFER_USAGE_STATIC_DRAW  = 1,
+    BUFFER_USAGE_DYNAMIC_DRAW = 2,
+} BufferUsage;
+
+/*# index buffer format
+ * @enum
+ * @name IndexBufferFormat
+ * @member INDEXBUFFER_FORMAT_16
+ * @member INDEXBUFFER_FORMAT_32
+ */
+typedef enum IndexBufferFormat
+{
+    INDEXBUFFER_FORMAT_16 = 0,
+    INDEXBUFFER_FORMAT_32 = 1,
+} IndexBufferFormat;
+
+/*# graphics data type
+ * @enum
+ * @name Type
+ * @member TYPE_BYTE
+ * @member TYPE_UNSIGNED_BYTE
+ * @member TYPE_SHORT
+ * @member TYPE_UNSIGNED_SHORT
+ * @member TYPE_INT
+ * @member TYPE_UNSIGNED_INT
+ * @member TYPE_FLOAT
+ * @member TYPE_FLOAT_VEC4
+ * @member TYPE_FLOAT_MAT4
+ * @member TYPE_SAMPLER_2D
+ * @member TYPE_SAMPLER_CUBE
+ * @member TYPE_SAMPLER_2D_ARRAY
+ * @member TYPE_FLOAT_VEC2
+ * @member TYPE_FLOAT_VEC3
+ * @member TYPE_FLOAT_MAT2
+ * @member TYPE_FLOAT_MAT3
+ * @member TYPE_IMAGE_2D
+ * @member TYPE_TEXTURE_2D
+ * @member TYPE_SAMPLER
+ * @member TYPE_TEXTURE_2D_ARRAY
+ * @member TYPE_TEXTURE_CUBE
+ * @member TYPE_SAMPLER_3D
+ * @member TYPE_TEXTURE_3D
+ * @member TYPE_IMAGE_3D
+ * @member TYPE_SAMPLER_3D_ARRAY
+ * @member TYPE_TEXTURE_3D_ARRAY
+ */
+typedef enum Type
+{
+    TYPE_BYTE             = 0,
+    TYPE_UNSIGNED_BYTE    = 1,
+    TYPE_SHORT            = 2,
+    TYPE_UNSIGNED_SHORT   = 3,
+    TYPE_INT              = 4,
+    TYPE_UNSIGNED_INT     = 5,
+    TYPE_FLOAT            = 6,
+    TYPE_FLOAT_VEC4       = 7,
+    TYPE_FLOAT_MAT4       = 8,
+    TYPE_SAMPLER_2D       = 9,
+    TYPE_SAMPLER_CUBE     = 10,
+    TYPE_SAMPLER_2D_ARRAY = 11,
+    TYPE_FLOAT_VEC2       = 12,
+    TYPE_FLOAT_VEC3       = 13,
+    TYPE_FLOAT_MAT2       = 14,
+    TYPE_FLOAT_MAT3       = 15,
+    TYPE_IMAGE_2D         = 16,
+    TYPE_TEXTURE_2D       = 17,
+    TYPE_SAMPLER          = 18,
+    TYPE_TEXTURE_2D_ARRAY = 19,
+    TYPE_TEXTURE_CUBE     = 20,
+    TYPE_SAMPLER_3D       = 21,
+    TYPE_TEXTURE_3D       = 22,
+    TYPE_IMAGE_3D         = 23,
+    TYPE_SAMPLER_3D_ARRAY = 24,
+    TYPE_TEXTURE_3D_ARRAY = 25,
+} Type;
+
 /*# context creation parameters
  * @struct
  * @name GraphicsCreateParams
@@ -358,6 +482,29 @@ bool GraphicsInstallAdapter(AdapterFamily family);
  * @param context [type:HGraphicsContext] graphics context handle
  */
 void GraphicsBeginFrame(HGraphicsContext context);
+
+/*# clear buffers in the current render target
+ * @name GraphicsClear
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param flags [type:uint32_t] buffer clear mask using BUFFER_TYPE_* bits
+ * @param red [type:uint8_t] red clear value
+ * @param green [type:uint8_t] green clear value
+ * @param blue [type:uint8_t] blue clear value
+ * @param alpha [type:uint8_t] alpha clear value
+ * @param depth [type:float] depth clear value
+ * @param stencil [type:uint32_t] stencil clear value
+ */
+void GraphicsClear(HGraphicsContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
+
+/*# draw primitives from currently bound buffers
+ * @name GraphicsDraw
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param prim_type [type:PrimitiveType] primitive topology
+ * @param first [type:uint32_t] first vertex index
+ * @param count [type:uint32_t] vertex count
+ * @param instance_count [type:uint32_t] instance count
+ */
+void GraphicsDraw(HGraphicsContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
 
 /*# present frame
  * @name GraphicsFlip
@@ -464,6 +611,113 @@ void VertexDeclarationDisable(HGraphicsContext context, HVertexDeclaration verte
  * @return offset [type:uint32_t] stream offset or 0xFFFFFFFF if not found
  */
 uint32_t VertexDeclarationGetStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
+
+/*# create a vertex buffer
+ * @name VertexBufferNew
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param size [type:uint32_t] buffer size in bytes
+ * @param data [type:const void*] initial data
+ * @param usage [type:BufferUsage] buffer usage hint
+ * @return buffer [type:HVertexBuffer] vertex buffer handle
+ */
+HVertexBuffer VertexBufferNew(HGraphicsContext context, uint32_t size, const void* data, BufferUsage usage);
+
+/*# delete a vertex buffer
+ * @name VertexBufferDelete
+ * @param buffer [type:HVertexBuffer] vertex buffer handle
+ */
+void VertexBufferDelete(HVertexBuffer buffer);
+
+/*# upload vertex buffer data
+ * @name VertexBufferSetData
+ * @param buffer [type:HVertexBuffer] vertex buffer handle
+ * @param size [type:uint32_t] data size in bytes
+ * @param data [type:const void*] source data
+ * @param usage [type:BufferUsage] buffer usage hint
+ */
+void VertexBufferSetData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage usage);
+
+/*# upload partial vertex buffer data
+ * @name VertexBufferSetSubData
+ * @param buffer [type:HVertexBuffer] vertex buffer handle
+ * @param offset [type:uint32_t] destination offset in bytes
+ * @param size [type:uint32_t] data size in bytes
+ * @param data [type:const void*] source data
+ */
+void VertexBufferSetSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+
+/*# bind a vertex buffer
+ * @name VertexBufferEnable
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param buffer [type:HVertexBuffer] vertex buffer handle
+ * @param binding_index [type:uint32_t] binding index
+ */
+void VertexBufferEnable(HGraphicsContext context, HVertexBuffer buffer, uint32_t binding_index);
+
+/*# unbind a vertex buffer
+ * @name VertexBufferDisable
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param buffer [type:HVertexBuffer] vertex buffer handle
+ */
+void VertexBufferDisable(HGraphicsContext context, HVertexBuffer buffer);
+
+/*# create an index buffer
+ * @name IndexBufferNew
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param size [type:uint32_t] buffer size in bytes
+ * @param data [type:const void*] initial data
+ * @param usage [type:BufferUsage] buffer usage hint
+ * @return buffer [type:HIndexBuffer] index buffer handle
+ */
+HIndexBuffer IndexBufferNew(HGraphicsContext context, uint32_t size, const void* data, BufferUsage usage);
+
+/*# delete an index buffer
+ * @name IndexBufferDelete
+ * @param buffer [type:HIndexBuffer] index buffer handle
+ */
+void IndexBufferDelete(HIndexBuffer buffer);
+
+/*# upload index buffer data
+ * @name IndexBufferSetData
+ * @param buffer [type:HIndexBuffer] index buffer handle
+ * @param size [type:uint32_t] data size in bytes
+ * @param data [type:const void*] source data
+ * @param usage [type:BufferUsage] buffer usage hint
+ */
+void IndexBufferSetData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage usage);
+
+/*# upload partial index buffer data
+ * @name IndexBufferSetSubData
+ * @param buffer [type:HIndexBuffer] index buffer handle
+ * @param offset [type:uint32_t] destination offset in bytes
+ * @param size [type:uint32_t] data size in bytes
+ * @param data [type:const void*] source data
+ */
+void IndexBufferSetSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+
+/*# check index buffer format support
+ * @name IndexBufferIsFormatSupported
+ * @param context [type:HGraphicsContext] graphics context handle
+ * @param format [type:IndexBufferFormat] index format
+ * @return supported [type:bool] true if supported
+ */
+bool IndexBufferIsFormatSupported(HGraphicsContext context, IndexBufferFormat format);
+
+/*# find uniform location by hashed uniform name
+ * @name ProgramFindUniformLocationHash
+ * @param program [type:HProgram] program handle
+ * @param name_hash [type:dmhash_t] hash of the uniform name
+ * @return location [type:HUniformLocation] uniform location, or INVALID_UNIFORM_LOCATION if not found
+ */
+HUniformLocation ProgramFindUniformLocationHash(HProgram program, dmhash_t name_hash);
+
+/*# find uniform location by uniform name
+ * @name ProgramFindUniformLocation
+ * @param program [type:HProgram] program handle
+ * @param name [type:const char*] uniform name
+ * @return location [type:HUniformLocation] uniform location, or INVALID_UNIFORM_LOCATION if not found
+ */
+HUniformLocation ProgramFindUniformLocation(HProgram program, const char* name);
 
 #if defined(__cplusplus)
 } // extern "C"
