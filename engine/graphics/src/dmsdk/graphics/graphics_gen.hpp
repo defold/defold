@@ -214,6 +214,15 @@ namespace dmGraphics
      */
     typedef GraphicsCreateParams ContextParams;
 
+    /*# install graphics adapter
+     * install graphics adapter
+     * @name InstallAdapter
+     * @language C++
+     * @param family [type:AdapterFamily] graphics adapter family
+     * @return ok [type:bool] true if adapter was installed, false otherwise
+     */
+    bool InstallAdapter(AdapterFamily family);
+
     /*# initialize context creation parameters
      * initialize context creation parameters
      * @name ContextParamsInitialize
@@ -239,15 +248,6 @@ namespace dmGraphics
      */
     void DeleteContext(HContext context);
 
-    /*# install graphics adapter
-     * install graphics adapter
-     * @name InstallAdapter
-     * @language C++
-     * @param family [type:AdapterFamily] graphics adapter family
-     * @return ok [type:bool] true if adapter was installed, false otherwise
-     */
-    bool InstallAdapter(AdapterFamily family);
-
     /*# begin frame
      * begin frame
      * @name BeginFrame
@@ -255,6 +255,27 @@ namespace dmGraphics
      * @param context [type:HGraphicsContext] graphics context handle
      */
     void BeginFrame(HContext context);
+
+    /*# present frame
+     * present frame
+     * @name Flip
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @note Must match each call to GraphicsBeginFrame() with GraphicsFlip()
+     */
+    void Flip(HContext context);
+
+    /*# set viewport rectangle
+     * set viewport rectangle
+     * @name SetViewport
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param x [type:int32_t] x coordinate
+     * @param y [type:int32_t] y coordinate
+     * @param width [type:int32_t] width
+     * @param height [type:int32_t] height
+     */
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     /*# clear buffers in the current render target
      * clear buffers in the current render target
@@ -282,14 +303,6 @@ namespace dmGraphics
      * @param instance_count [type:uint32_t] instance count
      */
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
-
-    /*# present frame
-     * present frame
-     * @name Flip
-     * @language C++
-     * @param context [type:HGraphicsContext] graphics context handle
-     */
-    void Flip(HContext context);
 
     /*# close graphics window
      * close graphics window
@@ -566,37 +579,25 @@ namespace dmGraphics
      */
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);
 
-    /*# set viewport rectangle
-     * set viewport rectangle
-     * @name SetViewport
-     * @language C++
-     * @param context [type:HGraphicsContext] graphics context handle
-     * @param x [type:int32_t] x coordinate
-     * @param y [type:int32_t] y coordinate
-     * @param width [type:int32_t] width
-     * @param height [type:int32_t] height
-     */
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
-
     /*# find uniform location by hashed uniform name
      * find uniform location by hashed uniform name
-     * @name ProgramFindUniformLocationHash
+     * @name FindUniformLocation
      * @language C++
      * @param program [type:HProgram] program handle
      * @param name_hash [type:dmhash_t] hash of the uniform name
      * @return location [type:HUniformLocation] uniform location, or INVALID_UNIFORM_LOCATION if not found
      */
-    HUniformLocation ProgramFindUniformLocationHash(HProgram program, dmhash_t name_hash);
+    HUniformLocation FindUniformLocation(HProgram program, dmhash_t name_hash);
 
     /*# find uniform location by uniform name
      * find uniform location by uniform name
-     * @name ProgramFindUniformLocation
+     * @name FindUniformLocation
      * @language C++
      * @param program [type:HProgram] program handle
      * @param name [type:const char*] uniform name
      * @return location [type:HUniformLocation] uniform location, or INVALID_UNIFORM_LOCATION if not found
      */
-    HUniformLocation ProgramFindUniformLocation(HProgram program, const char * name);
+    HUniformLocation FindUniformLocation(HProgram program, const char * name);
 
 
 } // namespace dmGraphics

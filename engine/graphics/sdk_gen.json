@@ -71,7 +71,9 @@
                     "ProgramEnable": "EnableProgram",
                     "ProgramDisable": "DisableProgram",
                     "ProgramSetSampler": "SetSampler",
-                    "GraphicsSetViewport": "SetViewport"
+                    "GraphicsSetViewport": "SetViewport",
+                    "ProgramFindUniformLocationHash": "FindUniformLocation",
+                    "ProgramFindUniformLocation": "FindUniformLocation"
                 }
             }
         }}

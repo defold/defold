@@ -1923,6 +1923,14 @@ namespace dmGraphics
     {
         ::ProgramSetSampler((::HGraphicsContext)context, (::HUniformLocation)location, unit);
     }
+    HUniformLocation FindUniformLocation(HProgram program, dmhash_t name_hash)
+    {
+        return ::ProgramFindUniformLocationHash((::HProgram)program, name_hash);
+    }
+    HUniformLocation FindUniformLocation(HProgram program, const char* name)
+    {
+        return ::ProgramFindUniformLocation((::HProgram)program, name);
+    }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         ::GraphicsSetViewport((::HGraphicsContext)context, x, y, width, height);

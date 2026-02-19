@@ -279,12 +279,17 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
         if n in ignores:
             continue
         renamed = rename_symbols(prefixes, n)
+        typedef_type = n
+        # Avoid invalid self-typedefs (e.g. "typedef HType HType;") in generated C++ headers.
+        # For unchanged handle names we reference the global C type explicitly.
+        if renamed == n:
+            typedef_type = f'::{n}'
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
         out_doc = gen_doc(docs, decl['name'], renamed)
         l(out_doc)
-        l('    typedef %s %s;' % (n, renamed))
+        l('    typedef %s %s;' % (typedef_type, renamed))
         l('')
 
     for decl, doc in state.function_typedefs:
