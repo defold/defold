@@ -35,6 +35,11 @@ DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
+static dmGraphics::VertexStepFunction ToCppVertexStepFunction(VertexAttributeStepFunction step_function);
+static dmGraphics::Type ToCppGraphicsType(VertexAttributeDataType type);
+static dmGraphics::AdapterFamily ToCppAdapterFamily(AdapterFamily family);
+static AdapterFamily ToCAdapterFamily(dmGraphics::AdapterFamily family);
+
 namespace dmGraphics
 {
     static GraphicsAdapter*             g_adapter_list = 0;
@@ -573,18 +578,19 @@ namespace dmGraphics
 
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
     {
-        VertexStreamDeclaration* sd = new VertexStreamDeclaration();
-        memset(sd, 0, sizeof(*sd));
+        (void) context;
 
-        sd->m_Streams.SetCapacity(8);
-        return sd;
+        VertexStreamDeclaration* stream_declaration = new VertexStreamDeclaration();
+        memset(stream_declaration, 0, sizeof(*stream_declaration));
+        stream_declaration->m_Streams.SetCapacity(8);
+        return stream_declaration;
     }
 
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function)
     {
-        VertexStreamDeclaration* sd = NewVertexStreamDeclaration(context);
-        sd->m_StepFunction = step_function;
-        return sd;
+        VertexStreamDeclaration* stream_declaration = NewVertexStreamDeclaration(context);
+        stream_declaration->m_StepFunction = step_function;
+        return stream_declaration;
     }
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize)
@@ -1657,7 +1663,7 @@ namespace dmGraphics
 
     bool InstallAdapter(AdapterFamily family)
     {
-        return ::GraphicsInstallAdapter((::AdapterFamily)family);
+        return ::GraphicsInstallAdapter(ToCAdapterFamily(family));
     }
 
     AdapterFamily GetInstalledAdapterFamily()
@@ -2177,8 +2183,128 @@ namespace dmGraphics
     }
 }
 
+static dmGraphics::VertexStepFunction ToCppVertexStepFunction(VertexAttributeStepFunction step_function)
+{
+    switch (step_function)
+    {
+        case VERTEX_STEP_FUNCTION_VERTEX:   return dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        case VERTEX_STEP_FUNCTION_INSTANCE: return dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+        default:
+            assert(0 && "Unknown VertexAttributeStepFunction value");
+            return dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+    }
+}
+
+static dmGraphics::Type ToCppGraphicsType(VertexAttributeDataType type)
+{
+    switch (type)
+    {
+        case VERTEX_ATTRIBUTE_DATA_TYPE_BYTE:           return dmGraphics::TYPE_BYTE;
+        case VERTEX_ATTRIBUTE_DATA_TYPE_UNSIGNED_BYTE:  return dmGraphics::TYPE_UNSIGNED_BYTE;
+        case VERTEX_ATTRIBUTE_DATA_TYPE_SHORT:          return dmGraphics::TYPE_SHORT;
+        case VERTEX_ATTRIBUTE_DATA_TYPE_UNSIGNED_SHORT: return dmGraphics::TYPE_UNSIGNED_SHORT;
+        case VERTEX_ATTRIBUTE_DATA_TYPE_INT:            return dmGraphics::TYPE_INT;
+        case VERTEX_ATTRIBUTE_DATA_TYPE_UNSIGNED_INT:   return dmGraphics::TYPE_UNSIGNED_INT;
+        case VERTEX_ATTRIBUTE_DATA_TYPE_FLOAT:          return dmGraphics::TYPE_FLOAT;
+        default:
+            assert(0 && "Unknown VertexAttributeDataType value");
+            return dmGraphics::TYPE_FLOAT;
+    }
+}
+
+static dmGraphics::AdapterFamily ToCppAdapterFamily(AdapterFamily family)
+{
+    switch (family)
+    {
+        case ADAPTER_FAMILY_NONE:     return dmGraphics::ADAPTER_FAMILY_NONE;
+        case ADAPTER_FAMILY_NULL:     return dmGraphics::ADAPTER_FAMILY_NULL;
+        case ADAPTER_FAMILY_OPENGL:   return dmGraphics::ADAPTER_FAMILY_OPENGL;
+        case ADAPTER_FAMILY_OPENGLES: return dmGraphics::ADAPTER_FAMILY_OPENGLES;
+        case ADAPTER_FAMILY_VULKAN:   return dmGraphics::ADAPTER_FAMILY_VULKAN;
+        case ADAPTER_FAMILY_VENDOR:   return dmGraphics::ADAPTER_FAMILY_VENDOR;
+        case ADAPTER_FAMILY_WEBGPU:   return dmGraphics::ADAPTER_FAMILY_WEBGPU;
+        case ADAPTER_FAMILY_DIRECTX:  return dmGraphics::ADAPTER_FAMILY_DIRECTX;
+        default:
+            assert(0 && "Unknown AdapterFamily value");
+            return dmGraphics::ADAPTER_FAMILY_NONE;
+    }
+}
+
+static AdapterFamily ToCAdapterFamily(dmGraphics::AdapterFamily family)
+{
+    switch (family)
+    {
+        case dmGraphics::ADAPTER_FAMILY_NONE:     return ADAPTER_FAMILY_NONE;
+        case dmGraphics::ADAPTER_FAMILY_NULL:     return ADAPTER_FAMILY_NULL;
+        case dmGraphics::ADAPTER_FAMILY_OPENGL:   return ADAPTER_FAMILY_OPENGL;
+        case dmGraphics::ADAPTER_FAMILY_OPENGLES: return ADAPTER_FAMILY_OPENGLES;
+        case dmGraphics::ADAPTER_FAMILY_VULKAN:   return ADAPTER_FAMILY_VULKAN;
+        case dmGraphics::ADAPTER_FAMILY_VENDOR:   return ADAPTER_FAMILY_VENDOR;
+        case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return ADAPTER_FAMILY_WEBGPU;
+        case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return ADAPTER_FAMILY_DIRECTX;
+        default:
+            assert(0 && "Unknown dmGraphics::AdapterFamily value");
+            return ADAPTER_FAMILY_NONE;
+    }
+}
+
 extern "C"
 {
+    HVertexStreamDeclaration VertexStreamDeclarationNew(HGraphicsContext context)
+    {
+        return (HVertexStreamDeclaration)dmGraphics::NewVertexStreamDeclaration((dmGraphics::HContext)context);
+    }
+
+    HVertexStreamDeclaration VertexStreamDeclarationNewStep(HGraphicsContext context, VertexAttributeStepFunction step_function)
+    {
+        return (HVertexStreamDeclaration)dmGraphics::NewVertexStreamDeclaration((dmGraphics::HContext)context, ToCppVertexStepFunction(step_function));
+    }
+
+    void VertexStreamDeclarationAdd(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, VertexAttributeDataType type, bool normalize)
+    {
+        dmGraphics::AddVertexStream((dmGraphics::HVertexStreamDeclaration)stream_declaration, name, size, ToCppGraphicsType(type), normalize);
+    }
+
+    void VertexStreamDeclarationAddHash(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, VertexAttributeDataType type, bool normalize)
+    {
+        dmGraphics::AddVertexStream((dmGraphics::HVertexStreamDeclaration)stream_declaration, name_hash, size, ToCppGraphicsType(type), normalize);
+    }
+
+    void VertexStreamDeclarationDelete(HVertexStreamDeclaration stream_declaration)
+    {
+        dmGraphics::DeleteVertexStreamDeclaration((dmGraphics::HVertexStreamDeclaration)stream_declaration);
+    }
+
+    HVertexDeclaration VertexDeclarationNew(HGraphicsContext context, HVertexStreamDeclaration stream_declaration)
+    {
+        return (HVertexDeclaration)dmGraphics::NewVertexDeclaration((dmGraphics::HContext)context, (dmGraphics::HVertexStreamDeclaration)stream_declaration);
+    }
+
+    HVertexDeclaration VertexDeclarationNewStride(HGraphicsContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
+    {
+        return (HVertexDeclaration)dmGraphics::NewVertexDeclaration((dmGraphics::HContext)context, (dmGraphics::HVertexStreamDeclaration)stream_declaration, stride);
+    }
+
+    void VertexDeclarationDelete(HVertexDeclaration vertex_declaration)
+    {
+        dmGraphics::DeleteVertexDeclaration((dmGraphics::HVertexDeclaration)vertex_declaration);
+    }
+
+    void VertexDeclarationEnable(HGraphicsContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, uintptr_t program)
+    {
+        dmGraphics::EnableVertexDeclaration((dmGraphics::HContext)context, (dmGraphics::HVertexDeclaration)vertex_declaration, binding_index, base_offset, program);
+    }
+
+    void VertexDeclarationDisable(HGraphicsContext context, HVertexDeclaration vertex_declaration)
+    {
+        dmGraphics::DisableVertexDeclaration((dmGraphics::HContext)context, (dmGraphics::HVertexDeclaration)vertex_declaration);
+    }
+
+    uint32_t VertexDeclarationGetStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        return dmGraphics::GetVertexStreamOffset((dmGraphics::HVertexDeclaration)vertex_declaration, name_hash);
+    }
+
     void GraphicsContextParamsInitialize(GraphicsCreateParams* params)
     {
         if (params == 0x0)
@@ -2214,7 +2340,7 @@ extern "C"
             return true;
         }
 
-        bool result = dmGraphics::SelectAdapterByFamily((dmGraphics::AdapterFamily)family);
+        bool result = dmGraphics::SelectAdapterByFamily(ToCppAdapterFamily(family));
 
         if (!result)
         {

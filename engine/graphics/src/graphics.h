@@ -75,9 +75,6 @@ namespace dmGraphics
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
 
-    static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
-    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
-
     enum AdapterFamilyPriority
     {
         ADAPTER_FAMILY_PRIORITY_NULL     = 32,
@@ -212,15 +209,6 @@ namespace dmGraphics
         uint32_t           m_ModificationVersion; // OpenGL
     };
 
-    struct Uniform
-    {
-        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
-        dmhash_t         m_NameHash;
-        HUniformLocation m_Location;
-        Type             m_Type;
-        uint32_t         m_Count;
-    };
-
     // The uniform buffer layout is used to validate a uniform buffer
     // with a shader resource binding by comparing the hash of
     // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
@@ -353,43 +341,20 @@ namespace dmGraphics
      */
     void SetSwapInterval(HContext context, uint32_t swap_interval);
 
-    /**
-     * Clear render target
-     * @param context Graphics context
-     * @param flags
-     * @param red
-     * @param green
-     * @param blue
-     * @param alpha
-     * @param depth
-     * @param stencil
-     */
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
-
     bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
-    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration);
 
-    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
-    void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
     uint32_t GetVertexBufferSize(HVertexBuffer vertex_buffer);
     uint32_t GetIndexBufferSize(HIndexBuffer buffer);
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
-    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
-
-    HProgram             NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    void                 DeleteProgram(HContext context, HProgram program);
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    void                 EnableProgram(HContext context, HProgram program);
-    void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
 
     // Attributes
@@ -403,10 +368,6 @@ namespace dmGraphics
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
-    // Uniforms
-    uint32_t         GetUniformCount(HProgram prog);
-    void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
-
     // Uniform buffers
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
@@ -416,8 +377,6 @@ namespace dmGraphics
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
-    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);

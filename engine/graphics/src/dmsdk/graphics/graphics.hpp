@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include "graphics.h"
-#include <dmsdk/graphics/graphics_gen.hpp>
 #include <graphics/graphics_ddf.h>
 
 /*# Graphics API documentation
@@ -83,25 +82,35 @@ namespace dmGraphics
     typedef int64_t HUniformLocation;
 
     /*#
+     * Graphics context handle
+     * @typedef
+     * @name HContext
+     */
+    typedef ::HGraphicsContext HContext;
+
+    /*#
      * Vertex declaration handle
      * @typedef
      * @name HVertexDeclaration
      */
-    typedef struct VertexDeclaration* HVertexDeclaration;
+    struct VertexDeclaration;
+    typedef VertexDeclaration* HVertexDeclaration;
 
     /*#
      * Vertex stream declaration handle
      * @typedef
      * @name HVertexStreamDeclaration
      */
-    typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
+    struct VertexStreamDeclaration;
+    typedef VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
      * PipelineState handle
      * @typedef
      * @name HPipelineState
      */
-    typedef struct PipelineState* HPipelineState;
+    struct PipelineState;
+    typedef PipelineState* HPipelineState;
 
     /*#
      * Invalid stream offset
@@ -109,6 +118,20 @@ namespace dmGraphics
      * @name INVALID_STREAM_OFFSET
      */
     const uint32_t INVALID_STREAM_OFFSET = 0xFFFFFFFF;
+
+    /*#
+     * Invalid program handle
+     * @constant
+     * @name INVALID_PROGRAM_HANDLE
+     */
+    static const HProgram INVALID_PROGRAM_HANDLE = ~0u;
+
+    /*#
+     * Invalid uniform location
+     * @constant
+     * @name INVALID_UNIFORM_LOCATION
+     */
+    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
 
     /*#
      * Max buffer color attachments
@@ -396,6 +419,12 @@ namespace dmGraphics
         TYPE_TEXTURE_3D_ARRAY = 25,
     };
 
+} // namespace dmGraphics
+
+#include <dmsdk/graphics/graphics_gen.hpp>
+
+namespace dmGraphics
+{
     /*#
      * Blend factors for color blending.
      * Defines how source and destination colors are combined
@@ -549,6 +578,25 @@ namespace dmGraphics
     };
 
     /*#
+     * Shader uniform metadata
+     * @struct
+     * @name Uniform
+     * @member m_Name [type:char*] Uniform name
+     * @member m_NameHash [type:dmhash_t] Hash of the uniform name
+     * @member m_Location [type:HUniformLocation] Uniform location handle
+     * @member m_Type [type:Type] Uniform value type
+     * @member m_Count [type:uint32_t] Uniform element count
+     */
+    struct Uniform
+    {
+        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
+        dmhash_t         m_NameHash;
+        HUniformLocation m_Location;
+        Type             m_Type;
+        uint32_t         m_Count;
+    };
+
+    /*#
      * Texture creation parameters.
      *
      * Defines how a texture is created, initialized, and used.
@@ -684,86 +732,18 @@ namespace dmGraphics
     };
 
     /*#
-     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
-     * that should be used to create a vertex declaration from.
-     * @name NewVertexStreamDeclaration
-     * @param context [type:dmGraphics::HContext] the context
-     * @return declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     * Clear buffers in the current render target
+     * @name Clear
+     * @param context [type:HContext] Graphics context
+     * @param flags [type:uint32_t] Buffer clear mask using BUFFER_TYPE_* bits
+     * @param red [type:uint8_t] Red clear value
+     * @param green [type:uint8_t] Green clear value
+     * @param blue [type:uint8_t] Blue clear value
+     * @param alpha [type:uint8_t] Alpha clear value
+     * @param depth [type:float] Depth clear value
+     * @param stencil [type:uint32_t] Stencil clear value
      */
-    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
-
-    /*#
-     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
-     * that should be used to create a vertex declaration from.
-     * @name NewVertexStreamDeclaration
-     * @param context [type:dmGraphics::HContext] the context
-     * @param step_function [type:dmGraphics::VertexStepFunction] the vertex step function to use
-     * @return declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex declaration
-     */
-    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
-
-    /*#
-     * Adds a stream to a vertex stream declaration
-     * @name AddVertexStream
-     * @param name [type:const char*] the name of the stream
-     * @param size [type:uint32_t] the size of the stream, i.e number of components
-     * @param type [type:dmGraphics::Type] the data type of the stream
-     * @param normalize [type:bool] true if the stream should be normalized in the 0..1 range
-     */
-    void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize);
-
-    /*#
-     * Adds a stream to a vertex stream declaration
-     * @name AddVertexStream
-     * @param name_hash [type:dmhash_t] the name hash of the stream
-     * @param size [type:uint32_t] the size of the stream, i.e number of components
-     * @param type [type:dmGraphics::Type] the data type of the stream
-     * @param normalize [type:bool] true if the stream should be normalized in the 0..1 range
-     */
-    void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize);
-
-    /*#
-     * Delete vertex stream declaration
-     * @name DeleteVertexStreamDeclaration
-     * @param stream_declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
-     */
-    void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration);
-
-    /*#
-     * Create new vertex declaration from a vertex stream declaration
-     * @name NewVertexDeclaration
-     * @param context [type:dmGraphics::HContext] the context
-     * @param stream_declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
-     * @return declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
-     */
-    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration);
-
-    /*#
-     * Create new vertex declaration from a vertex stream declaration and an explicit stride value,
-     * where the stride is the number of bytes between each consecutive vertex in a vertex buffer
-     * @name NewVertexDeclaration
-     * @param context [type:dmGraphics::HContext] the context
-     * @param stream_declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
-     * @param stride [type:uint32_t] the stride between the start of each vertex (in bytes)
-     * @return declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
-     */
-    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
-
-    /*#
-     * Delete vertex declaration
-     * @name DeleteVertexDeclaration
-     * @param vertex_declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
-     */
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
-
-    /*#
-     * Get the physical offset into the vertex data for a particular stream
-     * @name GetVertexStreamOffset
-     * @param vertex_declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
-     * @param name_hash [type:dmhash_t] the name hash of the vertex stream (as passed into AddVertexStream())
-     * @return Offset in bytes into the vertex or INVALID_STREAM_OFFSET if not found
-     */
-    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
+    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
     /*#
      * Create new vertex buffer with initial data
@@ -802,6 +782,23 @@ namespace dmGraphics
      * @param data [type:void*] the data
      */
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+
+    /*#
+     * Enable a vertex buffer binding
+     * @name EnableVertexBuffer
+     * @param context [type:HContext] Graphics context
+     * @param vertex_buffer [type:HVertexBuffer] Vertex buffer handle
+     * @param binding_index [type:uint32_t] Binding index
+     */
+    void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+
+    /*#
+     * Disable a vertex buffer binding
+     * @name DisableVertexBuffer
+     * @param context [type:HContext] Graphics context
+     * @param vertex_buffer [type:HVertexBuffer] Vertex buffer handle
+     */
+    void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
 
     /*#
      * Get the max number of vertices allowed by the system in a vertex buffer
@@ -866,6 +863,88 @@ namespace dmGraphics
      * @return count [type:uint32_t] the count
      */
     uint32_t GetMaxElementsIndices(HContext context);
+
+    /*#
+     * Draw primitives from currently bound buffers
+     * @name Draw
+     * @param context [type:HContext] Graphics context
+     * @param prim_type [type:PrimitiveType] Primitive topology
+     * @param first [type:uint32_t] First vertex
+     * @param count [type:uint32_t] Vertex count
+     * @param instance_count [type:uint32_t] Number of instances
+     */
+    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*#
+     * Create a shader program
+     * @name NewProgram
+     * @param context [type:HContext] Graphics context
+     * @param ddf [type:ShaderDesc*] Shader descriptor
+     * @param error_buffer [type:char*] Error message output buffer
+     * @param error_buffer_size [type:uint32_t] Error buffer size
+     * @return program [type:HProgram] Program handle
+     */
+    HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+
+    /*#
+     * Delete a shader program
+     * @name DeleteProgram
+     * @param context [type:HContext] Graphics context
+     * @param program [type:HProgram] Program handle
+     */
+    void DeleteProgram(HContext context, HProgram program);
+
+    /*#
+     * Enable a shader program for rendering
+     * @name EnableProgram
+     * @param context [type:HContext] Graphics context
+     * @param program [type:HProgram] Program handle
+     */
+    void EnableProgram(HContext context, HProgram program);
+
+    /*#
+     * Disable the currently active shader program
+     * @name DisableProgram
+     * @param context [type:HContext] Graphics context
+     */
+    void DisableProgram(HContext context);
+
+    /*#
+     * Get uniform count from a shader program
+     * @name GetUniformCount
+     * @param prog [type:HProgram] Program handle
+     * @return count [type:uint32_t] Number of uniforms
+     */
+    uint32_t GetUniformCount(HProgram prog);
+
+    /*#
+     * Get uniform metadata by index
+     * @name GetUniform
+     * @param prog [type:HProgram] Program handle
+     * @param index [type:uint32_t] Uniform index
+     * @param uniform [type:Uniform*] Output uniform metadata
+     */
+    void GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
+
+    /*#
+     * Bind a sampler uniform to a texture unit
+     * @name SetSampler
+     * @param context [type:HContext] Graphics context
+     * @param location [type:HUniformLocation] Uniform location
+     * @param unit [type:int32_t] Texture unit index
+     */
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
+
+    /*#
+     * Set viewport rectangle
+     * @name SetViewport
+     * @param context [type:HContext] Graphics context
+     * @param x [type:int32_t] X coordinate
+     * @param y [type:int32_t] Y coordinate
+     * @param width [type:int32_t] Width
+     * @param height [type:int32_t] Height
+     */
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     /*# check if an extension is supported
      * @name IsExtensionSupported

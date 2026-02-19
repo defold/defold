@@ -12,7 +12,19 @@
         {"file": "src/dmsdk/graphics/graphics.h", "languages": {
             "cpp": {
                 "namespace": "dmGraphics",
+                "ignore": [
+                    "HGraphicsContext",
+                    "HVertexDeclaration",
+                    "HVertexStreamDeclaration",
+                    "VertexAttribute",
+                    "VertexAttributeStepFunction",
+                    "VertexAttributeDataType",
+                    "VertexAttributeVectorType",
+                    "VertexAttributeSemanticType"
+                ],
                 "rename": {
+                    "VertexAttributeDataType": "Type",
+                    "VertexAttributeStepFunction": "VertexStepFunction",
                     "HGraphicsContext": "HContext",
                     "GraphicsCreateParams": "ContextParams",
                     "GraphicsContextParamsInitialize": "ContextParamsInitialize",
@@ -22,7 +34,18 @@
                     "GraphicsBeginFrame": "BeginFrame",
                     "GraphicsFlip": "Flip",
                     "GraphicsCloseWindow": "CloseWindow",
-                    "GraphicsFinalize": "Finalize"
+                    "GraphicsFinalize": "Finalize",
+                    "VertexStreamDeclarationNewStep": "NewVertexStreamDeclaration",
+                    "VertexStreamDeclarationNew": "NewVertexStreamDeclaration",
+                    "VertexStreamDeclarationAddHash": "AddVertexStream",
+                    "VertexStreamDeclarationAdd": "AddVertexStream",
+                    "VertexStreamDeclarationDelete": "DeleteVertexStreamDeclaration",
+                    "VertexDeclarationNewStride": "NewVertexDeclaration",
+                    "VertexDeclarationNew": "NewVertexDeclaration",
+                    "VertexDeclarationDelete": "DeleteVertexDeclaration",
+                    "VertexDeclarationEnable": "EnableVertexDeclaration",
+                    "VertexDeclarationDisable": "DisableVertexDeclaration",
+                    "VertexDeclarationGetStreamOffset": "GetVertexStreamOffset"
                 }
             }
         }}

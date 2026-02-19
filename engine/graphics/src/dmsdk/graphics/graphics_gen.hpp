@@ -35,6 +35,7 @@
  */
 
 #include <stdint.h>
+#include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/platform/window.h>
 
@@ -42,14 +43,6 @@
 
 namespace dmGraphics
 {
-    /*# graphics context handle
-     * graphics context handle
-     * @typedef
-     * @name HContext
-     * @language C++
-     */
-    typedef HGraphicsContext HContext;
-
     /*# graphics adapter family
      * graphics adapter family
      * @enum
@@ -285,6 +278,117 @@ namespace dmGraphics
      * @language C++
      */
     void Finalize();
+
+    /*# create a vertex stream declaration
+     * create a vertex stream declaration
+     * @name NewVertexStreamDeclaration
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @return declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     */
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
+
+    /*# create a vertex stream declaration with explicit step function
+     * create a vertex stream declaration with explicit step function
+     * @name NewVertexStreamDeclaration
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param step_function [type:VertexAttributeStepFunction] vertex step function value
+     * @return declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     */
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
+
+    /*# delete a vertex stream declaration
+     * delete a vertex stream declaration
+     * @name DeleteVertexStreamDeclaration
+     * @language C++
+     * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     */
+    void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration);
+
+    /*# add a stream to a vertex stream declaration
+     * add a stream to a vertex stream declaration
+     * @name AddVertexStream
+     * @language C++
+     * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     * @param name [type:const char*] stream name
+     * @param size [type:uint32_t] number of components in stream
+     * @param type [type:VertexAttributeDataType] stream data type value
+     * @param normalize [type:bool] normalize stream values
+     */
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char * name, uint32_t size, Type type, bool normalize);
+
+    /*# add a stream (hashed name) to a vertex stream declaration
+     * add a stream (hashed name) to a vertex stream declaration
+     * @name AddVertexStream
+     * @language C++
+     * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     * @param name_hash [type:dmhash_t] stream name hash
+     * @param size [type:uint32_t] number of components in stream
+     * @param type [type:VertexAttributeDataType] stream data type value
+     * @param normalize [type:bool] normalize stream values
+     */
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize);
+
+    /*# create a vertex declaration
+     * create a vertex declaration
+     * @name NewVertexDeclaration
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     * @return declaration [type:HVertexDeclaration] vertex declaration handle
+     */
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration);
+
+    /*# create a vertex declaration with explicit stride
+     * create a vertex declaration with explicit stride
+     * @name NewVertexDeclaration
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
+     * @param stride [type:uint32_t] vertex stride in bytes
+     * @return declaration [type:HVertexDeclaration] vertex declaration handle
+     */
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
+
+    /*# delete a vertex declaration
+     * delete a vertex declaration
+     * @name DeleteVertexDeclaration
+     * @language C++
+     * @param vertex_declaration [type:HVertexDeclaration] vertex declaration handle
+     */
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
+
+    /*# enable a vertex declaration
+     * enable a vertex declaration
+     * @name EnableVertexDeclaration
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param vertex_declaration [type:HVertexDeclaration] vertex declaration handle
+     * @param binding_index [type:uint32_t] vertex buffer binding index
+     * @param base_offset [type:uint32_t] base offset in bytes
+     * @param program [type:uintptr_t] program handle
+     */
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, uintptr_t program);
+
+    /*# disable a vertex declaration
+     * disable a vertex declaration
+     * @name DisableVertexDeclaration
+     * @language C++
+     * @param context [type:HGraphicsContext] graphics context handle
+     * @param vertex_declaration [type:HVertexDeclaration] vertex declaration handle
+     */
+    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+
+    /*# get stream offset from a vertex declaration
+     * get stream offset from a vertex declaration
+     * @name GetVertexStreamOffset
+     * @language C++
+     * @param vertex_declaration [type:HVertexDeclaration] vertex declaration handle
+     * @param name_hash [type:dmhash_t] stream name hash
+     * @return offset [type:uint32_t] stream offset or 0xFFFFFFFF if not found
+     */
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
 
 
 } // namespace dmGraphics
