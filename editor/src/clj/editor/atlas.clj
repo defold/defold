@@ -236,16 +236,16 @@
             (value (g/fnk [pivot-x pivot-y] [pivot-x pivot-y]))
             (set (fn [_evaluation-context self old-value new-value]
                    (concat
-                     (g/set-property self :pivot-x (new-value 0))
-                     (g/set-property self :pivot-y (new-value 1)))))
+                     (g/set-property self :pivot-x (float (new-value 0)))
+                     (g/set-property self :pivot-y (float (new-value 1))))))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["X" "Y"]
                                               :precision 0.1})))
 
   (property pivot-x g/Num
-            (default (double (protobuf/default AtlasProto$AtlasImage :pivot-x)))
+            (default (protobuf/default AtlasProto$AtlasImage :pivot-x))
             (dynamic visible (g/constantly false)))
   (property pivot-y g/Num
-            (default (double (protobuf/default AtlasProto$AtlasImage :pivot-y)))
+            (default (protobuf/default AtlasProto$AtlasImage :pivot-y))
             (dynamic visible (g/constantly false)))
 
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
@@ -856,8 +856,8 @@
         (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
           image :image
           sprite-trim-mode :sprite-trim-mode
-          pivot-x (double :pivot-x)
-          pivot-y (double :pivot-y))
+          pivot-x :pivot-x
+          pivot-y :pivot-y)
         (attach-fn parent atlas-image)))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
@@ -1070,8 +1070,8 @@
         {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
         pivot-x (+ 0.5 pivot-x)
         pivot-y (- 0.5 pivot-y)
-        delta-x (/ (cond-> ^double (.x delta) rotated -) width)
-        delta-y (/ ^double (.y delta) height)
+        delta-x (/ (cond-> (.x delta) rotated -) width)
+        delta-y (/ (.y delta) height)
         pivot (if rotated
                 [(- pivot-x delta-y) (+ pivot-y delta-x)]
                 [(+ pivot-x delta-x) (- pivot-y delta-y)])]
@@ -1086,7 +1086,7 @@
         absolute-pivot-x (* pivot-x (if rotated height width))
         absolute-pivot-y (* pivot-y (if rotated width height))
         page-offset-x (get-rect-page-offset layout-width page)
-        x (+ x page-offset-x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
+        x (+ x ^double page-offset-x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
         y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y)))]
     [x y 0.0]))
 
