@@ -211,10 +211,28 @@ def copy_file_task(bld, src, name=None):
 
 #   Extract api docs from source files and store the raw text in .apidoc
 #   files per file for later collation into .json and .sdoc files.
-def apidoc_extract_task(bld, src):
+def apidoc_extract_task(bld, root, paths):
     import re
     from collections import defaultdict
     all_docs = {}
+
+    def _keyfrompath(path, root):
+        # dlib/src/dmsdk/dlib/align.h -> /dmsdk/dlib/align.h
+        path = os.path.normpath(path).replace(os.path.normpath(root), "")
+        # /dmsdk/dlib/align.h -> -dmsdk-dlib-align.h
+        key = "-".join(path.split(os.sep))
+        if key.startswith("-"):
+            key = key[1:]
+        return key
+
+    def _findfiles(directory):
+        exts = [".h", ".hpp", ".cpp", ".cs", ".c", ".doc_h", ".proto"]
+        paths = []
+        for root, dirs, files in os.walk(directory):
+            for f in files:
+                if os.path.splitext(f)[1] in exts:
+                    paths.append(os.path.join(root, f))
+        return paths
 
     def _strip_comment_stars(str):
         lines = str.split('\n')
@@ -313,50 +331,29 @@ def apidoc_extract_task(bld, src):
 
         return elements
 
-    def extract_docs(bld, src):
-        docs = defaultdict(list)
-        # Gather data
-        for s in src:
-            elements = _parse_source(s)
-            for k,v in elements.items():
-                # remove initial part of the path up to src/
-                # dlib/src/dmsdk/dlib/foo.h -> dmsdk/dlib/foo.h
-                path = os.path.normpath(s)
-                parts = path.split("src/", 1)
-                path = parts[1] if len(parts) > 1 else path
-
-                # gameobject/proto/gameobject/gameobject_ddf.proto -> proto/gameobject/gameobject_ddf.proto
-                if "/proto/" in path:
-                    parts = path.split("proto/", 1)
-                    path = "proto/" + parts[1]
-
-                # gamesys/scripts/script/buffer.cpp -> scripts/script/buffer.cpp
-                if "/scripts/" in path:
-                    parts = path.split("scripts/", 1)
-                    path = "scripts/" + parts[1]
-
-                # turn the path into a key without the path separator
-                # dmsdk/dlib/foo.h -> dmsdk-dlib-foo.h
-                # will later be used as the build target filename
-                key = "-".join(path.split(os.sep))
-                key = key.replace("..-", "")
-                docs[key] = docs[key] + v
-        all_docs.update(docs)
-        return docs
-
     def write_docs(task):
-        for o in task.outputs:
-            name = os.path.splitext(o.name)[0] # remove .apidoc
-            docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
-                out_f.write('\n'.join(docs))
+        src = task.inputs[0].relpath()
+        tgt = task.outputs[0].abspath()
+        elements = _parse_source(src)
+        docs = "".join(f"{v}" for k, v in elements.items())
+        with open(tgt, 'w+', encoding='utf-8') as out_f:
+            out_f.write('\n'.join(docs))
 
     if not getattr(Options.options, 'skip_apidocs', False):
-        docs = extract_docs(bld, src)
-        target = []
-        for key in docs.keys():
-            target.append(key + '.apidoc')
-        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
+        # paths can be both files and folders
+        # we need to expand to a full list of source files to extract docs from
+        fullpaths = []
+        for path in paths:
+            fullpath = os.path.join(root, path)
+            if os.path.isfile(fullpath):
+                fullpaths.append(fullpath)
+            else:
+                fullpaths.extend(_findfiles(fullpath))
+
+        for src in fullpaths:
+            key = _keyfrompath(src, root)
+            tgt = key + '.apidoc'
+            bld(rule=write_docs, name='apidoc_extract', source = src, target = tgt)
 
 
 # Add single dmsdk file.
