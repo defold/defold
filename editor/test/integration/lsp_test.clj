@@ -206,6 +206,44 @@
                  (g/node-value view-node :diagnostics)))
           (close-view! lsp view-node))))))
 
+(deftest document-symbols-errors-dont-clear-existing-symbols-test
+  (test-util/with-scratch-project "test/resources/lsp_project"
+    (let [document-symbol-requests (atom 0)
+          lsp (lsp/get-node-lsp project)
+          handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental
+                                                             :documentSymbolProvider true}})
+                    "initialized" (constantly nil)
+                    "textDocument/didOpen" (constantly nil)
+                    "textDocument/documentSymbol" (fn [_ _]
+                                                    (if (= 1 (swap! document-symbol-requests inc))
+                                                      [{:name "Foo"
+                                                        :kind 12
+                                                        :range {:start {:line 0 :character 0}
+                                                                :end {:line 0 :character 5}}
+                                                        :selectionRange {:start {:line 0 :character 0}
+                                                                         :end {:line 0 :character 3}}}]
+                                                      (throw (ex-info "Document symbol failure" {}))))
+                    "shutdown" (constantly nil)
+                    "exit" (constantly nil)}
+          _ (set-servers! lsp #{{:languages #{"json"}
+                                 :launcher (make-test-server-launcher handlers)}})
+          view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+          foo-resource (test-util/resource workspace "/foo.json")
+          foo-node (test-util/resource-node project "/foo.json")
+          lines (g/node-value foo-node :lines)]
+      (open-view! lsp view-node foo-resource lines)
+      (await-lsp
+        (Thread/sleep 500))
+      (let [document-symbols-before (g/node-value view-node :document-symbols)]
+        (is (= 1 @document-symbol-requests))
+        (is (not-empty document-symbols-before))
+        (edit-file! foo-node "{}")
+        (await-lsp
+          (Thread/sleep 500))
+        (is (= 2 @document-symbol-requests))
+        (is (= document-symbols-before (g/node-value view-node :document-symbols))))
+      (close-view! lsp view-node))))
+
 (deftest text-sync-kind-test
   (testing "Respect language server text sync kind capabilities"
     (let [change-notifications (atom #{})

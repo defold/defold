@@ -170,9 +170,8 @@ Acceptance:
 
 1. ✅ Use fake title panes everywhere
 2. Outline tree view still may be positioned wrong!
-2. Selection/containment sync
-3. Solve outline commands situation when the outline view is hidden.... when outline is not shown, we delete the resource node instead of deleting text!! super crazy behavior! outline view is currently expected to always be updated!
-4. Take a single symbols from responses, if error, keep old.
+3. Selection/containment sync
+4. Take a single symbols from responses, if error, keep old. Still getting content modified errors!
 
 ## Code Touchpoints
 

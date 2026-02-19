@@ -320,6 +320,9 @@
               :properties properties-pane-desc
               %)))))
 
+(g/defnk produce-outline-active [active-view open-sidebar-panes]
+  (coll/any? #(= :outline %) (get open-sidebar-panes active-view)))
+
 (g/defnk produce-right-split-desc [right-split active-sidebar]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type ext-with-split-pane-props
@@ -377,6 +380,7 @@
               (when-let [view-type (editor-tab/view-type active-tab)]
                 {:view-id view-node-id
                  :view-type view-type}))))
+  (output outline-active g/Bool :cached produce-outline-active)
 
   (output active-sidebar g/Any :cached produce-active-sidebar)
   (output right-split-desc g/Any :cached produce-right-split-desc)

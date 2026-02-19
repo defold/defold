@@ -292,6 +292,7 @@
   (property tree-selection g/Any (default []))
 
   (input app-view g/NodeID)
+  (input outline-active g/Bool :substitute false)
   (input active-outline g/Any :substitute {})
   (input active-resource-node g/NodeID :substitute nil)
   (input open-resource-nodes g/Any :substitute [])
@@ -378,12 +379,16 @@
      (g/node-value outline-view :tree-view evaluation-context)
      :node-id)))
 
+(defn- outline-active? [outline-view evaluation-context]
+  (g/node-value outline-view :outline-active evaluation-context))
+
 (handler/defhandler :edit.delete :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
-            (and (< 0 (count selection))
-                 (-> (root-iterators outline-view evaluation-context)
-                   outline/delete?)))
+    (and (outline-active? outline-view evaluation-context)
+         (< 0 (count selection))
+         (-> (root-iterators outline-view evaluation-context)
+           outline/delete?)))
   (run [app-view selection selection-provider outline-view]
     (g/let-ec [basis (:basis evaluation-context)
                old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
@@ -410,7 +415,9 @@
 
 (handler/defhandler :edit.copy :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
-  (enabled? [selection] (< 0 (count selection)))
+  (enabled? [selection outline-view evaluation-context]
+    (and (outline-active? outline-view evaluation-context)
+         (< 0 (count selection))))
   (run [outline-view project]
        (let [root-its (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
@@ -427,12 +434,13 @@
 (handler/defhandler :edit.paste :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [project selection outline-view evaluation-context]
-            (let [cb (Clipboard/getSystemClipboard)
-                  target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
-                  data-format (data-format-fn)]
-              (and target-item-it
-                   (.hasContent cb data-format)
-                   (outline/paste? project target-item-it (.getContent cb data-format)))))
+    (and (outline-active? outline-view evaluation-context)
+         (let [cb (Clipboard/getSystemClipboard)
+               target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
+               data-format (data-format-fn)]
+           (and target-item-it
+                (.hasContent cb data-format)
+                (outline/paste? project target-item-it (.getContent cb data-format))))))
   (run [project outline-view app-view]
     (let [target-item-it (paste-target-it (root-iterators outline-view))
           cb (Clipboard/getSystemClipboard)
@@ -443,9 +451,10 @@
 (handler/defhandler :edit.cut :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
-            (let [item-iterators (root-iterators outline-view evaluation-context)]
-              (and (< 0 (count item-iterators))
-                   (outline/cut? item-iterators))))
+    (and (outline-active? outline-view evaluation-context)
+         (let [item-iterators (root-iterators outline-view evaluation-context)]
+           (and (< 0 (count item-iterators))
+                (outline/cut? item-iterators)))))
   (run [app-view selection-provider outline-view project]
        (let [item-iterators (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
@@ -617,13 +626,15 @@
 
 (handler/defhandler :edit.rename :outline
   (active? [selection outline-view]
-           (and (= 1 (count selection))
-                (when-let [node-id (-> (g/node-value outline-view :tree-view)
-                                       (get-selected-node-id))]
-                  (editable-id? node-id))))
+    (and (= 1 (count selection))
+         (when-let [node-id (-> (g/node-value outline-view :tree-view)
+                                (get-selected-node-id))]
+           (editable-id? node-id))))
+  (enabled? [outline-view evaluation-context]
+    (outline-active? outline-view evaluation-context))
   (run [outline-view]
-       (let [^TreeView tree-view (g/node-value outline-view :tree-view)]
-         (set-editing-id! tree-view (get-selected-node-id tree-view)))))
+    (let [^TreeView tree-view (g/node-value outline-view :tree-view)]
+      (set-editing-id! tree-view (get-selected-node-id tree-view)))))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))

@@ -400,17 +400,21 @@
           (g/set-property view-node :document-symbols document-symbols))))
     state))
 
-(defn- request-document-symbols [resource]
-  (bound-fn [state]
-    (let [{:keys [in]} state
-          responses-ch (a/chan 1 cat)]
-      (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
-      (send-requests!
-        state responses-ch
-        :capabilities-pred :document-symbol
-        :language (resource/language resource)
-        :requests [(lsp.server/document-symbols resource)]
-        :timeout-ms 3000))))
+(defn- request-document-symbols [state resource]
+  (let [{:keys [in]} state
+        ;; We only want a first response - we don't merge outlines if there
+        ;; are multiple servers for same language. First one wins!
+        responses-ch (a/chan (a/dropping-buffer 1))]
+    (a/go
+      (when-let [first-response (<! responses-ch)]
+        ;; TODO: drain the rest of the responses!
+        (>! in (set-view-document-symbols resource first-response))))
+    (send-requests!
+      state responses-ch
+      :capabilities-pred :document-symbol
+      :language (resource/language resource)
+      :requests [(lsp.server/document-symbols resource)]
+      :timeout-ms 3000)))
 
 (defn- schedule-debounce [state id timeout-ms f]
   {:pre [(some? id) (pos-int? timeout-ms) (ifn? f)]}
@@ -469,7 +473,7 @@
                 (schedule-debounce
                   (document-symbol-refresh-debounce-id resource)
                   300
-                  (request-document-symbols resource)))))))
+                  #(request-document-symbols % resource)))))))
 
 (defn- close-resource! [state resource]
   {:pre [(resource-open? state resource)]}
@@ -654,10 +658,7 @@
                     (update :resource->view-node assoc resource view-node)
                     (update :view-node->resource assoc view-node resource)
                     (ensure-resource-open! resource lines)
-                    (schedule-debounce
-                      (document-symbol-refresh-debounce-id resource)
-                      200
-                      (request-document-symbols resource)))]
+                    (request-document-symbols resource))]
       (ui/run-later
         (g/transact
           (concat

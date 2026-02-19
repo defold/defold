@@ -376,7 +376,7 @@
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
-          (for [label [:active-resource-node :active-outline :open-resource-nodes]]
+          (for [label [:active-resource-node :active-outline :open-resource-nodes :outline-active]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[app-view :refresh-tab-panes]
                             [asset-browser :tree-view]
