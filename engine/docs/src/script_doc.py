@@ -422,7 +422,7 @@ LUA_TYPES = [
     "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2Body", "b2BodyType", "bufferstream" ]
+    "b2World", "b2Body", "b2BodyType", "bufferstream" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
@@ -505,7 +505,7 @@ def validate_cpp_type(t, doc):
     # print(doc)
     return False
 
-def parse_document(doc_str):
+def parse_document(doc_str, file=None):
     doc = script_doc_ddf_pb2.Document()
     lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
     element_list = []
@@ -540,19 +540,19 @@ def parse_document(doc_str):
                         if param.name == "...":
                             continue
                         if not validate_lua_type(t, doc):
-                            errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+                            errors.append("'%s' has unknown type '%s' for parameter '%s' in file %s" % (element.name, t, param.name, file))
                 for returnvalue in element.returnvalues:
                     for t in returnvalue.types:
                         if not validate_lua_type(t, doc):
-                            errors.append("'%s' has unknown type '%s' for return value '%s'" % (element.name, t, returnvalue.name))
+                            errors.append("'%s' has unknown type '%s' for return value '%s' in file %s" % (element.name, t, returnvalue.name, file))
         elif doc.info.language == "C++":
             for element in doc.elements:
                 for param in element.parameters:
                     for t in param.types:
                         if t == "":
-                            warnings.append("'%s' has no type for parameter '%s'" % (element.name, param.name))
+                            warnings.append("'%s' has no type for parameter '%s' in file %s" % (element.name, param.name, file))
                         elif not validate_cpp_type(t, doc):
-                            errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+                            errors.append("'%s' has unknown type '%s' for parameter '%s' in file %s" % (element.name, t, param.name, file))
 
         for warning in warnings:
             print("  WARNING", warning)
@@ -682,18 +682,18 @@ def message_to_yaml_dict(message):
 
 
 def to_protobuf(s, output_file):
-    msg = parse_document(s)
+    msg = parse_document(s, output_file)
     with open(output_file, "w") as f:
         f.write(str(msg))
 
 def to_json(s, output_file):
-    msg = parse_document(s)
+    msg = parse_document(s, output_file)
     dct = message_to_json_dict(msg)
     with open(output_file, "w") as f:
         json.dump(dct, f, indent = 2)
 
 def to_script_api(s, output_file):
-    msg = parse_document(s)
+    msg = parse_document(s, output_file)
     dct = message_to_yaml_dict(msg)
     with open(output_file, "w") as f:
         yaml.dump(dct, f, default_flow_style = False)
@@ -711,7 +711,7 @@ def to_lua_annotation(s, output_file):
             lines[i] = line
         return "---".join(lines)
 
-    msg = parse_document(s)
+    msg = parse_document(s, output_file)
     if msg.info.language == "Lua":
         dct = message_to_dict(msg)
         dct["info"]["name"] = dct["info"]["name"].replace("-", "_").lower()

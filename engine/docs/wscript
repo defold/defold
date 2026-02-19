@@ -11,6 +11,7 @@ import sys, os, re, fnmatch
 import waflib.Options
 import waf_dynamo
 import TestContext
+from waf_dynamo import apidoc_extract_task
 
 test_context = None
 
@@ -36,9 +37,57 @@ def build(bld):
     for filename in fnmatch.filter(files, '*.apidoc_'):
         os.remove(os.path.join('src', filename))
 
+    exts = [".h", ".hpp", ".cpp", ".cs", ".c", ".doc_h", ".proto"]
+    def _findfiles(directory, exts):
+        paths = []
+        for root, dirs, files in os.walk(directory):
+            for f in files:
+                if os.path.splitext(f)[1] in exts:
+                    paths.append(os.path.join(root, f))
+        return paths
+
+    apidoc_extract_task(bld, ["../crash/src/script_crash.cpp"])
+    apidoc_extract_task(bld, _findfiles("../ddf/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../dlib/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../dlib/src/cs/dmsdk", exts))
+    apidoc_extract_task(bld, ["../engine/proto/engine/engine_ddf.proto", "../engine/src/engine_doc.h", "../engine/src/script/script_engine.cpp"])
+    apidoc_extract_task(bld, _findfiles("../engine/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../extension/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../extension/src/cs/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../font/src/dmsdk", exts))
+    apidoc_extract_task(bld, ["../gameobject/proto/gameobject/gameobject_ddf.proto", "../gameobject/src/gameobject/gameobject_script.cpp"])
+    apidoc_extract_task(bld, _findfiles("../gameobject/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../gamesys/proto/gamesys", exts))
+    apidoc_extract_task(bld, _findfiles("../gamesys/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../gamesys/src/gamesys/scripts", exts))
+    apidoc_extract_task(bld, _findfiles("../gamesys/src/gamesys/box2d", exts))
+    apidoc_extract_task(bld, _findfiles("../graphics/src/dmsdk", exts))
+    apidoc_extract_task(bld, ["../gui/src/gui_script.cpp"])
+    apidoc_extract_task(bld, _findfiles("../gui/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../hid/src/dmsdk", exts))
+    apidoc_extract_task(bld, ["../liveupdate/src/liveupdate.h"])
+    apidoc_extract_task(bld, _findfiles("../lua/src", exts))
+    apidoc_extract_task(bld, _findfiles("../lua/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../lua/src/cs/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../physics/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../platform/src/dmsdk", exts))
+    apidoc_extract_task(bld, ["../profiler/src/profiler.cpp"])
+    apidoc_extract_task(bld, _findfiles("../render/proto/render", exts))
+    apidoc_extract_task(bld, ["../render/src/render/render_script.cpp", "../render/src/render/render_script_camera.cpp"])
+    apidoc_extract_task(bld, _findfiles("../render/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../resource/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../rig/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../script/src", exts))
+    apidoc_extract_task(bld, _findfiles("../script/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../script/src/luasocket", exts))
+    apidoc_extract_task(bld, _findfiles("../script/src/script", exts))
+    apidoc_extract_task(bld, _findfiles("../sdk/src/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../sdk/src/cs/dmsdk", exts))
+    apidoc_extract_task(bld, _findfiles("../sound/src/dmsdk", exts))
+
     # Find all the built .apidoc files in the engine tree
     apidoc_files = []
-    for root, dirs, files in os.walk('..'):
+    for root, dirs, files in os.walk('.'):
         for filename in fnmatch.filter(files, '*.apidoc'):
             apidoc_files.append(os.path.join(root, filename))
     # Concat per namespace into 'src'

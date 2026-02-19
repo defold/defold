@@ -319,9 +319,26 @@ def apidoc_extract_task(bld, src):
         for s in src:
             elements = _parse_source(s)
             for k,v in elements.items():
-                # turn path into key which will later be used as the
-                # build target filename
-                key = "-".join(os.path.normpath(s).split(os.sep))
+                # remove initial part of the path up to src/
+                # dlib/src/dmsdk/dlib/foo.h -> dmsdk/dlib/foo.h
+                path = os.path.normpath(s)
+                parts = path.split("src/", 1)
+                path = parts[1] if len(parts) > 1 else path
+
+                # gameobject/proto/gameobject/gameobject_ddf.proto -> proto/gameobject/gameobject_ddf.proto
+                if "/proto/" in path:
+                    parts = path.split("proto/", 1)
+                    path = "proto/" + parts[1]
+
+                # gamesys/scripts/script/buffer.cpp -> scripts/script/buffer.cpp
+                if "/scripts/" in path:
+                    parts = path.split("scripts/", 1)
+                    path = "scripts/" + parts[1]
+
+                # turn the path into a key without the path separator
+                # dmsdk/dlib/foo.h -> dmsdk-dlib-foo.h
+                # will later be used as the build target filename
+                key = "-".join(path.split(os.sep))
                 key = key.replace("..-", "")
                 docs[key] = docs[key] + v
         all_docs.update(docs)
@@ -347,7 +364,6 @@ def apidoc_extract_task(bld, src):
 # * 'source' file is added to documentation pipeline
 def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
-    apidoc_extract_task(bld, source)
 
 # Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
@@ -368,7 +384,6 @@ def dmsdk_add_files(bld, target, source):
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
             bld.install_files(os.path.join(target, sdk_dir), f)
-    apidoc_extract_task(bld, doc_files)
 
 def getAndroidNDKArch(target_arch):
     return 'arm64' if 'arm64' == target_arch else 'arm'
