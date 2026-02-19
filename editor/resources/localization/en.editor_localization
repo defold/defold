@@ -578,6 +578,7 @@ dialog.bundle.error.bundle-format.required = No bundle format selected.
 pane.assets = Assets
 pane.changed-files = Changed Files
 pane.outline = Outline
+pane.structure = Structure
 pane.properties = Properties
 pane.console = Console
 pane.curve-editor = Curve Editor

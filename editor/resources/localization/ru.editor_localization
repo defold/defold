@@ -578,6 +578,7 @@ dialog.bundle.error.bundle-format.required = Не выбран формат сб
 pane.assets = Ресурсы
 pane.changed-files = Изменённые Файлы
 pane.outline = Структура
+pane.structure = Структура
 pane.properties = Свойства
 pane.console = Консоль
 pane.curve-editor = Редактор Кривых

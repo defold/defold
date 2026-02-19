@@ -1386,9 +1386,13 @@
         (focus-code-editor! view-node)))
     (.consume e)))
 
-(defn structure-pane [{:keys [document-symbols view-node]}]
+(def ^:private structure-pane-message (localization/message "pane.structure"))
+
+(fxui/defc structure-pane
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [document-symbols localization-state view-node]}]
   {:fx/type fxui/titled-pane
-   :title "Structure" ;; todo localize
+   :title (localization-state structure-pane-message)
    :content {:fx/type fx.ext.tree-view/with-selection-props
              :props {:on-selected-item-changed #(navigate-to-document-symbol! view-node %)}
              :desc {:fx/type fxui/tree-view
@@ -1419,6 +1423,7 @@
   ;; property on the `CodeEditorView` itself when viewing these resources.
   (property fallback-cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
 
+  (property localization g/Any (dynamic visible (g/constantly false)))
   (property repaint-trigger g/Num (default 0) (dynamic visible (g/constantly false)))
   (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
@@ -1481,12 +1486,13 @@
   (property completions-selected-index g/Any (dynamic visible (g/constantly false)))
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
 
-  (output sidebar-panes g/Any :cached (g/fnk [_node-id document-symbols node-id+type+resource]
+  (output sidebar-panes g/Any :cached (g/fnk [_node-id document-symbols localization node-id+type+resource]
                                         (cond-> []
                                                 document-symbols
                                                 (conj {:fx/type fxui/ext-dedupe-identical-desc
                                                        :desc {:fx/type structure-pane
                                                               :document-symbols document-symbols
+                                                              :localization localization
                                                               :view-node _node-id}})
                                                 (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
                                                 (conj :properties))))
@@ -4107,6 +4113,7 @@
                        :gutter-view (->CodeEditorGutterView)
                        :highlighted-find-term (.getValue highlighted-find-term-property)
                        :line-height-factor 1.2
+                       :localization localization
                        :undo-grouping-info undo-grouping-info
                        :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                        :visible-minimap? (.getValue visible-minimap-property)
