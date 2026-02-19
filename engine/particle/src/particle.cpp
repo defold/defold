@@ -1334,31 +1334,27 @@ namespace dmParticle
                 particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
             }
 
+            // Local space has size applied (like sprites); world matrix has no scale so view_proj * mtx_world * position_local == view_proj * position_world
+            float hx = width_factor * size.getX();
+            float hy = height_factor * size.getY();
+            position_local_flat[0] = Vector3(-hx, -hy, 0.0f);
+            position_local_flat[1] = Vector3(-hx,  hy, 0.0f);
+            position_local_flat[2] = Vector3( hx,  hy, 0.0f);
+            position_local_flat[3] = position_local_flat[2];
+            position_local_flat[4] = Vector3( hx, -hy, 0.0f);
+            position_local_flat[5] = position_local_flat[0];
+
+            dmTransform::Transform particle_transform_no_scale = particle_transform;
+            particle_transform_no_scale.SetScale(Vector3(1.0f, 1.0f, 1.0f));
+            world_matrix = dmTransform::ToMatrix4(particle_transform_no_scale);
+
             if (material_attribute_info_meta.m_HasAttributeWorldPosition)
             {
-                Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
-                Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
-                Vector3 x       = dmTransform::Apply(particle_transform, x_local);
-                Vector3 y       = dmTransform::Apply(particle_transform, y_local);
-                position_world_flat[0] = -x - y + particle_transform.GetTranslation();
-                position_world_flat[1] = -x + y + particle_transform.GetTranslation();
-                position_world_flat[2] = x + y + particle_transform.GetTranslation();
-                position_world_flat[3] = position_world_flat[2];
-                position_world_flat[4] = x - y + particle_transform.GetTranslation();
-                position_world_flat[5] = position_world_flat[0];
-            }
-
-            if (material_attribute_info_meta.m_HasAttributeLocalPosition)
-            {
-                // Pixel local coordinates (like sprites): apply size to local extents
-                Vector3 x_local_pixel = Vector3(width_factor * size.getX(), 0.0f, 0.0f);
-                Vector3 y_local_pixel = Vector3(0.0f, height_factor * size.getY(), 0.0f);
-                position_local_flat[0] = -x_local_pixel - y_local_pixel;
-                position_local_flat[1] = -x_local_pixel + y_local_pixel;
-                position_local_flat[2] = x_local_pixel + y_local_pixel;
-                position_local_flat[3] = position_local_flat[2];
-                position_local_flat[4] = x_local_pixel - y_local_pixel;
-                position_local_flat[5] = position_local_flat[0];
+                for (int i = 0; i < 6; ++i)
+                {
+                    Vector4 p_local(position_local_flat[i].getX(), position_local_flat[i].getY(), position_local_flat[i].getZ(), 1.0f);
+                    position_world_flat[i] = (world_matrix * p_local).getXYZ();
+                }
             }
 
             if (material_attribute_info_meta.m_HasAttributeColor)
@@ -1395,10 +1391,7 @@ namespace dmParticle
                 }
             }
 
-            if (material_attribute_info_meta.m_HasAttributeWorldMatrix)
-            {
-                world_matrix = dmTransform::ToMatrix4(particle_transform);
-            }
+            // world_matrix already set from particle_transform_no_scale (no size) above
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
             write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, 6, write_params);
