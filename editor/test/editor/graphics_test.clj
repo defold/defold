@@ -14,9 +14,12 @@
 
 (ns editor.graphics-test
   (:require [clojure.test :refer :all]
+            [editor.geom :as geom]
             [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
-            [util.coll :refer [pair]]))
+            [editor.gl.vertex2 :as vtx]
+            [util.coll :refer [pair]])
+  (:import [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -288,3 +291,72 @@
                 (semantic-type->label semantic-type)
                 (vector-type->label old-vector-type)
                 (vector-type->label new-vector-type)))))
+
+(deftest put-attributes-writes-world-matrix-when-has-semantic-type-world-matrix
+  (let [attribute-infos [{:name "position"
+                          :name-key :position
+                          :vector-type :vector-type-vec4
+                          :data-type :type-float
+                          :normalize false
+                          :semantic-type :semantic-type-position
+                          :coordinate-space :coordinate-space-local
+                          :step-function :vertex-step-function-vertex}
+                         {:name "world"
+                          :name-key :mtx-world
+                          :vector-type :vector-type-mat4
+                          :data-type :type-float
+                          :normalize false
+                          :semantic-type :semantic-type-world-matrix
+                          :coordinate-space :coordinate-space-local
+                          :step-function :vertex-step-function-vertex}]
+        vertex-description (graphics.types/make-vertex-description attribute-infos)
+        world-transform (doto (Matrix4d.)
+                          (.setIdentity)
+                          (.setTranslation (Vector3d. 2.0 3.0 4.0)))
+        expected-matrix-floats (mapv #(float %) (geom/as-array world-transform))
+        position-byte-size (graphics.types/attribute-info-byte-size (first attribute-infos))
+        renderable-datas [{:position-data [[0.0 0.0 0.0 1.0]]
+                          :world-transform world-transform
+                          :has-semantic-type-world-matrix true}]
+        num-vertices 1
+        vbuf (graphics/put-attributes!
+              (vtx/make-vertex-buffer vertex-description :dynamic num-vertices)
+              renderable-datas)
+        ^java.nio.ByteBuffer buf (vtx/buf vbuf)]
+    (.rewind buf)
+    (.position buf (int position-byte-size))
+    (let [read-matrix-floats (mapv (fn [_] (.getFloat buf)) (range 16))]
+      (is (= expected-matrix-floats read-matrix-floats)
+          "put-attributes! should write the renderable world-transform into the world-matrix vertex stream when :has-semantic-type-world-matrix is true"))))
+
+(deftest put-attributes-writes-identity-world-matrix-when-has-semantic-type-world-matrix-false
+  (let [attribute-infos [{:name "position"
+                          :name-key :position
+                          :vector-type :vector-type-vec4
+                          :data-type :type-float
+                          :normalize false
+                          :semantic-type :semantic-type-position
+                          :coordinate-space :coordinate-space-local
+                          :step-function :vertex-step-function-vertex}
+                         {:name "world"
+                          :name-key :mtx-world
+                          :vector-type :vector-type-mat4
+                          :data-type :type-float
+                          :normalize false
+                          :semantic-type :semantic-type-world-matrix
+                          :coordinate-space :coordinate-space-local
+                          :step-function :vertex-step-function-vertex}]
+        vertex-description (graphics.types/make-vertex-description attribute-infos)
+        identity-matrix-floats (mapv #(float %) (geom/as-array geom/Identity4d))
+        position-byte-size (graphics.types/attribute-info-byte-size (first attribute-infos))
+        renderable-datas [{:position-data [[0.0 0.0 0.0 1.0]]}]
+        num-vertices 1
+        vbuf (graphics/put-attributes!
+              (vtx/make-vertex-buffer vertex-description :dynamic num-vertices)
+              renderable-datas)
+        ^java.nio.ByteBuffer buf (vtx/buf vbuf)]
+    (.rewind buf)
+    (.position buf (int position-byte-size))
+    (let [read-matrix-floats (mapv (fn [_] (.getFloat buf)) (range 16))]
+      (is (= identity-matrix-floats read-matrix-floats)
+          "put-attributes! should write identity into the world-matrix stream when :has-semantic-type-world-matrix is not set"))))
