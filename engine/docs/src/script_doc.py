@@ -286,8 +286,7 @@ def _create_doc_info(tags):
     info.path, info.file = _parse_path(tags["path"])
     if tags["path"] == "":
         logging.warning('Missing tag @path for @name %s' % tags["name"])
-    if 'namespace' in tags:
-        info.namespace = tags["namespace"]
+    info.namespace = tags.get("namespace", "")
     return info
 
 def _create_doc_element(tags):
@@ -331,6 +330,7 @@ def _create_doc_element(tags):
         tparam = element.tparams.add()
         tparam.name = tmp[0]
         tparam.doc = tmp[1]
+        tparam.type = ""
 
     for value in tags["member"]:
         tmp = value.split(' ', 1)
