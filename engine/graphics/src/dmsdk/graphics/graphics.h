@@ -117,28 +117,6 @@ typedef enum VertexAttributeDataType
     VERTEX_ATTRIBUTE_DATA_TYPE_FLOAT          = 7,
 } VertexAttributeDataType;
 
-/*# vertex attribute vector type
- * @enum
- * @name VertexAttributeVectorType
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_SCALAR
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_VEC2
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_VEC3
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_VEC4
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_MAT2
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_MAT3
- * @member VERTEX_ATTRIBUTE_VECTOR_TYPE_MAT4
- */
-typedef enum VertexAttributeVectorType
-{
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_SCALAR = 1,
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_VEC2   = 2,
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_VEC3   = 3,
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_VEC4   = 4,
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_MAT2   = 5,
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_MAT3   = 6,
-    VERTEX_ATTRIBUTE_VECTOR_TYPE_MAT4   = 7,
-} VertexAttributeVectorType;
-
 /*# vertex attribute semantic type
  * @enum
  * @name VertexAttributeSemanticType
@@ -360,63 +338,63 @@ typedef enum IndexBufferFormat
 
 /*# graphics data type
  * @enum
- * @name Type
- * @member TYPE_BYTE
- * @member TYPE_UNSIGNED_BYTE
- * @member TYPE_SHORT
- * @member TYPE_UNSIGNED_SHORT
- * @member TYPE_INT
- * @member TYPE_UNSIGNED_INT
- * @member TYPE_FLOAT
- * @member TYPE_FLOAT_VEC4
- * @member TYPE_FLOAT_MAT4
- * @member TYPE_SAMPLER_2D
- * @member TYPE_SAMPLER_CUBE
- * @member TYPE_SAMPLER_2D_ARRAY
- * @member TYPE_FLOAT_VEC2
- * @member TYPE_FLOAT_VEC3
- * @member TYPE_FLOAT_MAT2
- * @member TYPE_FLOAT_MAT3
- * @member TYPE_IMAGE_2D
- * @member TYPE_TEXTURE_2D
- * @member TYPE_SAMPLER
- * @member TYPE_TEXTURE_2D_ARRAY
- * @member TYPE_TEXTURE_CUBE
- * @member TYPE_SAMPLER_3D
- * @member TYPE_TEXTURE_3D
- * @member TYPE_IMAGE_3D
- * @member TYPE_SAMPLER_3D_ARRAY
- * @member TYPE_TEXTURE_3D_ARRAY
+ * @name GraphicsType
+ * @member GRAPHICS_TYPE_BYTE
+ * @member GRAPHICS_TYPE_UNSIGNED_BYTE
+ * @member GRAPHICS_TYPE_SHORT
+ * @member GRAPHICS_TYPE_UNSIGNED_SHORT
+ * @member GRAPHICS_TYPE_INT
+ * @member GRAPHICS_TYPE_UNSIGNED_INT
+ * @member GRAPHICS_TYPE_FLOAT
+ * @member GRAPHICS_TYPE_FLOAT_VEC4
+ * @member GRAPHICS_TYPE_FLOAT_MAT4
+ * @member GRAPHICS_TYPE_SAMPLER_2D
+ * @member GRAPHICS_TYPE_SAMPLER_CUBE
+ * @member GRAPHICS_TYPE_SAMPLER_2D_ARRAY
+ * @member GRAPHICS_TYPE_FLOAT_VEC2
+ * @member GRAPHICS_TYPE_FLOAT_VEC3
+ * @member GRAPHICS_TYPE_FLOAT_MAT2
+ * @member GRAPHICS_TYPE_FLOAT_MAT3
+ * @member GRAPHICS_TYPE_IMAGE_2D
+ * @member GRAPHICS_TYPE_TEXTURE_2D
+ * @member GRAPHICS_TYPE_SAMPLER
+ * @member GRAPHICS_TYPE_TEXTURE_2D_ARRAY
+ * @member GRAPHICS_TYPE_TEXTURE_CUBE
+ * @member GRAPHICS_TYPE_SAMPLER_3D
+ * @member GRAPHICS_TYPE_TEXTURE_3D
+ * @member GRAPHICS_TYPE_IMAGE_3D
+ * @member GRAPHICS_TYPE_SAMPLER_3D_ARRAY
+ * @member GRAPHICS_TYPE_TEXTURE_3D_ARRAY
  */
-typedef enum Type
+typedef enum GraphicsType
 {
-    TYPE_BYTE             = 0,
-    TYPE_UNSIGNED_BYTE    = 1,
-    TYPE_SHORT            = 2,
-    TYPE_UNSIGNED_SHORT   = 3,
-    TYPE_INT              = 4,
-    TYPE_UNSIGNED_INT     = 5,
-    TYPE_FLOAT            = 6,
-    TYPE_FLOAT_VEC4       = 7,
-    TYPE_FLOAT_MAT4       = 8,
-    TYPE_SAMPLER_2D       = 9,
-    TYPE_SAMPLER_CUBE     = 10,
-    TYPE_SAMPLER_2D_ARRAY = 11,
-    TYPE_FLOAT_VEC2       = 12,
-    TYPE_FLOAT_VEC3       = 13,
-    TYPE_FLOAT_MAT2       = 14,
-    TYPE_FLOAT_MAT3       = 15,
-    TYPE_IMAGE_2D         = 16,
-    TYPE_TEXTURE_2D       = 17,
-    TYPE_SAMPLER          = 18,
-    TYPE_TEXTURE_2D_ARRAY = 19,
-    TYPE_TEXTURE_CUBE     = 20,
-    TYPE_SAMPLER_3D       = 21,
-    TYPE_TEXTURE_3D       = 22,
-    TYPE_IMAGE_3D         = 23,
-    TYPE_SAMPLER_3D_ARRAY = 24,
-    TYPE_TEXTURE_3D_ARRAY = 25,
-} Type;
+    GRAPHICS_TYPE_BYTE             = 0,
+    GRAPHICS_TYPE_UNSIGNED_BYTE    = 1,
+    GRAPHICS_TYPE_SHORT            = 2,
+    GRAPHICS_TYPE_UNSIGNED_SHORT   = 3,
+    GRAPHICS_TYPE_INT              = 4,
+    GRAPHICS_TYPE_UNSIGNED_INT     = 5,
+    GRAPHICS_TYPE_FLOAT            = 6,
+    GRAPHICS_TYPE_FLOAT_VEC4       = 7,
+    GRAPHICS_TYPE_FLOAT_MAT4       = 8,
+    GRAPHICS_TYPE_SAMPLER_2D       = 9,
+    GRAPHICS_TYPE_SAMPLER_CUBE     = 10,
+    GRAPHICS_TYPE_SAMPLER_2D_ARRAY = 11,
+    GRAPHICS_TYPE_FLOAT_VEC2       = 12,
+    GRAPHICS_TYPE_FLOAT_VEC3       = 13,
+    GRAPHICS_TYPE_FLOAT_MAT2       = 14,
+    GRAPHICS_TYPE_FLOAT_MAT3       = 15,
+    GRAPHICS_TYPE_IMAGE_2D         = 16,
+    GRAPHICS_TYPE_TEXTURE_2D       = 17,
+    GRAPHICS_TYPE_SAMPLER          = 18,
+    GRAPHICS_TYPE_TEXTURE_2D_ARRAY = 19,
+    GRAPHICS_TYPE_TEXTURE_CUBE     = 20,
+    GRAPHICS_TYPE_SAMPLER_3D       = 21,
+    GRAPHICS_TYPE_TEXTURE_3D       = 22,
+    GRAPHICS_TYPE_IMAGE_3D         = 23,
+    GRAPHICS_TYPE_SAMPLER_3D_ARRAY = 24,
+    GRAPHICS_TYPE_TEXTURE_3D_ARRAY = 25,
+} GraphicsType;
 
 /*# context creation parameters
  * @struct
@@ -560,20 +538,20 @@ void VertexStreamDeclarationDelete(HVertexStreamDeclaration stream_declaration);
  * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
  * @param name [type:const char*] stream name
  * @param size [type:uint32_t] number of components in stream
- * @param type [type:VertexAttributeDataType] stream data type value
+ * @param type [type:GraphicsType] stream data type value
  * @param normalize [type:bool] normalize stream values
  */
-void VertexStreamDeclarationAdd(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, VertexAttributeDataType type, bool normalize);
+void VertexStreamDeclarationAdd(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, GraphicsType type, bool normalize);
 
 /*# add a stream (hashed name) to a vertex stream declaration
  * @name VertexStreamDeclarationAddHash
  * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
  * @param name_hash [type:dmhash_t] stream name hash
  * @param size [type:uint32_t] number of components in stream
- * @param type [type:VertexAttributeDataType] stream data type value
+ * @param type [type:GraphicsType] stream data type value
  * @param normalize [type:bool] normalize stream values
  */
-void VertexStreamDeclarationAddHash(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, VertexAttributeDataType type, bool normalize);
+void VertexStreamDeclarationAddHash(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, GraphicsType type, bool normalize);
 
 /*# create a vertex declaration
  * @name VertexDeclarationNew

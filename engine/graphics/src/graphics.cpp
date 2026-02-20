@@ -36,7 +36,7 @@ DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch
 #include <dlib/dstrings.h>
 
 static dmGraphics::VertexStepFunction ToCppVertexStepFunction(VertexAttributeStepFunction step_function);
-static dmGraphics::Type ToCppGraphicsType(VertexAttributeDataType type);
+static dmGraphics::Type ToCppGraphicsType(GraphicsType type);
 static dmGraphics::AdapterFamily ToCppAdapterFamily(AdapterFamily family);
 static AdapterFamily ToCAdapterFamily(dmGraphics::AdapterFamily family);
 
@@ -2202,19 +2202,38 @@ static dmGraphics::VertexStepFunction ToCppVertexStepFunction(VertexAttributeSte
     }
 }
 
-static dmGraphics::Type ToCppGraphicsType(VertexAttributeDataType type)
+static dmGraphics::Type ToCppGraphicsType(GraphicsType type)
 {
     switch (type)
     {
-        case VERTEX_ATTRIBUTE_DATA_TYPE_BYTE:           return dmGraphics::TYPE_BYTE;
-        case VERTEX_ATTRIBUTE_DATA_TYPE_UNSIGNED_BYTE:  return dmGraphics::TYPE_UNSIGNED_BYTE;
-        case VERTEX_ATTRIBUTE_DATA_TYPE_SHORT:          return dmGraphics::TYPE_SHORT;
-        case VERTEX_ATTRIBUTE_DATA_TYPE_UNSIGNED_SHORT: return dmGraphics::TYPE_UNSIGNED_SHORT;
-        case VERTEX_ATTRIBUTE_DATA_TYPE_INT:            return dmGraphics::TYPE_INT;
-        case VERTEX_ATTRIBUTE_DATA_TYPE_UNSIGNED_INT:   return dmGraphics::TYPE_UNSIGNED_INT;
-        case VERTEX_ATTRIBUTE_DATA_TYPE_FLOAT:          return dmGraphics::TYPE_FLOAT;
+        case GRAPHICS_TYPE_BYTE:             return dmGraphics::TYPE_BYTE;
+        case GRAPHICS_TYPE_UNSIGNED_BYTE:    return dmGraphics::TYPE_UNSIGNED_BYTE;
+        case GRAPHICS_TYPE_SHORT:            return dmGraphics::TYPE_SHORT;
+        case GRAPHICS_TYPE_UNSIGNED_SHORT:   return dmGraphics::TYPE_UNSIGNED_SHORT;
+        case GRAPHICS_TYPE_INT:              return dmGraphics::TYPE_INT;
+        case GRAPHICS_TYPE_UNSIGNED_INT:     return dmGraphics::TYPE_UNSIGNED_INT;
+        case GRAPHICS_TYPE_FLOAT:            return dmGraphics::TYPE_FLOAT;
+        case GRAPHICS_TYPE_FLOAT_VEC4:       return dmGraphics::TYPE_FLOAT_VEC4;
+        case GRAPHICS_TYPE_FLOAT_MAT4:       return dmGraphics::TYPE_FLOAT_MAT4;
+        case GRAPHICS_TYPE_SAMPLER_2D:       return dmGraphics::TYPE_SAMPLER_2D;
+        case GRAPHICS_TYPE_SAMPLER_CUBE:     return dmGraphics::TYPE_SAMPLER_CUBE;
+        case GRAPHICS_TYPE_SAMPLER_2D_ARRAY: return dmGraphics::TYPE_SAMPLER_2D_ARRAY;
+        case GRAPHICS_TYPE_FLOAT_VEC2:       return dmGraphics::TYPE_FLOAT_VEC2;
+        case GRAPHICS_TYPE_FLOAT_VEC3:       return dmGraphics::TYPE_FLOAT_VEC3;
+        case GRAPHICS_TYPE_FLOAT_MAT2:       return dmGraphics::TYPE_FLOAT_MAT2;
+        case GRAPHICS_TYPE_FLOAT_MAT3:       return dmGraphics::TYPE_FLOAT_MAT3;
+        case GRAPHICS_TYPE_IMAGE_2D:         return dmGraphics::TYPE_IMAGE_2D;
+        case GRAPHICS_TYPE_TEXTURE_2D:       return dmGraphics::TYPE_TEXTURE_2D;
+        case GRAPHICS_TYPE_SAMPLER:          return dmGraphics::TYPE_SAMPLER;
+        case GRAPHICS_TYPE_TEXTURE_2D_ARRAY: return dmGraphics::TYPE_TEXTURE_2D_ARRAY;
+        case GRAPHICS_TYPE_TEXTURE_CUBE:     return dmGraphics::TYPE_TEXTURE_CUBE;
+        case GRAPHICS_TYPE_SAMPLER_3D:       return dmGraphics::TYPE_SAMPLER_3D;
+        case GRAPHICS_TYPE_TEXTURE_3D:       return dmGraphics::TYPE_TEXTURE_3D;
+        case GRAPHICS_TYPE_IMAGE_3D:         return dmGraphics::TYPE_IMAGE_3D;
+        case GRAPHICS_TYPE_SAMPLER_3D_ARRAY: return dmGraphics::TYPE_SAMPLER_3D_ARRAY;
+        case GRAPHICS_TYPE_TEXTURE_3D_ARRAY: return dmGraphics::TYPE_TEXTURE_3D_ARRAY;
         default:
-            assert(0 && "Unknown VertexAttributeDataType value");
+            assert(0 && "Unknown GraphicsType value");
             return dmGraphics::TYPE_FLOAT;
     }
 }
@@ -2267,12 +2286,12 @@ extern "C"
         return (HVertexStreamDeclaration)dmGraphics::NewVertexStreamDeclaration((dmGraphics::HContext)context, ToCppVertexStepFunction(step_function));
     }
 
-    void VertexStreamDeclarationAdd(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, VertexAttributeDataType type, bool normalize)
+    void VertexStreamDeclarationAdd(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, GraphicsType type, bool normalize)
     {
         dmGraphics::AddVertexStream((dmGraphics::HVertexStreamDeclaration)stream_declaration, name, size, ToCppGraphicsType(type), normalize);
     }
 
-    void VertexStreamDeclarationAddHash(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, VertexAttributeDataType type, bool normalize)
+    void VertexStreamDeclarationAddHash(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, GraphicsType type, bool normalize)
     {
         dmGraphics::AddVertexStream((dmGraphics::HVertexStreamDeclaration)stream_declaration, name_hash, size, ToCppGraphicsType(type), normalize);
     }

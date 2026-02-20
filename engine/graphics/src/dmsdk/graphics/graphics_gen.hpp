@@ -353,7 +353,7 @@ namespace dmGraphics
      * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
      * @param name [type:const char*] stream name
      * @param size [type:uint32_t] number of components in stream
-     * @param type [type:VertexAttributeDataType] stream data type value
+     * @param type [type:GraphicsType] stream data type value
      * @param normalize [type:bool] normalize stream values
      */
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char * name, uint32_t size, Type type, bool normalize);
@@ -365,7 +365,7 @@ namespace dmGraphics
      * @param stream_declaration [type:HVertexStreamDeclaration] vertex stream declaration handle
      * @param name_hash [type:dmhash_t] stream name hash
      * @param size [type:uint32_t] number of components in stream
-     * @param type [type:VertexAttributeDataType] stream data type value
+     * @param type [type:GraphicsType] stream data type value
      * @param normalize [type:bool] normalize stream values
      */
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize);
