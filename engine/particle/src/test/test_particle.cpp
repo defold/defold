@@ -58,6 +58,22 @@ static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t
     info.m_ElementCount    = dmGraphics::VectorTypeToElementCount(source_vector_type);
 }
 
+static inline void FillAttributeWithSpace(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexAttribute::VectorType source_vector_type, dmGraphics::CoordinateSpace space)
+{
+    FillAttribute(info, name_hash, semantic_type, source_vector_type);
+    info.m_CoordinateSpace = space;
+}
+
+// Vertex with both world and local position for testing local coordinate invariance
+struct TestVertexWithLocal
+{
+    float m_WorldX, m_WorldY, m_WorldZ, m_WorldW;
+    float m_LocalX, m_LocalY, m_LocalZ, m_LocalW;
+    float m_Red, m_Green, m_Blue, m_Alpha;
+    float m_U, m_V;
+    float m_PageIndex;
+};
+
 class ParticleTest : public jc_test_base_class
 {
 protected:
@@ -2205,6 +2221,64 @@ TEST_F(ParticleTest, Pivot)
     ASSERT_NEAR(1.0f, vertex_buffer[3].m_Y, EPSILON); // top right
     ASSERT_NEAR(0.0f, vertex_buffer[4].m_Y, EPSILON); // bottom right
     ASSERT_NEAR(0.0f, vertex_buffer[5].m_Y, EPSILON); // bottom left
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that local position vertex attributes are unaffected by the instance transform.
+ * World positions should change when we move the instance; local positions must stay the same.
+ */
+TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
+{
+    const float dt = 1.0f;
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+    dmGraphics::VertexAttributeInfo local_attribute_infos[5];
+    memset(local_attribute_infos, 0, sizeof(local_attribute_infos));
+    FillAttributeWithSpace(local_attribute_infos[0], dmHashString64("position"),    dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::COORDINATE_SPACE_WORLD);
+    FillAttributeWithSpace(local_attribute_infos[1], dmHashString64("local_pos"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::COORDINATE_SPACE_LOCAL);
+    FillAttribute(local_attribute_infos[2], dmHashString64("color"),     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    FillAttribute(local_attribute_infos[3], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+    FillAttribute(local_attribute_infos[4], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+
+    dmGraphics::VertexAttributeInfos local_infos;
+    local_infos.m_Infos        = local_attribute_infos;
+    local_infos.m_NumInfos    = 5;
+    local_infos.m_VertexStride = sizeof(TestVertexWithLocal);
+
+    dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, EmptyFetchAnimationCallback);
+
+    uint32_t out_size = 0;
+    const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertexWithLocal));
+    TestVertexWithLocal vertex_buffer[6];
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
+    ASSERT_EQ(6u, out_size / sizeof(TestVertexWithLocal));
+
+    float local_pos_first[6 * 4];
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        local_pos_first[i*4 + 0] = vertex_buffer[i].m_LocalX;
+        local_pos_first[i*4 + 1] = vertex_buffer[i].m_LocalY;
+        local_pos_first[i*4 + 2] = vertex_buffer[i].m_LocalZ;
+        local_pos_first[i*4 + 3] = vertex_buffer[i].m_LocalW;
+    }
+
+    dmParticle::SetPosition(m_Context, instance, Point3(100.0f, 200.0f, 50.0f));
+    dmParticle::Update(m_Context, 0.0f, EmptyFetchAnimationCallback);
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
+    ASSERT_EQ(6u, out_size / sizeof(TestVertexWithLocal));
+
+    for (uint32_t v = 0; v < 6; ++v)
+    {
+        ASSERT_NEAR(local_pos_first[v*4+0], vertex_buffer[v].m_LocalX, EPSILON);
+        ASSERT_NEAR(local_pos_first[v*4+1], vertex_buffer[v].m_LocalY, EPSILON);
+        ASSERT_NEAR(local_pos_first[v*4+2], vertex_buffer[v].m_LocalZ, EPSILON);
+        ASSERT_NEAR(local_pos_first[v*4+3], vertex_buffer[v].m_LocalW, EPSILON);
+    }
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

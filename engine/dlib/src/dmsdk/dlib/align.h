@@ -15,7 +15,7 @@
 #ifndef DMSDK_ALIGN_H
 #define DMSDK_ALIGN_H
 
-/*# SDK Align API documentation
+/*# Align API documentation
  * Alignment macros. Use for compiler compatibility
  *
  * @document

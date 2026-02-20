@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/hid/hid_native_defines.h>
 
-/*# SDK Hid API documentation
+/*# Hid API documentation
  * Used to add input to the engine
  *
  * @document
