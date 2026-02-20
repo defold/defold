@@ -1345,6 +1345,8 @@
 (defn- document-symbol-items [document-symbols]
   (mapv (fn [{:keys [children name] :as document-symbol}]
           {:fx/type fx.tree-item/lifecycle
+           ;; It's okay if the different document symbols share the same name,
+           ;; cljfx is tolerant to non-unique keys
            :fx/key name
            :value document-symbol
            :children (document-symbol-items children)})
