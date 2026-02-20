@@ -55,6 +55,7 @@ namespace dmGraphics
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, ADAPTER_FAMILY_PRIORITY_DIRECTX);
 
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+    static void DX12DeleteTexture(HContext context, HTexture texture);
 
     static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
 
@@ -930,7 +931,7 @@ namespace dmGraphics
     }
 
     template <typename T>
-    static void DestroyResourceDeferred(DX12FrameResource& current_frame_resource, T* resource) 
+    static void DestroyResourceDeferred(DX12FrameResource& current_frame_resource, T* resource)
     {
         if (resource == 0x0 || resource->m_Resource == 0x0)
         {
@@ -947,6 +948,17 @@ namespace dmGraphics
         resource->m_Resource = 0;
     }
 
+    static void DestroyTextureResourceDeferred(DX12Context* context, DX12Texture* tex)
+    {
+        if (!tex || !tex->m_Resource)
+            return;
+        DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+        if (fr.m_ResourcesToDestroy.Full())
+            fr.m_ResourcesToDestroy.OffsetCapacity(8);
+        fr.m_ResourcesToDestroy.Push(tex->m_Resource);
+        tex->m_Resource = 0;
+    }
+
     void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
     {
         if (current_frame_resource.m_ResourcesToDestroy.Size() > 0)
@@ -956,6 +968,119 @@ namespace dmGraphics
                 current_frame_resource.m_ResourcesToDestroy[i]->Release();
             }
             current_frame_resource.m_ResourcesToDestroy.SetSize(0);
+        }
+    }
+
+    static void ReleasePipelineCacheEntry(DX12Context* ctx, const uint64_t* key, DX12Pipeline* pipeline)
+    {
+        (void)ctx;
+        (void)key;
+        if (pipeline && *pipeline)
+        {
+            (*pipeline)->Release();
+            *pipeline = 0;
+        }
+    }
+
+    void DX12DestroyContextResources(DX12Context* context)
+    {
+        // Release all cached pipeline state objects
+        context->m_PipelineCache.Iterate(ReleasePipelineCacheEntry, context);
+
+        for (uint8_t i = 0; i < MAX_FRAMEBUFFERS; i++)
+        {
+            DX12FrameResource& fr = context->m_FrameResources[i];
+            FlushResourcesToDestroy(fr);
+
+            // Release frame buffer texture resources (swap chain and depth)
+            DX12Texture* tex_color = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, fr.m_TextureColor);
+            if (tex_color && tex_color->m_Resource)
+            {
+                tex_color->m_Resource->Release();
+                tex_color->m_Resource = 0;
+            }
+            DX12Texture* tex_depth = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, fr.m_TextureDepthStencil);
+            if (tex_depth && tex_depth->m_Resource)
+            {
+                tex_depth->m_Resource->Release();
+                tex_depth->m_Resource = 0;
+            }
+
+            if (fr.m_MsaaRenderTarget)
+            {
+                fr.m_MsaaRenderTarget->Release();
+                fr.m_MsaaRenderTarget = 0;
+            }
+            if (fr.m_CommandAllocator)
+            {
+                fr.m_CommandAllocator->Release();
+                fr.m_CommandAllocator = 0;
+            }
+            if (fr.m_Fence)
+            {
+                fr.m_Fence->Release();
+                fr.m_Fence = 0;
+            }
+
+            // Release scratch buffer pools
+            for (uint32_t p = 0; p < fr.m_ScratchBuffer.m_MemoryPools.Size(); p++)
+            {
+                DX12ScratchBuffer::BlockSizedPool& pool = fr.m_ScratchBuffer.m_MemoryPools[p];
+                if (pool.m_MemoryHeap)
+                {
+                    pool.m_MemoryHeap->Unmap(0, 0);
+                    pool.m_MemoryHeap->Release();
+                    pool.m_MemoryHeap = 0;
+                }
+                if (pool.m_DescriptorHeap)
+                {
+                    pool.m_DescriptorHeap->Release();
+                    pool.m_DescriptorHeap = 0;
+                }
+            }
+        }
+
+        if (context->m_CommandList)
+        {
+            context->m_CommandList->Release();
+            context->m_CommandList = 0;
+        }
+        if (context->m_FenceEvent)
+        {
+            CloseHandle(context->m_FenceEvent);
+            context->m_FenceEvent = 0;
+        }
+        if (context->m_RtvDescriptorHeap)
+        {
+            context->m_RtvDescriptorHeap->Release();
+            context->m_RtvDescriptorHeap = 0;
+        }
+        if (context->m_DsvDescriptorHeap)
+        {
+            context->m_DsvDescriptorHeap->Release();
+            context->m_DsvDescriptorHeap = 0;
+        }
+        if (context->m_SamplerPool.m_DescriptorHeap)
+        {
+            context->m_SamplerPool.m_DescriptorHeap->Release();
+            context->m_SamplerPool.m_DescriptorHeap = 0;
+        }
+#if !defined(DM_PLATFORM_VENDOR)
+        if (context->m_SwapChain)
+        {
+            context->m_SwapChain->Release();
+            context->m_SwapChain = 0;
+        }
+        if (context->m_CommandQueue)
+        {
+            context->m_CommandQueue->Release();
+            context->m_CommandQueue = 0;
+        }
+#endif
+        if (context->m_Device)
+        {
+            context->m_Device->Release();
+            context->m_Device = 0;
         }
     }
 
@@ -1078,9 +1203,29 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
     }
 
+    static inline void DestroyOneTimeCommandList(DX12OneTimeCommandList* cmd_list)
+    {
+        if (cmd_list->m_Fence)
+        {
+            cmd_list->m_Fence->Release();
+            cmd_list->m_Fence = 0;
+        }
+        if (cmd_list->m_CommandList)
+        {
+            cmd_list->m_CommandList->Release();
+            cmd_list->m_CommandList = 0;
+        }
+        if (cmd_list->m_CommandAllocator)
+        {
+            cmd_list->m_CommandAllocator->Release();
+            cmd_list->m_CommandAllocator = 0;
+        }
+    }
+
     static inline void ResetOneTimeCommandList(DX12OneTimeCommandList* cmd_list)
     {
-        cmd_list->m_Fence->Release();
+        if (cmd_list->m_Fence)
+            cmd_list->m_Fence->Release();
         cmd_list->m_CommandAllocator->Reset();
         cmd_list->m_CommandList->Reset(cmd_list->m_CommandAllocator, 0);
         cmd_list->m_Fence = 0;
@@ -1228,7 +1373,17 @@ namespace dmGraphics
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
 
             SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
-            ResetOneTimeCommandList(&one_time_cmd_list);
+            DestroyOneTimeCommandList(&one_time_cmd_list);
+            upload_heap->Unmap(0, 0);
+            upload_heap->Release();
+        }
+        else
+        {
+            upload_heap->Unmap(0, 0);
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (fr.m_ResourcesToDestroy.Full())
+                fr.m_ResourcesToDestroy.OffsetCapacity(8);
+            fr.m_ResourcesToDestroy.Push(upload_heap);
         }
     }
 
@@ -1303,14 +1458,19 @@ namespace dmGraphics
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
 
             SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
-
-            ResetOneTimeCommandList(&one_time_cmd_list);
+            DestroyOneTimeCommandList(&one_time_cmd_list);
+            upload_heap->Release();
+        }
+        else
+        {
+            // When frame is active, GPU may still use upload_heap; add to deferred release to avoid leak
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (fr.m_ResourcesToDestroy.Full())
+                fr.m_ResourcesToDestroy.OffsetCapacity(8);
+            fr.m_ResourcesToDestroy.Push(upload_heap);
         }
 
         device_buffer->m_DataSize = data_size;
-
-        // TODO: Release the heap buffer deferred(?)
-        // DeviceBuffer wrapped_heap_buffer();
     }
 
     static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
@@ -1569,7 +1729,6 @@ namespace dmGraphics
     {
         DX12Context* context            = (DX12Context*) _context;
         DX12ShaderProgram* program_ptr  = (DX12ShaderProgram*) program;
-        DX12ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
         context->m_MainVertexDeclaration[binding_index]                = {};
         context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
@@ -1578,8 +1737,14 @@ namespace dmGraphics
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
 
-        // TODO
-        // context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
+        // Allocate stream storage for this binding (m_Streams would otherwise be null after = {})
+        if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
+        {
+            context->m_MainVertexDeclarationStreams[binding_index].SetCapacity(vertex_declaration->m_StreamCount);
+            context->m_MainVertexDeclarationStreams[binding_index].SetSize(vertex_declaration->m_StreamCount);
+        }
+        memset(context->m_MainVertexDeclarationStreams[binding_index].Begin(), 0, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        context->m_MainVertexDeclaration[binding_index].m_Streams = context->m_MainVertexDeclarationStreams[binding_index].Begin();
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
@@ -2419,12 +2584,38 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static void DX12DeleteProgram(HContext context, HProgram _program)
     {
         DX12ShaderProgram* program = (DX12ShaderProgram*)_program;
-        if (program->m_VertexModule && program->m_VertexModule->m_ShaderBlob == 0)
-            free(program->m_VertexModule->m_Data);
-        if (program->m_FragmentModule && program->m_FragmentModule->m_ShaderBlob == 0)
-            free(program->m_FragmentModule->m_Data);
-        if (program->m_ComputeModule && program->m_ComputeModule->m_ShaderBlob == 0)
-            free(program->m_ComputeModule->m_Data);
+        if (program->m_VertexModule)
+        {
+            if (program->m_VertexModule->m_ShaderBlob == 0)
+                free(program->m_VertexModule->m_Data);
+            delete program->m_VertexModule;
+            program->m_VertexModule = 0;
+        }
+        if (program->m_FragmentModule)
+        {
+            if (program->m_FragmentModule->m_ShaderBlob == 0)
+                free(program->m_FragmentModule->m_Data);
+            delete program->m_FragmentModule;
+            program->m_FragmentModule = 0;
+        }
+        if (program->m_ComputeModule)
+        {
+            if (program->m_ComputeModule->m_ShaderBlob == 0)
+                free(program->m_ComputeModule->m_Data);
+            delete program->m_ComputeModule;
+            program->m_ComputeModule = 0;
+        }
+        if (program->m_RootSignature)
+        {
+            program->m_RootSignature->Release();
+            program->m_RootSignature = 0;
+        }
+        if (program->m_UniformData)
+        {
+            delete[] program->m_UniformData;
+            program->m_UniformData = 0;
+        }
+        delete program;
     }
 
     static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -2700,6 +2891,38 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
+        DX12Context* ctx = (DX12Context*)context;
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(ctx->m_AssetHandleContainer, render_target);
+        if (!rt)
+            return;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+        {
+            if (rt->m_TextureColor[i])
+            {
+                DX12DeleteTexture(context, rt->m_TextureColor[i]);
+                rt->m_TextureColor[i] = 0;
+            }
+        }
+        if (rt->m_TextureDepthStencil)
+        {
+            DX12DeleteTexture(context, rt->m_TextureDepthStencil);
+            rt->m_TextureDepthStencil = 0;
+        }
+
+        if (rt->m_ColorAttachmentDescriptorHeap)
+        {
+            rt->m_ColorAttachmentDescriptorHeap->Release();
+            rt->m_ColorAttachmentDescriptorHeap = 0;
+        }
+        if (rt->m_DepthStencilDescriptorHeap)
+        {
+            rt->m_DepthStencilDescriptorHeap->Release();
+            rt->m_DepthStencilDescriptorHeap = 0;
+        }
+
+        ctx->m_AssetHandleContainer.Release(render_target);
+        delete rt;
     }
 
     static void DX12SetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
@@ -2797,6 +3020,14 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12DeleteTexture(HContext context, HTexture texture)
     {
+        DX12Context* ctx = (DX12Context*)context;
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(ctx->m_AssetHandleContainer, texture);
+        if (!tex)
+            return;
+
+        DestroyTextureResourceDeferred(ctx, tex);
+        ctx->m_AssetHandleContainer.Release(texture);
+        delete tex;
     }
 
     static HandleResult DX12GetTextureHandle(HTexture texture, void** out_handle)
