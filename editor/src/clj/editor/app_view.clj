@@ -656,10 +656,16 @@
   (prefs/get prefs prefs-split-positions))
 
 (defn store-split-positions! [^Scene scene prefs]
-  (let [split-positions (into (stored-split-positions prefs)
-                              (map (fn [[id ^SplitPane sp]]
-                                     [id (vec (.getDividerPositions sp))]))
-                              (existing-split-panes scene))]
+  ;; Preserve trailing stored divider positions when this split currently has
+  ;; fewer dividers, e.g. when the sidebar temporarily shows a single pane
+  (let [split-positions (coll/reduce-kv-> (existing-split-panes scene) (stored-split-positions prefs)
+                          (fn [acc id ^SplitPane split-pane]
+                            (let [current-positions (vec (.getDividerPositions split-pane))
+                                  old-positions (get acc id)
+                                  persisted-positions (if (< (count current-positions) (count old-positions))
+                                                        (into current-positions (drop (count current-positions)) old-positions)
+                                                        current-positions)]
+                              (assoc acc id persisted-positions))))]
     (prefs/set! prefs prefs-split-positions split-positions)))
 
 (defn restore-split-positions! [^Scene scene prefs]

@@ -1343,10 +1343,11 @@
 ;; region structure view
 
 (defn- document-symbol-items [document-symbols]
-  (mapv (fn [document-symbol]
+  (mapv (fn [{:keys [children name] :as document-symbol}]
           {:fx/type fx.tree-item/lifecycle
+           :fx/key name
            :value document-symbol
-           :children (document-symbol-items (:children document-symbol))})
+           :children (document-symbol-items children)})
         document-symbols))
 
 (defn- summarize-document-symbol-detail [detail]
@@ -1411,8 +1412,10 @@
                     :on-mouse-clicked #(handle-structure-pane-mouse-clicked! view-node %)
                     :cell-factory {:fx/cell-type fx.tree-cell/lifecycle
                                    :describe describe-document-symbol}
-                    :root {:fx/type fx.tree-item/lifecycle
-                           :children (document-symbol-items document-symbols)}}}})
+                    :root {:fx/type fx/ext-recreate-on-key-changed
+                           :key view-node
+                           :desc {:fx/type fx.tree-item/lifecycle
+                                  :children (document-symbol-items document-symbols)}}}}})
 
 ;; endregion
 

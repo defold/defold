@@ -223,3 +223,7 @@ Integration checks should cover:
 10. Open/close tabs with no stale sidebar references or exceptions.
 11. Pane visibility and split persistence still restored correctly.
 12. Error-valued sidebar panes are skipped without breaking the whole sidebar.
+
+## Editor UI Testing Checklist (This Branch vs `dev`)
+
+- [ ] Verify right sidebar split divider position persists across restart for: two-pane sidebar (`Outline + Properties`), one-pane sidebar (`Outline`), and debugger sidebar.
