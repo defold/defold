@@ -2,7 +2,15 @@
 #define DM_MOUSE_CAPTURE_H
 
 #include <stdint.h>
-#include <X11/Xlib.h>
+
+// Platform-specific window handle type
+#ifdef _WIN32
+    #include <windows.h>
+    typedef HWND WindowHandle;
+#else
+    #include <X11/Xlib.h>
+    typedef unsigned long WindowHandle;
+#endif
 
 namespace dmMouseCapture
 {
@@ -14,17 +22,11 @@ namespace dmMouseCapture
 
     typedef struct Context* HContext;
 
-    /**
-     * Create mouse capture context for an X11 window.
-     * Opens connection to default X11 display.
-     * Returns null on failure.
-     */
-    HContext CreateContext(Window window);
-
-    bool StartCapture(HContext context);
+    HContext CreateContext();
+    bool StartCapture(HContext context, WindowHandle window);
     void StopCapture(HContext context);
     bool PollDelta(HContext context, MouseDelta* out_delta);
     void DestroyContext(HContext context);
 }
 
-#endif // DM_MOUSE_CAPTURE_H
+#endif

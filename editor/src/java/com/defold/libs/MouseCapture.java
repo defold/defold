@@ -27,19 +27,20 @@ import org.slf4j.LoggerFactory;
 
 public class MouseCapture {
     private static Logger logger = LoggerFactory.getLogger(MouseCapture.class);
+    // private static final boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
 
     static {
         try {
             ResourceUnpacker.unpackResources();
             Native.register("mousecapture");
         } catch (Exception e) {
-            logger.error("Failed to extract/register mouse_capture_shared", e);
+            logger.error("Failed to extract/register mousecapture so/dll", e);
         }
     }
 
-    public static native Pointer MouseCapture_CreateContext(long window);
+    public static native Pointer MouseCapture_CreateContext();
     
-    public static native boolean MouseCapture_StartCapture(Pointer context);
+    public static native boolean MouseCapture_StartCapture(Pointer context, long window);
     
     public static native void MouseCapture_StopCapture(Pointer context);
     

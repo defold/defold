@@ -56,11 +56,31 @@
       (println "Error getting X11 window:" e)
       nil)))
 
+(defn- get-windows-window []
+  (try
+    (let [window-class (Class/forName "com.sun.glass.ui.Window")
+          get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
+          windows (.invoke get-windows-method nil (make-array Object 0))
+          first-window (.get windows 0)
+          get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))
+          native-handle (.invoke get-native-window-method first-window (make-array Object 0))]
+      ;; On Windows, this returns a long representing HWND
+      native-handle)
+    (catch Exception e
+      (println "Error getting Windows window:" e)
+      nil)))
+
+(defn- get-native-window []
+  (let [os-name (System/getProperty "os.name")]
+    (if (.contains os-name "Linux")
+      (get-x11-window)
+      (get-windows-window))))
+
 (defn start-mouse-capture []
-  (when-let [window (editor.ui/run-now (get-x11-window))]
-    (let [context (MouseCapture/MouseCapture_CreateContext (long window))]
+  (when-let [window (editor.ui/run-now (get-native-window))]
+    (let [context (MouseCapture/MouseCapture_CreateContext)]
       (when-not (nil? context)
-        (when-let [ret-val (MouseCapture/MouseCapture_StartCapture context)]
+        (when-let [ret-val (MouseCapture/MouseCapture_StartCapture context (long window))]
           (reset! mouse-capture-context context)
           true)))))
 
@@ -175,5 +195,5 @@
 (comment
   (start-mouse-capture)
   (stop-mouse-capture)
-  (editor.ui/run-now (get-x11-window))
+  (editor.ui/run-now (get-native-window))
   :-)
