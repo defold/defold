@@ -1502,13 +1502,11 @@
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
 
   (output sidebar-panes g/Any :cached (g/fnk [_node-id document-symbols localization node-id+type+resource]
-                                        (cond-> []
-                                                document-symbols
-                                                (conj {:fx/type fxui/ext-dedupe-identical-desc
-                                                       :desc {:fx/type structure-pane
-                                                              :document-symbols document-symbols
-                                                              :localization localization
-                                                              :view-node _node-id}})
+                                        (cond-> [{:fx/type fxui/ext-dedupe-identical-desc
+                                                  :desc {:fx/type structure-pane
+                                                         :document-symbols document-symbols
+                                                         :localization localization
+                                                         :view-node _node-id}}]
                                                 (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
                                                 (conj :properties))))
 
