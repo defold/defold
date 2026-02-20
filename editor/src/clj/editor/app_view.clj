@@ -320,8 +320,9 @@
               :properties properties-pane-desc
               %)))))
 
-(g/defnk produce-outline-active [active-view open-sidebar-panes]
-  (coll/any? #(= :outline %) (get open-sidebar-panes active-view)))
+(g/defnk produce-outline-active [active-view open-sidebar-panes ^:try outline-pane-desc]
+  (and (not (g/error-value? outline-pane-desc))
+       (coll/any? #(= :outline %) (get open-sidebar-panes active-view))))
 
 (g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
   {:fx/type fxui/ext-dedupe-identical-desc
@@ -330,11 +331,12 @@
           ;; that it's updated even if it's hidden when the debug view is shown.
           ;; This is necessary because outline view defines commands on the
           ;; :workbench context which is available throughout the editor, but
-          ;; expects the outline view to be up to date.
+          ;; expects the outline view to be up to date. When outline is active,
+          ;; it's guaranteed that it's not an error value, but we need to keep
+          ;; the `^:try` so that the broken outline does not fail this whole
+          ;; output when it's inactive
           :refs (if outline-active
-                  {:outline (if (g/error-value? outline-pane-desc)
-                              (split-pane-item {:fx/type fx.region/lifecycle})
-                              outline-pane-desc)}
+                  {:outline outline-pane-desc}
                   {})
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type fxui/ext-value :value right-split}
