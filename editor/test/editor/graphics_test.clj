@@ -14,12 +14,9 @@
 
 (ns editor.graphics-test
   (:require [clojure.test :refer :all]
-            [editor.geom :as geom]
             [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
-            [editor.gl.vertex2 :as vtx]
-            [util.coll :refer [pair]])
-  (:import [javax.vecmath Matrix4d Vector3d]))
+            [util.coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 
