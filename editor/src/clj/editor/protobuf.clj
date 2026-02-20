@@ -30,7 +30,8 @@ Macros currently mean no foreseeable performance gain, however."
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
+  (:import [clojure.lang IPending]
+           [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
@@ -61,6 +62,44 @@ Macros currently mean no foreseeable performance gain, however."
 (defonce/protocol PbConverter
   (msg->vecmath [^Message pb v] "Return the javax.vecmath equivalent for the Protocol Buffer message")
   (msg->clj [^Message pb v]))
+
+(defn- as-late-bound-fn [fn-or-promise]
+  (cond
+    (fn? fn-or-promise)
+    fn-or-promise
+
+    (instance? IPending fn-or-promise)
+    (fn late-fn [& args]
+      (let [fn (deref fn-or-promise)]
+        (apply fn args)))))
+
+(defn- memoize-late-bound [higher-order-fn]
+  (let [cache-atom (atom {})]
+    (fn memoized-higher-order-fn [& args]
+      (let [cache-key (vec args)
+            cache-value (get @cache-atom cache-key)]
+        (or (as-late-bound-fn cache-value)
+            (let [late-fn-promise (promise)
+
+                  cache-value
+                  (-> cache-atom
+                      (swap! update cache-key fn/or late-fn-promise)
+                      (get cache-key))]
+
+              (if (identical? late-fn-promise cache-value)
+                ;; We just inserted our promise into the cache, so we're
+                ;; responsible for delivering the result.
+                (let [late-fn (apply higher-order-fn args)]
+                  (assert (ifn? late-fn) "The higher-order-fn must return a function.")
+                  (deliver late-fn-promise late-fn)
+                  (swap! cache-atom assoc cache-key late-fn)
+                  late-fn)
+
+                ;; Found an already-existing promise or function in the cache.
+                ;; Return the function unaltered, or a function that
+                ;; dereferences the promise when called.
+                (or (as-late-bound-fn cache-value)
+                    (assert false "Unexpected value found in cache.")))))))))
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
 
@@ -712,7 +751,7 @@ Macros currently mean no foreseeable performance gain, however."
                                (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                                  (pb-value->clj field-pb-value))))))))))))))
 
-(def ^:private pb->clj-fn (fn/memoize pb->clj-fn-raw))
+(def ^:private pb->clj-fn (memoize-late-bound pb->clj-fn-raw))
 
 (def ^:private pb->clj-with-defaults-fn (fn/memoize #(pb->clj-fn % #{:pb-field-kind/optional :pb-field-kind/required})))
 
