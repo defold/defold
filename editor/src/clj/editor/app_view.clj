@@ -311,14 +311,14 @@
   (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
 
 (g/defnk produce-active-sidebar
-  [active-view active-resource open-sidebar-panes debugger-sidebar-panes ^:try properties-pane-desc]
+  [active-view active-resource open-sidebar-panes debugger-sidebar-panes outline-active ^:try properties-pane-desc]
   (if (and debugger-sidebar-panes (debuggable-resource? active-resource))
     debugger-sidebar-panes
     (coll/into-> (get open-sidebar-panes active-view) []
-      (map #(case %
-              :outline {:fx/type fx/ext-get-ref :ref :outline}
-              :properties properties-pane-desc
-              %)))))
+      (keep #(case %
+               :outline (when outline-active {:fx/type fx/ext-get-ref :ref :outline})
+               :properties properties-pane-desc
+               %)))))
 
 (g/defnk produce-outline-active [active-view open-sidebar-panes ^:try outline-pane-desc]
   (and (not (g/error-value? outline-pane-desc))
@@ -329,12 +329,12 @@
    :desc {:fx/type fx/ext-let-refs
           ;; If outline is active (requested by the view), we want to ensure
           ;; that it's updated even if it's hidden when the debug view is shown.
-          ;; This is necessary because outline view defines commands on the
-          ;; :workbench context which is available throughout the editor, but
-          ;; expects the outline view to be up to date. When outline is active,
-          ;; it's guaranteed that it's not an error value, but we need to keep
-          ;; the `^:try` so that the broken outline does not fail this whole
-          ;; output when it's inactive
+          ;; This is necessary because the outline view defines commands on the
+          ;; :workbench context, which is available throughout the editor, and
+          ;; those commands expect the outline view to be up to date. When
+          ;; outline is active, it's guaranteed that it's not an error value,
+          ;; but we need to keep the `^:try` so that the broken outline does not
+          ;; fail this whole output when it's inactive
           :refs (if outline-active
                   {:outline outline-pane-desc}
                   {})
