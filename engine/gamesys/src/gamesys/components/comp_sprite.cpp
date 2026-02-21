@@ -99,6 +99,7 @@ namespace dmGameSystem
         uint32_t                        m_VertexCount;
         uint32_t                        m_IndicesCount;
         float                           m_PageIndices[MAX_TEXTURE_COUNT];
+        dmVMath::Vector4                m_TextureTransforms[MAX_TEXTURE_COUNT];
 
         const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
         const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
@@ -770,7 +771,8 @@ namespace dmGameSystem
         const float** positions_world_space,
         const float** positions_local_space,
         const float** uv_channels, uint8_t uv_channels_count,
-        const float** pi_channels, uint8_t pi_channels_count)
+        const float** pi_channels, uint8_t pi_channels_count,
+        const float** tt_channels, uint8_t tt_channels_count)
     {
         memset(params, 0, sizeof(dmGraphics::WriteAttributeParams));
         params->m_VertexAttributeInfos = attribute_infos;
@@ -784,6 +786,7 @@ namespace dmGameSystem
         // Global channels (data repeated per vertex)
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PageIndices, pi_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, pi_channels_count, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransforms, tt_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, tt_channels_count, true);
     }
 
     static inline void GetPivot(const AnimationData* animation_data, float* out_x_pivot, float* out_y_pivot)
@@ -895,6 +898,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = (float*) &anim_data->m_PageIndices[i];
+            // m_TextureTransforms
             uv_channels_count++;
         }
 
@@ -923,6 +927,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[0] = uvs.Begin();
             scratch_pi_ptrs[0] = (float*) &anim_data->m_PageIndices[0];
+            // m_TextureTransforms??
             uv_channels_count  = 1;
         }
 
@@ -1118,7 +1123,13 @@ namespace dmGameSystem
         }
     }
 
-    static void ResolveUVDataFromQuads(const SpriteComponent* component, AnimationData* data, dmArray<float>* scratch_uvs, float* scratch_uv_ptrs[MAX_TEXTURE_COUNT], float* scratch_pi_ptrs[MAX_TEXTURE_COUNT])
+    static void ResolveUVDataFromQuads(
+        const SpriteComponent* component,
+        AnimationData* data,
+        dmArray<float>* scratch_uvs,
+        float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
+        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        float* tex_transform_ptrs[MAX_TEXTURE_COUNT])
     {
         static int tex_coord_order[] = {
             0,1,2,2,3,0,    // no flip
@@ -1179,6 +1190,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &data->m_PageIndices[i];
+            tex_transform_ptrs[i] = tc;
         }
 
         if (texture_num == 0)
@@ -1557,7 +1569,6 @@ namespace dmGameSystem
                     const float* world_position_channels[] = { (float*) &positions_world };
 
                     const uint8_t uv_channels_count = textures_num != 0 ? textures_num : 1;
-                    const uint8_t pi_channels_count = textures_num != 0 ? textures_num : 1;
 
                     FillWriteVertexAttributeParams(&write_params,
                         scratch_attribute_infos,
@@ -1567,7 +1578,7 @@ namespace dmGameSystem
                         (const float**) scratch_uv_ptrs,
                         uv_channels_count,
                         (const float**) scratch_pi_ptrs,
-                        pi_channels_count);
+                        uv_channels_count);
 
                     vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
 

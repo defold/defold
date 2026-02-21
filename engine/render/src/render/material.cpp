@@ -128,6 +128,11 @@ namespace dmRender
                 info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             }
         }
+        else if (name_hash == VERTEX_STREAM_TEXTURE_TRANSFORM_2D)
+        {
+            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D;
+            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
+        }
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
