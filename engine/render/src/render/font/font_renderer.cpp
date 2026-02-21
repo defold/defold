@@ -362,7 +362,7 @@ namespace dmRender
         UpdateCacheTexture(font_map);
 
         bool calc_sdf_scale = font_map->m_IsSdf;
-        const Matrix4* sdf_view_proj = 0x0;
+        Matrix4 sdf_view_proj;
         float sdf_half_w = 0.0f;
         float sdf_half_h = 0.0f;
         if (calc_sdf_scale)
@@ -382,7 +382,7 @@ namespace dmRender
             }
             else
             {
-                sdf_view_proj = &render_context->m_ViewProj;
+                sdf_view_proj = render_context->m_ViewProj;
                 sdf_half_w = 0.5f * (float)vp_w;
                 sdf_half_h = 0.5f * (float)vp_h;
             }
@@ -396,7 +396,7 @@ namespace dmRender
             float sdf_scale = 0.0f;
             if (calc_sdf_scale)
             {
-                sdf_scale = CalcSdfScale(*sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
+                sdf_scale = CalcSdfScale(sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
             }
             uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
             text_context.m_VertexIndex += num_vertices;
