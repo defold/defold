@@ -110,6 +110,8 @@ namespace dmRender
         uint8_t                 m_DynamicCacheSize:1;
         uint8_t                 m_IsCacheSizeTooSmall:1;
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
+        uint8_t                 m_IsSdf:1;
+        uint8_t                 :7;
     };
 }
 
