@@ -297,6 +297,7 @@ namespace dmGraphics
                 DM_IID_PPV_ARGS(&texture_depth->m_Resource)
             );
             CHECK_HR_ERROR(hr);
+            texture_depth->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
             // Create depth stencil view
             CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle(context->m_DsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, context->m_DsvDescriptorSize);
@@ -809,6 +810,7 @@ namespace dmGraphics
             if (texture_depth_stencil && texture_depth_stencil->m_Resource)
             {
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
             }
         }
         else
@@ -818,6 +820,7 @@ namespace dmGraphics
             {
                 DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
             }
         }
 
@@ -906,6 +909,17 @@ namespace dmGraphics
                 context->m_DsvDescriptorSize
             );
             dsv_handle_ptr = &dsv_handle;
+
+            // Transition backbuffer depth to DEPTH_WRITE if not already (tracked state; first frame it's already DEPTH_WRITE from creation)
+            if (rt->m_TextureDepthStencil)
+            {
+                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+                if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
+                {
+                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
+                    texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                }
+            }
         }
         else if (rt->m_DepthStencilDescriptorHeap)
         {
@@ -914,9 +928,10 @@ namespace dmGraphics
 
             DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
-            if (texture_depth_stencil && texture_depth_stencil->m_Resource)
+            if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
             {
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
             }
         }
 
@@ -1366,7 +1381,15 @@ namespace dmGraphics
         }
 
         // Submit command list if needed
-        if (!context->m_FrameBegun)
+        if (context->m_FrameBegun)
+        {
+            upload_heap->Unmap(0, 0);
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (fr.m_ResourcesToDestroy.Full())
+                fr.m_ResourcesToDestroy.OffsetCapacity(8);
+            fr.m_ResourcesToDestroy.Push(upload_heap);
+        }
+        else
         {
             cmd_list->Close();
             ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
@@ -1376,14 +1399,6 @@ namespace dmGraphics
             DestroyOneTimeCommandList(&one_time_cmd_list);
             upload_heap->Unmap(0, 0);
             upload_heap->Release();
-        }
-        else
-        {
-            upload_heap->Unmap(0, 0);
-            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
-            if (fr.m_ResourcesToDestroy.Full())
-                fr.m_ResourcesToDestroy.OffsetCapacity(8);
-            fr.m_ResourcesToDestroy.Push(upload_heap);
         }
     }
 
@@ -1451,7 +1466,15 @@ namespace dmGraphics
         // transition the vertex buffer data from copy destination state to vertex buffer state
         cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
-        if (!context->m_FrameBegun)
+        if (context->m_FrameBegun)
+        {
+            // When frame is active, GPU may still use upload_heap; add to deferred release to avoid leak
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            if (fr.m_ResourcesToDestroy.Full())
+                fr.m_ResourcesToDestroy.OffsetCapacity(8);
+            fr.m_ResourcesToDestroy.Push(upload_heap);
+        }
+        else
         {
             cmd_list->Close();
             ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
@@ -1460,14 +1483,6 @@ namespace dmGraphics
             SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
             DestroyOneTimeCommandList(&one_time_cmd_list);
             upload_heap->Release();
-        }
-        else
-        {
-            // When frame is active, GPU may still use upload_heap; add to deferred release to avoid leak
-            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
-            if (fr.m_ResourcesToDestroy.Full())
-                fr.m_ResourcesToDestroy.OffsetCapacity(8);
-            fr.m_ResourcesToDestroy.Push(upload_heap);
         }
 
         device_buffer->m_DataSize = data_size;
@@ -2868,6 +2883,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 DM_IID_PPV_ARGS(&texture_depth_stencil_ptr->m_Resource)
             );
             CHECK_HR_ERROR(hr);
+            texture_depth_stencil_ptr->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 
             // Create DSV descriptor heap
             D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
