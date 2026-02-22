@@ -26,7 +26,6 @@
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/object_pool.h>
-#include <dmsdk/dlib/memory.h>
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
@@ -605,10 +604,7 @@ HJobContext JobSystemCreate(const JobSystemCreateParams* create_params)
     if (create_params == 0)
         return 0;
 
-    JobContext* context = 0;
-    dmMemory::Result mem_result = dmMemory::AlignedMalloc((void**)&context, 16, sizeof(JobContext));
-    assert(mem_result == dmMemory::RESULT_OK);
-    new (context) JobContext();
+    JobContext* context = new JobContext();
     context->m_Initialized = 1;
 
     context->m_ThreadContext.m_Context = context;
@@ -679,8 +675,7 @@ void JobSystemDestroy(HJobContext context)
     }
 #endif // DM_HAS_THREADS
 
-    context->~JobContext();
-    dmMemory::AlignedFree(context);
+    delete context;
 }
 
 
