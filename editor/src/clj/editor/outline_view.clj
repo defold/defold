@@ -15,6 +15,7 @@
 (ns editor.outline-view
   (:require [cljfx.api :as fx]
             [cljfx.ext.tree-view :as fx.ext.tree-view]
+            [editor.fuzzy-text :as fuzzy-text]
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -37,7 +38,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [clojure.string :as str])
   (:import [com.defold.control ExtendedTreeViewSkin TreeCell]
            [java.awt Toolkit]
            [javafx.geometry Orientation]
@@ -50,6 +52,29 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private ^:dynamic *paste-into-parent* nil)
+
+(defn- normalize [^String s]
+  (-> (or s "")
+      (str/lower-case)
+      (str/trim)))
+
+(defn- outline-matches? [prepared-pattern {:keys [label node-outline-key]}]
+  (let [text (str label)]
+    (when-let [[score matchidx] (fuzzy-text/match prepared-pattern text)]
+      true)))
+
+(defn- filter-outline-tree
+  [outline q]
+  (let [prepared-pattern (fuzzy-text/prepare-pattern q)]
+    (if (fuzzy-text/empty-prepared-pattern? prepared-pattern)
+      outline 
+      (let [children (:children outline)
+        filtered-children (->> children
+                                 (keep #(filter-outline-tree % q))
+                                 (vec))
+                match? (outline-matches? prepared-pattern outline)]
+              (when (or match? (seq filtered-children))
+                (assoc outline :children filtered-children))))))
 
 (extend-protocol outline/ItemIterator
   TreeItem
@@ -69,7 +94,9 @@
          (transient {}))
        persistent!))
 
-(defn decorate-outline [outline hidden-node-outline-key-paths outline-name-paths localization-state selection]
+(defn decorate-outline [outline hidden-node-outline-key-paths outline-name-paths localization-state selection filter-text]
+    (let [outline (or (filter-outline-tree outline filter-text)
+                  (assoc outline :children []))]
   (letfn [(decorate [{:keys [node-id children] :as outline} node-id-path node-outline-key-path parent-reference?]
             (let [node-id-path (conj node-id-path node-id)
                   node-outline-key-path (if (empty? node-outline-key-path)
@@ -107,19 +134,22 @@
           default-selection (coll/into-> selection {}
                               (keep #(when-let [node-id-paths (node-id->node-id-paths %)]
                                        (coll/pair % #{(first node-id-paths)}))))
+          filtering? (not (str/blank? (normalize filter-text)))
           full-expanded (->> node-id->node-id-paths
                              (e/mapcat val)
                              (e/mapcat #(e/take-while coll/not-empty (iterate pop %)))
-                             (reduce #(assoc! %1 %2 false) (transient {}))
+                             (reduce #(assoc! %1 %2 (if filtering? true false)) (transient {}))
                              persistent!)
-          default-expanded (coll/merge
+          default-expanded (if filtering?
+                           (assoc full-expanded (:node-id-path outline) true)
+                           (coll/merge
                              full-expanded
                              (-> default-selection
                                  auto-expand
-                                 (assoc (:node-id-path outline) true)))]
+                                 (assoc (:node-id-path outline) true))))]
       {:outline outline
        :default-selected-node-id->node-id-paths default-selection
-       :default-node-id-path->expanded default-expanded})))
+       :default-node-id-path->expanded default-expanded}))))
 
 (def ^:private ext-with-tree-view-props
   (fx/make-ext-with-props
@@ -168,16 +198,19 @@
                                (keep #(-> ^TreeItem % .getValue :node-id))
                                (distinct))))
 
-(defn- outline->tree-item [{:keys [node-id-path] :as outline} node-id-path->expanded swap-state active-resource-node]
-  {:fx/type fx.tree-item/lifecycle
+(defn- outline->tree-item [{:keys [node-id-path] :as outline} node-id-path->expanded swap-state active-resource-node force-expand?]
+  (cond-> {:fx/type fx.tree-item/lifecycle
    :value outline
-   :expanded (node-id-path->expanded node-id-path)
-   :on-expanded-changed #(swap-state update :active-node-id->node-id-path->expanded
-                                     update active-resource-node
-                                     assoc node-id-path %)
+   :expanded (if force-expand?
+              true
+              (boolean (node-id-path->expanded node-id-path)))
    :children (->> outline
                   :children
-                  (mapv #(outline->tree-item % node-id-path->expanded swap-state active-resource-node)))})
+                  (mapv #(outline->tree-item % node-id-path->expanded swap-state active-resource-node force-expand?)))}
+   (not force-expand?)
+   (assoc :on-expanded-changed #(swap-state update :active-node-id->node-id-path->expanded
+                                     update active-resource-node
+                                     assoc node-id-path %))))
 
 (defn- reset-tree-view-state [old {:keys [active-resource-node selection open-resource-nodes active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]}]
   (let [ret (-> old
@@ -229,7 +262,9 @@
                      (:hidden-node-outline-key-paths props)
                      (:outline-name-paths props)
                      (:localization-state props)
-                     (set (:selection props))]
+                     (set (:selection props))
+                     (:filter-text props)
+                     ]
               :key :decorated-outline}
              {:fx/type fx/ext-state
               :reset reset-tree-view-state
@@ -243,12 +278,13 @@
                  :open-resource-nodes (set open-resource-nodes)})}
              {:fx/type fx/ext-recreate-on-key-changed
               :key (:active-resource-node props)}]}
-  [{:keys [tree-view app-view active-resource-node state swap-state decorated-outline]}]
+  [{:keys [tree-view app-view active-resource-node state swap-state decorated-outline filter-text]}]
   (let [{:keys [active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]} state
         {:keys [outline]} decorated-outline
+        force-expand? (not (str/blank? (normalize filter-text)))
         selected-node-id->node-id-paths (get active-node-id->selected-node-id->node-id-paths active-resource-node)
         node-id-path->expanded (get active-node-id->node-id-path->expanded active-resource-node)
-        root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)]
+        root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node force-expand?)]
     {:fx/type fx.ext.tree-view/with-selection-props
      :props {:on-selected-items-changed #(update-selection! app-view swap-state active-resource-node %)}
      :desc
@@ -273,7 +309,9 @@
                            localization
                            app-view
                            active-resource-node
-                           open-resource-nodes]
+                           open-resource-nodes
+                           filter-text
+                           ]
   (doto raw-tree-view
     (fxui/advance-ui-user-data-component!
       ::tree
@@ -286,7 +324,9 @@
        :localization localization
        :app-view app-view
        :active-resource-node active-resource-node
-       :open-resource-nodes open-resource-nodes})))
+       :open-resource-nodes open-resource-nodes
+       :filter-text filter-text
+       })))
 
 (defn- item->value [^TreeItem item]
   (.getValue item))
@@ -300,6 +340,7 @@
       [])))
 
 (g/defnode OutlineView
+  (property filter-text g/Str (default ""))
   (property raw-tree-view TreeView)
   (property localization g/Any)
 
@@ -749,7 +790,7 @@
     (g/node-value outline-view :alt-tree-selection evaluation-context)))
 
 (defn key-pressed-handler!
-  [app-view ^TreeView tree-view ^KeyEvent event]
+  [app-view ^TreeView tree-view outline-search ^KeyEvent event]
   (let [keymap (g/node-value app-view :keymap)
         rename-shortcuts (keymap/shortcuts keymap :edit.rename)
         editing-id (ui/user-data tree-view ::editing-id)]
@@ -767,30 +808,65 @@
       (when (some #(= "F2" (.toString ^KeyCodeCombination %)) rename-shortcuts)
         (.consume event)
         (ui/run-command (.getSource event) :edit.rename))
-
+      KeyCode/F
+      (when (and outline-search (.isShortcutDown event)) ; Ctrl on Win/Linux, Cmd on macOS
+        (.consume event)
+        (ui/run-later
+          (doto outline-search
+            (.requestFocus)
+            (.selectAll))))
       nil)))
 
-(defn- setup-tree-view [project ^TreeView tree-view outline-view app-view localization]
+(defn- setup-tree-view
+  [project ^TreeView tree-view outline-view ^TextField outline-search app-view localization]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
-        drag-exited-handler (ui/event-handler e (drag-exited e))]
+        drag-exited-handler  (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (.setSkin (ExtendedTreeViewSkin. tree-view))
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setOnDragDetected (ui/event-handler e 
+      (.setOnDragDetected (ui/event-handler e
                             (drag-detected project outline-view e)
                             (cancel-rename! tree-view)))
       (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
       (.setCellFactory #(make-tree-cell % drag-entered-handler drag-exited-handler localization))
       (ui/register-context-menu ::outline-menu)
-      (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
-      (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
-      (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
-                                                                                               resource/Resource :link}))))
+      (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED
+                        (ui/event-handler event (cancel-rename! tree-view)))
+      (.addEventFilter KeyEvent/KEY_PRESSED
+                       (ui/event-handler event (key-pressed-handler! app-view tree-view outline-search event)))
+      (.addEventFilter DragEvent/DRAG_OVER
+                       (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
+      (ui/context! :outline {:outline-view outline-view}
+                   (SelectionProvider. outline-view) {}
+                   {java.lang.Long :node-id
+                    resource/Resource :link}))
 
-(defn make-outline-view [view-graph project tree-view app-view localization]
+    ;; <-- outside doto
+    (when outline-search
+      (ui/observe (.textProperty ^TextField outline-search)
+                  (fn [_ _ new-v]
+                    (g/set-property! outline-view :filter-text (or new-v ""))))
+      (.addEventFilter ^TextField outline-search KeyEvent/KEY_PRESSED
+                  (ui/event-handler e
+                                    (condp =(.getCode ^KeyEvent e)
+                                      KeyCode/ESCAPE
+                                         (do 
+                                           (.consume e)
+                                           (ui/run-later
+                                             (.setText outline-search "")
+                                             (.requestFocus tree-view)
+                                           ))
+                                      KeyCode/ENTER
+                                        (do
+                                          (.consume e)
+                                          (ui/run-later
+                                            (.requestFocus tree-view)
+                                          ))
+                                        nil))))))
+
+(defn make-outline-view [view-graph project tree-view outline-search app-view localization]
   (let [outline-view (first
                        (g/tx-nodes-added
                          (g/transact
@@ -798,5 +874,6 @@
                                                                    :raw-tree-view tree-view
                                                                    :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
-    (setup-tree-view project tree-view outline-view app-view localization)
+    (setup-tree-view project tree-view outline-view outline-search app-view localization)
     outline-view))
+
