@@ -864,9 +864,8 @@
                 (boolean (:has-semantic-type-normal-matrix renderable-data))
 
                 :semantic-type-texture-transform-2d
-                ;; The engine provides texture transform per renderable (e.g. sprite);
-                ;; in the editor preview we use default (identity) from material/overrides.
-                false
+                ;; Per-channel 3x3 from atlas sub-region (same as engine sprites).
+                (some? (get-in texcoord-datas [channel :texture-transform]))
 
                 false))))]
 
@@ -946,7 +945,14 @@
                                       (fn renderable-data->normal-matrices [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
                                               matrix-values (mat4-double-values (:normal-transform renderable-data) vector-type)]
-                                          (repeat vertex-count matrix-values)))))
+                                          (repeat vertex-count matrix-values))))
+
+                    :semantic-type-texture-transform-2d
+                    (put-renderables! attribute-byte-offset put-attribute-doubles!
+                                      (fn renderable-data->texture-transforms [renderable-data]
+                                        (let [vertex-count (count (:position-data renderable-data))
+                                              tt (get-in renderable-data [:texcoord-datas channel :texture-transform])]
+                                          (repeat vertex-count tt)))))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides. If the material does not declare an
