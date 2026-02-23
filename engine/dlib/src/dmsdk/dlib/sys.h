@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Sys API documentation
+/*# Sys API documentation
  * Sys allocation functions
  *
  * @document

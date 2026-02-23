@@ -262,6 +262,7 @@ namespace dmGraphics
 
         HRenderTarget                      m_MainRenderTarget;
         VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         HRenderTarget                      m_CurrentRenderTarget;
         DX12ShaderProgram*                 m_CurrentProgram;
@@ -302,6 +303,7 @@ namespace dmGraphics
 
     DX12Context*    DX12NativeCreate(const struct ContextParams& params);
     bool            DX12NativeInitialize(DX12Context* context);
+    void            DX12DestroyContextResources(DX12Context* context);
     void            DX12NativeDestroy(DX12Context* context);
     void            DX12NativeBeginFrame(DX12Context* context);
     void            DX12NativeEndFrame(DX12Context* context);

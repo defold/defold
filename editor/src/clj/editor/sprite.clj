@@ -183,14 +183,20 @@
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
-        renderable-datas (mapv renderable-data renderables)
+        {:keys [blend-mode material-attribute-infos shader]} user-data
+        shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
+        has-semantic-type-world-matrix (some #(= :semantic-type-world-matrix (:semantic-type %)) combined-attribute-infos)
+        has-semantic-type-normal-matrix (some #(= :semantic-type-normal-matrix (:semantic-type %)) combined-attribute-infos)
+        renderable-datas (mapv (fn [renderable]
+                                 (cond-> (renderable-data renderable)
+                                   has-semantic-type-world-matrix (assoc :has-semantic-type-world-matrix true)
+                                   has-semantic-type-normal-matrix (assoc :has-semantic-type-normal-matrix true)))
+                               renderables)
         num-vertices (count-vertices renderable-datas)]
     (condp = pass
       pass/transparent
-      (let [{:keys [blend-mode material-attribute-infos shader]} user-data
-            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
-            combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
-            vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
+      (let [vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
             vbuf (graphics/put-attributes! (vtx/make-vertex-buffer vertex-description :dynamic num-vertices) renderable-datas)
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]

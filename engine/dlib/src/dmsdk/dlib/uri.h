@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK URI API documentation
+/*# URI API documentation
  *
  * URI functions.
  *

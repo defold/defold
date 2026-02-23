@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Time API documentation
+/*# Time API documentation
  *
  * Time functions.
  *

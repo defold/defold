@@ -1246,8 +1246,8 @@ namespace dmParticle
                 ddf->m_Pivot.getZ()));
         }
 
-        Vector3 position_world_flat[6];
-        Vector3 position_local_flat[6];
+        Point3 position_world_flat[6];
+        Point3 position_local_flat[6];
         float tex_coord_flat[6 * 2];
 
         Vector4 color_to_write;
@@ -1334,29 +1334,26 @@ namespace dmParticle
                 particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
             }
 
-            Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
-            Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
-            Vector3 x       = dmTransform::Apply(particle_transform, x_local);
-            Vector3 y       = dmTransform::Apply(particle_transform, y_local);
+            // Local space has size applied (like sprites); world matrix has no scale so view_proj * mtx_world * position_local == view_proj * position_world
+            float hx = width_factor * size.getX();
+            float hy = height_factor * size.getY();
+            position_local_flat[0] = Point3(-hx, -hy, 0.0f);
+            position_local_flat[1] = Point3(-hx,  hy, 0.0f);
+            position_local_flat[2] = Point3( hx,  hy, 0.0f);
+            position_local_flat[3] = position_local_flat[2];
+            position_local_flat[4] = Point3( hx, -hy, 0.0f);
+            position_local_flat[5] = position_local_flat[0];
+
+            dmTransform::Transform particle_transform_no_scale = particle_transform;
+            particle_transform_no_scale.SetScale(Vector3(1.0f, 1.0f, 1.0f));
+            world_matrix = dmTransform::ToMatrix4(particle_transform_no_scale);
 
             if (material_attribute_info_meta.m_HasAttributeWorldPosition)
             {
-                position_world_flat[0] = -x - y + particle_transform.GetTranslation();
-                position_world_flat[1] = -x + y + particle_transform.GetTranslation();
-                position_world_flat[2] = x + y + particle_transform.GetTranslation();
-                position_world_flat[3] = position_world_flat[2];
-                position_world_flat[4] = x - y + particle_transform.GetTranslation();
-                position_world_flat[5] = position_world_flat[0];
-            }
-
-            if (material_attribute_info_meta.m_HasAttributeLocalPosition)
-            {
-                position_local_flat[0] = -x - y;
-                position_local_flat[1] = -x + y;
-                position_local_flat[2] = x + y;
-                position_local_flat[3] = position_local_flat[2];
-                position_local_flat[4] = x - y;
-                position_local_flat[5] = position_local_flat[0];
+                for (int i = 0; i < 6; ++i)
+                {
+                    position_world_flat[i] = Point3((world_matrix * position_local_flat[i]).getXYZ());
+                }
             }
 
             if (material_attribute_info_meta.m_HasAttributeColor)
@@ -1393,10 +1390,7 @@ namespace dmParticle
                 }
             }
 
-            if (material_attribute_info_meta.m_HasAttributeWorldMatrix)
-            {
-                world_matrix = dmTransform::ToMatrix4(particle_transform);
-            }
+            // world_matrix already set from particle_transform_no_scale (no size) above
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
             write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, 6, write_params);

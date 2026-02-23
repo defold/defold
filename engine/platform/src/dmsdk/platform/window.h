@@ -21,13 +21,12 @@
 extern "C" {
 #endif
 
-/*# SDK Platform Window API documentation
+/*# Window API documentation
  *
  * Window creation and event polling.
  *
  * @document
- * @name Platform Window
- * @namespace dmPlatform
+ * @name Window
  * @language C
  */
 

@@ -15,9 +15,9 @@
 #ifndef DMSDK_RESOURCE_HPP
 #define DMSDK_RESOURCE_HPP
 
-/*# Resource
+/*# Functions for managing resource and resource types
  *
- * Functions for managing resource types.
+ * Functions for managing resource and resource types
  *
  * @document
  * @name Resource

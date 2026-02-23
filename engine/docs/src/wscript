@@ -16,7 +16,7 @@ def install_file(task):
         return task.exec_command(cmd)
 
 def build(bld):
-    files = bld.path.ant_glob('*.apidoc_')
+    files = bld.path.ant_glob('*.apidoc')
     for source in files:
         namespace, _ = os.path.splitext(source.name)
         bld(source = source,

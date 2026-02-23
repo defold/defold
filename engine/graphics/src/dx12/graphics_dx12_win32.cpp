@@ -118,6 +118,9 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
     CHECK_HR_ERROR(hr);
 
+    adapter->Release();
+    adapter = 0;
+
     D3D12_COMMAND_QUEUE_DESC cmd_queue_desc = {};
     hr = context->m_Device->CreateCommandQueue(&cmd_queue_desc, IID_PPV_ARGS(&context->m_CommandQueue));
     CHECK_HR_ERROR(hr);
@@ -146,6 +149,9 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     IDXGISwapChain* swap_chain_tmp = 0;
     factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
     context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
+
+    factory->Release();
+    factory = 0;
 
     return context;
 }
@@ -205,11 +211,7 @@ bool DX12NativeInitialize(DX12Context* context)
 
 void DX12NativeDestroy(DX12Context* context)
 {
-    for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_FrameResources); i++)
-    {
-        FlushResourcesToDestroy(context->m_FrameResources[i]);
-    }
-
+    DX12DestroyContextResources(context);
     delete context;
 }
 
