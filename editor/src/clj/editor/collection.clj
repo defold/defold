@@ -849,6 +849,14 @@
                    select-fn (fn [node-ids] (app-view/select app-view node-ids))]
           (add-referenced-game-object! coll-node go-node resource select-fn))))))
 
+(defn- validate-child-references! [id->nid child->parent]
+  (run!
+    (fn [[child parent]]
+      (when (and parent (not (id->nid child)))
+        (throw (IllegalStateException.
+                 (format "Unresolved child id '%s' referenced by parent '%s'." child parent)))))
+    child->parent))
+
 (defn load-collection [project self resource collection]
   {:pre [(map? collection)]} ; GameObject$CollectionDesc in map format.
   (concat
@@ -885,6 +893,7 @@
                                                    children))))
                               (pair (:instances collection)
                                     (:embedded-instances collection))))]
+      (validate-child-references! id->nid child->parent)
       (concat
         tx-go-creation
         (for [[child parent] child->parent
