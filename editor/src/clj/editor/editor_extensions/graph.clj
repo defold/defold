@@ -217,7 +217,7 @@
               (not (contains? outline-property :prop-kw))
               (assoc :prop-kw prop-kw)))))
 
-(defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f]
+(defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f result-fn]
   (fn/memoize
     (fn build-property-fn [node-type-kw]
       (let [seen (HashSet.)
@@ -233,16 +233,30 @@
                                 (conj! fs f)
                                 fs))))
                    (persistent! fs)))]
-        (case (count fs)
-          0 fn/constantly-nil
-          1 (fs 0)
-          (fn
-            ([] (coll/some #(%) fs))
-            ([a] (coll/some #(% a) fs))
-            ([a b] (coll/some #(% a b) fs))
-            ([a b c] (coll/some #(% a b c) fs))
-            ([a b c d] (coll/some #(% a b c d) fs))
-            ([a b c d e] (coll/some #(% a b c d e) fs))))))))
+        (result-fn fs)))))
+
+(defn first-non-nil-result-fn [fs]
+  (case (count fs)
+    0 fn/constantly-nil
+    1 (fs 0)
+    (fn
+      ([] (coll/some #(%) fs))
+      ([a] (coll/some #(% a) fs))
+      ([a b] (coll/some #(% a b) fs))
+      ([a b c] (coll/some #(% a b c) fs))
+      ([a b c d] (coll/some #(% a b c d) fs))
+      ([a b c d e] (coll/some #(% a b c d e) fs)))))
+
+(defn all-results-fn [fs]
+  (case (count fs)
+    0 (constantly [])
+    (fn
+      ([] (mapv #(%) fs))
+      ([a] (mapv #(% a) fs))
+      ([a b] (mapv #(% a b) fs))
+      ([a b c] (mapv #(% a b c) fs))
+      ([a b c d] (mapv #(% a b c d) fs))
+      ([a b c d e] (mapv #(% a b c d e) fs)))))
 
 (defn make-inheritance-chain
   "Create an inheritance chain
@@ -251,28 +265,35 @@
   though it dispatches only on a single value. Register methods by calling the
   inheritance chain instance with 2 args: dispatch value and a function.
   Get a method chain by calling the inheritance chain instance with a dispatch
-  value. If there are multiple methods that satisfy the dispatch value, they
-  will be tried in order, from most specific to least specific, until a method
-  returns a non-nil value."
-  ([]
-   (make-inheritance-chain #'clojure.core/global-hierarchy))
-  ([hierarchy-ref]
-   (let [state-atom (atom {::builder nil
-                           ::hierarchy @hierarchy-ref
-                           ::node-type-kw->f {}})]
-     (fn inheritance-chain
-       ([node-type-kw]
-        (let [h @hierarchy-ref
-              {::keys [builder hierarchy] :as current-state} @state-atom
-              builder (if (and builder (identical? hierarchy h))
-                        builder
-                        (let [builder (make-property-fn-builder h (::node-type-kw->f current-state))]
-                          (swap! state-atom assoc ::hierarchy h ::builder builder)
-                          builder))]
-          (builder node-type-kw)))
-       ([node-type-kw f]
-        (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
-        nil)))))
+  value. The result value depends on the result-fn, which gets an ordered list
+  of functions and invokes them as it wishes. By default, if there are multiple
+  methods that satisfy the dispatch value, they will be tried in order, from
+  most specific to least specific, until a method returns a non-nil value.
+
+  Kv-args:
+    :hierarchy-ref    a reference to a Clojure hierarchy object
+    :result-fn        a function that controls the production of the final
+                      result from a list of sorted candidate fns, see, e.g.,
+                      [[first-non-nil-result-fn]] or [[all-results-fn]]"
+  [& {:keys [hierarchy-ref result-fn]
+      :or {hierarchy-ref #'clojure.core/global-hierarchy
+           result-fn first-non-nil-result-fn}}]
+  (let [state-atom (atom {::builder nil
+                          ::hierarchy @hierarchy-ref
+                          ::node-type-kw->f {}})]
+    (fn inheritance-chain
+      ([node-type-kw]
+       (let [h @hierarchy-ref
+             {::keys [builder hierarchy] :as current-state} @state-atom
+             builder (if (and builder (identical? hierarchy h))
+                       builder
+                       (let [builder (make-property-fn-builder h (::node-type-kw->f current-state) result-fn)]
+                         (swap! state-atom assoc ::hierarchy h ::builder builder)
+                         builder))]
+         (builder node-type-kw)))
+      ([node-type-kw f]
+       (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
+       nil))))
 
 (defonce ^:private ext-property-getter
   (make-inheritance-chain))
@@ -373,6 +394,19 @@
             (let [list-kw (property->prop-kw property)]
               (when (attachment/defined? workspace node-id list-kw evaluation-context)
                 #(mapv rt/wrap-userdata (attachment/get workspace node-id list-kw evaluation-context)))))))))
+
+;; endregion
+
+;; region properties list
+
+(defn ext-readable-properties
+  "Return readable property names for a node/resource.
+
+  Work in progress"
+  [node-id-or-resource _project _evaluation-context]
+  (if (resource/resource? node-id-or-resource)
+    ["children" "path"]
+    []))
 
 ;; endregion
 

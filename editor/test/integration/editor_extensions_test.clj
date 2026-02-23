@@ -2091,7 +2091,7 @@ emitters: 0
                           (derive :cat :mammal)
                           (derive :sparrow :bird)
                           (derive :eagle :bird)))
-          sound-chain (graph/make-inheritance-chain h-ref)]
+          sound-chain (graph/make-inheritance-chain :hierarchy-ref h-ref)]
       (sound-chain :animal (constantly :grunt))
       (sound-chain :mammal (constantly :roar))
       (sound-chain :bird (constantly :chirp))
@@ -2104,7 +2104,7 @@ emitters: 0
       (is (= :meow ((sound-chain :cat) {:happy true})))))
   (testing "hierarchy modification"
     (let [h-ref (atom (derive (make-hierarchy) :mammal :animal))
-          sound-chain (graph/make-inheritance-chain h-ref)]
+          sound-chain (graph/make-inheritance-chain :hierarchy-ref h-ref)]
       (sound-chain :animal (constantly :grunt))
       (sound-chain :mammal (constantly :roar))
       (is (= :roar ((sound-chain :mammal) {})))
