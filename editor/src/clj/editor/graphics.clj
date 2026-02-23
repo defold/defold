@@ -489,7 +489,8 @@
     :semantic-type-normal false
     :semantic-type-tangent false
     :semantic-type-world-matrix false
-    :semantic-type-normal-matrix false))
+    :semantic-type-normal-matrix false
+    :semantic-type-texture-transform-2d false))
 
 (defn overridable-attribute-info? [attribute-info]
   (overridable-semantic-type? (:semantic-type attribute-info default-attribute-semantic-type)))
@@ -861,6 +862,11 @@
                 ;; into view-space. The same matrix will be supplied to all the
                 ;; normal-matrix attributes.
                 (boolean (:has-semantic-type-normal-matrix renderable-data))
+
+                :semantic-type-texture-transform-2d
+                ;; The engine provides texture transform per renderable (e.g. sprite);
+                ;; in the editor preview we use default (identity) from material/overrides.
+                false
 
                 false))))]
 

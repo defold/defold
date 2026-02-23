@@ -209,7 +209,8 @@
     :semantic-type-world-matrix Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_WORLD_MATRIX_VALUE
     :semantic-type-normal-matrix Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NORMAL_MATRIX_VALUE
     :semantic-type-bone-weights Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_BONE_WEIGHTS_VALUE
-    :semantic-type-bone-indices Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_BONE_INDICES_VALUE))
+    :semantic-type-bone-indices Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_BONE_INDICES_VALUE
+    :semantic-type-texture-transform-2d Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D_VALUE))
 
 (def engine-provided-semantic-types
   (into #{}
@@ -521,6 +522,7 @@
     :bone-weights :semantic-type-bone-weights
     :mtx-world :semantic-type-world-matrix
     :mtx-normal :semantic-type-normal-matrix
+    :texture-transform-2d :semantic-type-texture-transform-2d
     :semantic-type-none))
 
 (defn infer-normalize

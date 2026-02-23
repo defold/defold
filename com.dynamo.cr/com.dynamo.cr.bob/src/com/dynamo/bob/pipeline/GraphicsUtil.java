@@ -29,7 +29,7 @@ public class GraphicsUtil {
 
     public static boolean isEngineProvidedAttributeSemanticType(VertexAttribute.SemanticType semanticType) {
         switch (semanticType) {
-            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX -> {
+            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX, SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D -> {
                 // The engine will always provide a value for these.
                 return true;
             }
@@ -212,6 +212,7 @@ public class GraphicsUtil {
                     }
                     break;
                 case 9:
+                    // mat3: e.g. SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D or custom mat3 attributes
                     attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
                     break;
                 case 16:
