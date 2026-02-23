@@ -5216,17 +5216,7 @@ TEST_F(MaterialTest, TextureTransform2DAttribute)
     ASSERT_EQ(9u, tt_attr->m_ElementCount);
     ASSERT_EQ(dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, tt_attr->m_VectorType);
 
-    float transform_expected[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
-
-    const uint8_t* value_ptr;
-    uint32_t num_values;
-    dmRender::GetMaterialProgramAttributeValues(material, tt_ix, &value_ptr, &num_values);
-
-    for (int i = 0; i < DM_ARRAY_SIZE(transform_expected); ++i)
-    {
-        float* f_ptr = (float*) value_ptr;
-        ASSERT_NEAR(transform_expected[i], f_ptr[i], EPSILON);
-    }
+    // No value test here, the engine provides data for this semantic type.
 
     dmResource::Release(m_Factory, material_res);
 }
