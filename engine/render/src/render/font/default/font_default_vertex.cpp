@@ -12,14 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>                           // for sqrtf
 #include <stdint.h>                         // for uint32_t, int16_t
 #include <dlib/align.h>                     // for DM_ALIGNED
 #include <dlib/log.h>                       // for dmLog*
 #include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/vmath.h>                     // for Vector4
 #include <dlib/time.h>                      // for dmTime::GetMonotonicTime()
-#include <dlib/math.h>                      // for fmaxf
 
 #include <graphics/graphics.h>              // for AddVertexStream etc
 #include <graphics/graphics_util.h>         // for UnpackRGBA
@@ -334,7 +332,7 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
 }
 
 
-uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_screen_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
+uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
 {
     DM_PROFILE(__FUNCTION__);
     (void)backend;
@@ -350,20 +348,6 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
     const float sdf_edge_value = 0.75f;
-    const float min_sdf_screen_scale = 0.5f;
-    const float min_sdf_scale = 1e-6f;
-    float sdf_scale = sdf_screen_scale;
-    if (sdf_scale > 0.0f)
-    {
-        sdf_scale = dmMath::Max(sdf_scale, min_sdf_screen_scale);
-    }
-    else
-    {
-        // Fallback to local scale when screen scale is invalid.
-        const Vector4 r0 = te.m_Transform.getRow(0);
-        sdf_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-        sdf_scale = dmMath::Max(sdf_scale, min_sdf_scale);
-    }
     float sdf_outline = font_map->m_SdfOutline;
     float sdf_shadow  = font_map->m_SdfShadow;
     // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.

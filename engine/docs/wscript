@@ -6,8 +6,10 @@ APPNAME='docs'
 srcdir = '.'
 blddir = 'build'
 
-import waflib.Utils
+from waflib import Utils, Options
+from collections import defaultdict
 import sys, os, re, fnmatch
+import shutil
 import waflib.Options
 import waf_dynamo
 import TestContext
@@ -29,6 +31,164 @@ def clean(conf):
     for filename in fnmatch.filter(files, '*.apidoc_'):
         os.remove(os.path.join('src', filename))
 
+#   Extract api docs from source files and store the raw text in .apidoc
+#   files per file for later collation into .json and .sdoc files.
+def apidoc_extract_task(bld, root, paths):
+    all_docs = {}
+
+    defold_root = os.path.abspath(os.path.join(bld.top_dir, "..", ".."))
+
+    def _keyfrompath(path, root):
+        # dlib/src/dmsdk/dlib/align.h -> /dmsdk/dlib/align.h
+        path = os.path.normpath(path).replace(os.path.normpath(root), "")
+        # /dmsdk/dlib/align.h -> -dmsdk-dlib-align.h
+        key = "-".join(path.split(os.sep))
+        if key.startswith("-"):
+            key = key[1:]
+        return key
+
+    def _findfiles(directory):
+        exts = [".h", ".hpp", ".cpp", ".cs", ".c", ".doc_h", ".proto"]
+        paths = []
+        for root, dirs, files in os.walk(directory):
+            for f in files:
+                if os.path.splitext(f)[1] in exts:
+                    paths.append(os.path.join(root, f))
+        return paths
+
+    def _strip_comment_stars(str):
+        lines = str.split('\n')
+        ret = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith('*'):
+                line = line[1:]
+                if line.startswith(' '):
+                    line = line[1:]
+            ret.append(line)
+        return '\n'.join(ret)
+
+    def _parse_comment(source):
+        str = _strip_comment_stars(source)
+        # The regexp means match all strings that:
+        # * begins with line start, possible whitespace and an @
+        # * followed by non-white-space (the tag)
+        # * followed by possible spaces
+        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
+        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
+        comment = {
+            "is_document": False,
+            "namespace": None,
+            "path": None
+        }
+        for (tag, value) in lst:
+            tag = tag.strip()
+            value = value.strip()
+            if tag == 'document':
+                comment["is_document"] = True
+            else:
+                comment[tag] = value
+        return comment
+
+    def _parse_source(source_path):
+        resource = bld.path.find_resource(source_path)
+        if not resource:
+            sys.exit("Couldn't find resource: %s" % resource)
+            return
+
+        elements = {}
+        resource_path = resource.abspath()
+        resource_file = os.path.basename(resource_path)
+        relative_path = resource_path.replace(defold_root, "")[1:]
+
+        with open(resource_path, encoding='utf8') as in_f:
+            source = in_f.read()
+            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+            default_namespace = None
+            for comment_str in lst:
+                comment = _parse_comment(comment_str)
+
+                namespace = comment.get("namespace")
+                if comment["is_document"]:
+                    comment_path = comment.get("path")
+                    if not comment_path:
+                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
+                        comment_str = comment_str + ("* @path %s\n" % relative_path)
+                    else:
+                        # there really shouldn't be any files with hardcoded paths anymore
+                        # but let's keep this here for some time in case we introduce a hardcoded
+                        # path somewhere again
+                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
+                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
+
+                    comment_file = comment.get("file")
+                    if not comment_file:
+                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
+                        comment_str = comment_str + ("* @file %s\n" % resource_file)
+                    elif comment_file != resource_file:
+                        # there shouldn't be any of these, but let's keep it here anyway
+                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
+                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
+
+                    comment_language = comment.get("language")
+                    if not comment_language:
+                        print("Missing @language in %s, assuming C++" % (resource_path))
+                        comment_str = comment_str + "* @language C++\n"
+
+                    if namespace:
+                        default_namespace = namespace
+
+                if not namespace:
+                    namespace = default_namespace
+                    comment["namespace"] = default_namespace
+
+                if namespace:
+                    if namespace not in elements:
+                        elements[namespace] = []
+                    elements[namespace].append('/' + comment_str + '*/')
+                else:
+                    if resource_path not in elements:
+                        elements[resource_path] = []
+                    elements[resource_path].append('/' + comment_str + '*/')
+
+        return elements
+
+    def extract_docs(bld, root, src):
+        docs = defaultdict(list)
+        # Gather data
+        for s in src:
+            key = _keyfrompath(s, root)
+            elements = _parse_source(s)
+            for k,v in elements.items():
+                docs[key] = docs[key] + v
+        all_docs.update(docs)
+        return docs
+
+    def write_docs(task):
+        for o in task.outputs:
+            name = os.path.splitext(o.name)[0] # remove .apidoc
+            docs = all_docs[name]
+            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
+                out_f.write('\n'.join(docs))
+
+    if not getattr(Options.options, 'skip_apidocs', False):
+        # paths can be both files and folders
+        # we need to expand to a full list of source files to extract docs from
+        src = []
+        for path in paths:
+            fullpath = os.path.join(root, path)
+            if os.path.isfile(fullpath):
+                src.append(fullpath)
+            else:
+                src.extend(_findfiles(fullpath))
+
+        docs = extract_docs(bld, root, src)
+        target = []
+        for key in docs.keys():
+            target.append(key + '.apidoc')
+        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
+
+
 def build(bld):
     global test_context
     # Clean up src
@@ -36,22 +196,53 @@ def build(bld):
     for filename in fnmatch.filter(files, '*.apidoc_'):
         os.remove(os.path.join('src', filename))
 
-    # Find all the built .apidoc files in the engine tree
-    apidoc_files = []
-    for root, dirs, files in os.walk('..'):
+    apidoc_extract_task(bld, "../crash/src/",                   ["script_crash.cpp"])
+    apidoc_extract_task(bld, "../ddf/src/",                     ["dmsdk"])
+    apidoc_extract_task(bld, "../dlib/src/",                    ["dmsdk"])
+    apidoc_extract_task(bld, "../dlib/src/",                    ["cs/dmsdk"])
+    apidoc_extract_task(bld, "../engine/proto/",                ["engine/engine_ddf.proto"])
+    apidoc_extract_task(bld, "../engine/src/",                  ["engine_doc.h", "script/script_engine.cpp"])
+    apidoc_extract_task(bld, "../engine/src/",                  ["dmsdk"])
+    apidoc_extract_task(bld, "../extension/src/",               ["dmsdk"])
+    apidoc_extract_task(bld, "../extension/src/",               ["cs/dmsdk"])
+    apidoc_extract_task(bld, "../font/src/",                    ["dmsdk"])
+    apidoc_extract_task(bld, "../gameobject/proto/",            ["gameobject/gameobject_ddf.proto"])
+    apidoc_extract_task(bld, "../gameobject/src/gameobject/",   ["gameobject_script.cpp"])
+    apidoc_extract_task(bld, "../gameobject/src/",              ["dmsdk"])
+    apidoc_extract_task(bld, "../gamesys/proto/",               ["gamesys"])
+    apidoc_extract_task(bld, "../gamesys/src/",                 ["dmsdk"])
+    apidoc_extract_task(bld, "../gamesys/src/gamesys/",         ["scripts"])
+    apidoc_extract_task(bld, "../gamesys/src/",                 ["gamesys/box2d"])
+    apidoc_extract_task(bld, "../graphics/src/",                ["dmsdk"])
+    apidoc_extract_task(bld, "../gui/src/",                     ["gui_script.cpp"])
+    apidoc_extract_task(bld, "../gui/src/",                     ["dmsdk"])
+    apidoc_extract_task(bld, "../hid/src/",                     ["dmsdk"])
+    apidoc_extract_task(bld, "../liveupdate/src/",              ["liveupdate.h"])
+    apidoc_extract_task(bld, "../lua/src/",                     [""])
+    apidoc_extract_task(bld, "../lua/src/",                     ["dmsdk"])
+    apidoc_extract_task(bld, "../lua/src/",                     ["cs/dmsdk"])
+    apidoc_extract_task(bld, "../physics/src/",                 ["dmsdk"])
+    apidoc_extract_task(bld, "../platform/src/",                ["dmsdk"])
+    apidoc_extract_task(bld, "../profiler/src/",                ["profiler.cpp"])
+    apidoc_extract_task(bld, "../render/proto/",                ["render"])
+    apidoc_extract_task(bld, "../render/src/",                  ["render/render_script.cpp", "render/render_script_camera.cpp"])
+    apidoc_extract_task(bld, "../render/src/",                  ["dmsdk"])
+    apidoc_extract_task(bld, "../resource/src/",                ["dmsdk"])
+    apidoc_extract_task(bld, "../rig/src/",                     ["dmsdk"])
+    apidoc_extract_task(bld, "../script/",                      ["src"])
+    apidoc_extract_task(bld, "../script/src/",                  ["dmsdk"])
+    apidoc_extract_task(bld, "../script/src/",                  ["luasocket"])
+    apidoc_extract_task(bld, "../script/src/",                  ["script"])
+    apidoc_extract_task(bld, "../sdk/src/",                     ["dmsdk"])
+    apidoc_extract_task(bld, "../sdk/src/",                     ["cs/dmsdk"])
+    apidoc_extract_task(bld, "../sound/src/",                   ["dmsdk"])
+
+    # Find all the generated .apidoc files in build/ and copy them to src/
+    for root, dirs, files in os.walk('build'):
         for filename in fnmatch.filter(files, '*.apidoc'):
-            apidoc_files.append(os.path.join(root, filename))
-    # Concat per namespace into 'src'
-    namespace_files = {}
-    for apidoc_file in apidoc_files:
-        namespace, _ = os.path.splitext(os.path.basename(apidoc_file))
-        if namespace not in namespace_files:
-            namespace_files[namespace] = []
-        namespace_files[namespace].append(apidoc_file)
-    for ns, files in namespace_files.items():
-        comments = '\n'.join([waflib.Utils.readf(f, encoding='utf-8') for f in files])
-        with open('src/%s.apidoc_' % ns, 'w') as out_f:
-            out_f.write(comments)
+            shutil.copy(os.path.join(root, filename), os.path.join("src", filename))
+
+    # Convert all src/*.apidoc files into their final formats (json, sdoc, md etc)
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 

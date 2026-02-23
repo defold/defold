@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import os
 import waflib.Utils
-from waf_dynamo import apidoc_extract_task, dmsdk_add_files, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, platform_supports_feature
 
 def configure(conf):
     pass
@@ -52,22 +52,6 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'script/script_doc_ddf_pb2.py')
 
     bld.add_group()
-
-    apidoc_extract_task(bld,[
-        'script.cpp',
-        'script_bitop.cpp',
-        'script_hash.cpp',
-        'script_html5_js.cpp',
-        'script_json.cpp',
-        'script_msg.cpp',
-        'script_sys.cpp',
-        'script_timer.cpp',
-        'script_vmath.cpp',
-        'script_zlib.cpp',
-        'script_graphics.cpp',
-        'script_types.cpp',
-        'luasocket/luasocket.doc_h',
-        'script/sys_ddf.proto'])
 
     bld.install_files('${PREFIX}/include/script', 'script.h')
     bld.install_files('${PREFIX}/include/script', 'http_service.h')
