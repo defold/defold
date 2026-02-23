@@ -99,7 +99,8 @@
   (->jsonrpc [this _ _]
     (throw (ex-info "Can't send raw request: use finalize-request first" {:request this}))))
 
-(defn finalize-request [^RawRequest raw-request id]
+(defn finalize-request
+  [^RawRequest raw-request id retries retry-delay-ms]
   (reify Message
     (->jsonrpc [_ project on-response]
       (let [ch (a/chan 1)
@@ -108,7 +109,10 @@
         (a/take! ch (fn [response]
                       (on-response
                         id
-                        (cond-> response (not (:error response)) (update :result result-converter project)))))
+                        {:request raw-request
+                         :retries retries
+                         :retry-delay-ms retry-delay-ms
+                         :response (cond-> response (not (:error response)) (update :result result-converter project))})))
         request))))
 
 (defn- raw-request [notification result-converter]
@@ -155,12 +159,14 @@
 (s/def ::resolve boolean?) ;; if completion item can be resolved to add e.g. documentation
 (s/def ::trigger-characters (s/coll-of string? :kind set?))
 (s/def ::completion (s/keys :req-un [::resolve ::trigger-characters]))
+(s/def ::document-symbol boolean?)
 (s/def ::hover boolean?)
 (s/def ::rename boolean?)
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
                                        ::find-references
+                                       ::document-symbol
                                        ::hover
                                        ::rename]
                               :opt-un [::completion]))
@@ -215,6 +221,7 @@
                                                       diagnosticProvider
                                                       definitionProvider
                                                       referencesProvider
+                                                      documentSymbolProvider
                                                       completionProvider
                                                       hoverProvider
                                                       renameProvider]}]
@@ -242,6 +249,9 @@
            :find-references (if (boolean? referencesProvider)
                               referencesProvider
                               (map? referencesProvider))
+           :document-symbol (if (boolean? documentSymbolProvider)
+                              documentSymbolProvider
+                              (map? documentSymbolProvider))
            :hover (if (boolean? hoverProvider)
                     hoverProvider
                     (map? hoverProvider))
@@ -325,6 +335,38 @@
    24 :operator
    25 :type-parameter})
 
+(def ^:private ^:const symbol-tag-deprecated 1)
+(def ^:private symbol-tag:lsp->editor
+  {symbol-tag-deprecated :deprecated})
+
+(def ^:private symbol-kind:lsp->editor
+  {1 :file
+   2 :module
+   3 :namespace
+   4 :package
+   5 :class
+   6 :method
+   7 :property
+   8 :field
+   9 :constructor
+   10 :enum
+   11 :interface
+   12 :function
+   13 :variable
+   14 :constant
+   15 :string
+   16 :number
+   17 :boolean
+   18 :array
+   19 :object
+   20 :key
+   21 :null
+   22 :enum-member
+   23 :struct
+   24 :event
+   25 :operator
+   26 :type-parameter})
+
 (defn- initialize [jsonrpc project]
   (lsp.jsonrpc/request!
     jsonrpc
@@ -341,6 +383,11 @@
                         :textDocument {:definition {:dynamicRegistration false
                                                     :linkSupport true}
                                        :references {:dynamicRegistration false}
+                                       :documentSymbol {:dynamicRegistration false
+                                                        :symbolKind {:valueSet (vec (sort (keys symbol-kind:lsp->editor)))}
+                                                        :hierarchicalDocumentSymbolSupport true
+                                                        :tagSupport {:valueSet [symbol-tag-deprecated]}
+                                                        :labelSupport true}
                                        :hover {:dynamicRegistration false
                                                :contentFormat [:markdown :plaintext]}
                                        :rename {:dynamicRegistration false
@@ -641,6 +688,45 @@
                         {:resource resource
                          :cursor-range (lsp-range->editor-cursor-range range)})))
               result)))))
+
+(defn- symbol-tags:lsp->editor [deprecated tags]
+  (into (if deprecated #{:deprecated} #{})
+        (keep symbol-tag:lsp->editor)
+        tags))
+
+(defn- document-symbol:lsp->editor [{:keys [name detail kind tags deprecated range selectionRange children]}]
+  (cond-> {:name name
+           :kind (symbol-kind:lsp->editor kind)
+           :tags (symbol-tags:lsp->editor deprecated tags)
+           :selection-range (lsp-range->editor-cursor-range selectionRange)
+           :containment-range (lsp-range->editor-cursor-range range)
+           :children (mapv document-symbol:lsp->editor children)}
+          detail
+          (assoc :detail detail)))
+
+(defn- symbol-information->editor-document-symbol [{:keys [name kind tags deprecated location]}]
+  {:name name
+   :kind (symbol-kind:lsp->editor kind)
+   :tags (symbol-tags:lsp->editor deprecated tags)
+   :selection-range (lsp-range->editor-cursor-range (:range location))
+   :containment-range (lsp-range->editor-cursor-range (:range location))
+   :children []})
+
+(defn document-symbols
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentSymbol"
+  [resource]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/documentSymbol"
+      {:textDocument {:uri (resource-uri resource)}})
+    (bound-fn [result _]
+      (coll/into-> result []
+        (keep
+          (fn [item]
+            (if (:location item)
+              (symbol-information->editor-document-symbol item)
+              (document-symbol:lsp->editor item))))))))
 
 (defn open-text-document
   "See also:

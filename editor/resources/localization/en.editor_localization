@@ -578,12 +578,15 @@ dialog.bundle.error.bundle-format.required = No bundle format selected.
 pane.assets = Assets
 pane.changed-files = Changed Files
 pane.outline = Outline
+pane.structure = Structure
 pane.properties = Properties
 pane.console = Console
 pane.curve-editor = Curve Editor
 pane.build-errors = Build Errors
 pane.search-results = Search Results
 pane.breakpoints = Breakpoints
+pane.debugger.call-stack = Call Stack
+pane.debugger.variables = Variables
 
 # Assets
 
@@ -2035,6 +2038,7 @@ form.label.camera.orthographic-zoom = Orthographic Zoom
 
 form.label.collectionproxy = Collection Proxy
 form.label.collectionproxy.collection = Collection
+form.label.collectionproxy.exclude = Exclude
 
 form.label.render = Render
 form.label.render.script = Script

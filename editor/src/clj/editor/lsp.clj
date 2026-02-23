@@ -30,6 +30,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [editor.code.data CursorRange]
            [java.util.regex Pattern]
@@ -205,32 +206,140 @@
          (server-response-update-state [_ server state]
            (state-updater state server result)))))))
 
-(defn- on-server-response [server responses-ch response]
+(def ^:private content-modified-error-code
+  "See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#errorCodes
+
+  The server detected that the document content has changed during result
+  computation, we can simply retry the request"
+  -32801)
+
+(defn- retriable-error? [response]
+  (= content-modified-error-code (-> response :error :code)))
+
+(defn- on-server-response [server responses-ch {:keys [request response retries retry-delay-ms]}]
   (fn [{:keys [requests] :as state}]
     ;; might be absent if the request is cancelled due to a timeout
     (if (contains? requests responses-ch)
-      (let [remaining-responses (dec (requests responses-ch))]
-        (cond
-          (:error response) (when-not (Boolean/getBoolean "defold.tests")
-                              (log/warn :message "Language server responded with error" :server server :error (:error response)))
-          (some? (:result response)) (a/put! responses-ch (server-response-value (:result response))))
-        (let [state (if (zero? remaining-responses)
-                      (do (a/close! responses-ch)
-                          (-> state
-                              (update :requests dissoc responses-ch)
-                              (update-in [:server->server-state server :requests] dissoc responses-ch)))
-                      (-> state
-                          (assoc-in [:requests responses-ch] remaining-responses)
-                          (update-in [:server->server-state server :requests]
-                                     (fn [state-requests]
-                                       (let [remaining-server-responses (dec (state-requests responses-ch))]
-                                         (if (zero? remaining-server-responses)
-                                           (dissoc state-requests responses-ch)
-                                           (assoc state-requests responses-ch remaining-server-responses)))))))]
-          (if (:error response)
-            state
-            (server-response-update-state (:result response) server state))))
+      (if (and (retriable-error? response) (pos? retries))
+        ;; retry
+        (do
+          (a/go
+            (<! (a/timeout retry-delay-ms))
+            (>! (:in state)
+                (bound-fn [{:keys [requests] :as state}]
+                  ;; since retry is delayed, the request might have become cancelled!
+                  (when (contains? requests responses-ch)
+                    ;; and the server could have become stopped!
+                    (when-let [server-in (get-in state [:server->server-state server :in])]
+                      (a/put! server-in (lsp.server/finalize-request request responses-ch (dec retries) retry-delay-ms))))
+                  state)))
+          state)
+        ;; respond
+        (let [{:keys [error result]} response]
+          (when (and error (not (Boolean/getBoolean "defold.tests")))
+            (log/warn :message "Language server responded with error" :server server :error error))
+          (when (some? result)
+            (a/put! responses-ch (server-response-value result)))
+          (let [remaining-responses (dec (requests responses-ch))
+                state (if (zero? remaining-responses)
+                        (do (a/close! responses-ch)
+                            (-> state
+                                (update :requests dissoc responses-ch)
+                                (update-in [:server->server-state server :requests] dissoc responses-ch)))
+                        (-> state
+                            (assoc-in [:requests responses-ch] remaining-responses)
+                            (update-in [:server->server-state server :requests]
+                                       (fn [state-requests]
+                                         (let [remaining-server-responses (dec (state-requests responses-ch))]
+                                           (if (zero? remaining-server-responses)
+                                             (dissoc state-requests responses-ch)
+                                             (assoc state-requests responses-ch remaining-server-responses)))))))]
+            (if error
+              state
+              (server-response-update-state result server state)))))
       state)))
+
+(defn- cancel-requests [responses-ch servers]
+  (fn [{:keys [server->server-state requests] :as state}]
+    ;; The request might be absent if all servers responded before the timeout.
+    (if (contains? requests responses-ch)
+      (do
+        (a/close! responses-ch)
+        (reduce
+          (fn [state server]
+            ;; The server might be absent if it died before the timeout
+            (if (contains? server->server-state server)
+              ;; Also, the server might be restarted by now, which means it's
+              ;; not guaranteed that it will have responses-ch in its requests
+              ;; map, but it's not a problem for dissoc
+              (update-in state [:server->server-state server :requests] dissoc responses-ch)
+              state))
+          (assoc state :requests (dissoc requests responses-ch))
+          servers))
+      state)))
+
+(defn- send-requests!
+  "Send requests to all matching running servers
+
+  Either :requests, or :requests-fn must be provided (but not both). Requests
+  are sent to running servers that match :capabilities-pred and :language. If
+  no server matches, responses-ch is closed immediately; otherwise timeout-based
+  cancellation is scheduled for outstanding requests.
+
+  Args:
+    state             LSP state
+    responses-ch      channel that receives successful response values
+
+  Kv-args:
+    :requests             required if :requests-fn is not provided; collection
+                          of requests sent to each matching server
+    :requests-fn          required if :requests is not provided; function of
+                          server and server-state that returns the requests to
+                          send to that server
+    :timeout-ms           required; timeout in milliseconds for outstanding
+                          requests
+    :capabilities-pred    predicate of capabilities used to filter servers
+                          (defaults to any?)
+    :language             LSP language string used to filter servers
+    :retries              request retry count (defaults to 3); retries run
+                          within the same :timeout-ms budget"
+  [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms retries]
+                         :or {capabilities-pred any?
+                              retries 3}}]
+  {:pre [(not= (some? requests) (some? requests-fn))
+         (nat-int? retries)
+         (pos-int? timeout-ms)
+         (not (contains? (:requests state) responses-ch))]}
+  (let [requests-fn (or requests-fn (constantly requests))
+        retry-delay-ms (if (pos? retries)
+                         ;; additionally divide the retry delay by 2 since the
+                         ;; server needs time to compute the results
+                         (max 1 (quot timeout-ms (* 2 retries)))
+                         0)
+        server->requests (->> state
+                              :server->server-state
+                              (e/mapcat
+                                (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
+                                  (when (and (= :running status)
+                                             (capabilities-pred capabilities)
+                                             (or (nil? language) (contains? languages language)))
+                                    (e/map
+                                      #(pair server %)
+                                      (requests-fn server server-state)))))
+                              (util/group-into {} [] key val))]
+    (if (zero? (count server->requests))
+      (do (a/close! responses-ch) state)
+      (do
+        (doseq [[server requests] server->requests
+                request requests]
+          (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch retries retry-delay-ms)))
+        (a/go
+          (<! (a/timeout timeout-ms))
+          (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
+        (reduce-kv (fn [state server requests]
+                     (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
+                   (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
+                   server->requests)))))
 
 (s/def ::chan lsp.async/chan?)
 (s/def :editor.lsp.server-state/diagnostics (s/nilable (s/map-of ::resource ::lsp.server/diagnostics-result)))
@@ -338,6 +447,43 @@
   (and (capability-open-close? capabilities)
        (not= :none (text-sync-kind capabilities))))
 
+(defn- document-symbol-refresh-debounce-id [resource]
+  (pair ::lsp.server/document-symbol resource))
+
+(defn- set-view-document-symbols [resource document-symbols]
+  (bound-fn [state]
+    (when-let [view-node (-> state :resource->view-node (get resource))]
+      (ui/run-later
+        (g/transact
+          (g/set-property view-node :document-symbols document-symbols))))
+    state))
+
+(defn- request-document-symbols [state resource]
+  (let [{:keys [in]} state
+        responses-ch (a/chan 1 cat)]
+    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
+    (send-requests!
+      state responses-ch
+      :capabilities-pred :document-symbol
+      :language (resource/language resource)
+      :requests [(lsp.server/document-symbols resource)]
+      :timeout-ms 5000)))
+
+(defn- schedule-debounce [state id timeout-ms state-fn]
+  {:pre [(some? id) (pos-int? timeout-ms) (ifn? state-fn)]}
+  (let [{:keys [debounce]} state]
+    (some-> (debounce id) a/close!)
+    (let [cancel-ch (a/chan)]
+      (a/go
+        (let [[_ ch] (a/alts! [(a/timeout timeout-ms) cancel-ch])]
+          (when-not (identical? ch cancel-ch)
+            (>! (:in state)
+                (bound-fn invoke-after-debounce [state]
+                  (if (identical? cancel-ch ((:debounce state) id))
+                    (state-fn (update state :debounce dissoc id))
+                    state))))))
+      (assoc state :debounce (assoc debounce id cancel-ch)))))
+
 (defn- notify-interested-servers!
   [state resource & {:keys [message-fn message capabilities-pred]
                      :or {capabilities-pred any?}}]
@@ -375,7 +521,12 @@
                         (case (text-sync-kind capabilities)
                           :incremental @incremental-change-delay
                           :full @full-text-change-delay)))
-        (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})))))
+        (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
+                (resource-viewed? state resource)
+                (schedule-debounce
+                  (document-symbol-refresh-debounce-id resource)
+                  300
+                  #(request-document-symbols % resource)))))))
 
 (defn- close-resource! [state resource]
   {:pre [(resource-open? state resource)]}
@@ -436,6 +587,10 @@
        (let [source-value (g/node-value resource-node :source-value evaluation-context)
              lines (g/node-value resource-node :lines evaluation-context)]
          (sync-modified-lines-of-existing-node! state resource source-value lines))))))
+
+(defn- cancel-debounce-fns! [state]
+  (run! a/close! (vals (:debounce state)))
+  (assoc state :debounce {}))
 
 (s/def ::new-servers (s/coll-of ::server :kind set?))
 
@@ -506,6 +661,8 @@
                        ;; inverse :resource->view-node, a map from view node id
                        ;; to resource, used for performance
                        :view-node->resource {}
+                       ;; map from debounce id to cancel-ch (close to cancel)
+                       :debounce {}
                        ;; map {resource {:lines ["code..."] :version int}},
                        ;; indicates that the resource is open
                        ;; invariant: every viewed resource must be open
@@ -517,7 +674,9 @@
         (if (and (nil? value) (= ch in))
           (try
             (when dev (swap! running-lsps dissoc in))
-            ((set-servers #{}) state)
+            (-> state
+                (cancel-debounce-fns!)
+                ((set-servers #{})))
             (catch Throwable e (error-reporting/report-exception! e)))
           (recur
             (try
@@ -551,7 +710,8 @@
     (let [state (-> state
                     (update :resource->view-node assoc resource view-node)
                     (update :view-node->resource assoc view-node resource)
-                    (ensure-resource-open! resource lines))]
+                    (ensure-resource-open! resource lines)
+                    (request-document-symbols resource))]
       (ui/run-later
         (g/transact
           (concat
@@ -564,12 +724,21 @@
   [lsp view-node resource lines]
   (lsp #(do-open-view % view-node resource lines)))
 
+(defn- cancel-document-symbols-refresh [state resource]
+  (let [{:keys [debounce]} state
+        debounce-id (document-symbol-refresh-debounce-id resource)]
+    (if-let [cancel-ch (debounce debounce-id)]
+      (do (a/close! cancel-ch)
+          (assoc state :debounce (dissoc debounce debounce-id)))
+      state)))
+
 (defn- do-close-view [state view-node]
   (let [resource (get-in state [:view-node->resource view-node])]
     (if (resource-viewed? state resource)
       (-> state
           (update :resource->view-node dissoc resource)
           (update :view-node->resource dissoc view-node)
+          (cancel-document-symbols-refresh resource)
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
@@ -676,57 +845,6 @@
    (get-node-lsp (g/now) node))
   ([basis node]
    (get-graph-lsp basis (g/node-id->graph-id node))))
-
-(defn- cancel-requests [responses-ch servers]
-  (fn [{:keys [server->server-state requests] :as state}]
-    ;; The request might be absent if all servers responded before the timeout.
-    (if (contains? requests responses-ch)
-      (do
-        (a/close! responses-ch)
-        (reduce
-          (fn [state server]
-            ;; The server might be absent if it died before the timeout
-            (if (contains? server->server-state server)
-              ;; Also, the server might be restarted by now, which means it's
-              ;; not guaranteed that it will have responses-ch in its requests
-              ;; map, but it's not a problem for dissoc
-              (update-in state [:server->server-state server :requests] dissoc responses-ch)
-              state))
-          (assoc state :requests (dissoc requests responses-ch))
-          servers))
-      state)))
-
-(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms]
-                                             :or {capabilities-pred any?}}]
-  {:pre [(not= (some? requests) (some? requests-fn))
-         (pos-int? timeout-ms)
-         (not (contains? (:requests state) responses-ch))]}
-  (let [requests-fn (or requests-fn (constantly requests))
-        server->requests (->> state
-                              :server->server-state
-                              (eduction
-                                (mapcat
-                                  (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
-                                    (when (and (= :running status)
-                                               (capabilities-pred capabilities)
-                                               (or (nil? language) (contains? languages language)))
-                                      (eduction
-                                        (map #(pair server %))
-                                        (requests-fn server server-state))))))
-                              (util/group-into {} [] key val))]
-    (if (zero? (count server->requests))
-      (do (a/close! responses-ch) state)
-      (do
-        (doseq [[server requests] server->requests
-                request requests]
-          (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch)))
-        (a/go
-          (<! (a/timeout timeout-ms))
-          (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
-        (reduce-kv (fn [state server requests]
-                     (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
-                   (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
-                   server->requests)))))
 
 (defn- notify-workspace-diagnostics-callback! [resources callback]
   (fn [state]
@@ -948,6 +1066,7 @@
     @p))
 
 (comment
+
   (val (first @running-lsps))
   ;; Restart all servers:
   ((g/graph-value 1 :lsp) (fn [state]
