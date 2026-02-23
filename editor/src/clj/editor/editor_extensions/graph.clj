@@ -37,6 +37,7 @@
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv])
   (:import [com.dynamo.particle.proto Particle$ModifierType]
@@ -298,32 +299,46 @@
 (defonce ^:private ext-property-getter
   (make-inheritance-chain))
 
+(defonce ^:private ext-property-lister
+  (make-inheritance-chain :result-fn all-results-fn))
+
 (defn register-property-getter!
   "Register a getter associated with a node type
 
   Args:
     node-type-kw    keyword of a graph node type
-    f               a function of 3 args:
+    getter-fn       a function of 3 args:
                       node-id               the node id to resolve the value
                       property              string property name
+                      evaluation-context    the evaluation context
+    lister-fn       optional, a function of 2 args:
+                      node-id               the node id to resolve the list of
+                                            available property names
                       evaluation-context    the evaluation context"
-  [node-type-kw f]
-  {:pre [(qualified-keyword? node-type-kw) (ifn? f)]}
-  (ext-property-getter node-type-kw f))
+  ([node-type-kw getter-fn]
+   (register-property-getter! node-type-kw getter-fn nil))
+  ([node-type-kw getter-fn lister-fn]
+   {:pre [(qualified-keyword? node-type-kw) (ifn? getter-fn) (or (nil? lister-fn) (ifn? lister-fn))]}
+   (ext-property-getter node-type-kw getter-fn)
+   (when lister-fn (ext-property-lister node-type-kw lister-fn))))
 
 (register-property-getter!
   :editor.code.resource/CodeEditorResourceNode
   (fn CodeEditorResourceNode-getter [node-id property evaluation-context]
     (case property
       "text" #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context))
-      nil)))
+      nil))
+  (fn CodeEditorResourceNode-lister [_ _]
+    ["text"]))
 
 (register-property-getter!
   :editor.resource/ResourceNode
   (fn ResourceNode-getter [node-id property evaluation-context]
     (case property
       "path" #(resource/resource->proj-path (g/node-value node-id :resource evaluation-context))
-      nil)))
+      nil))
+  (fn ResourceNode-lister [_ _]
+    ["path"]))
 
 (register-property-getter!
   :editor.tile-source/TileSourceNode
@@ -335,21 +350,27 @@
           (comp inc key) ;; 0-indexed to 1-indexed
           #(g/node-value (val %) :id evaluation-context)
           (g/node-value node-id :tile->collision-group-node evaluation-context)))
-      nil)))
+      nil))
+  (fn TileSourceNode-lister [_ _]
+    ["tile_collision_groups"]))
 
 (register-property-getter!
   :editor.tile-map/LayerNode
   (fn LayerNode-getter [node-id property evaluation-context]
     (case property
       "tiles" #(tile-map/make (g/node-value node-id :cell-map evaluation-context))
-      nil)))
+      nil))
+  (fn LayerNode-lister [_ _]
+    ["tiles"]))
 
 (register-property-getter!
   :editor.particlefx/ModifierNode
   (fn ModifierNode-getter [node-id property evaluation-context]
     (case property
       "type" #(g/node-value node-id :type evaluation-context)
-      nil)))
+      nil))
+  (fn ModifierNode-lister [_ _]
+    ["type"]))
 
 (def ^:private game-project-setting-path-regex #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -358,14 +379,27 @@
   (fn GameProjectNode-getter [node-id property evaluation-context]
     (when (re-matches game-project-setting-path-regex property)
       (let [path (string/split property #"\." 2)]
-        #(game-project/get-setting node-id path evaluation-context)))))
+        #(game-project/get-setting node-id path evaluation-context))))
+  (fn GameProjectNode-lister [node-id evaluation-context]
+    (coll/into-> (:meta-settings (g/node-value node-id :form-data evaluation-context)) []
+      (map :path)
+      (map #(coll/join-to-string "." %))
+      (filter #(re-matches game-project-setting-path-regex %)))))
 
 (register-property-getter!
   ::outline/OutlineNode
   (fn OutlineNode-getter [node-id property evaluation-context]
     (when-let [outline-property (outline-property node-id property evaluation-context)]
       (when-let [to (-> outline-property properties/property-edit-type-id edit-type-id->value-converter :to)]
-        #(some-> (properties/value outline-property) to)))))
+        #(some-> (properties/value outline-property) to))))
+  (fn OutlineNode-lister [node-id evaluation-context]
+    (coll/into-> (:properties (g/node-value node-id :_properties evaluation-context)) []
+      (keep (fn [[prop-kw outline-property]]
+              (when (and (properties/visible? outline-property)
+                         (some? (-> outline-property properties/property-edit-type-id edit-type-id->value-converter)))
+                (if (string/starts-with? (subs (str prop-kw) 1) "__")
+                  (subs (str prop-kw) 1)
+                  (string/replace (subs (str prop-kw) 1) "-" "_"))))))))
 
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
@@ -387,7 +421,8 @@
           {:keys [basis]} evaluation-context
           node-type (g/node-type* basis node-id)
           workspace (project/workspace project evaluation-context)]
-      (or (attachment/find-alternative workspace node-id #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context) evaluation-context)
+      (or (coll/some #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context)
+                     (attachment/alternatives workspace node-id evaluation-context))
           (case property
             "type" (when-let [type-name (node-types/->name node-type)]
                      (constantly type-name))
@@ -403,10 +438,21 @@
   "Return readable property names for a node/resource.
 
   Work in progress"
-  [node-id-or-resource _project _evaluation-context]
+  [node-id-or-resource project evaluation-context]
   (if (resource/resource? node-id-or-resource)
     ["children" "path"]
-    []))
+    (let [node-id node-id-or-resource
+          workspace (project/workspace project evaluation-context)
+          explicit-type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
+      (-> (e/distinct
+            (e/concat
+              (->> (attachment/alternatives workspace node-id evaluation-context)
+                   (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
+              (e/map #(string/replace (name %) "-" "_") (attachment/list-kws workspace node-id evaluation-context))
+              (when explicit-type-name ["type"])))
+          vec
+          sort
+          vec))))
 
 ;; endregion
 
@@ -582,11 +628,12 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  (attachment/find-alternative
-    (project/workspace project evaluation-context)
-    node-id
+  (coll/some
     #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
-    evaluation-context))
+    (attachment/alternatives
+      (project/workspace project evaluation-context)
+      node-id
+      evaluation-context)))
 
 ;; endregion
 
