@@ -30,6 +30,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :refer [pair]]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [editor.code.data CursorRange]
            [java.util.regex Pattern]
@@ -277,9 +278,34 @@
           servers))
       state)))
 
-(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms retries]
-                                             :or {capabilities-pred any?
-                                                  retries 3}}]
+(defn- send-requests!
+  "Send requests to all matching running servers
+
+  Either :requests, or :requests-fn must be provided (but not both). Requests
+  are sent to running servers that match :capabilities-pred and :language. If
+  no server matches, responses-ch is closed immediately; otherwise timeout-based
+  cancellation is scheduled for outstanding requests.
+
+  Args:
+    state             LSP state
+    responses-ch      channel that receives successful response values
+
+  Kv-args:
+    :requests             required if :requests-fn is not provided; collection
+                          of requests sent to each matching server
+    :requests-fn          required if :requests is not provided; function of
+                          server and server-state that returns the requests to
+                          send to that server
+    :timeout-ms           required; timeout in milliseconds for outstanding
+                          requests
+    :capabilities-pred    predicate of capabilities used to filter servers
+                          (defaults to any?)
+    :language             LSP language string used to filter servers
+    :retries              request retry count (defaults to 3); retries run
+                          within the same :timeout-ms budget"
+  [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms retries]
+                         :or {capabilities-pred any?
+                              retries 3}}]
   {:pre [(not= (some? requests) (some? requests-fn))
          (nat-int? retries)
          (pos-int? timeout-ms)
@@ -292,15 +318,14 @@
                          0)
         server->requests (->> state
                               :server->server-state
-                              (eduction
-                                (mapcat
-                                  (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
-                                    (when (and (= :running status)
-                                               (capabilities-pred capabilities)
-                                               (or (nil? language) (contains? languages language)))
-                                      (eduction
-                                        (map #(pair server %))
-                                        (requests-fn server server-state))))))
+                              (e/mapcat
+                                (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
+                                  (when (and (= :running status)
+                                             (capabilities-pred capabilities)
+                                             (or (nil? language) (contains? languages language)))
+                                    (e/map
+                                      #(pair server %)
+                                      (requests-fn server server-state)))))
                               (util/group-into {} [] key val))]
     (if (zero? (count server->requests))
       (do (a/close! responses-ch) state)
@@ -444,8 +469,8 @@
       :requests [(lsp.server/document-symbols resource)]
       :timeout-ms 3000)))
 
-(defn- schedule-debounce [state id timeout-ms f]
-  {:pre [(some? id) (pos-int? timeout-ms) (ifn? f)]}
+(defn- schedule-debounce [state id timeout-ms state-fn]
+  {:pre [(some? id) (pos-int? timeout-ms) (ifn? state-fn)]}
   (let [{:keys [debounce]} state]
     (some-> (debounce id) a/close!)
     (let [cancel-ch (a/chan)]
@@ -455,7 +480,7 @@
             (>! (:in state)
                 (bound-fn invoke-after-debounce [state]
                   (if (identical? cancel-ch ((:debounce state) id))
-                    (f (update state :debounce dissoc id))
+                    (state-fn (update state :debounce dissoc id))
                     state))))))
       (assoc state :debounce (assoc debounce id cancel-ch)))))
 

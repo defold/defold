@@ -1393,10 +1393,7 @@
 
 (defn- handle-structure-pane-mouse-clicked! [view-node ^MouseEvent e]
   (when (ui/double-click-event? e)
-    (let [^TreeItem selected-item (-> e ^TreeView (.getSource) .getSelectionModel .getSelectedItem)]
-      (if (and selected-item (not (.isLeaf selected-item)) (not (.isExpanded selected-item)))
-        (.setExpanded selected-item true)
-        (focus-code-editor! view-node)))
+    (focus-code-editor! view-node)
     (.consume e)))
 
 (def ^:private structure-pane-message (localization/message "pane.structure"))
