@@ -1362,7 +1362,8 @@
       (string/replace detail #"\R+" " "))))
 
 (defn- describe-document-symbol [document-symbol]
-  (if document-symbol
+  (if-not document-symbol
+    {}
     (let [{:keys [name kind detail]} document-symbol]
       {:graphic {:fx/type fxui/horizontal
                  :alignment :left
@@ -1372,8 +1373,7 @@
                                    (not (coll/empty? detail))
                                    (conj {:fx/type fxui/label
                                           :text (summarize-document-symbol-detail detail)
-                                          :color :hint}))}})
-    {}))
+                                          :color :hint}))}})))
 
 (defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
   (when maybe-item
@@ -1501,14 +1501,15 @@
   (property completions-selected-index g/Any (dynamic visible (g/constantly false)))
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
 
-  (output sidebar-panes g/Any :cached (g/fnk [_node-id document-symbols localization node-id+type+resource]
-                                        (cond-> [{:fx/type fxui/ext-dedupe-identical-desc
-                                                  :desc {:fx/type structure-pane
-                                                         :document-symbols document-symbols
-                                                         :localization localization
-                                                         :view-node _node-id}}]
-                                                (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
-                                                (conj :properties))))
+  (output sidebar-panes g/Any :cached
+          (g/fnk [_node-id document-symbols localization node-id+type+resource]
+            (cond-> [{:fx/type fxui/ext-dedupe-identical-desc
+                      :desc {:fx/type structure-pane
+                             :document-symbols document-symbols
+                             :localization localization
+                             :view-node _node-id}}]
+                    (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
+                    (conj :properties-pane))))
 
   ;; the cursor position for which we show the hover.
   (property hover-showing-cursor g/Any (dynamic visible (g/constantly false)))

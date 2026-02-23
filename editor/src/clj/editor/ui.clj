@@ -1266,7 +1266,7 @@
     child items recursively.
 
   Additional opts:
-  * :double-click-expand?
+  * :double-click-expand
     If true, double-clicking will toggle expansion of a tree item."
   [^TreeView tree-view opts]
   (.addEventFilter tree-view KeyEvent/KEY_PRESSED custom-tree-view-key-pressed-event-filter)

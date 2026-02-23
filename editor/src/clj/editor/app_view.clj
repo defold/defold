@@ -316,13 +316,13 @@
     debugger-sidebar-panes
     (coll/into-> (get open-sidebar-panes active-view) []
       (keep #(case %
-               :outline (when outline-active {:fx/type fx/ext-get-ref :ref :outline})
-               :properties properties-pane-desc
+               :outline-pane (when outline-active {:fx/type fx/ext-get-ref :ref :outline-pane})
+               :properties-pane properties-pane-desc
                %)))))
 
 (g/defnk produce-outline-active [active-view open-sidebar-panes ^:try outline-pane-desc]
   (and (not (g/error-value? outline-pane-desc))
-       (coll/any? #(= :outline %) (get open-sidebar-panes active-view))))
+       (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
 
 (g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
   {:fx/type fxui/ext-dedupe-identical-desc
@@ -336,7 +336,7 @@
           ;; but we need to keep the `^:try` so that the broken outline does not
           ;; fail this whole output when it's inactive
           :refs (if outline-active
-                  {:outline outline-pane-desc}
+                  {:outline-pane outline-pane-desc}
                   {})
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type fxui/ext-value :value right-split}

@@ -15,14 +15,14 @@
 (ns editor.view
   (:require [dynamo.graph :as g]))
 
-(def default-sidebar-panes [:outline :properties])
+(def default-sidebar-panes [:outline-pane :properties-pane])
 
 (g/defnode WorkbenchView
   (input resource-node g/NodeID)
   (input node-id+type+resource g/Any :substitute nil)
   (input dirty g/Bool :substitute false)
   ;; Overridable output describing right sidebar panes for this view, in display order.
-  ;; Each value can be :outline, :properties, or a cljfx description.
+  ;; Each value can be :outline-pane, :properties-pane, or a cljfx description.
   (output sidebar-panes g/Any (g/constantly default-sidebar-panes))
   (output view-data g/Any (g/fnk [_node-id node-id+type+resource]
                             [_node-id (when-let [[node-id type resource] node-id+type+resource]

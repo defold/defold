@@ -1727,7 +1727,6 @@
     ;; resize, ignoring externally set values
     :props (dissoc fx.image-view/props :fit-to-width :fit-to-height)))
 
-
 (defn- customize-tree-view! [tree-view]
   (ui/customize-tree-view! tree-view {:double-click-expand false}))
 

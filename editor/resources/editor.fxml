@@ -134,9 +134,9 @@
                     </AnchorPane>
                     <AnchorPane id="right-pane" prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
                       <children>
-                          <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" >
-                              <AnchorPane/>
-                          </SplitPane>
+                        <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" >
+                          <AnchorPane/>
+                        </SplitPane>
                       </children>
                     </AnchorPane>
                   </items>
