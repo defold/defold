@@ -70,11 +70,25 @@
       (println "Error getting Windows window:" e)
       nil)))
 
+(defn- get-macos-window []
+  (try
+    (let [window-class (Class/forName "com.sun.glass.ui.Window")
+          get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
+          windows (.invoke get-windows-method nil (make-array Object 0))
+          first-window (.get windows 0)
+          get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))
+          native-handle (.invoke get-native-window-method first-window (make-array Object 0))]
+      native-handle)
+    (catch Exception e
+      (println "Error getting macOS window:" e)
+      nil)))
+
 (defn- get-native-window []
   (let [os-name (System/getProperty "os.name")]
-    (if (.contains os-name "Linux")
-      (get-x11-window)
-      (get-windows-window))))
+    (cond
+      (.contains os-name "Linux") (get-x11-window)
+      (.contains os-name "Mac")   (get-macos-window)
+      :else                       (get-windows-window))))
 
 (defn start-mouse-capture []
   (when-let [window (editor.ui/run-now (get-native-window))]

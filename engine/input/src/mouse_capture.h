@@ -7,6 +7,8 @@
 #ifdef _WIN32
     #include <windows.h>
     typedef HWND WindowHandle;
+#elif __APPLE__
+    typedef unsigned long WindowHandle;
 #else
     #include <X11/Xlib.h>
     typedef unsigned long WindowHandle;
