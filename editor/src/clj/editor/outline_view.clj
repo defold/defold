@@ -38,7 +38,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e])
-  (:import [com.defold.control ExtendedTreeViewSkin TreeCell]
+  (:import [com.defold.control ExtendedTreeView TreeCell]
            [java.awt Toolkit]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.geometry Orientation]
@@ -775,7 +775,6 @@
           (fn [_]
             (g/set-property! outline-view :tree-selection (ui/selection tree-view)))))
     (doto tree-view
-      (.setSkin (ExtendedTreeViewSkin. tree-view))
       (ui/customize-tree-view! {:double-click-expand true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e 
@@ -792,7 +791,7 @@
                                                                                              resource/Resource :link}))))
 
 (defn make-outline-view [view-graph project app-view localization]
-  (let [tree-view (doto (TreeView.)
+  (let [tree-view (doto (ExtendedTreeView.)
                     (.setId "outline")
                     (.setPrefWidth 269.0)
                     (.setPrefHeight 326.0))
