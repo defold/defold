@@ -1698,18 +1698,19 @@
       (when (and (= :secondary (:button action)) is-perspective?)
         (when-let [tab-content (find-tab-content image-view)]
           (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
+        ;; TODO: This is wrong, we need to wait till we drag a little bit before establishing that we are in free-camera-mode
         (g/set-property! camera-id :free-camera-mode true)
         #_(g/update-property! view-id :input-state assoc :cursor-lock-pos [(:screen-x action) (:screen-y action)])
-        (println "captured")
+        (g/set-property! camera-id :cursor-type :none)
         (i/start-mouse-capture))
 
       :mouse-released
       (when (= :secondary (:button action))
         (when-let [tab-content (find-tab-content image-view)]
           (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
-        (g/set-property! camera-id :free-camera-mode false)
+        #_(g/set-property! camera-id :free-camera-mode false)
         #_(g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
-        (println "released")
+        (g/set-property! camera-id :cursor-type :default)
         (i/stop-mouse-capture))
 
       nil)))
@@ -1741,6 +1742,7 @@
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
                                   (handle-free-camera-mode! view-id image-view action))
+
                                 (g/transact
                                   (concat
                                     (g/set-property view-id :cursor-pos [x y])

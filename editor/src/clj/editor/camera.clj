@@ -713,7 +713,8 @@
                                           :movement movement)
                        (when (= movement :idle)
                          action))
-      :mouse-released (let [dragging (:is-dragging (g/user-data self ::ui-state))]
+      :mouse-released (let [dragging (:is-dragging (g/user-data self ::ui-state))
+                            free-camera-mode (g/node-value self :free-camera-mode)]
                         (g/user-data-swap! self ::ui-state assoc
                                            :last-x nil
                                            :last-y nil
@@ -722,10 +723,13 @@
                                            :is-dragging false
                                            :movement :idle)
                         (g/set-property! self :cursor-type :default)
+                        (when free-camera-mode
+                          (g/set-property! self :free-camera-mode false))
                         (if (or (= movement :idle)
                                 (and is-secondary
                                      (not dragging)
-                                     (not is-significant-drag)))
+                                     (not is-significant-drag)
+                                     (not free-camera-mode)))
                           action
                           nil))
       :mouse-moved (if (not (= :idle movement))
@@ -738,7 +742,7 @@
                                                   (not is-secondary))
                                             :pan
                                             :none)))
-                       (if is-secondary action nil))
+                       (if is-secondary nil action))
                      action)
       action)))
 
