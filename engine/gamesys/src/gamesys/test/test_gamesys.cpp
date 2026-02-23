@@ -5183,6 +5183,54 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     dmResource::Release(m_Factory, material_res);
 }
 
+TEST_F(MaterialTest, TextureTransform2DAttribute)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_texture_transform_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttributeInfo* attributes;
+    uint32_t attribute_count;
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+
+    ASSERT_EQ(5u, attribute_count);
+
+    const dmGraphics::VertexAttributeInfo* tt_attr = 0;
+    uint32_t tt_ix = -1;
+    for (uint32_t i = 0; i < attribute_count; ++i)
+    {
+        if (attributes[i].m_NameHash == dmHashString64("texture_transform_2d"))
+        {
+            tt_attr = &attributes[i];
+            tt_ix = i;
+            break;
+        }
+    }
+    ASSERT_NE((void*)0, tt_attr);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D, tt_attr->m_SemanticType);
+    ASSERT_EQ(9u, tt_attr->m_ElementCount);
+    ASSERT_EQ(dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, tt_attr->m_VectorType);
+
+    float transform_expected[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
+
+    const uint8_t* value_ptr;
+    uint32_t num_values;
+    dmRender::GetMaterialProgramAttributeValues(material, tt_ix, &value_ptr, &num_values);
+
+    for (int i = 0; i < DM_ARRAY_SIZE(transform_expected); ++i)
+    {
+        float* f_ptr = (float*) value_ptr;
+        ASSERT_NEAR(transform_expected[i], f_ptr[i], EPSILON);
+    }
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 TEST_F(MaterialTest, ManyVertexStreamsLoad)
 {
     // Material with vertex shader that has more than 8 attribute streams (10 total)
