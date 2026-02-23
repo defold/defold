@@ -786,7 +786,7 @@ namespace dmGameSystem
         // Global channels (data repeated per vertex)
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PageIndices, pi_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, pi_channels_count, true);
-        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransforms, tt_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, tt_channels_count, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransform2D, tt_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, tt_channels_count, true);
     }
 
     static inline void GetPivot(const AnimationData* animation_data, float* out_x_pivot, float* out_y_pivot)
@@ -816,6 +816,7 @@ namespace dmGameSystem
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
         dmArray<dmVMath::Vector4>* scratch_positions_world,
         dmArray<dmVMath::Vector4>* scratch_positions_local,
         dmGraphics::VertexAttributeInfos* sprite_infos)
@@ -898,7 +899,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = (float*) &anim_data->m_PageIndices[i];
-            // m_TextureTransforms
+            scratch_tt_ptrs[i] = (float*) &anim_data->m_TextureTransforms[i];
             uv_channels_count++;
         }
 
@@ -927,7 +928,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[0] = uvs.Begin();
             scratch_pi_ptrs[0] = (float*) &anim_data->m_PageIndices[0];
-            // m_TextureTransforms??
+            scratch_tt_ptrs[0] = (float*) &anim_data->m_TextureTransforms[0];
             uv_channels_count  = 1;
         }
 
@@ -967,6 +968,8 @@ namespace dmGameSystem
             (const float**) scratch_uv_ptrs,
             uv_channels_count,
             (const float**) scratch_pi_ptrs,
+            uv_channels_count,
+            (const float**) scratch_tt_ptrs,
             uv_channels_count);
 
         // We always use the first geometry for the vertices
@@ -1101,6 +1104,18 @@ namespace dmGameSystem
             data->m_PageIndices[i]  = (float) page_indices[frame_index];
             data->m_Geometries[i]   = &geometries[frame_index];
 
+            const float* tex_coords = (const float*) texture_set_ddf->m_TexCoords.m_Data;
+            const float* tc         = &tex_coords[frame_index * 4 * 2];
+
+            // Vertex order differs for unrotated vs rotated quads (TextureSetGenerator.java).
+            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+            float u0 = tc[0];
+            float v0 = uv_rotated ? tc[7] : tc[1];
+            float w  = uv_rotated ? (tc[2] - tc[0]) : (tc[4] - tc[0]);
+            float h  = uv_rotated ? (tc[1] - tc[7]) : (tc[3] - tc[1]);
+
+            data->m_TextureTransforms[i] = dmVMath::Vector4(u0, v0, w, h);
+
             uses_geometries |= data->m_Geometries[i]->m_TrimMode != dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
         }
 
@@ -1190,7 +1205,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &data->m_PageIndices[i];
-            tex_transform_ptrs[i] = tc;
+            tex_transform_ptrs[i] = (float*) &data->m_TextureTransforms[i];
         }
 
         if (texture_num == 0)
@@ -1230,6 +1245,7 @@ namespace dmGameSystem
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
         float scale_x, float scale_y, int reverse)
     {
         uint32_t num_vertices = anim_data->m_Geometries[0]->m_Vertices.m_Count / 2;
@@ -1246,6 +1262,7 @@ namespace dmGameSystem
 
             scratch_uv_ptrs[i] = uvs.Begin();
             scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
+            scratch_tt_ptrs[i] = (float*) &anim_data->m_TextureTransforms[i];
 
             TextureSetResource* texture_set_resource = GetTextureSetByIndex(component, i);
             dmGameSystemDDF::TextureSet* texture_set = texture_set_resource->m_TextureSet;
@@ -1363,6 +1380,7 @@ namespace dmGameSystem
         // The list of pointers to the scratch uvs and page indices
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
+        float* scratch_tt_ptrs[MAX_TEXTURE_COUNT] = {};
 
         dmGraphics::VertexAttributeInfos* scratch_attribute_infos = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);
         dmGraphics::WriteAttributeParams write_params = {};
@@ -1422,7 +1440,7 @@ namespace dmGameSystem
                 // to respect face winding (and backface culling)
                 int reverse = flipx ^ flipy;
 
-                ResolvePositionAndUVDataFromGeometry(component, animations, sprite_world->m_ScratchPositionWorld, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs, scaleX, scaleY, reverse);
+                ResolvePositionAndUVDataFromGeometry(component, animations, sprite_world->m_ScratchPositionWorld, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs, scratch_tt_ptrs, scaleX, scaleY, reverse);
 
                 if (has_local_position_attribute)
                 {
@@ -1440,6 +1458,8 @@ namespace dmGameSystem
                     (const float**) scratch_uv_ptrs,
                     textures_num,
                     (const float**) scratch_pi_ptrs,
+                    textures_num,
+                    (const float**) scratch_tt_ptrs,
                     textures_num);
 
                 uint32_t num_vertices = sprite_world->m_ScratchPositionWorld.Size();
@@ -1518,6 +1538,7 @@ namespace dmGameSystem
                         sprite_world->m_ScratchUVs,
                         scratch_uv_ptrs,
                         scratch_pi_ptrs,
+                        scratch_tt_ptrs,
                         &sprite_world->m_ScratchPositionWorld,
                         &sprite_world->m_ScratchPositionLocal,
                         scratch_attribute_infos);
@@ -1533,7 +1554,7 @@ namespace dmGameSystem
                     //    Thus we can use the corresponding quad for each image
                     // B) The first image is a quad, and any remapping
                     //    for any subsequent geometry would yield a quad anyways.
-                    ResolveUVDataFromQuads(component, animations, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs);
+                    ResolveUVDataFromQuads(component, animations, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs, scratch_tt_ptrs);
 
                     // We always use the first geometry for the vertices
                     float pivot_x = 0.f;
@@ -1578,6 +1599,8 @@ namespace dmGameSystem
                         (const float**) scratch_uv_ptrs,
                         uv_channels_count,
                         (const float**) scratch_pi_ptrs,
+                        uv_channels_count,
+                        (const float**) scratch_tt_ptrs,
                         uv_channels_count);
 
                     vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
