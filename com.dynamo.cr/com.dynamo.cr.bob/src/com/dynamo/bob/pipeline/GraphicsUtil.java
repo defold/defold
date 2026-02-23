@@ -212,7 +212,6 @@ public class GraphicsUtil {
                     }
                     break;
                 case 9:
-                    // mat3: e.g. SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D or custom mat3 attributes
                     attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
                     break;
                 case 16:

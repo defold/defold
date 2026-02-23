@@ -191,9 +191,8 @@
             (assoc vtx 0 x 1 y)))
         vertices))
 
-;; Full 2D affine from unit square to atlas quad (supports rotation). Matches engine comp_sprite.
-;; Corners: 0=TL, 1=TR, 2=BR, 3=BL. Column-major 3x3: col0=(1,0) edge, col1=(0,1) edge, col2=translation.
-(defn- tex-coords->texture-transform [[tl tr _br bl]]
+;; Construct a complete 2D affine matrix from unit square to atlas quad.
+(defn- tex-coords->texture-transform-2d [[tl tr _br bl]]
   (let [u0 (double (nth tl 0))
         v0 (double (nth tl 1))
         u1 (double (nth tr 0))
@@ -212,6 +211,7 @@
   (let [use-geometries (:use-geometries animation-frame)
         corner-points (corner-points size pivot)
         line-data (corner-points->line-data corner-points)
+        tex-coords (:tex-coords animation-frame)
 
         position-data
         (if use-geometries
@@ -229,12 +229,14 @@
 
         uv-data
         (if use-geometries
-          (let [tex-coords (:vertex-tex-coords animation-frame)
+          (let [vertex-tex-coords (:vertex-tex-coords animation-frame)
                 indices (:indices animation-frame)]
-            (mapv tex-coords indices))
-          (let [[uvnw uvsw uvse uvne] (:tex-coords animation-frame)]
+            (mapv vertex-tex-coords indices))
+          (let [[uvnw uvsw uvse uvne] tex-coords]
             [uvnw uvne uvsw uvne uvse uvsw]))
-        texture-transform (tex-coords->texture-transform (:tex-coords animation-frame))]
+
+        texture-transform
+        (tex-coords->texture-transform-2d tex-coords)]
 
     {:position-data position-data
      :uv-data uv-data
@@ -266,7 +268,9 @@
                   (and (= :size-mode-manual size-mode)
                        (slice9/sliced? slice9))
                   (-> (slice9/vertex-data animation-frame size slice9 pivot)
-                      (assoc :texture-transform texture-transform-identity))
+                      (assoc :texture-transform (if-some [tex-coords (:tex-coords animation-frame)]
+                                                  (tex-coords->texture-transform-2d tex-coords)
+                                                  texture-transform-identity)))
 
                   :else
                   (frame-vertex-data animation-frame size pivot))

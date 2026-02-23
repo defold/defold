@@ -864,7 +864,9 @@
                 (boolean (:has-semantic-type-normal-matrix renderable-data))
 
                 :semantic-type-texture-transform-2d
-                ;; Per-channel 3x3 from atlas sub-region (same as engine sprites).
+                ;; We support multiple sets of texture transforms. Usually,
+                ;; the mesh data will provide this data in tandem with the
+                ;; texture coordinates (but not limited to).
                 (some? (get-in texcoord-datas [channel :texture-transform]))
 
                 false))))]
@@ -951,8 +953,8 @@
                     (put-renderables! attribute-byte-offset put-attribute-doubles!
                                       (fn renderable-data->texture-transforms [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              tt (get-in renderable-data [:texcoord-datas channel :texture-transform])]
-                                          (repeat vertex-count tt)))))
+                                              texture-transform (get-in renderable-data [:texcoord-datas channel :texture-transform])]
+                                          (repeat vertex-count texture-transform)))))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides. If the material does not declare an
