@@ -467,7 +467,7 @@
       :capabilities-pred :document-symbol
       :language (resource/language resource)
       :requests [(lsp.server/document-symbols resource)]
-      :timeout-ms 3000)))
+      :timeout-ms 5000)))
 
 (defn- schedule-debounce [state id timeout-ms state-fn]
   {:pre [(some? id) (pos-int? timeout-ms) (ifn? state-fn)]}

@@ -103,7 +103,7 @@
 
 (defonce/protocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
-  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row] "Draws the gutter into the specified Rect."))
+  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursor-ranges focus-state hovered-row] "Draws the gutter into the specified Rect."))
 
 (defonce/record CursorRangeDrawInfo [type fill stroke cursor-range])
 
@@ -185,11 +185,12 @@
     (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
-  (let [^Color foreground-color (Color/valueOf "#DDDDDD")
-        ^Color background-color (Color/valueOf "#27292D")
-        ^Color selection-background-color (Color/valueOf "#4E4A46")
-        ^Color execution-marker-color (Color/valueOf "#FBCE2F")
-        ^Color execution-marker-frame-color (.deriveColor execution-marker-color 0.0 1.0 1.0 0.5)]
+  (let [foreground-color (Color/valueOf "#DDDDDD")
+        background-color (Color/valueOf "#27292D")
+        selection-background-color (Color/valueOf "#4E4A46")
+        execution-marker-color (Color/valueOf "#FBCE2F")
+        execution-marker-frame-color (.deriveColor execution-marker-color 0.0 1.0 1.0 0.5)
+        gutter-background-color (Color/valueOf "#393C41")]
     [["editor.foreground" foreground-color]
      ["editor.background" background-color]
      ["editor.cursor" Color/WHITE]
@@ -202,7 +203,8 @@
      ["editor.execution-marker.frame" execution-marker-frame-color]
      ["editor.gutter.foreground" (Color/valueOf "#A2B0BE")]
      ["editor.gutter.background" background-color]
-     ["editor.gutter.cursor.line.background" (Color/valueOf "#393C41")]
+     ["editor.gutter.cursor.line.background" gutter-background-color]
+     ["editor.gutter.cursor.line.background.inactive" (.deriveColor gutter-background-color 0.0 0.0 0.8 1.0)]
      ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
      ["editor.gutter.execution-marker.current" execution-marker-color]
      ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
@@ -210,7 +212,7 @@
      ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
      ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
-     ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
+     ["editor.minimap.viewed.range" gutter-background-color]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
      ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
@@ -562,7 +564,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element hovered-row ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element hovered-row ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursor-ranges focus-state visible-indentation-guides? visible-minimap? visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -670,7 +672,7 @@
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
       (when (< 0.0 (.w gutter-rect))
-        (draw-gutter! gutter-view gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row)))))
+        (draw-gutter! gutter-view gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursor-ranges focus-state hovered-row)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -850,12 +852,12 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element hovered-row indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
+(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers focus-state font grammar gutter-view hovered-element hovered-row indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursor-ranges visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
   canvas-repaint-info)
 
-(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
+(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers focus-state font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursor-ranges visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element hovered-row layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursor-ranges focus-state visible-indentation-guides? visible-minimap? visible-whitespace))
   nil)
 
 (g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
@@ -1336,7 +1338,8 @@
                         :operator "M2.87313 1.10023C3.20793 1.23579 3.4757 1.498 3.61826 1.82988C3.69056 1.99959 3.72699 2.18242 3.72526 2.36688C3.72642 2.54999 3.69 2.7314 3.61826 2.89988C3.51324 3.14567 3.33807 3.35503 3.11466 3.50177C2.89126 3.64851 2.62955 3.72612 2.36226 3.72488C2.17948 3.72592 1.99842 3.68951 1.83026 3.61788C1.58322 3.51406 1.37252 3.33932 1.22478 3.11575C1.07704 2.89219 0.99891 2.62984 1.00026 2.36188C0.999374 2.17921 1.03543 1.99825 1.10626 1.82988C1.24362 1.50314 1.50353 1.24323 1.83026 1.10588C2.16357 0.966692 2.53834 0.964661 2.87313 1.10023ZM2.57526 2.86488C2.70564 2.80913 2.80951 2.70526 2.86526 2.57488C2.89314 2.50838 2.90742 2.43698 2.90726 2.36488C2.90838 2.2654 2.88239 2.1675 2.8321 2.08167C2.7818 1.99584 2.70909 1.92531 2.62176 1.87767C2.53443 1.83002 2.43577 1.80705 2.33638 1.81121C2.23698 1.81537 2.1406 1.8465 2.05755 1.90128C1.97451 1.95606 1.90794 2.03241 1.865 2.12215C1.82205 2.21188 1.80434 2.31161 1.81376 2.41065C1.82319 2.50968 1.85939 2.60428 1.9185 2.6843C1.9776 2.76433 2.05738 2.82675 2.14926 2.86488C2.28574 2.92089 2.43878 2.92089 2.57526 2.86488ZM6.43019 1.1095L1.10992 6.42977L1.79581 7.11567L7.11608 1.7954L6.43019 1.1095ZM11.5002 8.99999H12.5002V11.5H15.0002V12.5H12.5002V15H11.5002V12.5H9.00024V11.5H11.5002V8.99999ZM5.76801 9.52509L6.47512 10.2322L4.70735 12L6.47512 13.7677L5.76801 14.4748L4.00024 12.7071L2.23248 14.4748L1.52537 13.7677L3.29314 12L1.52537 10.2322L2.23248 9.52509L4.00024 11.2929L5.76801 9.52509ZM7.11826 5.32988C7.01466 5.08268 6.83997 4.87183 6.61636 4.72406C6.39275 4.57629 6.13028 4.49826 5.86226 4.49988C5.6796 4.49899 5.49864 4.53505 5.33026 4.60588C5.00353 4.74323 4.74362 5.00314 4.60626 5.32988C4.53612 5.49478 4.49922 5.67191 4.49766 5.8511C4.4961 6.0303 4.52992 6.20804 4.59718 6.37414C4.66443 6.54024 4.76381 6.69143 4.88961 6.81906C5.0154 6.94669 5.16515 7.04823 5.33026 7.11788C5.49892 7.18848 5.67993 7.22484 5.86276 7.22484C6.0456 7.22484 6.22661 7.18848 6.39526 7.11788C6.64225 7.01388 6.85295 6.83913 7.00082 6.61563C7.1487 6.39213 7.22713 6.12987 7.22626 5.86188C7.22679 5.67905 7.19005 5.49803 7.11826 5.32988ZM6.36526 6.07488C6.3379 6.13937 6.29854 6.19808 6.24926 6.24788C6.19932 6.29724 6.14066 6.33691 6.07626 6.36488C6.00878 6.39297 5.93635 6.40725 5.86326 6.40688C5.79015 6.40744 5.71769 6.39315 5.65026 6.36488C5.58565 6.33729 5.52693 6.29757 5.47726 6.24788C5.42715 6.19856 5.38738 6.13975 5.36026 6.07488C5.30425 5.9384 5.30425 5.78536 5.36026 5.64888C5.41561 5.51846 5.51965 5.41477 5.65026 5.35988C5.71761 5.33126 5.79008 5.31663 5.86326 5.31688C5.93642 5.31685 6.00884 5.33147 6.07626 5.35988C6.14062 5.38749 6.19928 5.42682 6.24926 5.47588C6.2981 5.52603 6.33741 5.58465 6.36526 5.64888C6.39364 5.7163 6.40827 5.78872 6.40827 5.86188C6.40827 5.93503 6.39364 6.00745 6.36526 6.07488ZM14.0002 3H10.0002V4H14.0002V3Z"
                         :type-parameter "M11.0003 6H10.0003V5.5C10.0003 5.22386 9.7764 5 9.50026 5H8.47926V10.5C8.47926 10.7761 8.70312 11 8.97926 11H9.47926V12H6.47926V11H6.97926C7.2554 11 7.47926 10.7761 7.47926 10.5V5H6.50026C6.22412 5 6.00026 5.22386 6.00026 5.5V6H5.00026V4H11.0003V6ZM13.9145 8.0481L12.4522 6.58581L13.1593 5.87871L14.9751 7.69454V8.40165L13.2074 10.1694L12.5003 9.46231L13.9145 8.0481ZM3.54835 9.4623L2.08605 8.00002L3.50026 6.58581L2.79316 5.8787L1.02539 7.64647V8.35357L2.84124 10.1694L3.54835 9.4623Z"
                         :keyword "M15.0002 4H10.0002V3H15.0002V4ZM14.0002 7H12.0002V8H14.0002V7ZM10.0002 7H1.00024V8H10.0002V7ZM12.0002 13H1.00024V14H12.0002V13ZM7.00024 10H1.00024V11H7.00024V10ZM15.0002 10H10.0002V11H15.0002V10ZM8.00024 2V5H1.00024V2H8.00024ZM7.00024 3H2.00024V4H7.00024V3Z"
-                        :null "M8.00024 1C9.38471 1 10.7381 1.41054 11.8892 2.17971C13.0404 2.94888 13.9376 4.04213 14.4674 5.32122C14.9972 6.6003 15.1358 8.00777 14.8657 9.36563C14.5956 10.7235 13.929 11.9708 12.95 12.9497C11.971 13.9287 10.7237 14.5954 9.36587 14.8655C8.00801 15.1356 6.60054 14.997 5.32146 14.4672C4.04237 13.9373 2.94912 13.0401 2.17995 11.889C1.41078 10.7378 1.00024 9.38447 1.00024 8C1.00236 6.14413 1.74054 4.36489 3.05283 3.05259C4.36513 1.7403 6.14438 1.00212 8.00024 1ZM2.00024 8C1.99946 9.41814 2.50396 10.7902 3.42324 11.87L11.8702 3.423C10.9978 2.68282 9.93164 2.20787 8.79785 2.05426C7.66405 1.90065 6.50998 2.0748 5.47201 2.55614C4.43403 3.03748 3.55554 3.80588 2.94033 4.77056C2.32512 5.73523 1.9989 6.85585 2.00024 8ZM14.0002 8C14.001 6.58186 13.4965 5.20983 12.5772 4.13L4.13024 12.577C5.00272 13.3172 6.06885 13.7921 7.20264 13.9457C8.33643 14.0994 9.4905 13.9252 10.5285 13.4439C11.5664 12.9625 12.4449 12.1941 13.0602 11.2294C13.6754 10.2648 14.0016 9.14415 14.0002 8Z")}}))
+                        :null "M8.00024 1C9.38471 1 10.7381 1.41054 11.8892 2.17971C13.0404 2.94888 13.9376 4.04213 14.4674 5.32122C14.9972 6.6003 15.1358 8.00777 14.8657 9.36563C14.5956 10.7235 13.929 11.9708 12.95 12.9497C11.971 13.9287 10.7237 14.5954 9.36587 14.8655C8.00801 15.1356 6.60054 14.997 5.32146 14.4672C4.04237 13.9373 2.94912 13.0401 2.17995 11.889C1.41078 10.7378 1.00024 9.38447 1.00024 8C1.00236 6.14413 1.74054 4.36489 3.05283 3.05259C4.36513 1.7403 6.14438 1.00212 8.00024 1ZM2.00024 8C1.99946 9.41814 2.50396 10.7902 3.42324 11.87L11.8702 3.423C10.9978 2.68282 9.93164 2.20787 8.79785 2.05426C7.66405 1.90065 6.50998 2.0748 5.47201 2.55614C4.43403 3.03748 3.55554 3.80588 2.94033 4.77056C2.32512 5.73523 1.9989 6.85585 2.00024 8ZM14.0002 8C14.001 6.58186 13.4965 5.20983 12.5772 4.13L4.13024 12.577C5.00272 13.3172 6.06885 13.7921 7.20264 13.9457C8.33643 14.0994 9.4905 13.9252 10.5285 13.4439C11.5664 12.9625 12.4449 12.1941 13.0602 11.2294C13.6754 10.2648 14.0016 9.14415 14.0002 8Z"
+                        "")}}))
 
 ;; endregion
 
@@ -3768,7 +3771,7 @@
     (let [gutter-margin (data/line-height glyph-metrics)]
       (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
 
-  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row]
+  (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursor-ranges focus-state hovered-row]
     (let [^GraphicsContext gc gc
           ^Rect gutter-rect gutter-rect
           ^LayoutInfo layout layout
@@ -3778,7 +3781,9 @@
           gutter-background-color (color-lookup color-scheme "editor.gutter.background")
           gutter-shadow-color (color-lookup color-scheme "editor.gutter.shadow")
           gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
-          gutter-cursor-line-background-color (color-lookup color-scheme "editor.gutter.cursor.line.background")
+          gutter-cursor-line-background-color (color-lookup color-scheme (if (= :input-focused focus-state)
+                                                                            "editor.gutter.cursor.line.background"
+                                                                            "editor.gutter.cursor.line.background.inactive"))
           gutter-execution-marker-current-color (color-lookup color-scheme "editor.gutter.execution-marker.current")
           gutter-execution-marker-frame-color (color-lookup color-scheme "editor.gutter.execution-marker.frame")]
 
@@ -3793,8 +3798,9 @@
       (.setFill gc gutter-cursor-line-background-color)
       (let [highlight-width (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))
             highlight-height (dec line-height)]
-        (doseq [^Cursor cursor visible-cursors]
-          (let [y (+ (data/row->y layout (.row cursor)) 0.5)]
+        (doseq [cursor-range visible-cursor-ranges]
+          (let [^Cursor cursor (data/CursorRange->Cursor cursor-range)
+                y (+ (data/row->y layout (.row cursor)) 0.5)]
             (.fillRect gc 0 y highlight-width highlight-height))))
 
       ;; Draw line numbers and markers in gutter.
