@@ -299,7 +299,7 @@
                                                     [org.openjfx/javafx-media "25"]
                                                     [org.openjfx/javafx-fxml "25"]
                                                     [org.openjfx/javafx-swing "25"]
-                                                    [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
+                                                    [com.clojure-goes-fast/clj-async-profiler "2.0.0-beta1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [io.github.cljfx/dev "1.10.6.42"]
