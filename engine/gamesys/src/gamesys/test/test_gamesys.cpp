@@ -6023,20 +6023,10 @@ TEST_F(ModelTest, GetAABB)
 
 TEST_F(ModelTest, PlayAnim)
 {
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    scriptlibcontext.m_JobContext      = m_JobContext;
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_done", 5));
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_done", 5));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
