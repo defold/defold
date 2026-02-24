@@ -674,14 +674,18 @@
   (fn ReferencedComponent-getter [_node-id property _evaluation-context]
     (case property
       "type" constantly-ext-referenced-component-type
-      nil)))
+      nil))
+  (fn ReferencedComponent-lister [_node-id _evaluation-context]
+    ["type"]))
 
 (ext-graph/register-property-getter!
   ::EmbeddedComponent
   (fn EmbeddedComponent-getter [node-id property evaluation-context]
     (case property
       "type" #(resource/ext (g/node-value node-id :source-resource evaluation-context))
-      nil)))
+      nil))
+  (fn EmbeddedComponent-lister [_node-id _evaluation-context]
+    ["type"]))
 
 (defmethod ext-graph/extract-node-type [::GameObjectNode :components]
   [rt attachment workspace _node-id _list-kw evaluation-context]
