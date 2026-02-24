@@ -1697,8 +1697,14 @@
       :drag-detected
       (when (and (= :secondary (:button action)) is-perspective?)
         (toggle-free-cam-css image-view true)
-        (g/set-property! camera-id :free-camera-mode true)
-        (g/set-property! camera-id :cursor-type :none)
+        (let [current-camera (g/node-value camera-id :local-camera)
+              [pitch yaw _] (math/quat->euler (:rotation current-camera))]
+          (g/set-property! camera-id :free-camera-mode true)
+          (g/set-property! camera-id :cursor-type :none)
+          (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
+                                                   :pitch pitch
+                                                   :yaw yaw
+                                                   :smoothed-look-delta [0.0 0.0]}))
         (i/start-mouse-capture))
 
       :mouse-released
@@ -1706,7 +1712,8 @@
         (toggle-free-cam-css image-view false)
         (g/set-property! camera-id :cursor-type :default)
         (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
-                                                 :angular-velocity (Quat4d. 0.0 0.0 0.0 1.0)
+                                                 :pitch 0.0
+                                                 :yaw 0.0
                                                  :smoothed-look-delta [0.0 0.0]})
         (i/stop-mouse-capture))
 

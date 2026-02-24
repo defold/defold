@@ -756,7 +756,8 @@
   (property cursor-type g/Keyword)
   (property free-camera-mode g/Bool)
   (property free-camera g/Any (default {:velocity (Vector3d. 0.0 0.0 0.0)
-                                        :angular-velocity (Quat4d. 0.0 0.0 0.0 1.0)
+                                        :pitch 0.0
+                                        :yaw 0.0
                                         :smoothed-look-delta [0.0 0.0]}))
 
   (input scene-aabb AABB)
@@ -769,7 +770,7 @@
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn look-delta [camera-node current-camera free-camera dx dy look-sensitivity invert-y? dt]
-  (let [smoothed-look-delta (:smoothed-look-delta free-camera)
+  (let [{:keys [pitch yaw smoothed-look-delta]} free-camera
         [prev-dx prev-dy] smoothed-look-delta
         look-smoothing (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :mouse-smoothing])
         alpha (- 1.0 (Math/exp (* -25.0 look-smoothing dt)))
@@ -777,16 +778,15 @@
         smooth-dy (+ prev-dy (* alpha (- dy prev-dy)))]
     (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
       (let [smooth-dy (* smooth-dy (if invert-y? -1 1))
-            [rx ry rz] (math/quat->euler (:rotation current-camera))
-            yaw (+ ry (* smooth-dx look-sensitivity))
-            pitch (max -86.0 (min 86.0 (+ rx (* smooth-dy look-sensitivity))))
-            new-rotation (math/euler->quat [pitch yaw rz])
+            new-yaw (+ yaw (* smooth-dx look-sensitivity))
+            new-pitch (max -86.0 (min 86.0 (+ pitch (* smooth-dy look-sensitivity))))
+            new-rotation (math/euler->quat [new-pitch new-yaw 0.0])
             focus-distance (:focus-distance current-camera)
             new-camera (assoc current-camera :rotation new-rotation)
             new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
             new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
-        [(assoc new-camera :rotation new-rotation :focus-point new-focus)
-         (assoc free-camera :smoothed-look-delta [smooth-dx smooth-dy])])
+        [(assoc new-camera :focus-point new-focus)
+         (assoc free-camera :pitch new-pitch :yaw new-yaw :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
 
 (defn wasd-move
