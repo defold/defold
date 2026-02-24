@@ -768,12 +768,13 @@
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
-(defn look-delta [camera-node current-camera free-camera dx dy look-sensitivity invert-y?]
+(defn look-delta [camera-node current-camera free-camera dx dy look-sensitivity invert-y? dt]
   (let [smoothed-look-delta (:smoothed-look-delta free-camera)
         [prev-dx prev-dy] smoothed-look-delta
         look-smoothing (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :mouse-smoothing])
-        smooth-dx (+ prev-dx (* look-smoothing (- dx prev-dx)))
-        smooth-dy (+ prev-dy (* look-smoothing (- dy prev-dy)))]
+        alpha (- 1.0 (Math/exp (* -25.0 look-smoothing dt)))
+        smooth-dx (+ prev-dx (* alpha (- dx prev-dx)))
+        smooth-dy (+ prev-dy (* alpha (- dy prev-dy)))]
     (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
       (let [smooth-dy (* smooth-dy (if invert-y? -1 1))
             [rx ry rz] (math/quat->euler (:rotation current-camera))

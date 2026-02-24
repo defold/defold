@@ -1114,7 +1114,8 @@
                                                           (- (double dx))
                                                           (- (double dy))
                                                           (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
-                                                          (prefs/get prefs [:scene :perspective-camera :invert-y])))
+                                                          (prefs/get prefs [:scene :perspective-camera :invert-y])
+                                                          dt))
                                           [current-camera free-camera])
         key-for-command (fn [cmd] (some-> (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                           (.getCode)))
@@ -1703,8 +1704,10 @@
       :mouse-released
       (when (= :secondary (:button action))
         (toggle-free-cam-css image-view false)
-        #_(g/set-property! camera-id :free-camera-mode false)
         (g/set-property! camera-id :cursor-type :default)
+        (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
+                                                 :angular-velocity (Quat4d. 0.0 0.0 0.0 1.0)
+                                                 :smoothed-look-delta [0.0 0.0]})
         (i/stop-mouse-capture))
 
       nil)))
