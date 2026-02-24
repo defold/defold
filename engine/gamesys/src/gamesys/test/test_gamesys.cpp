@@ -5339,6 +5339,115 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ComponentTest, SpriteTextureTransformMultiAtlasVertexBuffer)
+{
+    // Expected transforms from the two texturesets used by the sprite.
+    float expected_tt0[9];
+    {
+        dmGameSystem::TextureSetResource* ts_res = 0;
+        ASSERT_EQ(dmResource::RESULT_OK,
+                  dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**)&ts_res));
+        ASSERT_NE((void*)0, ts_res);
+
+        const dmGameSystemDDF::TextureSet* ts_ddf = ts_res->m_TextureSet;
+        const uint32_t frame_index = 0;
+        ASSERT_TRUE(ts_ddf->m_TexCoords.m_Count >= (frame_index + 1u) * 8u * sizeof(float));
+
+        const float* tc = (const float*) ts_ddf->m_TexCoords.m_Data;
+        tc += frame_index * 8u;
+
+        expected_tt0[0] = tc[2] - tc[0];
+        expected_tt0[1] = tc[3] - tc[1];
+        expected_tt0[2] = 0.0f;
+        expected_tt0[3] = tc[6] - tc[0];
+        expected_tt0[4] = tc[7] - tc[1];
+        expected_tt0[5] = 0.0f;
+        expected_tt0[6] = tc[0];
+        expected_tt0[7] = tc[1];
+        expected_tt0[8] = 1.0f;
+
+        dmResource::Release(m_Factory, ts_res);
+    }
+
+    float expected_tt1[9];
+    {
+        dmGameSystem::TextureSetResource* ts_res = 0;
+        ASSERT_EQ(dmResource::RESULT_OK,
+                  dmResource::Get(m_Factory, "/tile/valid2.t.texturesetc", (void**)&ts_res));
+        ASSERT_NE((void*)0, ts_res);
+
+        const dmGameSystemDDF::TextureSet* ts_ddf = ts_res->m_TextureSet;
+        const uint32_t frame_index = 0;
+        ASSERT_TRUE(ts_ddf->m_TexCoords.m_Count >= (frame_index + 1u) * 8u * sizeof(float));
+
+        const float* tc = (const float*) ts_ddf->m_TexCoords.m_Data;
+        tc += frame_index * 8u;
+
+        expected_tt1[0] = tc[2] - tc[0];
+        expected_tt1[1] = tc[3] - tc[1];
+        expected_tt1[2] = 0.0f;
+        expected_tt1[3] = tc[6] - tc[0];
+        expected_tt1[4] = tc[7] - tc[1];
+        expected_tt1[5] = 0.0f;
+        expected_tt1[6] = tc[0];
+        expected_tt1[7] = tc[1];
+        expected_tt1[8] = 1.0f;
+
+        dmResource::Release(m_Factory, ts_res);
+    }
+
+    // Load material to get vertex declaration (stride and offsets for both transforms).
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK,
+              dmResource::Get(m_Factory, "/material/attributes_texture_transform_multi.materialc", (void**)&material_res));
+    ASSERT_NE((void*)0, material_res);
+
+    dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material_res->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    ASSERT_NE((dmGraphics::HVertexDeclaration)0, vx_decl);
+
+    uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+    uint32_t tt0_offset = dmGraphics::GetVertexStreamOffset(vx_decl, dmHashString64("texture_transform_2d_0"));
+    uint32_t tt1_offset = dmGraphics::GetVertexStreamOffset(vx_decl, dmHashString64("texture_transform_2d_1"));
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, tt0_offset);
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, tt1_offset);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_multi.goc", dmHashString64("/sprite"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*)0, sprite_world);
+
+    dmRender::BufferedRenderBuffer* vx_buffer = 0;
+    dmRender::BufferedRenderBuffer* ix_buffer = 0;
+    dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world, &vx_buffer, &ix_buffer);
+    ASSERT_NE((void*)0, vx_buffer);
+    ASSERT_TRUE(vx_buffer->m_Buffers.Size() > 0);
+
+    const uint32_t vertex_count = 4;
+    ASSERT_EQ(vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Size);
+
+    const char* vb_base = ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Buffer;
+    const float* written_tt0 = (const float*)(vb_base + tt0_offset);
+    const float* written_tt1 = (const float*)(vb_base + tt1_offset);
+    for (int i = 0; i < 9; ++i)
+    {
+        ASSERT_NEAR(expected_tt0[i], written_tt0[i], EPSILON);
+        ASSERT_NEAR(expected_tt1[i], written_tt1[i], EPSILON);
+    }
+
+    dmResource::Release(m_Factory, material_res);
+    dmGameObject::Final(m_Collection);
+}
+
 TEST_F(MaterialTest, ManyVertexStreamsLoad)
 {
     // Material with vertex shader that has more than 8 attribute streams (10 total)
