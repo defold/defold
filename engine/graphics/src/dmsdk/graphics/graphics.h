@@ -1783,6 +1783,8 @@ namespace dmGraphics
      */
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);
 
+    struct ShaderDesc; // from graphics_ddf.h
+
     /*#
      * Creates a new shader program from a shader description.
      * 
