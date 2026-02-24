@@ -38,8 +38,9 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e])
-  (:import [com.defold.control ExtendedTreeViewSkin TreeCell]
+  (:import [com.defold.control ExtendedTreeView TreeCell]
            [java.awt Toolkit]
+           [javafx.collections ListChangeListener ObservableList]
            [javafx.geometry Orientation]
            [javafx.scene Node]
            [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
@@ -219,11 +220,8 @@
                           active-node-id->node-id-path->expanded))))]
     ret))
 
-(fxui/defc cljfx-tree-view
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization props)
-              :key :localization-state}
-             {:fx/type fxui/ext-memo
+(fxui/defc outline-tree-view
+  {:compose [{:fx/type fxui/ext-memo
               :fn decorate-outline
               :args [(:active-outline props)
                      (:hidden-node-outline-key-paths props)
@@ -265,31 +263,20 @@
       :desc
       {:fx/type fxui/ext-value :value tree-view}}}))
 
-(g/defnk update-tree-view [raw-tree-view
-                           selection
-                           active-outline
-                           hidden-node-outline-key-paths
-                           outline-name-paths
-                           localization
-                           app-view
-                           active-resource-node
-                           open-resource-nodes]
-  (doto raw-tree-view
-    (fxui/advance-ui-user-data-component!
-      ::tree
-      {:fx/type cljfx-tree-view
-       :tree-view raw-tree-view
-       :selection selection
-       :active-outline active-outline
-       :hidden-node-outline-key-paths hidden-node-outline-key-paths
-       :outline-name-paths outline-name-paths
-       :localization localization
-       :app-view app-view
-       :active-resource-node active-resource-node
-       :open-resource-nodes open-resource-nodes})))
+(def ^:private outline-message (localization/message "pane.outline"))
 
-(defn- item->value [^TreeItem item]
-  (.getValue item))
+(fxui/defc outline-pane-view
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [localization-state] :as props}]
+  {:fx/type fxui/titled-pane
+   :title (localization-state outline-message)
+   :content (assoc props :fx/type outline-tree-view)})
+
+(g/defnk produce-pane-desc
+  [tree-view selection active-outline hidden-node-outline-key-paths outline-name-paths
+   localization app-view active-resource-node open-resource-nodes
+   :as props]
+  (assoc props :fx/type outline-pane-view))
 
 (defn- alt-selection [selection]
   (let [alt-selection (mapv (fn [item]
@@ -300,10 +287,12 @@
       [])))
 
 (g/defnode OutlineView
-  (property raw-tree-view TreeView)
+  (property tree-view TreeView)
   (property localization g/Any)
+  (property tree-selection g/Any (default []))
 
   (input app-view g/NodeID)
+  (input outline-active g/Bool :substitute false)
   (input active-outline g/Any :substitute {})
   (input active-resource-node g/NodeID :substitute nil)
   (input open-resource-nodes g/Any :substitute [])
@@ -311,13 +300,7 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input outline-name-paths scene-visibility/OutlineNamePaths)
 
-  (output tree-view TreeView :cached update-tree-view)
-  (output tree-selection g/Any :cached (g/fnk [tree-view] (ui/selection tree-view)))
-  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (ui/selection-root-items tree-view :node-id)))
-  (output succeeding-tree-selection g/Any :cached (g/fnk [tree-view tree-selection-root-its]
-                                                    (ui/succeeding-selection tree-view tree-selection-root-its)))
-  (output alt-tree-selection g/Any :cached (g/fnk [tree-selection]
-                                                  (alt-selection tree-selection))))
+  (output pane-desc g/Any :cached produce-pane-desc))
 
 (handler/register-menu! ::outline-menu
   [menu-items/open-selected
@@ -392,14 +375,20 @@
    (g/with-auto-evaluation-context evaluation-context
      (root-iterators outline-view evaluation-context)))
   ([outline-view evaluation-context]
-   (g/node-value outline-view :tree-selection-root-its evaluation-context)))
+   (ui/selection-root-items
+     (g/node-value outline-view :tree-view evaluation-context)
+     :node-id)))
+
+(defn- outline-active? [outline-view evaluation-context]
+  (g/node-value outline-view :outline-active evaluation-context))
 
 (handler/defhandler :edit.delete :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
-            (and (< 0 (count selection))
-                 (-> (root-iterators outline-view evaluation-context)
-                   outline/delete?)))
+    (and (outline-active? outline-view evaluation-context)
+         (< 0 (count selection))
+         (-> (root-iterators outline-view evaluation-context)
+           outline/delete?)))
   (run [app-view selection selection-provider outline-view]
     (g/let-ec [basis (:basis evaluation-context)
                old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
@@ -426,7 +415,9 @@
 
 (handler/defhandler :edit.copy :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
-  (enabled? [selection] (< 0 (count selection)))
+  (enabled? [selection outline-view evaluation-context]
+    (and (outline-active? outline-view evaluation-context)
+         (< 0 (count selection))))
   (run [outline-view project]
        (let [root-its (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
@@ -443,12 +434,13 @@
 (handler/defhandler :edit.paste :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [project selection outline-view evaluation-context]
-            (let [cb (Clipboard/getSystemClipboard)
-                  target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
-                  data-format (data-format-fn)]
-              (and target-item-it
-                   (.hasContent cb data-format)
-                   (outline/paste? project target-item-it (.getContent cb data-format)))))
+    (and (outline-active? outline-view evaluation-context)
+         (let [cb (Clipboard/getSystemClipboard)
+               target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
+               data-format (data-format-fn)]
+           (and target-item-it
+                (.hasContent cb data-format)
+                (outline/paste? project target-item-it (.getContent cb data-format))))))
   (run [project outline-view app-view]
     (let [target-item-it (paste-target-it (root-iterators outline-view))
           cb (Clipboard/getSystemClipboard)
@@ -459,9 +451,10 @@
 (handler/defhandler :edit.cut :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
-            (let [item-iterators (root-iterators outline-view evaluation-context)]
-              (and (< 0 (count item-iterators))
-                   (outline/cut? item-iterators))))
+    (and (outline-active? outline-view evaluation-context)
+         (let [item-iterators (root-iterators outline-view evaluation-context)]
+           (and (< 0 (count item-iterators))
+                (outline/cut? item-iterators)))))
   (run [app-view selection-provider outline-view project]
        (let [item-iterators (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
@@ -633,13 +626,15 @@
 
 (handler/defhandler :edit.rename :outline
   (active? [selection outline-view]
-           (and (= 1 (count selection))
-                (when-let [node-id (-> (g/node-value outline-view :raw-tree-view)
-                                       (get-selected-node-id))]
-                  (editable-id? node-id))))
+    (and (= 1 (count selection))
+         (when-let [node-id (-> (g/node-value outline-view :tree-view)
+                                (get-selected-node-id))]
+           (editable-id? node-id))))
+  (enabled? [outline-view evaluation-context]
+    (outline-active? outline-view evaluation-context))
   (run [outline-view]
-       (let [^TreeView tree-view (g/node-value outline-view :raw-tree-view)]
-         (set-editing-id! tree-view (get-selected-node-id tree-view)))))
+    (let [^TreeView tree-view (g/node-value outline-view :tree-view)]
+      (set-editing-id! tree-view (get-selected-node-id tree-view)))))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
@@ -739,14 +734,14 @@
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
 
-(defonce/record SelectionProvider [outline-view]
+(defonce/record SelectionProvider [tree-view]
   handler/SelectionProvider
-  (selection [_this evaluation-context]
-    (g/node-value outline-view :tree-selection evaluation-context))
-  (succeeding-selection [_this evaluation-context]
-    (g/node-value outline-view :succeeding-tree-selection evaluation-context))
-  (alt-selection [_this evaluation-context]
-    (g/node-value outline-view :alt-tree-selection evaluation-context)))
+  (selection [_this _evaluation-context]
+    (ui/selection tree-view))
+  (succeeding-selection [_this _evaluation-context]
+    (ui/succeeding-selection tree-view (ui/selection-root-items tree-view :node-id)))
+  (alt-selection [_this _evaluation-context]
+    (alt-selection (ui/selection tree-view))))
 
 (defn key-pressed-handler!
   [app-view ^TreeView tree-view ^KeyEvent event]
@@ -773,9 +768,14 @@
 (defn- setup-tree-view [project ^TreeView tree-view outline-view app-view localization]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
+    (-> tree-view
+        .getSelectionModel
+        .getSelectedItems
+        (^[ListChangeListener] ObservableList/.addListener
+          (fn [_]
+            (g/set-property! outline-view :tree-selection (ui/selection tree-view)))))
     (doto tree-view
-      (.setSkin (ExtendedTreeViewSkin. tree-view))
-      (ui/customize-tree-view! {:double-click-expand? true})
+      (ui/customize-tree-view! {:double-click-expand true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e 
                             (drag-detected project outline-view e)
@@ -787,15 +787,19 @@
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
       (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
-      (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
-                                                                                               resource/Resource :link}))))
+      (ui/context! :outline {:outline-view outline-view} (->SelectionProvider tree-view) {} {Long :node-id
+                                                                                             resource/Resource :link}))))
 
-(defn make-outline-view [view-graph project tree-view app-view localization]
-  (let [outline-view (first
+(defn make-outline-view [view-graph project app-view localization]
+  (let [tree-view (doto (ExtendedTreeView.)
+                    (.setId "outline")
+                    (.setPrefWidth 269.0)
+                    (.setPrefHeight 326.0))
+        outline-view (first
                        (g/tx-nodes-added
                          (g/transact
                            (g/make-nodes view-graph [outline-view [OutlineView
-                                                                   :raw-tree-view tree-view
+                                                                   :tree-view tree-view
                                                                    :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
     (setup-tree-view project tree-view outline-view app-view localization)

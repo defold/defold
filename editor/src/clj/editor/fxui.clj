@@ -39,6 +39,7 @@
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -1037,6 +1038,18 @@
       resolve-label-color
       resolve-tooltip))
 
+(defn titled-pane
+  "Fake titled pane as a simple vbox with a title label and growing content."
+  [{:keys [title content] :as props}]
+  (-> props
+      (dissoc :title :content)
+      (assoc :fx/type vertical
+             :children [{:fx/type label
+                         :style-class "fake-titled-pane-label"
+                         :text title}
+                        (assoc content :v-box/vgrow :always)])
+      (add-style-classes "fake-titled-pane")))
+
 (defn resolve-input-color [props]
   (let [color (:color props ::not-found)]
     (case color
@@ -1713,3 +1726,11 @@
     ;; ResizableImageView uses fitToWidth and fitToHeight internally during
     ;; resize, ignoring externally set values
     :props (dissoc fx.image-view/props :fit-to-width :fit-to-height)))
+
+(defn- customize-tree-view! [tree-view]
+  (ui/customize-tree-view! tree-view {:double-click-expand false}))
+
+(defn tree-view [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created customize-tree-view!
+   :desc (assoc props :fx/type fx.tree-view/lifecycle)})
