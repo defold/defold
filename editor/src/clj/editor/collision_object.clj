@@ -834,7 +834,12 @@
           (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
             #(converter (g/node-value node-id :type evaluation-context)))))
 
-      nil)))
+      nil))
+  (fn CollisionObjectNode-lister [node-id evaluation-context]
+    (let [node (g/node-by-id (:basis evaluation-context) node-id)]
+      (when-let [edit-type-id (properties/edit-type-id (g/node-property-dynamic node :type :edit-type evaluation-context))]
+        (when-let [_converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
+          ["collision_type"])))))
 
 (ext-graph/register-property-setter!
   ::CollisionObjectNode

@@ -1,64 +1,69 @@
 # Plan: `editor.properties(node)` for Editor Scripts
 
+## Maintenance Note
+
+- Keep this file up to date whenever code or documentation changes affect plan status.
+
 ## Goal
 
 Implement `editor.properties(node)` so editor scripts can discover readable properties at runtime, addressing [defold/defold#11902](https://github.com/defold/defold/issues/11902).
 
-## Scope (MVP)
+## Target
 
 - Add `editor.properties(node)` returning `string[]` (property names).
 - Return properties that are currently readable in context (i.e. `editor.get(node, prop)` would succeed).
 - Keep existing property naming conventions (`snake_case`, `__internal`, layout-prefixed keys such as `Landscape:position`).
 - Return deterministic output (sorted, deduplicated).
 
-## Implementation Steps
+## Current State (Branch: `issue-11902-properties-list`)
+
+### Done
 
 1. API wiring in `editor_extensions.clj`
-- Add `make-ext-properties-fn` next to `make-ext-get-fn` / `make-ext-can-get-fn`.
-- Coerce input with existing `graph/node-id-or-path-coercer`.
-- Resolve node/path via `graph/resolve-node-id-or-path`.
-- Return Lua array of strings from a new graph helper.
-- Register in runtime env:
-  - `src/clj/editor/editor_extensions.clj` under `"editor"` map as `"properties"`.
+- Added `make-ext-properties-fn`.
+- Coerces input with `graph/node-id-or-path-coercer`.
+- Resolves node/path via `graph/resolve-node-id-or-path`.
+- Registered in runtime env under `"editor"` as `"properties"`.
 
-2. Property enumeration in `graph.clj`
-- Add `ext-readable-properties` function in `src/clj/editor/editor_extensions/graph.clj`.
-- For resources:
-  - Folder resource: `["path" "children"]`
-  - File resource: `["path"]`
-- For graph nodes: union of
-  - Built-in readable properties (e.g. `"type"`).
-  - Registered non-outline getter-backed properties (e.g. `"text"`, `"tiles"`, `"tile_collision_groups"`, etc.).
-  - Visible outline properties with supported conversion.
-  - Attachment list properties available on this node (including alternative-chain resolution).
-  - Dynamic `game.project` keys from form/meta settings as `section.key`.
-- Deduplicate and sort before returning.
+2. Property enumeration backbone in `graph.clj`
+- Added `ext-readable-properties`.
+- Added introspectable getter/lister registration:
+  - `ext-property-lister`
+  - `register-property-getter!` arity with optional lister fn.
+- Added listers for current getter-backed property groups, including dynamic `game.project` keys and visible+convertible outline properties.
+- Includes attachment list property names and traverses alternatives.
+- Returns sorted, deduplicated output.
 
-3. Make getter registration introspectable
-- Extend registration structure so each registered getter can also provide a property list (static vector or function).
-- Update existing `register-property-getter!` usages to specify discoverable property names once.
-- Use that metadata both for lookup (`editor.get`) and introspection (`editor.properties`), avoiding duplicated property-name logic.
+3. Attachment traversal utilities
+- Replaced one-off alternative lookup utility with reducible alternative-chain traversal (`alternatives`).
+- Added `attachment/list-kws` for list property discovery across alternatives.
 
-4. Documentation updates
-- Update `src/clj/editor/editor_extensions/docs.clj`:
-  - Add `editor.properties` function docs near `editor.get` / `editor.can_get`.
-  - Mention context sensitivity (list may vary by node/resource and editor state).
+4. Related test maintenance
+- Updated `make-inheritance-chain` call sites in `editor_extensions_test.clj` to new kv-arg API.
 
-5. Integration tests
-- Add tests under `test/integration/editor_extensions_test.clj` plus a dedicated test resource project/script.
-- Verify behavior for:
-  - Folder resource (`/assets`)
-  - File resource (`/game.project` or text resource)
-  - Typical outline node (e.g. sprite/go child)
-  - Node exposing attachment list properties
-  - `game.project` node dynamic keys
+5. Documentation
+- Updated `src/clj/editor/editor_extensions/docs.clj`:
+  - Added `editor.properties` docs near `editor.get` / `editor.can_get`.
+  - Documented context sensitivity (list varies by node/resource/editor state).
+  - Clarified that listed properties are editor properties and may support transaction operations depending on `editor.can_*`.
+
+### Clarification
+
+- Resource behavior follows existing `editor.get` semantics:
+  - Resource path supports `"path"`.
+  - Folder resources additionally support `"children"`.
+
+## Remaining Work
+
+1. Integration tests for `editor.properties`
+- Add/extend tests under `test/integration/editor_extensions_test.clj` (and test resources if needed).
+- Verify at least:
+  - Folder resource (`/assets`): includes `path`, `children`.
+  - File resource (`/game.project` or text file): includes `path`.
+  - Typical outline node (e.g. sprite/go child): expected readable keys.
+  - Node with attachment list properties.
+  - `game.project` node dynamic `section.key` entries.
 - Assertions:
   - Returned list is sorted and unique.
   - Expected key subsets are present.
   - Every returned key satisfies `editor.can_get(node, key) == true`.
-
-## Follow-Up (Non-MVP)
-
-- Add `editor.describe(node)` returning metadata table per property:
-  - `name`, `readable`, `writable`, possibly `resettable`, `list`, and coarse `type`.
-- Reuse the same enumeration backbone introduced for `editor.properties(node)`.

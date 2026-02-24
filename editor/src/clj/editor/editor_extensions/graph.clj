@@ -206,6 +206,12 @@
     (keyword property)
     (keyword (string/replace property "_" "-"))))
 
+(defn- prop-kw->property [prop-kw]
+  (let [property (name prop-kw)]
+    (if (string/starts-with? property "__")
+      property
+      (string/replace property "-" "_"))))
+
 (defn- outline-property [node-id property evaluation-context]
   (let [prop-kw (property->prop-kw property)
         outline-property (-> node-id
@@ -397,9 +403,7 @@
       (keep (fn [[prop-kw outline-property]]
               (when (and (properties/visible? outline-property)
                          (some? (-> outline-property properties/property-edit-type-id edit-type-id->value-converter)))
-                (if (string/starts-with? (subs (str prop-kw) 1) "__")
-                  (subs (str prop-kw) 1)
-                  (string/replace (subs (str prop-kw) 1) "-" "_"))))))))
+                (prop-kw->property prop-kw)))))))
 
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
@@ -448,7 +452,7 @@
             (e/concat
               (->> (attachment/alternatives workspace node-id evaluation-context)
                    (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
-              (e/map #(string/replace (name %) "-" "_") (attachment/list-kws workspace node-id evaluation-context))
+              (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
               (when explicit-type-name ["type"])))
           vec
           sort
