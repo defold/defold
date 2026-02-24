@@ -19,6 +19,7 @@
 
 #include "graphics.h"
 #include <graphics/graphics_ddf.h>
+#include <dmsdk/graphics/graphics_gen.hpp>
 
 /*# Graphics API documentation
  *
@@ -139,6 +140,9 @@ namespace dmGraphics
      * @name MAX_BUFFER_COLOR_ATTACHMENTS
      */
     const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
+
+    // from graphics_ddf.h
+    struct ShaderDesc;
 
     /*#
      * Function's call result code
@@ -419,12 +423,6 @@ namespace dmGraphics
         TYPE_TEXTURE_3D_ARRAY = 25,
     };
 
-} // namespace dmGraphics
-
-#include <dmsdk/graphics/graphics_gen.hpp>
-
-namespace dmGraphics
-{
     /*#
      * Blend factors for color blending.
      * Defines how source and destination colors are combined
@@ -636,8 +634,8 @@ namespace dmGraphics
      * @member m_Data [type:const void*]                    Pointer to raw pixel data in CPU memory. The format is defined by `m_Format`
      * @member m_DataSize [type:uint32_t]                   Size of the pixel data in bytes. Must match the expected size from width, height, depth, and format
      * @member m_Format [type:dmGraphics::TextureFormat]    Format of the pixel data (e.g. RGBA, RGB, compressed formats). Dictates how the GPU interprets the memory pointed by `m_Data`
-     * @member m_MinFilter [type:TextureFilter] Minification filter (applied when shrinking). Determines how pixels are sampled when the texture is displayed smaller than its native resolution
-     * @member m_MagFilter [type:TextureFilter] Magnification filter (applied when enlarging). Determines how pixels are sampled when the texture is displayed larger than its native resolution
+     * @member m_MinFilter [type:dmGraphics::TextureFilter] Minification filter (applied when shrinking). Determines how pixels are sampled when the texture is displayed smaller than its native resolution
+     * @member m_MagFilter [type:dmGraphics::TextureFilter] Magnification filter (applied when enlarging). Determines how pixels are sampled when the texture is displayed larger than its native resolution
      * @member m_UWrap [type:dmGraphics::TextureWrap]       Wrapping mode for U (X) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_VWrap [type:dmGraphics::TextureWrap]       Wrapping mode for V (Y) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_X [type:uint32_t]                          X offset in pixels for sub-texture updates. Defines the left edge of the destination region
@@ -716,7 +714,7 @@ namespace dmGraphics
      * Create a shader program
      * @name NewProgram
      * @param context [type:HContext] Graphics context
-     * @param ddf [type:ShaderDesc*] Shader descriptor
+     * @param ddf [type:dmGraphics::ShaderDesc*] Shader descriptor
      * @param error_buffer [type:char*] Error message output buffer
      * @param error_buffer_size [type:uint32_t] Error buffer size
      * @return program [type:HProgram] Program handle
@@ -838,8 +836,8 @@ namespace dmGraphics
      * @name SetTextureParams
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
-     * @param min_filter [type:TextureFilter] Minification filter type
-     * @param mag_filter [type:TextureFilter] Magnification filter type
+     * @param min_filter [type:dmGraphics::TextureFilter] Minification filter type
+     * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
      * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) texture coordinate.
      * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
      * @param max_anisotropy [type:float]
