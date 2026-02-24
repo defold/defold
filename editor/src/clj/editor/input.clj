@@ -34,6 +34,7 @@
                  MouseEvent/MOUSE_DRAGGED :mouse-moved
                  KeyEvent/KEY_PRESSED :key-pressed
                  KeyEvent/KEY_RELEASED :key-released
+                 MouseEvent/DRAG_DETECTED :drag-detected
                  DragEvent/DRAG_OVER :drag-over
                  DragEvent/DRAG_DROPPED :drag-dropped})
 
@@ -141,6 +142,15 @@
           :y (.getY scroll-event)
           :delta-x (.getDeltaX scroll-event)
           :delta-y (.getDeltaY scroll-event)))
+
+      :drag-detected
+      (let [mouse-event ^MouseEvent jfx-event]
+        (assoc action
+          :button (translate-button (.getButton mouse-event))
+          :x (.getX mouse-event)
+          :y (.getY mouse-event)
+          :screen-x (.getScreenX mouse-event)
+          :screen-y (.getScreenY mouse-event)))
 
       :drag-over
       (let [drag-event ^DragEvent jfx-event]

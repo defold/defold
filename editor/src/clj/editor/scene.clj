@@ -1107,7 +1107,6 @@
         up (if walking-mode
              (Vector3d. 0.0 1.0 0.0)
              (c/camera-up-vector current-camera))
-        ;; _ (println mouse-delta)
         [camera-after-look free-camera] (if is-secondary-button
                                           (let [{:keys [dx dy]} (or mouse-delta {:dx 0.0 :dy 0.0})]
                                             (c/look-delta camera-node
@@ -1459,7 +1458,8 @@
         (g/update-property! scene-view :input-state assoc :cursor-lock-pos [screen-x screen-y]))
       (some-> scene-view
               (view->camera)
-              (g/set-property! :free-camera-mode true)))))
+              (g/set-property! :free-camera-mode true))
+      (i/start-mouse-capture))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
@@ -1694,7 +1694,7 @@
   (let [camera-id (view->camera view-id)
         is-perspective? (= :perspective (:type (g/node-value camera-id :local-camera)))]
     (case (:type action)
-      :mouse-pressed
+      :drag-detected
       (when (and (= :secondary (:button action)) is-perspective?)
         (when-let [tab-content (find-tab-content image-view)]
           (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
@@ -1735,9 +1735,10 @@
                                     picking-rect (selection/calc-picking-rect pos pos)]
                                 (g/update-property! view-id :input-state i/update-input-state action)
                                 (when (= :mouse-pressed (:type action))
-                                  (handle-free-camera-mode! view-id image-view action)
                                   (.requestFocus parent)
                                   (.consume e))
+                                (when (= :drag-detected (:type action))
+                                  (handle-free-camera-mode! view-id image-view action))
                                 (when (not= :mouse-clicked (:type action))
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
@@ -1759,6 +1760,7 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
+    (.setOnDragDetected parent event-handler)
     (.setOnDragOver parent event-handler)
     (.setOnDragDropped parent event-handler)
     (.setOnScroll parent event-handler)

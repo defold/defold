@@ -59,7 +59,7 @@
            ["D" :scene.camera-move-right]
            ["Q" :scene.camera-move-down]
            ["E" :scene.camera-move-up]
-           ["Shift+Back Quote" :scene.camera-move-up]
+           ["Shift+Back Quote" :scene.free-camera-mode]
            ["Backspace" :code.delete-previous-char]
            ["Backspace" :edit.delete]
            ["Ctrl+A" :code.goto-line-start]
