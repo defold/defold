@@ -169,16 +169,16 @@ namespace dmGraphics
 
     struct VertexAttributeInfoMetadata
     {
-        uint32_t m_HasAttributeWorldPosition : 1;
-        uint32_t m_HasAttributeLocalPosition : 1;
-        uint32_t m_HasAttributeNormal        : 1;
-        uint32_t m_HasAttributeTangent       : 1;
-        uint32_t m_HasAttributeColor         : 1;
-        uint32_t m_HasAttributeTexCoord      : 1;
-        uint32_t m_HasAttributePageIndex     : 1;
-        uint32_t m_HasAttributeWorldMatrix   : 1;
-        uint32_t m_HasAttributeNormalMatrix  : 1;
-        uint32_t m_HasAttributeNone          : 1;
+        uint32_t m_HasAttributeWorldPosition      : 1;
+        uint32_t m_HasAttributeLocalPosition      : 1;
+        uint32_t m_HasAttributeNormal             : 1;
+        uint32_t m_HasAttributeTangent            : 1;
+        uint32_t m_HasAttributeColor              : 1;
+        uint32_t m_HasAttributeTexCoord           : 1;
+        uint32_t m_HasAttributePageIndex          : 1;
+        uint32_t m_HasAttributeWorldMatrix        : 1;
+        uint32_t m_HasAttributeNormalMatrix       : 1;
+        uint32_t m_HasAttributeNone               : 1;
         uint32_t m_HasAttributeTextureTransform2D : 1;
     };
 

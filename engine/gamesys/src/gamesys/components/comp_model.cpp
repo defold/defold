@@ -758,11 +758,12 @@ namespace dmGameSystem
     {
         dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
 
+        const float* world_matrix_channels[]         = { (float*) &render_item->m_World };
+        const float* normal_matrix_channels[]        = { (float*) &normal_matrix };
+        const float* texture_transform_2d_channels[] = { dmRig::TEXTURE_TRANSFORM_2D_IDENTITY };
+
     #define UNPACK_ATTRIBUTE_PTR(name) \
         (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
-
-        const float* world_matrix_channels[]  = { (float*) &render_item->m_World };
-        const float* normal_matrix_channels[] = { (float*) &normal_matrix };
         const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
         const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
         const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
@@ -783,6 +784,7 @@ namespace dmGameSystem
             normal_channels,
             tangent_channels,
             color_channels,
+            texture_transform_2d_channels,
             uv_channels,
             uv_channels_count);
 

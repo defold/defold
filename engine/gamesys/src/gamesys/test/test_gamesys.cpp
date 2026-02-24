@@ -5306,36 +5306,33 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
     {
         uint32_t component_type;
         dmGameObject::HComponent model_component;
-        dmGameObject::HComponentWorld world;
-        dmGameObject::Result res = dmGameObject::GetComponent(model_go, dmHashString64("model"), &component_type, &model_component, &world);
+        dmGameObject::HComponentWorld model_world;
+        dmGameObject::Result res = dmGameObject::GetComponent(model_go, dmHashString64("model"), &component_type, &model_component, &model_world);
         ASSERT_EQ(dmGameObject::RESULT_OK, res);
 
-        dmGraphics::HVertexBuffer model_vx_buffer = 0;
-        dmGraphics::HVertexDeclaration model_vx_decl = 0;
-        dmGraphics::HVertexDeclaration model_inst_decl = 0;
-        dmGameSystem::GetModelComponentAttributeRenderData(model_component, 0, &model_vx_buffer, &model_vx_decl, &model_inst_decl);
+        uint32_t vx_buffers_count;
+        dmRender::BufferedRenderBuffer** vx_buffers;
+        dmGameSystem::GetModelWorldRenderBuffers(model_world, &vx_buffers, &vx_buffers_count);
+        ASSERT_TRUE(vx_buffers_count > 0);
 
-        uint32_t model_tt_offset = dmGraphics::GetVertexStreamOffset(model_vx_decl, dmHashString64("texture_transform_2d"));
-        if (model_tt_offset != dmGraphics::INVALID_STREAM_OFFSET)
+        dmGraphics::HVertexBuffer model_vx_buffer = vx_buffers[0]->m_Buffers[0];
+
+        uint32_t model_vx_buffer_size = dmGraphics::GetVertexBufferSize(model_vx_buffer);
+        uint32_t model_vertex_count = model_vx_buffer_size / vertex_stride;
+        ASSERT_GT(model_vertex_count, 0u);
+
+        const float identity_mat3[9] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+
+        const char* model_vb_base = (const char*) dmGraphics::MapVertexBuffer(m_GraphicsContext, model_vx_buffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
+        for (uint32_t v = 0; v < model_vertex_count; ++v)
         {
-            uint32_t model_vertex_stride = dmGraphics::GetVertexDeclarationStride(model_vx_decl);
-            uint32_t model_vx_buffer_size = dmGraphics::GetVertexBufferSize(model_vx_buffer);
-            uint32_t model_vertex_count = model_vx_buffer_size / model_vertex_stride;
-            ASSERT_GT(model_vertex_count, 0u);
-
-            const float identity_mat3[9] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f };
-
-            const char* model_vb_base = (const char*) dmGraphics::MapVertexBuffer(m_GraphicsContext, model_vx_buffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
-            for (uint32_t v = 0; v < model_vertex_count; ++v)
+            const float* tt = (const float*)(model_vb_base + v * vertex_stride + tt_offset);
+            for (int i = 0; i < 9; ++i)
             {
-                const float* tt = (const float*)(model_vb_base + v * model_vertex_stride + model_tt_offset);
-                for (int i = 0; i < 9; ++i)
-                {
-                    ASSERT_NEAR(identity_mat3[i], tt[i], EPSILON);
-                }
+                ASSERT_NEAR(identity_mat3[i], tt[i], EPSILON);
             }
-            dmGraphics::UnmapVertexBuffer(m_GraphicsContext, model_vx_buffer);
         }
+        dmGraphics::UnmapVertexBuffer(m_GraphicsContext, model_vx_buffer);
     }
 
     dmResource::Release(m_Factory, material_res);
