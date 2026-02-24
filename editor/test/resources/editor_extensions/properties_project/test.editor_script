@@ -1,0 +1,218 @@
+local M = {}
+local ASSERT_INDENT = "  "
+
+local function expect_equal(label, expected, actual)
+    if expected == actual then
+        print(("%s%s = ok"):format(ASSERT_INDENT, label))
+    else
+        print(("%s%s = fail (expected %s, got %s)"):format(ASSERT_INDENT, label, tostring(expected), tostring(actual)))
+    end
+end
+
+local function expect_true(label, value)
+    expect_equal(label, true, value)
+end
+
+local function expect_false(label, value)
+    expect_equal(label, false, value)
+end
+
+local function has_value(values, wanted)
+    for i = 1, #values do
+        if values[i] == wanted then
+            return true
+        end
+    end
+    return false
+end
+
+local function is_sorted_and_unique(values)
+    for i = 2, #values do
+        if values[i - 1] >= values[i] then
+            return false
+        end
+    end
+    return true
+end
+
+local function all_readable(node, properties)
+    for i = 1, #properties do
+        local property = properties[i]
+        if not editor.can_get(node, property) then
+            return false, property
+        end
+        local ok = pcall(editor.get, node, property)
+        if not ok then
+            return false, property
+        end
+    end
+    return true, nil
+end
+
+local function print_targeted_node_checks(title, node, expected_properties)
+    local properties = editor.properties(node)
+
+    print(title)
+    expect_true("sorted_and_unique", is_sorted_and_unique(properties))
+    for i = 1, #expected_properties do
+        expect_true("contains " .. expected_properties[i], has_value(properties, expected_properties[i]))
+    end
+
+    local readable, failing_property = all_readable(node, properties)
+    expect_true("all listed are readable", readable)
+    if not readable then
+        print(("%sfailing property = %s"):format(ASSERT_INDENT, failing_property))
+    end
+end
+
+local function print_targeted_game_project_checks()
+    print_targeted_node_checks("game.project targeted checks:",
+                               "/game.project",
+                               {"project.title", "display.width", "physics.type"})
+end
+
+local function print_targeted_test_collection_checks()
+    print_targeted_node_checks("test.collection targeted checks:",
+                               "/main/test.collection",
+                               {"children", "name", "path"})
+end
+
+local function print_targeted_test_go_checks()
+    print_targeted_node_checks("test.go targeted checks:",
+                               "/main/test.go",
+                               {"components", "path"})
+    local components = editor.get("/main/test.go", "components")
+    expect_true("has component nodes", #components > 0)
+
+    local has_component_reference = false
+    local has_label = false
+    local has_collisionobject = false
+    local all_components_readable = true
+    local all_components_have_type = true
+    local collision_component
+
+    for i = 1, #components do
+        local component = components[i]
+        local component_properties = editor.properties(component)
+        local component_readable = all_readable(component, component_properties)
+        all_components_readable = all_components_readable and component_readable
+        all_components_have_type = all_components_have_type and has_value(component_properties, "type")
+
+        local component_type = editor.get(component, "type")
+        has_component_reference = has_component_reference or component_type == "component-reference"
+        has_label = has_label or component_type == "label"
+        has_collisionobject = has_collisionobject or component_type == "collisionobject"
+        if component_type == "collisionobject" then
+            collision_component = component
+        end
+    end
+
+    expect_true("contains component-reference component", has_component_reference)
+    expect_true("contains label component", has_label)
+    expect_true("contains collisionobject component", has_collisionobject)
+    expect_true("all component nodes have type", all_components_have_type)
+    expect_true("all component nodes are readable", all_components_readable)
+
+    if collision_component then
+        local collision_properties = editor.properties(collision_component)
+        expect_true("collisionobject has collision_type", has_value(collision_properties, "collision_type"))
+        expect_true("collisionobject has shapes", has_value(collision_properties, "shapes"))
+        local shapes = editor.get(collision_component, "shapes")
+        expect_true("collisionobject has shape nodes", #shapes > 0)
+        if #shapes > 0 then
+            local shape_properties = editor.properties(shapes[1])
+            local shape_readable = all_readable(shapes[1], shape_properties)
+            expect_true("collision shape has type", has_value(shape_properties, "type"))
+            expect_true("collision shape is readable", shape_readable)
+        end
+    end
+end
+
+local function print_targeted_test_gui_checks()
+    print_targeted_node_checks("test.gui targeted checks:",
+                               "/main/test.gui",
+                               {"nodes", "materials", "textures", "path"})
+    local nodes = editor.get("/main/test.gui", "nodes")
+    expect_true("contains gui nodes", #nodes > 0)
+    if #nodes > 0 then
+        local node_properties = editor.properties(nodes[1])
+        local node_readable = all_readable(nodes[1], node_properties)
+        expect_true("gui node has Landscape:position", has_value(node_properties, "Landscape:position"))
+        expect_false("gui node does not have Portrait:position", has_value(node_properties, "Portrait:position"))
+        expect_true("gui node is readable", node_readable)
+    end
+end
+
+local function print_targeted_test_particlefx_checks()
+    print_targeted_node_checks("test.particlefx targeted checks:",
+                               "/main/test.particlefx",
+                               {"emitters", "modifiers", "path"})
+    local emitters = editor.get("/main/test.particlefx", "emitters")
+    expect_true("contains emitters", #emitters > 0)
+    if #emitters > 0 then
+        local emitter_modifiers = editor.get(emitters[1], "modifiers")
+        expect_true("emitter has modifiers", #emitter_modifiers > 0)
+        if #emitter_modifiers > 0 then
+            local modifier_properties = editor.properties(emitter_modifiers[1])
+            local modifier_readable = all_readable(emitter_modifiers[1], modifier_properties)
+            expect_true("emitter modifier has type", has_value(modifier_properties, "type"))
+            expect_true("emitter modifier is readable", modifier_readable)
+        end
+    end
+end
+
+local function print_targeted_test_tilemap_checks()
+    print_targeted_node_checks("test.tilemap targeted checks:",
+                               "/main/test.tilemap",
+                               {"layers", "tile_source", "path"})
+    local layers = editor.get("/main/test.tilemap", "layers")
+    expect_true("contains layer nodes", #layers > 0)
+    if #layers > 0 then
+        local layer_properties = editor.properties(layers[1])
+        local layer_readable = all_readable(layers[1], layer_properties)
+        expect_true("layer has tiles", has_value(layer_properties, "tiles"))
+        expect_true("layer is readable", layer_readable)
+    end
+end
+
+local function print_targeted_test_tilesource_checks()
+    print_targeted_node_checks("test.tilesource targeted checks:",
+                               "/main/test.tilesource",
+                               {"animations", "collision_groups", "tile_collision_groups", "path"})
+    local animations = editor.get("/main/test.tilesource", "animations")
+    expect_true("contains animation nodes", #animations > 0)
+    if #animations > 0 then
+        local animation_properties = editor.properties(animations[1])
+        local animation_readable = all_readable(animations[1], animation_properties)
+        expect_true("animation has id", has_value(animation_properties, "id"))
+        expect_true("animation is readable", animation_readable)
+    end
+end
+
+local function print_targeted_editor_script_resource_checks()
+    print_targeted_node_checks("test.editor_script targeted checks:",
+                               "/test.editor_script",
+                               {"path", "text"})
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            label = "Test",
+            id = "defold.test",
+            locations = {"Edit"},
+            run = function()
+                print_targeted_game_project_checks()
+                print_targeted_test_collection_checks()
+                print_targeted_test_go_checks()
+                print_targeted_test_gui_checks()
+                print_targeted_test_particlefx_checks()
+                print_targeted_test_tilemap_checks()
+                print_targeted_test_tilesource_checks()
+                print_targeted_editor_script_resource_checks()
+            end
+        })
+    }
+end
+
+return M

@@ -2153,6 +2153,89 @@ Expected errors:
       (run-edit-menu-test-command!)
       (expect-script-output expected-game-project-properties-test-output out))))
 
+(def ^:private expected-properties-game-project-test-output
+  "game.project targeted checks:
+  sorted_and_unique = ok
+  contains project.title = ok
+  contains display.width = ok
+  contains physics.type = ok
+  all listed are readable = ok
+test.collection targeted checks:
+  sorted_and_unique = ok
+  contains children = ok
+  contains name = ok
+  contains path = ok
+  all listed are readable = ok
+test.go targeted checks:
+  sorted_and_unique = ok
+  contains components = ok
+  contains path = ok
+  all listed are readable = ok
+  has component nodes = ok
+  contains component-reference component = ok
+  contains label component = ok
+  contains collisionobject component = ok
+  all component nodes have type = ok
+  all component nodes are readable = ok
+  collisionobject has collision_type = ok
+  collisionobject has shapes = ok
+  collisionobject has shape nodes = ok
+  collision shape has type = ok
+  collision shape is readable = ok
+test.gui targeted checks:
+  sorted_and_unique = ok
+  contains nodes = ok
+  contains materials = ok
+  contains textures = ok
+  contains path = ok
+  all listed are readable = ok
+  contains gui nodes = ok
+  gui node has Landscape:position = ok
+  gui node does not have Portrait:position = ok
+  gui node is readable = ok
+test.particlefx targeted checks:
+  sorted_and_unique = ok
+  contains emitters = ok
+  contains modifiers = ok
+  contains path = ok
+  all listed are readable = ok
+  contains emitters = ok
+  emitter has modifiers = ok
+  emitter modifier has type = ok
+  emitter modifier is readable = ok
+test.tilemap targeted checks:
+  sorted_and_unique = ok
+  contains layers = ok
+  contains tile_source = ok
+  contains path = ok
+  all listed are readable = ok
+  contains layer nodes = ok
+  layer has tiles = ok
+  layer is readable = ok
+test.tilesource targeted checks:
+  sorted_and_unique = ok
+  contains animations = ok
+  contains collision_groups = ok
+  contains tile_collision_groups = ok
+  contains path = ok
+  all listed are readable = ok
+  contains animation nodes = ok
+  animation has id = ok
+  animation is readable = ok
+test.editor_script targeted checks:
+  sorted_and_unique = ok
+  contains path = ok
+  contains text = ok
+  all listed are readable = ok
+")
+
+(deftest properties-game-project-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/properties_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-properties-game-project-test-output out))))
+
 (def ^:private expected-localization-output
   "message => Build
 localization.and_list({1, 2, message}) => 1, 2, and Build
