@@ -98,6 +98,40 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
+static void ComputeTextureTransformFromTexCoords(const float* tc, float* out_tt)
+{
+    out_tt[0] = tc[2] - tc[0];
+    out_tt[1] = tc[3] - tc[1];
+    out_tt[2] = 0.0f;
+    out_tt[3] = tc[6] - tc[0];
+    out_tt[4] = tc[7] - tc[1];
+    out_tt[5] = 0.0f;
+    out_tt[6] = tc[0];
+    out_tt[7] = tc[1];
+    out_tt[8] = 1.0f;
+}
+
+static void ComputeTextureTransformFromTextureSet(dmResource::HFactory factory,
+                                                  const char* textureset_path,
+                                                  uint32_t frame_index,
+                                                  float* out_tt)
+{
+    dmGameSystem::TextureSetResource* ts_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK,
+              dmResource::Get(factory, textureset_path, (void**)&ts_res));
+    ASSERT_NE((void*)0, ts_res);
+
+    const dmGameSystemDDF::TextureSet* ts_ddf = ts_res->m_TextureSet;
+    ASSERT_TRUE(ts_ddf->m_TexCoords.m_Count >= (frame_index + 1u) * 8u * sizeof(float));
+
+    const float* tc = (const float*) ts_ddf->m_TexCoords.m_Data;
+    tc += frame_index * 8u;
+
+    ComputeTextureTransformFromTexCoords(tc, out_tt);
+
+    dmResource::Release(factory, ts_res);
+}
+
 static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
@@ -5235,30 +5269,8 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
     uint32_t tt_offset = dmGraphics::GetVertexStreamOffset(vx_decl, dmHashString64("texture_transform_2d"));
     ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, tt_offset);
 
-    // Expected transform for sprite: from texture set frame 0 tex coords
-    dmGameSystem::TextureSetResource* texture_set_res = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**)&texture_set_res));
-    ASSERT_NE((void*)0, texture_set_res);
-
-    const dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set_res->m_TextureSet;
-    const uint32_t frame_index = 0;
-    ASSERT_TRUE(texture_set_ddf->m_TexCoords.m_Count >= (frame_index + 1u) * 8u * sizeof(float));
-
-    const float* tc = (const float*)texture_set_ddf->m_TexCoords.m_Data;
-    tc += frame_index * 8u;
-
     float expected_sprite_tt[9];
-    expected_sprite_tt[0] = tc[2] - tc[0];
-    expected_sprite_tt[1] = tc[3] - tc[1];
-    expected_sprite_tt[2] = 0.0f;
-    expected_sprite_tt[3] = tc[6] - tc[0];
-    expected_sprite_tt[4] = tc[7] - tc[1];
-    expected_sprite_tt[5] = 0.0f;
-    expected_sprite_tt[6] = tc[0];
-    expected_sprite_tt[7] = tc[1];
-    expected_sprite_tt[8] = 1.0f;
-
-    dmResource::Release(m_Factory, texture_set_res);
+    ComputeTextureTransformFromTextureSet(m_Factory, "/tile/valid.t.texturesetc", 0u, expected_sprite_tt);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -5341,60 +5353,10 @@ TEST_F(ComponentTest, TextureTransformVertexBuffer)
 
 TEST_F(ComponentTest, SpriteTextureTransformMultiAtlasVertexBuffer)
 {
-    // Expected transforms from the two texturesets used by the sprite.
     float expected_tt0[9];
-    {
-        dmGameSystem::TextureSetResource* ts_res = 0;
-        ASSERT_EQ(dmResource::RESULT_OK,
-                  dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**)&ts_res));
-        ASSERT_NE((void*)0, ts_res);
-
-        const dmGameSystemDDF::TextureSet* ts_ddf = ts_res->m_TextureSet;
-        const uint32_t frame_index = 0;
-        ASSERT_TRUE(ts_ddf->m_TexCoords.m_Count >= (frame_index + 1u) * 8u * sizeof(float));
-
-        const float* tc = (const float*) ts_ddf->m_TexCoords.m_Data;
-        tc += frame_index * 8u;
-
-        expected_tt0[0] = tc[2] - tc[0];
-        expected_tt0[1] = tc[3] - tc[1];
-        expected_tt0[2] = 0.0f;
-        expected_tt0[3] = tc[6] - tc[0];
-        expected_tt0[4] = tc[7] - tc[1];
-        expected_tt0[5] = 0.0f;
-        expected_tt0[6] = tc[0];
-        expected_tt0[7] = tc[1];
-        expected_tt0[8] = 1.0f;
-
-        dmResource::Release(m_Factory, ts_res);
-    }
-
     float expected_tt1[9];
-    {
-        dmGameSystem::TextureSetResource* ts_res = 0;
-        ASSERT_EQ(dmResource::RESULT_OK,
-                  dmResource::Get(m_Factory, "/tile/valid2.t.texturesetc", (void**)&ts_res));
-        ASSERT_NE((void*)0, ts_res);
-
-        const dmGameSystemDDF::TextureSet* ts_ddf = ts_res->m_TextureSet;
-        const uint32_t frame_index = 0;
-        ASSERT_TRUE(ts_ddf->m_TexCoords.m_Count >= (frame_index + 1u) * 8u * sizeof(float));
-
-        const float* tc = (const float*) ts_ddf->m_TexCoords.m_Data;
-        tc += frame_index * 8u;
-
-        expected_tt1[0] = tc[2] - tc[0];
-        expected_tt1[1] = tc[3] - tc[1];
-        expected_tt1[2] = 0.0f;
-        expected_tt1[3] = tc[6] - tc[0];
-        expected_tt1[4] = tc[7] - tc[1];
-        expected_tt1[5] = 0.0f;
-        expected_tt1[6] = tc[0];
-        expected_tt1[7] = tc[1];
-        expected_tt1[8] = 1.0f;
-
-        dmResource::Release(m_Factory, ts_res);
-    }
+    ComputeTextureTransformFromTextureSet(m_Factory, "/tile/valid.t.texturesetc", 0u, expected_tt0);
+    ComputeTextureTransformFromTextureSet(m_Factory, "/tile/valid2.t.texturesetc", 0u, expected_tt1);
 
     // Load material to get vertex declaration (stride and offsets for both transforms).
     dmGameSystem::MaterialResource* material_res = 0;
