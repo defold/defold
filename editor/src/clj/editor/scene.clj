@@ -995,7 +995,6 @@
                                         :mouse-buttons #{}
                                         :modifiers #{}
                                         :cursor-pos [0.0 0.0]
-                                        :cursor-lock-pos nil
                                         :robot (Robot.)}))
 
   (input input-handlers Runnable :array)
@@ -1088,7 +1087,7 @@
   (let [camera-node (view->camera node-id)
         current-camera (g/node-value camera-node :local-camera)
         prefs (g/node-value camera-node :prefs)
-        {:keys [mouse-buttons modifiers pressed-keys cursor-pos cursor-lock-pos]} current-input
+        {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} current-input
         mouse-delta (i/poll-mouse-delta)
         is-secondary-button (or (contains? mouse-buttons :secondary)
                                 (g/node-value camera-node :free-camera-mode))
@@ -1454,8 +1453,7 @@
                                    (recur (.getParent current)))))]
         (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
       (let [[screen-x screen-y] (:cursor-pos (g/node-value scene-view :input-state))]
-        (g/set-property! (view->camera scene-view) :cursor-type :none)
-        (g/update-property! scene-view :input-state assoc :cursor-lock-pos [screen-x screen-y]))
+        (g/set-property! (view->camera scene-view) :cursor-type :none))
       (some-> scene-view
               (view->camera)
               (g/set-property! :free-camera-mode true))
@@ -1683,12 +1681,13 @@
       KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
       ::unhandled)))
 
-(defn- find-tab-content [^Node node]
-  (loop [current (.getParent node)]
-    (when current
-      (if (.contains (.getStyleClass current) "tab-content-area")
-        current
-        (recur (.getParent current))))))
+(defn- toggle-free-cam-css [image-view active]
+  (when-let [tab-content (loop [current (.getParent ^Node image-view)]
+                           (when current
+                             (if (.contains (.getStyleClass current) "tab-content-area")
+                               current
+                               (recur (.getParent current)))))]
+    (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
 (defn- handle-free-camera-mode! [view-id image-view action]
   (let [camera-id (view->camera view-id)
@@ -1696,20 +1695,15 @@
     (case (:type action)
       :drag-detected
       (when (and (= :secondary (:button action)) is-perspective?)
-        (when-let [tab-content (find-tab-content image-view)]
-          (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
-        ;; TODO: This is wrong, we need to wait till we drag a little bit before establishing that we are in free-camera-mode
+        (toggle-free-cam-css image-view true)
         (g/set-property! camera-id :free-camera-mode true)
-        #_(g/update-property! view-id :input-state assoc :cursor-lock-pos [(:screen-x action) (:screen-y action)])
         (g/set-property! camera-id :cursor-type :none)
         (i/start-mouse-capture))
 
       :mouse-released
       (when (= :secondary (:button action))
-        (when-let [tab-content (find-tab-content image-view)]
-          (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))
+        (toggle-free-cam-css image-view false)
         #_(g/set-property! camera-id :free-camera-mode false)
-        #_(g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
         (g/set-property! camera-id :cursor-type :default)
         (i/stop-mouse-capture))
 
@@ -1718,11 +1712,9 @@
 (defn- cancel-free-camera-mode! [view-id image-view]
   (let [camera-id (view->camera view-id)]
     (g/set-property! camera-id :free-camera-mode false)
-    #_(g/update-property! view-id :input-state assoc :cursor-lock-pos nil)
     (i/stop-mouse-capture)
     (g/set-property! camera-id :cursor-type :default)
-    (when-let [tab-content (find-tab-content image-view)]
-      (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") false))))
+    (toggle-free-cam-css image-view false)))
 
 (defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
@@ -1743,7 +1735,6 @@
                                   (ui/user-data! parent ::last-mouse-action action))
                                 (when (= :mouse-released (:type action))
                                   (handle-free-camera-mode! view-id image-view action))
-
                                 (g/transact
                                   (concat
                                     (g/set-property view-id :cursor-pos [x y])

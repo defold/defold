@@ -11,6 +11,8 @@ namespace dmMouseCapture
         int m_XIOpcode;
         bool m_Capturing;
         MouseDelta m_AccumulatedDelta;
+        int m_SavedCursorX;
+        int m_SavedCursorY;
     };
 
     HContext CreateContext()
@@ -52,6 +54,13 @@ namespace dmMouseCapture
         context->m_Window = (Window)window;
 
         Window root = DefaultRootWindow(context->m_Display);
+        Window dummy;
+        int root_x, root_y, dummy_int;
+        unsigned int dummy_uint;
+        XQueryPointer(context->m_Display, root, &dummy, &dummy, &root_x, &root_y, &dummy_int, &dummy_int, &dummy_uint);
+        context->m_SavedCursorX = root_x;
+        context->m_SavedCursorY = root_y;
+
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
 
@@ -79,6 +88,7 @@ namespace dmMouseCapture
         Window root = DefaultRootWindow(context->m_Display);
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
+        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0, context->m_SavedCursorX, context->m_SavedCursorY);
 
         XIEventMask evmask;
         evmask.deviceid = XIAllMasterDevices;

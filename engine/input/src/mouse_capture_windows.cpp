@@ -11,6 +11,8 @@ namespace dmMouseCapture
         HWND m_MessageWindow;
         bool m_Capturing;
         MouseDelta m_AccumulatedDelta;
+        int m_SavedCursorX;
+        int m_SavedCursorY;
     };
 
     static LRESULT CALLBACK RawInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -76,6 +78,11 @@ namespace dmMouseCapture
         if (!EnsureWindowClass())
             return false;
 
+        POINT pt;
+        GetCursorPos(&pt);
+        context->m_SavedCursorX = pt.x;
+        context->m_SavedCursorY = pt.y;
+
         context->m_MessageWindow = CreateWindowEx(
             0, TEXT("dmMouseCaptureRawInput"), NULL,
             0, 0, 0, 0, 0,
@@ -124,6 +131,7 @@ namespace dmMouseCapture
             context->m_MessageWindow = NULL;
         }
 
+        SetCursorPos(context->m_SavedCursorX, context->m_SavedCursorY);
         context->m_Capturing = false;
     }
 
