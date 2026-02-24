@@ -40,9 +40,9 @@
                       (merge {:args ~'args}
                              ~context-map-expr))))))
 
-(definline ^:private with-memoize-info [memoized-fn cache arity]
+(definline with-memoize-info [memoized-fn original-fn cache arity]
   `(with-meta ~memoized-fn
-              {::memoize-original ~memoized-fn
+              {::memoize-original ~original-fn
                ::memoize-arity ~arity
                ::memoize-cache ~cache}))
 
@@ -85,7 +85,7 @@
                             (swap! cache encache-fn arg result)
                             result)
                           cached-result)))]
-    (with-memoize-info memoized-fn cache 1)))
+    (with-memoize-info memoized-fn unary-fn cache 1)))
 
 (defn- memoize-two [opts binary-fn]
   (let [[storage encache-fn] (memoize-details opts)
@@ -98,7 +98,7 @@
                             (swap! cache encache-fn key result)
                             result)
                           cached-result)))]
-    (with-memoize-info memoized-fn cache 2)))
+    (with-memoize-info memoized-fn binary-fn cache 2)))
 
 (defn- memoize-any [opts any-fn ^long arity]
   (let [[storage encache-fn] (memoize-details opts)
@@ -111,7 +111,7 @@
                             (swap! cache encache-fn key result)
                             result)
                           cached-result)))]
-    (with-memoize-info memoized-fn cache arity)))
+    (with-memoize-info memoized-fn any-fn cache arity)))
 
 (defn- ifn-class-arities-raw
   [^Class ifn-class]

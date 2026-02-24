@@ -70,36 +70,44 @@ Macros currently mean no foreseeable performance gain, however."
 
     (instance? IPending fn-or-promise)
     (fn late-fn [& args]
-      (let [fn (deref fn-or-promise)]
-        (apply fn args)))))
+      (let [fn (deref fn-or-promise 1000 ::timeout)]
+        (if (not= ::timeout fn)
+          (apply fn args)
+          (throw
+            (ex-info
+              "Calling late-bound function before its promise could be delivered."
+              {:promise fn-or-promise})))))))
 
 (defn- memoize-late-bound [higher-order-fn]
-  (let [cache-atom (atom {})]
-    (fn memoized-higher-order-fn [& args]
-      (let [cache-key (vec args)
-            cache-value (get @cache-atom cache-key)]
-        (or (as-late-bound-fn cache-value)
-            (let [late-fn-promise (promise)
+  (let [cache-atom (atom {})
 
-                  cache-value
-                  (-> cache-atom
-                      (swap! update cache-key fn/or late-fn-promise)
-                      (get cache-key))]
+        memoized-fn
+        (fn memoized-fn [& args]
+          (let [cache-key (vec args)
+                cache-value (get @cache-atom cache-key)]
+            (or (as-late-bound-fn cache-value)
+                (let [lower-order-fn-promise (promise)
 
-              (if (identical? late-fn-promise cache-value)
-                ;; We just inserted our promise into the cache, so we're
-                ;; responsible for delivering the result.
-                (let [late-fn (apply higher-order-fn args)]
-                  (assert (ifn? late-fn) "The higher-order-fn must return a function.")
-                  (deliver late-fn-promise late-fn)
-                  (swap! cache-atom assoc cache-key late-fn)
-                  late-fn)
+                      cache-value
+                      (-> cache-atom
+                          (swap! update cache-key fn/or lower-order-fn-promise)
+                          (get cache-key))]
 
-                ;; Found an already-existing promise or function in the cache.
-                ;; Return the function unaltered, or a function that
-                ;; dereferences the promise when called.
-                (or (as-late-bound-fn cache-value)
-                    (assert false "Unexpected value found in cache.")))))))))
+                  (if (identical? lower-order-fn-promise cache-value)
+                    ;; We just inserted our promise into the cache, so we're
+                    ;; responsible for delivering the result.
+                    (let [early-fn (apply higher-order-fn args)]
+                      (assert (ifn? early-fn) "The higher-order-fn must return a function.")
+                      (deliver lower-order-fn-promise early-fn)
+                      (swap! cache-atom assoc cache-key early-fn)
+                      early-fn)
+
+                    ;; Found an already-existing promise or function in the cache.
+                    ;; Return the function unaltered, or a function that
+                    ;; dereferences the promise when called.
+                    (as-late-bound-fn cache-value))))))]
+
+    (fn/with-memoize-info memoized-fn higher-order-fn cache-atom -1)))
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
 
@@ -429,6 +437,7 @@ Macros currently mean no foreseeable performance gain, however."
                          key-info
                          value-info
                          {:field-kind field-kind
+                          :is-oneof-field (some? (.getRealContainingOneof field-desc))
                           :java-name (underscores-to-camel-case (.getName field-desc))
                           :options (options (.getOptions field-desc))})]
                    (pair field-key field-info))))
@@ -708,7 +717,8 @@ Macros currently mean no foreseeable performance gain, however."
       (map (fn [[field-key {:keys [field-kind java-name] :as field-info}]]
              (let [pb-value->clj (pb-value->clj-fn field-info default-included-field-kinds)
                    ^Method field-get-method (field-get-method pb-class java-name field-kind)
-                   include-defaults (contains? default-included-field-kinds field-kind)]
+                   include-defaults (and (not (:is-oneof-field field-info))
+                                         (contains? default-included-field-kinds field-kind))]
                (pair field-key
                      (case field-kind
                        :pb-field-kind/list
@@ -725,12 +735,12 @@ Macros currently mean no foreseeable performance gain, however."
                        (if include-defaults
                          (if (message-field? field-info)
                            (let [field-has-value? (field-has-value-fn pb-class java-name field-kind)
-                                 default-field-value (default-message (:value-class field-info) default-included-field-kinds)]
+                                 field-pb-class (:value-class field-info)]
                              (fn pb->field-clj-value [pb]
                                (if (field-has-value? pb)
                                  (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                                    (pb-value->clj field-pb-value))
-                                 default-field-value)))
+                                 (default-message field-pb-class default-included-field-kinds)))) ; Call from inside the fn to support self-referential types.
                            (fn pb->field-clj-value-or-default [pb]
                              (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                                (pb-value->clj field-pb-value))))
@@ -767,7 +777,8 @@ Macros currently mean no foreseeable performance gain, however."
                   is-default
                   (let [field-builder (.toBuilder ^Message (.getField builder field-desc))
                         field-is-default (clear-defaults-from-builder! field-builder)]
-                    (if field-is-default
+                    (if (and field-is-default
+                             (not (.getRealContainingOneof field-desc)))
                       (do
                         (.clearField builder field-desc)
                         is-default)
@@ -811,6 +822,9 @@ Macros currently mean no foreseeable performance gain, however."
 
               ;; Non-message field.
               (cond
+                (.getRealContainingOneof field-desc)
+                false
+
                 (.isOptional field-desc)
                 (cond
                   (not (.hasField builder field-desc))
@@ -1035,7 +1049,7 @@ Macros currently mean no foreseeable performance gain, however."
       (comp builder-fn vector->map)
       builder-fn)))
 
-(def ^:private pb-builder (fn/memoize pb-builder-raw))
+(def ^:private pb-builder (memoize-late-bound pb-builder-raw))
 
 (defmacro map->pb [^Class cls m]
   (cond-> `((#'pb-builder ~cls) ~m)

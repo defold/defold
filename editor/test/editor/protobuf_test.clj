@@ -13,9 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.protobuf-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$JsonObject TestDdf$JsonValue TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
@@ -1712,3 +1713,170 @@ mapped_message {
   (is (= {:optional-resource "/default"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))
       "Keep non-empty paths even if equal to the default."))
+
+
+;: -----------------------------------------------------------------------------
+;; oneof fields
+;: -----------------------------------------------------------------------------
+
+(deftest oneof-field-map-without-defaults-test
+  (testing "Returns map with a single field of the selected type."
+    (is (= {:null :null}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "null: NULL")))
+    (is (= {:bool true}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "bool: true")))
+    (is (= {:number 1.0}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "number: 1.0")))
+    (is (= {:string "a"}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "string: 'a'")))
+    (is (= {:array {:elements [{:bool true}]}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "
+array {
+  elements {
+    bool: true
+  }
+}")))
+    (is (= {:object {:members {"intensity" {:number 1.0}}}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "
+object {
+  members {
+    key: 'intensity'
+    value {
+      number: 1.0
+    }
+  }
+}"))))
+  (testing "Protobuf oneof fields retain default-valued fields to preserve type."
+    (is (= {:null :null}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "null: NULL")))
+    (is (= {:bool false}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "bool: false")))
+    (is (= {:number 0.0}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "number: 0.0")))
+    (is (= {:string ""}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "string: ''")))
+    (is (= {:array {}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "array {}")))
+    (is (= {:object {}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "object {}")))))
+
+(deftest oneof-field-map-with-defaults-test
+  (testing "Returns map with a single field of the selected type."
+    (is (= {:null :null}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "null: NULL")))
+    (is (= {:bool false}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "bool: false")))
+    (is (= {:bool true}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "bool: true")))
+    (is (= {:number 0.0}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "number: 0.0")))
+    (is (= {:number 1.0}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "number: 1.0")))
+    (is (= {:string ""}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "string: ''")))
+    (is (= {:string "a"}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "string: 'a'")))
+    (is (= {:array {}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "array {}")))
+    (is (= {:array {:elements [{:bool true}]}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "
+array {
+  elements {
+    bool: true
+  }
+}")))
+    (is (= {:object {}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "object {}")))
+    (is (= {:object {:members {"intensity" {:number 1.0}}}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "
+object {
+  members {
+    key: 'intensity'
+    value {
+      number: 1.0
+    }
+  }
+}")))))
+
+
+;: -----------------------------------------------------------------------------
+;; Self-referencing types
+;: -----------------------------------------------------------------------------
+
+(deftest self-referencing-type-test
+  (let [expected-map
+        {:members {"null" {:null :null}
+                   "bool" {:bool false}
+                   "number" {:number 0.0}
+                   "string" {:string ""}
+                   "array" {:array {:elements [{:number 0.0}
+                                               {:string ""}]}}
+                   "object" {:object {:members {"number" {:number 0.0}
+                                                "string" {:string ""}}}}}}
+
+        expected-str
+        (string/triml "
+members {
+  key: \"array\"
+  value {
+    array {
+      elements {
+        number: 0.0
+      }
+      elements {
+        string: \"\"
+      }
+    }
+  }
+}
+members {
+  key: \"bool\"
+  value {
+    bool: false
+  }
+}
+members {
+  key: \"null\"
+  value {
+    null: NULL
+  }
+}
+members {
+  key: \"number\"
+  value {
+    number: 0.0
+  }
+}
+members {
+  key: \"object\"
+  value {
+    object {
+      members {
+        key: \"number\"
+        value {
+          number: 0.0
+        }
+      }
+      members {
+        key: \"string\"
+        value {
+          string: \"\"
+        }
+      }
+    }
+  }
+}
+members {
+  key: \"string\"
+  value {
+    string: \"\"
+  }
+}
+")]
+    (testing "Protobuf text format to Clojure map conversion."
+      (is (= expected-map
+             (protobuf/str->map-without-defaults TestDdf$JsonObject expected-str))))
+
+    (testing "Clojure map to Protobuf text format conversion."
+      (is (= expected-str
+             (protobuf/map->str TestDdf$JsonObject expected-map))))))

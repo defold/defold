@@ -176,3 +176,31 @@ message ResourceDefaultedMapNested {
 message ResourceRepeatedMapNested {
     map<string, ResourceRepeated> repeateds = 1;
 }
+
+
+// -----------------------------------------------------------------------------
+// Self-referencing types
+// -----------------------------------------------------------------------------
+
+message JsonValue {
+    oneof kind {
+        JsonNull null = 1;
+        bool bool = 2;
+        double number = 3;
+        string string = 4;
+        JsonArray array = 5;
+        JsonObject object = 6;
+    }
+}
+
+enum JsonNull {
+    NULL = 0;
+}
+
+message JsonArray {
+    repeated JsonValue elements = 1;
+}
+
+message JsonObject {
+    map<string, JsonValue> members = 1;
+}
