@@ -169,16 +169,17 @@ namespace dmGraphics
 
     struct VertexAttributeInfoMetadata
     {
-        uint32_t m_HasAttributeWorldPosition : 1;
-        uint32_t m_HasAttributeLocalPosition : 1;
-        uint32_t m_HasAttributeNormal        : 1;
-        uint32_t m_HasAttributeTangent       : 1;
-        uint32_t m_HasAttributeColor         : 1;
-        uint32_t m_HasAttributeTexCoord      : 1;
-        uint32_t m_HasAttributePageIndex     : 1;
-        uint32_t m_HasAttributeWorldMatrix   : 1;
-        uint32_t m_HasAttributeNormalMatrix  : 1;
-        uint32_t m_HasAttributeNone          : 1;
+        uint32_t m_HasAttributeWorldPosition      : 1;
+        uint32_t m_HasAttributeLocalPosition      : 1;
+        uint32_t m_HasAttributeNormal             : 1;
+        uint32_t m_HasAttributeTangent            : 1;
+        uint32_t m_HasAttributeColor              : 1;
+        uint32_t m_HasAttributeTexCoord           : 1;
+        uint32_t m_HasAttributePageIndex          : 1;
+        uint32_t m_HasAttributeWorldMatrix        : 1;
+        uint32_t m_HasAttributeNormalMatrix       : 1;
+        uint32_t m_HasAttributeNone               : 1;
+        uint32_t m_HasAttributeTextureTransform2D : 1;
     };
 
     struct WriteAttributeStreamDesc
@@ -208,6 +209,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_Colors;
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
+        WriteAttributeStreamDesc    m_TextureTransform2D;
         VertexStepFunction          m_StepFunction;
     };
 
@@ -554,6 +556,9 @@ namespace dmGraphics
             break;
         case VertexAttribute::SEMANTIC_TYPE_NONE:
             metadata.m_HasAttributeNone = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
+            metadata.m_HasAttributeTextureTransform2D = true;
             break;
         default:
             break;

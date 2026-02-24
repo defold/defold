@@ -31,6 +31,12 @@ namespace dmRig
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const float CURSOR_EPSILON = 0.0001f;
 
+    const float TEXTURE_TRANSFORM_2D_IDENTITY[9] = {
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f,
+    };
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
 
@@ -1034,6 +1040,7 @@ namespace dmRig
         const float** normals,
         const float** tangents,
         const float** colors,
+        const float** texture_transform_2d,
         const float** uv_channels,
         uint32_t uv_channels_count)
     {
@@ -1041,9 +1048,12 @@ namespace dmRig
         params->m_VertexAttributeInfos = attribute_infos;
         params->m_StepFunction         = step_function;
 
+        // Per-primitive channels
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_NormalMatrix, normal_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TextureTransform2D, texture_transform_2d, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
 
+        // Per-vertex channels
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsWorldSpace, positions_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsLocalSpace, positions_local_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_Normals, normals, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
@@ -1084,6 +1094,7 @@ namespace dmRig
         const float* normals_channels[] = { normals };
         const float* tangents_channels[] = { tangents };
         const float* colors_channels[] = { colors };
+        const float* texture_transform_2d_channels[] = { TEXTURE_TRANSFORM_2D_IDENTITY };
 
         dmGraphics::WriteAttributeParams params = {};
         SetMeshWriteAttributeParams(&params,
@@ -1096,6 +1107,7 @@ namespace dmRig
             normals_channels,
             tangents_channels,
             colors_channels,
+            texture_transform_2d_channels,
             uv_channels,
             uv_channels_count);
 
