@@ -30,8 +30,7 @@ Macros currently mean no foreseeable performance gain, however."
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [clojure.lang IPending]
-           [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
+  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
@@ -62,52 +61,6 @@ Macros currently mean no foreseeable performance gain, however."
 (defonce/protocol PbConverter
   (msg->vecmath [^Message pb v] "Return the javax.vecmath equivalent for the Protocol Buffer message")
   (msg->clj [^Message pb v]))
-
-(defn- as-late-bound-fn [fn-or-promise]
-  (cond
-    (fn? fn-or-promise)
-    fn-or-promise
-
-    (instance? IPending fn-or-promise)
-    (fn late-fn [& args]
-      (let [fn (deref fn-or-promise 1000 ::timeout)]
-        (if (not= ::timeout fn)
-          (apply fn args)
-          (throw
-            (ex-info
-              "Calling late-bound function before its promise could be delivered."
-              {:promise fn-or-promise})))))))
-
-(defn- memoize-late-bound [higher-order-fn]
-  (let [cache-atom (atom {})
-
-        memoized-fn
-        (fn memoized-fn [& args]
-          (let [cache-key (vec args)
-                cache-value (get @cache-atom cache-key)]
-            (or (as-late-bound-fn cache-value)
-                (let [lower-order-fn-promise (promise)
-
-                      cache-value
-                      (-> cache-atom
-                          (swap! update cache-key fn/or lower-order-fn-promise)
-                          (get cache-key))]
-
-                  (if (identical? lower-order-fn-promise cache-value)
-                    ;; We just inserted our promise into the cache, so we're
-                    ;; responsible for delivering the result.
-                    (let [early-fn (apply higher-order-fn args)]
-                      (assert (ifn? early-fn) "The higher-order-fn must return a function.")
-                      (deliver lower-order-fn-promise early-fn)
-                      (swap! cache-atom assoc cache-key early-fn)
-                      early-fn)
-
-                    ;; Found an already-existing promise or function in the cache.
-                    ;; Return the function unaltered, or a function that
-                    ;; dereferences the promise when called.
-                    (as-late-bound-fn cache-value))))))]
-
-    (fn/with-memoize-info memoized-fn higher-order-fn cache-atom -1)))
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
 
@@ -761,7 +714,7 @@ Macros currently mean no foreseeable performance gain, however."
                                (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                                  (pb-value->clj field-pb-value))))))))))))))
 
-(def ^:private pb->clj-fn (memoize-late-bound pb->clj-fn-raw))
+(def ^:private pb->clj-fn (fn/memoize-late-bound pb->clj-fn-raw))
 
 (def ^:private pb->clj-with-defaults-fn (fn/memoize #(pb->clj-fn % #{:pb-field-kind/optional :pb-field-kind/required})))
 
@@ -1049,7 +1002,7 @@ Macros currently mean no foreseeable performance gain, however."
       (comp builder-fn vector->map)
       builder-fn)))
 
-(def ^:private pb-builder (memoize-late-bound pb-builder-raw))
+(def ^:private pb-builder (fn/memoize-late-bound pb-builder-raw))
 
 (defmacro map->pb [^Class cls m]
   (cond-> `((#'pb-builder ~cls) ~m)
@@ -1676,26 +1629,3 @@ Macros currently mean no foreseeable performance gain, however."
         value-desc (.getMessageType value-field-desc)]
 
     (pb-field-desc-class value-field-desc)))
-
-;; TODO(protobuf-maps): Remove!
-(comment
-  (pb-class->descriptor com.defold.editor.test.TestDdf$SubMsg)
-  (pb-desc-class-name (pb-class->descriptor com.defold.editor.test.TestDdf$SubMsg))
-
-  (slurp "test/resources/save_data_project/checked01.light")
-
-  (let [bad-class com.dynamo.proto.DdfStruct
-        pb-class com.dynamo.proto.DdfStruct$Struct
-        fields-field-info (:fields (field-infos-raw pb-class))
-        content (slurp "test/resources/save_data_project/checked01.light")]
-
-    (str->map-without-defaults com.dynamo.gamesys.proto.GameSystem$LightDesc content)
-
-    (with-open [reader (StringReader. content)]
-      (let [light-desc (read-pb com.dynamo.gamesys.proto.GameSystem$LightDesc reader)
-            struct (.getData light-desc)]
-        (-> (.getFields struct)
-            (coll/into-> {}
-              (map (fn [[key value]]
-                     [(keyword key)
-                      value]))))))))

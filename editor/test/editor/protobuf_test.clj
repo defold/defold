@@ -1714,10 +1714,9 @@ mapped_message {
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))
       "Keep non-empty paths even if equal to the default."))
 
-
-;: -----------------------------------------------------------------------------
-;; oneof fields
-;: -----------------------------------------------------------------------------
+;; -----------------------------------------------------------------------------
+;; oneof-fields
+;; -----------------------------------------------------------------------------
 
 (deftest oneof-field-map-without-defaults-test
   (testing "Returns map with a single field of the selected type."
@@ -1798,10 +1797,9 @@ object {
   }
 }")))))
 
-
-;: -----------------------------------------------------------------------------
-;; Self-referencing types
-;: -----------------------------------------------------------------------------
+;; -----------------------------------------------------------------------------
+;; self-referencing-types
+;; -----------------------------------------------------------------------------
 
 (deftest self-referencing-type-test
   (let [expected-map

@@ -18,7 +18,7 @@
                            or or*})
   (:require [internal.java :as java]
             [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang ArityException Compiler Fn IFn IHashEq MultiFn]
+  (:import [clojure.lang ArityException Compiler Fn IFn IHashEq IPending MultiFn]
            [java.lang.reflect Method]))
 
 (set! *warn-on-reflection* true)
@@ -40,7 +40,23 @@
                       (merge {:args ~'args}
                              ~context-map-expr))))))
 
-(definline with-memoize-info [memoized-fn original-fn cache arity]
+;; Exposed publicly as fn/and at the bottom of this file.
+(defn- and-fn
+  "Like clojure.core/and, but is eager and can be used as a function."
+  ([] true)
+  ([a] a)
+  ([a b] (if a b a))
+  ([a b & more] (if a (reduce and-fn b more) a)))
+
+;; Exposed publicly as fn/or at the bottom of this file.
+(defn- or-fn
+  "Like clojure.core/or, but is eager and can be used as a function."
+  ([] nil)
+  ([a] a)
+  ([a b] (if a a b))
+  ([a b & more] (reduce or-fn (if a a b) more)))
+
+(definline ^:private with-memoize-info [memoized-fn original-fn cache arity]
   `(with-meta ~memoized-fn
               {::memoize-original ~original-fn
                ::memoize-arity ~arity
@@ -186,6 +202,58 @@
          1 (memoize-one opts ifn)
          2 (memoize-two opts ifn)
          (memoize-any opts ifn arity))))))
+
+(defn- as-late-bound-fn
+  [fn-or-promise]
+  (cond
+    (fn? fn-or-promise)
+    fn-or-promise
+
+    (instance? IPending fn-or-promise)
+    (fn late-fn [& args]
+      (let [fn (deref fn-or-promise 0 ::unrealized)]
+        (if (not= ::unrealized fn)
+          (apply fn args)
+          (throw
+            (ex-info
+              "Calling late-bound function before its promise could be realized."
+              {:promise fn-or-promise})))))))
+
+(defn memoize-late-bound
+  "Given a higher-order function that returns a function, return a memoized
+  version of the higher-order function that is able to call itself recursively
+  with the same arguments. An exception will be thrown if the returned
+  lower-order function is called before memoize-late-bound returns."
+  [higher-order-fn]
+  (let [cache-atom (atom {})
+
+        memoized-fn
+        (fn memoized-fn [& args]
+          (let [cache-key (vec args)
+                cache-value (get @cache-atom cache-key)]
+            (or* (as-late-bound-fn cache-value)
+                 (let [lower-order-fn-promise (promise)
+
+                       cache-value
+                       (-> cache-atom
+                           (swap! update cache-key or-fn lower-order-fn-promise)
+                           (get cache-key))]
+
+                   (if (identical? lower-order-fn-promise cache-value)
+                     ;; We just inserted our promise into the cache, so we're
+                     ;; responsible for delivering the result.
+                     (let [early-fn (apply higher-order-fn args)]
+                       (assert (ifn? early-fn) "The higher-order-fn must return a function.")
+                       (deliver lower-order-fn-promise early-fn)
+                       (swap! cache-atom assoc cache-key early-fn)
+                       early-fn)
+
+                     ;; Found an already-existing promise or function in the
+                     ;; cache. Return the function unaltered, or a function that
+                     ;; dereferences the promise when called.
+                     (as-late-bound-fn cache-value))))))]
+
+    (with-memoize-info memoized-fn higher-order-fn cache-atom -1)))
 
 (defn clear-memoized!
   "Clear all previously cached results from the cache of a memoized function
@@ -397,18 +465,16 @@
   `(defn ~name [~'value]
      (among-values-case-expr ~valid-values ~'value)))
 
-;; Keep at the bottom to avoid internal use. Code in this file should use and*.
-(defn and
-  "Like clojure.core/and, but is eager and can be used as a function."
-  ([] true)
-  ([a] a)
-  ([a b] (if a b a))
-  ([a b & more] (if a (reduce and b more) a)))
+;; Expose and-fn to the outside as fn/and. Keep at the bottom to avoid internal
+;; use. Code in this file should use and* for core.and and and-fn for this.
+(def
+  ^{:doc "Like clojure.core/and, but is eager and can be used as a function."
+    :arglists '([] [a] [a b] [a b & more])}
+  and and-fn)
 
-;; Keep at the bottom to avoid internal use. Code in this file should use or*.
-(defn or
-  "Like clojure.core/or, but is eager and can be used as a function."
-  ([] nil)
-  ([a] a)
-  ([a b] (if a a b))
-  ([a b & more] (reduce or (if a a b) more)))
+;; Expose or-fn to the outside as fn/or. Keep at the bottom to avoid internal
+;; use. Code in this file should use or* for core.or and or-fn for this.
+(def
+  ^{:doc "Like clojure.core/or, but is eager and can be used as a function."
+    :arglists '([] [a] [a b] [a b & more])}
+  or or-fn)
