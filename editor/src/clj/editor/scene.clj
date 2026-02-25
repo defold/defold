@@ -1453,11 +1453,9 @@
                                    current
                                    (recur (.getParent current)))))]
         (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
-      (let [[screen-x screen-y] (:cursor-pos (g/node-value scene-view :input-state))]
-        (g/set-property! (view->camera scene-view) :cursor-type :none))
       (some-> scene-view
               (view->camera)
-              (g/set-property! :free-camera-mode true))
+              (start-free-camera-mode!))
       (i/start-mouse-capture))))
 
 (defn- set-manip-space! [app-view manip-space]
@@ -1690,6 +1688,16 @@
                                (recur (.getParent current)))))]
     (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
+(defn- start-free-camera-mode! [camera-id]
+  (let [current-camera (g/node-value camera-id :local-camera)
+        [pitch yaw _] (math/quat->euler (:rotation current-camera))]
+    (g/set-property! camera-id :free-camera-mode true)
+    (g/set-property! camera-id :cursor-type :none)
+    (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
+                                             :pitch pitch
+                                             :yaw yaw
+                                             :smoothed-look-delta [0.0 0.0]})))
+
 (defn- handle-free-camera-mode! [view-id image-view action]
   (let [camera-id (view->camera view-id)
         is-perspective? (= :perspective (:type (g/node-value camera-id :local-camera)))]
@@ -1697,14 +1705,7 @@
       :drag-detected
       (when (and (= :secondary (:button action)) is-perspective?)
         (toggle-free-cam-css image-view true)
-        (let [current-camera (g/node-value camera-id :local-camera)
-              [pitch yaw _] (math/quat->euler (:rotation current-camera))]
-          (g/set-property! camera-id :free-camera-mode true)
-          (g/set-property! camera-id :cursor-type :none)
-          (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
-                                                   :pitch pitch
-                                                   :yaw yaw
-                                                   :smoothed-look-delta [0.0 0.0]}))
+        (start-free-camera-mode! camera-id)
         (i/start-mouse-capture))
 
       :mouse-released

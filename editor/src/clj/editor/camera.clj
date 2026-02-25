@@ -783,7 +783,7 @@
             new-rotation (math/euler->quat [new-pitch new-yaw 0.0])
             focus-distance (:focus-distance current-camera)
             new-camera (assoc current-camera :rotation new-rotation)
-            new-focus ^Vector3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
+            new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
             new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
         [(assoc new-camera :focus-point new-focus)
          (assoc free-camera :pitch new-pitch :yaw new-yaw :smoothed-look-delta [smooth-dx smooth-dy])])
@@ -809,7 +809,7 @@
       (if (> (.length vel) 0.001)
         (let [offset (doto (Vector3d. vel) (.scale dt))
               new-camera (camera-move camera (.x offset) (.y offset) (.z offset))
-              new-focus ^Tuple3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
+              new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
           (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
         camera))))
 
