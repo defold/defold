@@ -23,7 +23,6 @@ def configure(conf):
 def build(bld):
     platform = bld.env.PLATFORM
     if not bld.env.IS_TARGET_DESKTOP:
-        print("AAAAAAAAAAAAAAAAAAAAA", platform)
         return
 
     if 'linux' in platform:
@@ -33,13 +32,11 @@ def build(bld):
     elif 'darwin' in platform or 'macos' in platform:
         platform_source = 'mouse_capture_macos.mm'
         platform_libs   = []
-        platform_cxxflags = ['-fvisibility=default']
     elif 'win' in platform:
         platform_source = 'mouse_capture_windows.cpp'
         platform_libs   = ['user32']
         platform_cxxflags = []
     else:
-        print("AAAAAAAAAAAAAAAAAAAAA", platform)
         return
 
     bld.stlib(features = 'cxx',
