@@ -1704,6 +1704,9 @@ def detect(conf):
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
+        conf.env['GCC-OBJCXX'] = '-xobjective-c++'
+        conf.env['GCC-OBJCLINK'] = '-lobjc'
+
     elif TargetOS.IOS == target_os and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
