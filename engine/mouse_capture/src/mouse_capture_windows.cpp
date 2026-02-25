@@ -26,15 +26,15 @@ namespace dmMouseCapture
                 GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &size, sizeof(RAWINPUTHEADER));
                 if (size > 0)
                 {
-                    BYTE* buf = (BYTE*)_alloca(size);
-                    if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buf, &size, sizeof(RAWINPUTHEADER)) == size)
+                    RAWINPUT raw;
+                    UINT size = sizeof(RAWINPUT);
+                    if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) != (UINT)-1)
                     {
-                        RAWINPUT* raw = (RAWINPUT*)buf;
-                        if (raw->header.dwType == RIM_TYPEMOUSE &&
-                            (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
+                        if (raw.header.dwType == RIM_TYPEMOUSE &&
+                            (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
                         {
-                            ctx->m_AccumulatedDelta.dx += raw->data.mouse.lLastX;
-                            ctx->m_AccumulatedDelta.dy += raw->data.mouse.lLastY;
+                            ctx->m_AccumulatedDelta.dx += raw.data.mouse.lLastX;
+                            ctx->m_AccumulatedDelta.dy += raw.data.mouse.lLastY;
                         }
                     }
                 }
