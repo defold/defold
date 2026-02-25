@@ -21,6 +21,9 @@ def configure(conf):
     pass
 
 def build(bld):
+    if not bld.env.IS_TARGET_DESKTOP:
+        return
+
     platform = bld.env.PLATFORM
 
     if 'linux' in platform:
@@ -30,7 +33,7 @@ def build(bld):
     elif 'win' in platform:
         platform_source = 'mouse_capture_windows.cpp'
     else:
-        raise Exception('Unsupported platform for mouse_capture: %s' % platform)
+        return
 
     bld.stlib(features = 'cxx',
               includes = ['.'],

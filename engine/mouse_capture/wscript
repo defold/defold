@@ -30,6 +30,9 @@ def options(opt):
 
 def configure(conf):
     conf.load('waf_dynamo')
+    if not conf.env.IS_TARGET_DESKTOP:
+        return
+
     conf.recurse('src')
 
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
@@ -38,6 +41,9 @@ def configure(conf):
 
 def build(bld):
     global test_context
+    if not bld.env.IS_TARGET_DESKTOP:
+        return
+
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 
