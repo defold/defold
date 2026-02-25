@@ -106,11 +106,10 @@ namespace dmGraphics
     typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
-     * PipelineState handle
-     * @typedef
-     * @name HPipelineState
+     * Shader program description (from graphics_ddf.h)
+     * @struct
+     * @name ShaderDesc
      */
-    typedef struct PipelineState* HPipelineState;
 
     /*#
      * Invalid stream offset
@@ -1783,8 +1782,6 @@ namespace dmGraphics
      */
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);
 
-    struct ShaderDesc; // from graphics_ddf.h
-
     /*#
      * Creates a new shader program from a shader description.
      * 
@@ -1792,7 +1789,7 @@ namespace dmGraphics
      * Returns a program handle that can be used for rendering.
      * @name NewProgram
      * @param context [type:dmGraphics::HContext] Graphics context
-     * @param ddf [type:ShaderDesc*] Shader description containing source code and parameters
+     * @param ddf [type:dmGraphics::ShaderDesc*] Shader description containing source code and parameters
      * @param error_buffer [type:char*] Buffer to receive error messages (can be null)
      * @param error_buffer_size [type:uint32_t] Size of the error buffer
      * @return program [type:dmGraphics::HProgram] New program handle, or INVALID_PROGRAM_HANDLE on failure
