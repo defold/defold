@@ -49,7 +49,7 @@
   (try
     (let [window-class (Class/forName "com.sun.glass.ui.Window")
           get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
-          windows (.invoke get-windows-method nil (make-array Object 0))
+          windows ^java.util.List (.invoke get-windows-method nil (make-array Object 0))
           first-window (.get windows 0)
           get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))]
       (.invoke get-native-window-method first-window (make-array Object 0)))
@@ -61,7 +61,7 @@
   (try
     (let [window-class (Class/forName "com.sun.glass.ui.Window")
           get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
-          windows (.invoke get-windows-method nil (make-array Object 0))
+          windows ^java.util.List (.invoke get-windows-method nil (make-array Object 0))
           first-window (.get windows 0)
           get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))
           native-handle (.invoke get-native-window-method first-window (make-array Object 0))]
@@ -75,7 +75,7 @@
   (try
     (let [window-class (Class/forName "com.sun.glass.ui.Window")
           get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
-          windows (.invoke get-windows-method nil (make-array Object 0))
+          windows ^java.util.List (.invoke get-windows-method nil (make-array Object 0))
           first-window (.get windows 0)
           get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))
           native-handle (.invoke get-native-window-method first-window (make-array Object 0))]
@@ -124,14 +124,32 @@
 (defn translate-button [^MouseButton jfx-button]
   (get button-map jfx-button :none))
 
+;; NOTE: Not all InputEvents subclasses have the modifier checking methods, so use a protocol to avoid reflection
+(defprotocol ModifierKeys
+  (get-modifiers [event]))
+
+(extend-protocol ModifierKeys
+  KeyEvent
+  (get-modifiers [e]
+    {:alt (.isAltDown e) :shift (.isShiftDown e)
+     :meta (.isMetaDown e) :control (.isControlDown e)})
+  MouseEvent
+  (get-modifiers [e]
+    {:alt (.isAltDown e) :shift (.isShiftDown e)
+     :meta (.isMetaDown e) :control (.isControlDown e)})
+  ScrollEvent
+  (get-modifiers [e]
+    {:alt (.isAltDown e) :shift (.isShiftDown e)
+     :meta (.isMetaDown e) :control (.isControlDown e)})
+  InputEvent
+  (get-modifiers [_]
+    ;; NOTE: Return an empty map so it doesn't potentiall clobber InputState
+    {}))
+
 (defn action-from-jfx [^InputEvent jfx-event]
   (let [type (translate-action (.getEventType jfx-event))
-        action {:type type
-                :event jfx-event
-                :alt (.isAltDown jfx-event)
-                :shift (.isShiftDown jfx-event)
-                :meta (.isMetaDown jfx-event)
-                :control (.isControlDown jfx-event)}]
+        modifiers (get-modifiers jfx-event)
+        action (merge {:type type :event jfx-event} modifiers)]
     (case type
       :undefined action
 
@@ -208,12 +226,12 @@
 
       (and (= :key-pressed (:type action))
            (let [code (:key-code action)]
-             (or (.isLetterKey code) (.isDigitKey code))))
+             (or (.isLetterKey ^KeyCode code) (.isDigitKey ^KeyCode code))))
       (update :pressed-keys conj (:key-code action))
 
       (and (= :key-released (:type action))
            (let [code (:key-code action)]
-             (or (.isLetterKey code) (.isDigitKey code))))
+             (or (.isLetterKey ^KeyCode code) (.isDigitKey ^KeyCode code))))
       (update :pressed-keys disj (:key-code action)))))
 
 (comment

@@ -783,14 +783,14 @@
             new-rotation (math/euler->quat [new-pitch new-yaw 0.0])
             focus-distance (:focus-distance current-camera)
             new-camera (assoc current-camera :rotation new-rotation)
-            new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
+            new-focus ^Vector3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
             new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
         [(assoc new-camera :focus-point new-focus)
          (assoc free-camera :pitch new-pitch :yaw new-yaw :smoothed-look-delta [smooth-dx smooth-dy])])
       [current-camera free-camera])))
 
 (defn wasd-move
-  [camera-node camera free-camera target-dir speed dt]
+  [camera-node camera free-camera ^Vector3d target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
@@ -798,7 +798,7 @@
         final-speed (* speed focus-distance 0.1)]
     (.scale target-dir final-speed)
 
-    (let [vel (:velocity free-camera)
+    (let [vel ^Vector3d (:velocity free-camera)
           diff (doto (Vector3d. target-dir) (.sub vel))
           damping (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :move-damping])]
       (.scale diff (* damping dt))
@@ -809,7 +809,7 @@
       (if (> (.length vel) 0.001)
         (let [offset (doto (Vector3d. vel) (.scale dt))
               new-camera (camera-move camera (.x offset) (.y offset) (.z offset))
-              new-focus (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
+              new-focus ^Tuple3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
           (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
         camera))))
 

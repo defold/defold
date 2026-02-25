@@ -74,7 +74,7 @@
            [javafx.geometry HPos VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.image ImageView WritableImage]
-           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.input KeyCode KeyCodeCombination KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Quat4d Vector3d Vector4d]
            [sun.awt.image IntegerComponentRaster]))
@@ -1058,7 +1058,7 @@
   ([camera-node start-camera end-camera animate?]
    (set-camera! camera-node start-camera end-camera animate? nil))
   ([camera-node start-camera end-camera animate? on-animation-end]
-   (assoc end-camera :focus-distance (.distance (:position end-camera) (c/camera-focus-point end-camera)))
+   (assoc end-camera :focus-distance (.distance ^Point3d (:position end-camera) (c/camera-focus-point end-camera)))
    (if animate?
      (let [duration 0.5]
        (g/transact (g/set-property camera-node :animating true))
@@ -1117,7 +1117,7 @@
                                                           (prefs/get prefs [:scene :perspective-camera :invert-y])
                                                           dt))
                                           [current-camera free-camera])
-        key-for-command (fn [cmd] (some-> (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
+        key-for-command (fn [cmd] (some-> ^KeyCodeCombination (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                           (.getCode)))
         w-key (key-for-command :scene.camera-move-forward)
         a-key (key-for-command :scene.camera-move-left)
@@ -1447,12 +1447,12 @@
       (= :perspective (:type (g/node-value camera :local-camera)))))
   (run [app-view]
     (let [scene-view (active-scene-view app-view)]
-      (when-let [tab-content (loop [current (.getParent (g/node-value scene-view :image-view))]
+      (when-let [tab-content (loop [current (.getParent ^Node (g/node-value scene-view :image-view))]
                                (when current
                                  (if (.contains (.getStyleClass current) "tab-content-area")
                                    current
                                    (recur (.getParent current)))))]
-        (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
+        (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
       (let [[screen-x screen-y] (:cursor-pos (g/node-value scene-view :input-state))]
         (g/set-property! (view->camera scene-view) :cursor-type :none))
       (some-> scene-view
@@ -1688,7 +1688,7 @@
                              (if (.contains (.getStyleClass current) "tab-content-area")
                                current
                                (recur (.getParent current)))))]
-    (.pseudoClassStateChanged tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
+    (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
 (defn- handle-free-camera-mode! [view-id image-view action]
   (let [camera-id (view->camera view-id)
