@@ -51,12 +51,12 @@ def build(bld):
 
     bld.add_group()
 
-        bld.shlib(features = 'cxx skip_asan',
-                  includes = ['.'],
-                  target   = 'mouse_capture_shared',
-                  use      = 'DLIB_NOASAN SOCKET PLATFORM_NULL',
-                  lib      = platform_libs,
-                  source   = platform_source,
-                  cxxflags = platform_cxxflags)
+    bld.shlib(features = 'cxx skip_asan',
+              includes = ['.'],
+              target   = 'mouse_capture_shared',
+              use      = 'DLIB_NOASAN SOCKET PLATFORM_NULL',
+              lib      = platform_libs,
+              source   = platform_source,
+              cxxflags = platform_cxxflags)
 
     bld.install_files('${PREFIX}/include/mouse_capture', 'mouse_capture.h')
