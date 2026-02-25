@@ -55,7 +55,7 @@ def build(bld):
                   includes = ['.'],
                   target   = 'mouse_capture_shared',
                   use      = 'DLIB_NOASAN PLATFORM_NULL',
-                  lib      = platform_libs
+                  lib      = platform_libs,
                   source   = platform_source,
                   cxxflags = platform_cxxflags)
 
