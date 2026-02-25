@@ -21,10 +21,10 @@ def configure(conf):
     pass
 
 def build(bld):
-    if not bld.env.IS_TARGET_DESKTOP:
-        return
-
     platform = bld.env.PLATFORM
+    if not bld.env.IS_TARGET_DESKTOP:
+        print("AAAAAAAAAAAAAAAAAAAAA", platform)
+        return
 
     if 'linux' in platform:
         platform_source = 'mouse_capture_linux.cpp'
@@ -39,6 +39,7 @@ def build(bld):
         platform_libs   = ['user32']
         platform_cxxflags = []
     else:
+        print("AAAAAAAAAAAAAAAAAAAAA", platform)
         return
 
     bld.stlib(features = 'cxx',
@@ -50,16 +51,12 @@ def build(bld):
 
     bld.add_group()
 
-    if bld.env.IS_TARGET_DESKTOP:
         bld.shlib(features = 'cxx skip_asan',
                   includes = ['.'],
                   target   = 'mouse_capture_shared',
-                  use      = 'DLIB_NOASAN PLATFORM_NULL',
+                  use      = 'DLIB_NOASAN SOCKET PLATFORM_NULL',
                   lib      = platform_libs,
                   source   = platform_source,
                   cxxflags = platform_cxxflags)
 
     bld.install_files('${PREFIX}/include/mouse_capture', 'mouse_capture.h')
-
-    # if not waflib.Options.options.skip_build_tests:
-    #     bld.recurse('test')
