@@ -40,16 +40,9 @@ def build(bld):
     else:
         return
 
-    bld.stlib(features = 'cxx',
-              includes = ['.'],
-              target   = 'mouse_capture',
-              use      = 'DLIB SOCKET',
-              lib      = platform_libs,
-              source   = platform_source)
-
     bld.add_group()
 
-    bld.shlib(features = 'cxx skip_asan',
+    bld.shlib(features = 'cxx cshlib skip_asan',
               includes = ['.'],
               target   = 'mouse_capture_shared',
               use      = 'DLIB_NOASAN SOCKET PLATFORM_NULL',
