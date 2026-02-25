@@ -489,7 +489,8 @@
     :semantic-type-normal false
     :semantic-type-tangent false
     :semantic-type-world-matrix false
-    :semantic-type-normal-matrix false))
+    :semantic-type-normal-matrix false
+    :semantic-type-texture-transform-2d false))
 
 (defn overridable-attribute-info? [attribute-info]
   (overridable-semantic-type? (:semantic-type attribute-info default-attribute-semantic-type)))
@@ -862,6 +863,12 @@
                 ;; normal-matrix attributes.
                 (boolean (:has-semantic-type-normal-matrix renderable-data))
 
+                :semantic-type-texture-transform-2d
+                ;; We support multiple sets of texture transforms. Usually,
+                ;; the mesh data will provide this data in tandem with the
+                ;; texture coordinates (but not limited to).
+                (some? (get-in texcoord-datas [channel :texture-transform]))
+
                 false))))]
 
     (reduce (fn [reduce-info attribute]
@@ -940,7 +947,14 @@
                                       (fn renderable-data->normal-matrices [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
                                               matrix-values (mat4-double-values (:normal-transform renderable-data) vector-type)]
-                                          (repeat vertex-count matrix-values)))))
+                                          (repeat vertex-count matrix-values))))
+
+                    :semantic-type-texture-transform-2d
+                    (put-renderables! attribute-byte-offset put-attribute-doubles!
+                                      (fn renderable-data->texture-transforms [renderable-data]
+                                        (let [vertex-count (count (:position-data renderable-data))
+                                              texture-transform (get-in renderable-data [:texcoord-datas channel :texture-transform])]
+                                          (repeat vertex-count texture-transform)))))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides. If the material does not declare an

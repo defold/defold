@@ -191,10 +191,27 @@
             (assoc vtx 0 x 1 y)))
         vertices))
 
+;; Construct a complete 2D affine matrix from unit square to atlas quad.
+(defn- tex-coords->texture-transform-2d [[tl tr _br bl]]
+  (let [u0 (double (nth tl 0))
+        v0 (double (nth tl 1))
+        u1 (double (nth tr 0))
+        v1 (double (nth tr 1))
+        u3 (double (nth bl 0))
+        v3 (double (nth bl 1))]
+    (vector-of :double
+      (- u1 u0) (- v1 v0) 0.0
+      (- u3 u0) (- v3 v0) 0.0
+      u0 v0 1.0)))
+
+(def ^:private texture-transform-identity
+  (vector-of :double 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0))
+
 (defn- frame-vertex-data [animation-frame size pivot]
   (let [use-geometries (:use-geometries animation-frame)
         corner-points (corner-points size pivot)
         line-data (corner-points->line-data corner-points)
+        tex-coords (:tex-coords animation-frame)
 
         position-data
         (if use-geometries
@@ -212,15 +229,19 @@
 
         uv-data
         (if use-geometries
-          (let [tex-coords (:vertex-tex-coords animation-frame)
+          (let [vertex-tex-coords (:vertex-tex-coords animation-frame)
                 indices (:indices animation-frame)]
-            (mapv tex-coords indices))
-          (let [[uvnw uvsw uvse uvne] (:tex-coords animation-frame)]
-            [uvnw uvne uvsw uvne uvse uvsw]))]
+            (mapv vertex-tex-coords indices))
+          (let [[uvnw uvsw uvse uvne] tex-coords]
+            [uvnw uvne uvsw uvne uvse uvsw]))
+
+        texture-transform
+        (tex-coords->texture-transform-2d tex-coords)]
 
     {:position-data position-data
      :uv-data uv-data
-     :line-data line-data}))
+     :line-data line-data
+     :texture-transform texture-transform}))
 
 (def ^:private default-quad-uv-data
   [(vector-of :double 0.0 0.0)
@@ -236,7 +257,8 @@
         line-data (corner-points->line-data corner-points)]
     {:position-data position-data
      :uv-data default-quad-uv-data
-     :line-data line-data}))
+     :line-data line-data
+     :texture-transform texture-transform-identity}))
 
 (defn vertex-data [animation-frame size-mode size slice9 pivot]
   (let [out (-> (cond
@@ -245,7 +267,10 @@
 
                   (and (= :size-mode-manual size-mode)
                        (slice9/sliced? slice9))
-                  (slice9/vertex-data animation-frame size slice9 pivot)
+                  (-> (slice9/vertex-data animation-frame size slice9 pivot)
+                      (assoc :texture-transform (if-some [tex-coords (:tex-coords animation-frame)]
+                                                  (tex-coords->texture-transform-2d tex-coords)
+                                                  texture-transform-identity)))
 
                   :else
                   (frame-vertex-data animation-frame size pivot))

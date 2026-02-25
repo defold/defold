@@ -52,7 +52,7 @@ namespace dmRender
         return (dmGraphics::VertexAttribute::VectorType) -1;
     }
 
-    static void SetVertexAttributeInfoDefaultSettings(dmGraphics::VertexAttributeInfo* info, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported, const uint8_t* value_ptr)
+    static void SetVertexAttributeInfoDefaultSettings(dmGraphics::VertexAttributeInfo* info, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported)
     {
         info->m_NameHash        = name_hash;
         info->m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
@@ -62,7 +62,7 @@ namespace dmRender
         info->m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
         info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
         info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
-        info->m_ValuePtr        = value_ptr;
+        info->m_ValuePtr        = 0;
         info->m_ValueVectorType = info->m_VectorType;
 
         if (name_hash == VERTEX_STREAM_POSITION)
@@ -127,6 +127,11 @@ namespace dmRender
             {
                 info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             }
+        }
+        else if (name_hash == VERTEX_STREAM_TEXTURE_TRANSFORM_2D)
+        {
+            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D;
+            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
         }
     }
 
@@ -250,8 +255,7 @@ namespace dmRender
             material_attribute.m_ValueIndex       = num_attribute_byte_size;
             material_attribute.m_ValueCount       = num_values;
 
-            const uint8_t* value_ptr = 0; // Will be set after we allocate the value buffer
-            SetVertexAttributeInfoDefaultSettings(&m->m_VertexAttributeInfos[i], name_hash, type, element_count, instancing_supported, value_ptr);
+            SetVertexAttributeInfoDefaultSettings(&m->m_VertexAttributeInfos[i], name_hash, type, element_count, instancing_supported);
 
             dmGraphics::Type base_type = dmGraphics::GetGraphicsType(m->m_VertexAttributeInfos[i].m_DataType);
             num_attribute_byte_size += dmGraphics::GetTypeSize(base_type) * element_count;
