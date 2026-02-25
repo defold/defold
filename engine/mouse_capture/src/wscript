@@ -1,0 +1,54 @@
+#! /usr/bin/env python
+
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+import waflib.Options
+import sys
+
+def configure(conf):
+    pass
+
+def build(bld):
+    platform = bld.env.PLATFORM
+
+    if 'linux' in platform:
+        platform_source = 'mouse_capture_linux.cpp'
+    elif 'darwin' in platform or 'macos' in platform:
+        platform_source = 'mouse_capture_macos.mm'
+    elif 'win' in platform:
+        platform_source = 'mouse_capture_windows.cpp'
+    else:
+        raise Exception('Unsupported platform for mouse_capture: %s' % platform)
+
+    bld.stlib(features = 'cxx',
+              includes = ['.'],
+              target   = 'mouse_capture',
+              use      = 'DLIB SOCKET',
+              source   = platform_source)
+
+    bld.add_group()
+
+    if bld.env.IS_TARGET_DESKTOP:
+        bld.shlib(features = 'cxx skip_asan',
+                  includes = ['.'],
+                  target   = 'mouse_capture_shared',
+                  use      = 'DLIB_NOASAN PLATFORM_NULL',
+                  source   = platform_source,
+                  cxxflags= ['-fvisibility=default'])
+
+    bld.install_files('${PREFIX}/include/mouse_capture', 'mouse_capture.h')
+
+    # if not waflib.Options.options.skip_build_tests:
+    #     bld.recurse('test')

@@ -31,13 +31,17 @@
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.dylib"]}
+                   "lib" ["libmouse_capture_shared.dylib"
+                          ""]}
    "arm64-macos" {"bin" ["dmengine"]
-                  "lib" ["libparticle_shared.dylib"]}
+                  "lib" ["libparticle_shared.dylib"
+                         "libmouse_capture_shared.dylib"]}
    "x86_64-win32"  {"bin" ["dmengine.pdb"]
-                    "lib" ["particle_shared.dll"]}
+                    "lib" ["particle_shared.dll"
+                           "mouse_capture_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.so"]}})
+                    "lib" ["libparticle_shared.so"
+                           "libmouse_capture_shared.so"]}})
 
 (defn- platform->engine-src-dirname [platform]
   (assert (contains? engine-artifacts platform))
