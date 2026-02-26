@@ -26,15 +26,12 @@ def build(bld):
     if 'linux' in platform:
         platform_source = 'mouse_capture_linux.cpp'
         platform_libs   = []
-        platform_cxxflags = ['-fvisibility=default']
     elif 'darwin' in platform or 'macos' in platform:
         platform_source = 'mouse_capture_macos.mm'
         platform_libs   = []
-        platform_cxxflags = []
     elif 'win' in platform:
         platform_source = 'mouse_capture_windows.cpp'
         platform_libs   = ['user32']
-        platform_cxxflags = []
     else:
         return
 
@@ -45,7 +42,6 @@ def build(bld):
               target   = 'mouse_capture_shared',
               use      = 'DLIB_NOASAN SOCKET PLATFORM_NULL',
               lib      = platform_libs,
-              source   = platform_source,
-              cxxflags = platform_cxxflags)
+              source   = ['mouse_capture_exports.cpp', platform_source])
 
     bld.install_files('${PREFIX}/include/mouse_capture', 'mouse_capture.h')

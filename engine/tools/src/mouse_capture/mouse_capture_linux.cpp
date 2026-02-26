@@ -160,25 +160,3 @@ namespace dmMouseCapture
         delete context;
     }
 }
-
-extern "C" {
-    void* MouseCapture_CreateContext() {
-        return dmMouseCapture::CreateContext();
-    }
-
-    void MouseCapture_DestroyContext(void* context) {
-        dmMouseCapture::DestroyContext((dmMouseCapture::HContext)context);
-    }
-
-    bool MouseCapture_StartCapture(void* context, unsigned long window) {
-        return dmMouseCapture::StartCapture((dmMouseCapture::HContext)context, window);
-    }
-
-    void MouseCapture_StopCapture(void* context) {
-        dmMouseCapture::StopCapture((dmMouseCapture::HContext)context);
-    }
-
-    bool MouseCapture_PollDelta(void* context, dmMouseCapture::MouseDelta* delta) {
-        return dmMouseCapture::PollDelta((dmMouseCapture::HContext)context, delta);
-    }
-}

@@ -1,9 +1,6 @@
 #include "mouse_capture.h"
 #include <windows.h>
 
-#include <windows.h>
-#include "mouse_capture.h"
-
 namespace dmMouseCapture
 {
     struct Context
@@ -70,7 +67,7 @@ namespace dmMouseCapture
         return ctx;
     }
 
-    bool StartCapture(HContext context, HWND window)
+    bool StartCapture(HContext context, WindowHandle window)
     {
         if (!context || context->m_Capturing)
             return false;
@@ -163,27 +160,5 @@ namespace dmMouseCapture
             StopCapture(context);
 
         delete context;
-    }
-}
-
-extern "C" {
-    __declspec(dllexport) void* MouseCapture_CreateContext() {
-        return dmMouseCapture::CreateContext();
-    }
-
-    __declspec(dllexport) void MouseCapture_DestroyContext(void* context) {
-        dmMouseCapture::DestroyContext((dmMouseCapture::HContext)context);
-    }
-
-    __declspec(dllexport) bool MouseCapture_StartCapture(void* context, HWND window) {
-        return dmMouseCapture::StartCapture((dmMouseCapture::HContext)context, window);
-    }
-
-    __declspec(dllexport) void MouseCapture_StopCapture(void* context) {
-        dmMouseCapture::StopCapture((dmMouseCapture::HContext)context);
-    }
-
-    __declspec(dllexport) bool MouseCapture_PollDelta(void* context, dmMouseCapture::MouseDelta* delta) {
-        return dmMouseCapture::PollDelta((dmMouseCapture::HContext)context, delta);
     }
 }

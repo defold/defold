@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-// Platform-specific window handle type
 #ifdef _WIN32
     #include <windows.h>
     typedef HWND WindowHandle;
