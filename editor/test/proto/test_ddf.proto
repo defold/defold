@@ -124,6 +124,32 @@ message JavaCasingMsg {
     required string javaCasing = 1;
 }
 
+// -----------------------------------------------------------------------------
+// JSON-like structure
+// -----------------------------------------------------------------------------
+
+message JsonValue {
+    oneof kind {
+        JsonNull null = 1;
+        bool bool = 2;
+        double number = 3;
+        string string = 4;
+        JsonArray array = 5;
+        JsonObject object = 6;
+    }
+}
+
+enum JsonNull {
+    NULL = 0;
+}
+
+message JsonArray {
+    repeated JsonValue elements = 1;
+}
+
+message JsonObject {
+    map<string, JsonValue> members = 1;
+}
 
 // -----------------------------------------------------------------------------
 // Resource fields
@@ -177,30 +203,27 @@ message ResourceRepeatedMapNested {
     map<string, ResourceRepeated> repeateds = 1;
 }
 
+message ResourceSelfReferencingSimple {
+    optional string image = 1 [(resource) = true];
+    optional ResourceSelfReferencingSimple next = 2;
+}
 
-// -----------------------------------------------------------------------------
-// Self-referencing types
-// -----------------------------------------------------------------------------
+message ResourceSelfReferencingDefaulted {
+    optional string image = 1 [(resource) = true, default = "/default.png"];
+    optional ResourceSelfReferencingDefaulted next = 2;
+}
 
-message JsonValue {
+message ResourceSelfReferencingRepeated {
+    repeated string images = 1 [(resource) = true];
+    optional ResourceSelfReferencingRepeated next = 2;
+}
+
+message ResourceOneof {
     oneof kind {
-        JsonNull null = 1;
-        bool bool = 2;
-        double number = 3;
-        string string = 4;
-        JsonArray array = 5;
-        JsonObject object = 6;
+        string image = 1 [(resource) = true];
+        string defaulted_image = 2 [(resource) = true, default = "/default.png"];
+        ResourceSimple simple = 3;
+        ResourceDefaulted defaulted = 4;
+        ResourceRepeated repeated = 5;
     }
-}
-
-enum JsonNull {
-    NULL = 0;
-}
-
-message JsonArray {
-    repeated JsonValue elements = 1;
-}
-
-message JsonObject {
-    map<string, JsonValue> members = 1;
 }
