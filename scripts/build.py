@@ -1455,7 +1455,7 @@ class Configuration(object):
         if self.is_desktop_target():
             mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)
             mouse_capture_lib = join(lib_dir, mouse_capture_name)
-            self._log((mouse_capture_lib)
+            self._log(mouse_capture_lib)
             self._log('%s/%s' % (full_archive_path, mouse_capture_name))
             self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
