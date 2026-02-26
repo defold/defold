@@ -38,13 +38,13 @@ public class MouseCapture {
     }
 
     public static native Pointer MouseCapture_CreateContext();
-    
+
     public static native boolean MouseCapture_StartCapture(Pointer context, long window);
-    
+
     public static native void MouseCapture_StopCapture(Pointer context);
-    
+
     public static native boolean MouseCapture_PollDelta(Pointer context, MouseDelta delta);
-    
+
     public static native void MouseCapture_DestroyContext(Pointer context);
 
     public static class MouseDelta extends Structure {
