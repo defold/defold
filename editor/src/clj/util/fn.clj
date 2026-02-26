@@ -204,14 +204,14 @@
          (memoize-any opts ifn arity))))))
 
 (defn- as-late-bound-fn
-  [fn-or-promise]
+  [fn-or-promise timeout-ms]
   (cond
     (fn? fn-or-promise)
     fn-or-promise
 
     (instance? IPending fn-or-promise)
     (fn late-fn [& args]
-      (let [fn (deref fn-or-promise 0 ::unrealized)]
+      (let [fn (deref fn-or-promise timeout-ms ::unrealized)]
         (if (not= ::unrealized fn)
           (apply fn args)
           (throw
@@ -223,15 +223,26 @@
   "Given a higher-order function that returns a function, return a memoized
   version of the higher-order function that is able to call itself recursively
   with the same arguments. An exception will be thrown if the returned
-  lower-order function is called before memoize-late-bound returns."
-  [higher-order-fn]
+  lower-order function is called before memoize-late-bound returns.
+
+  Required opts:
+    :timeout-ms <integer>
+      The number of milliseconds to wait for the higher-order-fn to deliver the
+      lower-order function to callers of the late-bound lower-order function. If
+      the late-bound lower-order function is called from within the higher-order
+      function that is responsible for producing the lower-order function, it is
+      a programming error. However, in multithreaded scenarios, other threads
+      may wait for the promise to be fulfilled. With an infinite timeout, we
+      won't be able to detect the programming error in the single-threaded case."
+  [{:keys [timeout-ms] :as _opts} higher-order-fn]
+  {:pre [(nat-int? timeout-ms)]}
   (let [cache-atom (atom {})
 
         memoized-fn
         (fn memoized-fn [& args]
           (let [cache-key (vec args)
                 cache-value (get @cache-atom cache-key)]
-            (or* (as-late-bound-fn cache-value)
+            (or* (as-late-bound-fn cache-value timeout-ms)
                  (let [lower-order-fn-promise (promise)
 
                        cache-value
@@ -251,7 +262,7 @@
                      ;; Found an already-existing promise or function in the
                      ;; cache. Return the function unaltered, or a function that
                      ;; dereferences the promise when called.
-                     (as-late-bound-fn cache-value))))))]
+                     (as-late-bound-fn cache-value timeout-ms))))))]
 
     (with-memoize-info memoized-fn higher-order-fn cache-atom -1)))
 

@@ -292,154 +292,154 @@
                                          :m20 zero :m21 zero :m22 one :m23 zero
                                          :m30 zero :m31 zero :m32 zero :m33 one}))))))
 
-(deftest get-field-value-paths-test
+(deftest resource-field-value-paths-test
   (testing "Simple"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimple
              {})))
     (is (= [[[:image] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimple
              {:image nil})))
     (is (= [[[:image] "/image.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimple
              {:image "/image.png"}))))
 
   (testing "Defaulted"
     (is (= [[[:image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaulted
              {})))
     (is (= [[[:image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaulted
              {:image nil})))
     (is (= [[[:image] "/image.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaulted
              {:image "/image.png"}))))
 
   (testing "Repeated"
     (is (= [[[:images 0] nil]
             [[:images 1] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeated
              {:images [nil
                        nil]})))
     (is (= [[[:images 0] "/image0.png"]
             [[:images 1] "/image1.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeated
              {:images ["/image0.png"
                        "/image1.png"]}))))
 
   (testing "Simple nested"
     (is (= []
-           (protobuf/get-field-value-paths-fn
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleNested
              {:simple {}})))
     (is (= [[[:simple :image] nil]]
-           (protobuf/get-field-value-paths-fn
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleNested
              {:simple {:image nil}})))
     (is (= [[[:simple :image] "/image.png"]]
-           (protobuf/get-field-value-paths-fn
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleNested
              {:simple {:image "/image.png"}}))))
 
   (testing "Defaulted nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedNested
              {})))
     (is (= [[[:defaulted :image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedNested
              {:defaulted {}})))
     (is (= [[[:defaulted :image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedNested
              {:defaulted {:image nil}})))
     (is (= [[[:defaulted :image] "/image.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedNested
              {:defaulted {:image "/image.png"}}))))
 
   (testing "Repeated nested"
     (is (= [[[:repeated :images 0] nil]
             [[:repeated :images 1] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedNested
              {:repeated {:images [nil
                                   nil]}})))
     (is (= [[[:repeated :images 0] "/image0.png"]
             [[:repeated :images 1] "/image1.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedNested
              {:repeated {:images ["/image0.png"
                                   "/image1.png"]}}))))
 
   (testing "Simple repeatedly nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleRepeatedlyNested
              {:simples [{}
                         {}]})))
     (is (= [[[:simples 0 :image] nil]
             [[:simples 1 :image] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleRepeatedlyNested
              {:simples [{:image nil}
                         {:image nil}]})))
     (is (= [[[:simples 0 :image] "/image0.png"]
             [[:simples 1 :image] "/image1.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleRepeatedlyNested
              {:simples [{:image "/image0.png"}
                         {:image "/image1.png"}]}))))
 
   (testing "Defaulted repeatedly nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedRepeatedlyNested
              {:defaulteds []})))
     (is (= [[[:defaulteds 0 :image] "/default.png"]
             [[:defaulteds 1 :image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedRepeatedlyNested
              {:defaulteds [{}
                            {}]})))
     (is (= [[[:defaulteds 0 :image] "/default.png"]
             [[:defaulteds 1 :image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedRepeatedlyNested
              {:defaulteds [{:image nil}
                            {:image nil}]})))
     (is (= [[[:defaulteds 0 :image] "/image0.png"]
             [[:defaulteds 1 :image] "/image1.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedRepeatedlyNested
              {:defaulteds [{:image "/image0.png"}
                            {:image "/image1.png"}]}))))
 
   (testing "Repeated repeatedly nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedRepeatedlyNested
              {})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedRepeatedlyNested
              {:repeateds []})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedRepeatedlyNested
              {:repeateds [{}
                           {}]})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedRepeatedlyNested
              {:repeateds [{:images []}
                           {:images []}]})))
@@ -447,7 +447,7 @@
             [[:repeateds 0 :images 1] nil]
             [[:repeateds 1 :images 0] nil]
             [[:repeateds 1 :images 1] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedRepeatedlyNested
              {:repeateds [{:images [nil
                                     nil]}
@@ -457,7 +457,7 @@
             [[:repeateds 0 :images 1] "/image01.png"]
             [[:repeateds 1 :images 0] "/image10.png"]
             [[:repeateds 1 :images 1] "/image11.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedRepeatedlyNested
              {:repeateds [{:images ["/image00.png"
                                     "/image01.png"]}
@@ -466,75 +466,75 @@
 
   (testing "Simple map nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleMapNested
              {})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleMapNested
              {:simples {}})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleMapNested
              {:simples {"a" {}
                         "b" {}}})))
     (is (= [[[:simples "a" :image] nil]
             [[:simples "b" :image] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleMapNested
              {:simples {"a" {:image nil}
                         "b" {:image nil}}})))
     (is (= [[[:simples "a" :image] "/image0.png"]
             [[:simples "b" :image] "/image1.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceSimpleMapNested
              {:simples {"a" {:image "/image0.png"}
                         "b" {:image "/image1.png"}}}))))
 
   (testing "Defaulted map nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedMapNested
              {})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedMapNested
              {:defaulteds {}})))
     (is (= [[[:defaulteds "a" :image] "/default.png"]
             [[:defaulteds "b" :image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedMapNested
              {:defaulteds {"a" {}
                            "b" {}}})))
     (is (= [[[:defaulteds "a" :image] "/default.png"]
             [[:defaulteds "b" :image] "/default.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedMapNested
              {:defaulteds {"a" {:image nil}
                            "b" {:image nil}}})))
     (is (= [[[:defaulteds "a" :image] "/image0.png"]
             [[:defaulteds "b" :image] "/image1.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceDefaultedMapNested
              {:defaulteds {"a" {:image "/image0.png"}
                            "b" {:image "/image1.png"}}}))))
 
   (testing "Repeated map nested"
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedMapNested
              {})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedMapNested
              {:repeateds {}})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedMapNested
              {:repeateds {"a" {}
                           "b" {}}})))
     (is (= []
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedMapNested
              {:repeateds {"a" {:images []}
                           "b" {:images []}}})))
@@ -542,7 +542,7 @@
             [[:repeateds "a" :images 1] nil]
             [[:repeateds "b" :images 0] nil]
             [[:repeateds "b" :images 1] nil]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedMapNested
              {:repeateds {"a" {:images [nil
                                         nil]}
@@ -552,7 +552,7 @@
             [[:repeateds "a" :images 1] "/image01.png"]
             [[:repeateds "b" :images 0] "/image10.png"]
             [[:repeateds "b" :images 1] "/image11.png"]]
-           (protobuf/get-field-value-paths
+           (protobuf/resource-field-value-paths
              TestDdf$ResourceRepeatedMapNested
              {:repeateds {"a" {:images ["/image00.png"
                                         "/image01.png"]}
