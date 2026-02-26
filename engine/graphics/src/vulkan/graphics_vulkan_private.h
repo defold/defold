@@ -463,7 +463,6 @@ namespace dmGraphics
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
-        uint32_t                        m_RenderDocSupport     : 1;
         uint32_t                        m_ASTCSupport          : 1;
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                        m_ASTCArrayTextureSupport : 1;
@@ -556,7 +555,7 @@ namespace dmGraphics
 
     // Implemented per supported platform
     const char** GetExtensionNames(uint16_t* num_extensions);
-    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
     VkResult     CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);

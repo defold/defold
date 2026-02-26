@@ -1565,12 +1565,11 @@ namespace dmGraphics
      * @member m_DefaultTextureMagFilter [type:dmGraphics::TextureFilter] Default magnification filter for textures
      * @member m_Width [type:uint32_t] Initial width of the rendering surface
      * @member m_Height [type:uint32_t] Initial height of the rendering surface
-     * @member m_GraphicsMemorySize [type:uint32_t] Maximum allowed graphics memory in bytes (0 for default/unlimited)
-     * @member m_SwapInterval [type:uint32_t] Vertical synchronization interval (1 for 60Hz, 2 for 30Hz, etc.)
+     * @member m_GraphicsMemorySize [type:uint32_t] Maximum allowed graphics memory in bytes (0 for default/unlimited) (Switch)
+     * @member m_SwapInterval [type:uint32_t] Vertical synchronization interval (1 for 60Hz, 2 for 30Hz, etc.) (Default = 1)
      * @member m_VerifyGraphicsCalls [type:bool] Enable API call verification for debugging
      * @member m_PrintDeviceInfo [type:bool] Print graphics device information at startup
-     * @member m_RenderDocSupport [type:bool] Enable RenderDoc integration (Vulkan/XBox only)
-     * @member m_UseValidationLayers [type:bool] Enable validation layers for debugging (Vulkan/XBox only)
+     * @member m_UseValidationLayers [type:bool] Enable validation layers for debugging (Vulkan/DirectX 12 only)
      */
     struct ContextParams
     {
@@ -1582,13 +1581,12 @@ namespace dmGraphics
         TextureFilter         m_DefaultTextureMagFilter;
         uint32_t              m_Width;
         uint32_t              m_Height;
-        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
+        uint32_t              m_GraphicsMemorySize;
+        uint32_t              m_SwapInterval;
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
-        uint8_t               m_RenderDocSupport : 1;           // Vulkan, XBox only
-        uint8_t               m_UseValidationLayers : 1;        // Vulkan, XBox only
-        uint8_t               : 4;
+        uint8_t               m_UseValidationLayers : 1;
+        uint8_t               : 5;
     };
 
     /*#
@@ -1621,7 +1619,7 @@ namespace dmGraphics
      * @param family [type:dmGraphics::AdapterFamily] Graphics adapter family to install
      * @return success [type:bool] True if the adapter was successfully installed, false otherwise
      */
-    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
+    bool InstallAdapter(AdapterFamily family);
 
     /*#
      * Gets the adapter family from a string name.
@@ -1736,7 +1734,7 @@ namespace dmGraphics
      * 
      * Associates a vertex buffer with a specific binding index in the graphics pipeline.
      * The buffer provides the actual vertex data that will be processed according to
-     * the active vertex declaration.
+     * the active vertex declaration for that binding index.
      * @name EnableVertexBuffer
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param vertex_buffer [type:dmGraphics::HVertexBuffer] Vertex buffer handle

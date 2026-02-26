@@ -307,7 +307,6 @@ namespace dmGraphics
     , m_SwapInterval(1)
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
-    , m_RenderDocSupport(0)
     , m_UseValidationLayers(0)
     {}
 
