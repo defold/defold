@@ -436,7 +436,7 @@ platforms:
         ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION}}"
         ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH}}"
     context:
-        engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
+        engineJars: ["{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "decoder_wav", "decoder_ogg"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
