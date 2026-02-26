@@ -22,8 +22,6 @@ def configure(conf):
 
 def build(bld):
     platform = bld.env.PLATFORM
-    if not bld.env.IS_TARGET_DESKTOP:
-        return
 
     if 'linux' in platform:
         platform_source = 'mouse_capture_linux.cpp'
