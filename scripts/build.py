@@ -1451,6 +1451,13 @@ class Configuration(object):
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
 
+        # upload mouse_capture lib on desktop platforms
+        if self.is_desktop_target():
+            mouse_capture_name = format_lib("mouse_capture", self.target_platform)[0]
+            mouse_capture_lib = join(lib_dir, mouse_capture_name)
+            mouse_capture_target_name = format_lib("mouse_capture_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_target_name))
+
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
