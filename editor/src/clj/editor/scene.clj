@@ -64,7 +64,6 @@
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
-           [java.awt Robot]
            [java.awt.image BufferedImage]
            [java.lang Math Runnable]
            [java.nio IntBuffer]
@@ -991,13 +990,10 @@
   (property tool-picking-rect Rect)
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
-  (property input-state g/Any (default {:pressed-keys #{}
-                                        :mouse-buttons #{}
-                                        :modifiers #{}
-                                        :cursor-pos [0.0 0.0]
-                                        :robot (Robot.)}))
+  (property input-state g/Any (default (i/make-input-state)))
 
   (input input-handlers Runnable :array)
+  (input update-tick-handlers Runnable :array)
   (input picking-rect Rect)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
@@ -1054,91 +1050,6 @@
   ([basis view]
    (g/node-feeding-into basis view :camera)))
 
-(defn set-camera!
-  ([camera-node start-camera end-camera animate?]
-   (set-camera! camera-node start-camera end-camera animate? nil))
-  ([camera-node start-camera end-camera animate? on-animation-end]
-   (assoc end-camera :focus-distance (.distance ^Point3d (:position end-camera) (c/camera-focus-point end-camera)))
-   (if animate?
-     (let [duration 0.5]
-       (g/transact (g/set-property camera-node :animating true))
-       (ui/anim! duration
-                 (fn [^double t]
-                   (let [t (- (* t t 3) (* t t t 2))
-                         cam (c/interpolate start-camera end-camera t)]
-                     (g/transact
-                       (g/set-property camera-node :local-camera cam))))
-                 (fn []
-                   (g/transact
-                     [(g/set-property camera-node :local-camera end-camera)
-                      (g/set-property camera-node :animating false)])
-                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                   (when on-animation-end (on-animation-end)))))
-     (g/transact
-       (g/set-property camera-node :local-camera end-camera)))
-   nil))
-
-
-(def ^:private camera-speed 5.0)
-(def ^:private camera-speed-boost 3.0)
-(def ^:private camera-speed-precision 0.35)
-
-(defn- update-free-camera! [_image-view current-input node-id dt]
-  (let [camera-node (view->camera node-id)
-        current-camera (g/node-value camera-node :local-camera)
-        prefs (g/node-value camera-node :prefs)
-        {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} current-input
-        mouse-delta (i/poll-mouse-delta)
-        is-secondary-button (or (contains? mouse-buttons :secondary)
-                                (g/node-value camera-node :free-camera-mode))
-        shift (contains? modifiers :shift)
-        alt (contains? modifiers :alt)
-        speed (* camera-speed
-                 (cond shift camera-speed-boost alt camera-speed-precision :else 1.0)
-                 (prefs/get prefs [:scene :perspective-camera :speed]))
-        free-camera (g/node-value camera-node :free-camera)
-        walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
-        forward (let [f (c/camera-forward-vector current-camera)]
-                  (if walking-mode
-                    (Vector3d. (.x f) 0.0 (.z f))
-                    f))
-        right (c/camera-right-vector current-camera)
-        up (if walking-mode
-             (Vector3d. 0.0 1.0 0.0)
-             (c/camera-up-vector current-camera))
-        [camera-after-look free-camera] (if is-secondary-button
-                                          (let [{:keys [dx dy]} (or mouse-delta {:dx 0.0 :dy 0.0})]
-                                            (c/look-delta camera-node
-                                                          current-camera
-                                                          free-camera
-                                                          (- (double dx))
-                                                          (- (double dy))
-                                                          (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
-                                                          (prefs/get prefs [:scene :perspective-camera :invert-y])
-                                                          dt))
-                                          [current-camera free-camera])
-        key-for-command (fn [cmd] (some-> ^KeyCodeCombination (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
-                                          (.getCode)))
-        w-key (key-for-command :scene.camera-move-forward)
-        a-key (key-for-command :scene.camera-move-left)
-        s-key (key-for-command :scene.camera-move-backward)
-        d-key (key-for-command :scene.camera-move-right)
-        q-key (key-for-command :scene.camera-move-down)
-        e-key (key-for-command :scene.camera-move-up)
-        target-dir (Vector3d. 0.0 0.0 0.0)
-        _ (doseq [key pressed-keys]
-            (cond
-              (= key w-key) (.add target-dir forward)
-              (= key s-key) (.sub target-dir forward)
-              (= key d-key) (.add target-dir right)
-              (= key a-key) (.sub target-dir right)
-              (= key q-key) (.sub target-dir up)
-              (= key e-key) (.add target-dir up)))
-        final-camera (c/wasd-move camera-node camera-after-look free-camera target-dir speed dt)]
-    (g/set-property! camera-node :free-camera free-camera)
-    (when (not= final-camera current-camera)
-      (set-camera! camera-node current-camera final-camera false))))
-
 (defn augment-action [view action]
   (let [x          (:x action)
         y          (:y action)
@@ -1170,13 +1081,7 @@
                    (some? async-copy-state-atom))
           (update-image-view! image-view drawable async-copy-state-atom free-camera-mode dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
-            (ui/set-cursor image-view (cursor cursor-type)))
-          (when-let [input-state (g/maybe-node-value node-id :input-state)]
-            (let [camera (view->camera node-id)]
-              (when (and (or (contains? (:mouse-buttons input-state) :secondary)
-                             (g/node-value camera :free-camera-mode))
-                         (= :perspective (:type (g/node-value camera :local-camera))))
-                (update-free-camera! image-view input-state node-id dt))))))
+            (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
           (fxui/advance-graph-user-data-component!
@@ -1292,7 +1197,7 @@
 
 (defn- apply-framing-info! [framing-info animate?]
   (let [{:keys [camera-node-id start-camera end-camera]} framing-info]
-    (set-camera! camera-node-id start-camera end-camera animate?)))
+    (c/set-camera! camera-node-id start-camera end-camera animate?)))
 
 (defn- frame-selection! [view-node-id animate?]
   (let [framing-info (g/with-auto-evaluation-context evaluation-context
@@ -1307,7 +1212,7 @@
       (let [new-camera (case projection-type
                          :orthographic (c/camera-perspective->orthographic old-camera)
                          :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
-        (set-camera! camera-controller old-camera new-camera false)))))
+        (c/set-camera! camera-controller old-camera new-camera false)))))
 
 (defn- sync-camera-position
   [^Camera camera-a ^Camera camera-b viewport]
@@ -1348,7 +1253,7 @@
         local-cam (cond-> local-cam
                     (= (:type camera-3d) :perspective)
                     (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-    (set-camera! camera-node local-cam camera-3d animate?)))
+    (c/set-camera! camera-node local-cam camera-3d animate?)))
 
 (defmethod realign-camera :3d
   [view animate?]
@@ -1360,7 +1265,7 @@
                        is-perspective c/camera-perspective->orthographic
                        :always c/camera-orthographic-realign
                        is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
+      (c/set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
 
 (handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
@@ -1455,8 +1360,7 @@
         (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
       (some-> scene-view
               (view->camera)
-              (start-free-camera-mode!))
-      (i/start-mouse-capture))))
+              (c/start-free-camera-mode!)))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
@@ -1540,11 +1444,17 @@
    {:label (localization/message "command.scene.realign-camera")
     :command :scene.realign-camera}])
 
-(defn dispatch-input [input-handlers action user-data]
+(defn dispatch-input [input-handlers input-state action user-data]
   (reduce (fn [action [node-id label]]
             (when action
-              ((g/node-value node-id label) node-id action user-data)))
+              ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
+
+(defn dispatch-update-tick [update-tick-handlers input-state dt]
+  (reduce (fn [input-state [node-id label]]
+            (when input-state
+              ((g/node-value node-id label) node-id input-state dt)))
+          input-state update-tick-handlers))
 
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
@@ -1585,11 +1495,16 @@
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
       (profiler/profile "input-dispatch" -1
-        (let [input-handlers (g/sources-of view-id :input-handlers)]
+        (let [input-handlers (g/sources-of view-id :input-handlers)
+              input-state (g/node-value view-id :input-state)]
           (doseq [action action-queue]
-            (dispatch-input input-handlers action tool-user-data))
+            (dispatch-input input-handlers input-state action tool-user-data))
           (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
             (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+      (profiler/profile "update-tick" -1
+        (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
+              input-state (g/node-value view-id :input-state)]
+          (dispatch-update-tick update-tick-handlers input-state dt)))
       (when has-active-updatables
         (g/set-property! view-id :updatable-states new-updatable-states))
       (profiler/profile "render" -1
@@ -1680,53 +1595,6 @@
       KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
       ::unhandled)))
 
-(defn- toggle-free-cam-css [image-view active]
-  (when-let [tab-content (loop [current (.getParent ^Node image-view)]
-                           (when current
-                             (if (.contains (.getStyleClass current) "tab-content-area")
-                               current
-                               (recur (.getParent current)))))]
-    (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
-
-(defn- start-free-camera-mode! [camera-id]
-  (let [current-camera (g/node-value camera-id :local-camera)
-        [pitch yaw _] (math/quat->euler (:rotation current-camera))]
-    (g/set-property! camera-id :free-camera-mode true)
-    (g/set-property! camera-id :cursor-type :none)
-    (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
-                                             :pitch pitch
-                                             :yaw yaw
-                                             :smoothed-look-delta [0.0 0.0]})))
-
-(defn- handle-free-camera-mode! [view-id image-view action]
-  (let [camera-id (view->camera view-id)
-        is-perspective? (= :perspective (:type (g/node-value camera-id :local-camera)))]
-    (case (:type action)
-      :drag-detected
-      (when (and (= :secondary (:button action)) is-perspective?)
-        (toggle-free-cam-css image-view true)
-        (start-free-camera-mode! camera-id)
-        (i/start-mouse-capture))
-
-      :mouse-released
-      (when (= :secondary (:button action))
-        (toggle-free-cam-css image-view false)
-        (g/set-property! camera-id :cursor-type :default)
-        (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
-                                                 :pitch 0.0
-                                                 :yaw 0.0
-                                                 :smoothed-look-delta [0.0 0.0]})
-        (i/stop-mouse-capture))
-
-      nil)))
-
-(defn- cancel-free-camera-mode! [view-id image-view]
-  (let [camera-id (view->camera view-id)]
-    (g/set-property! camera-id :free-camera-mode false)
-    (i/stop-mouse-capture)
-    (g/set-property! camera-id :cursor-type :default)
-    (toggle-free-cam-css image-view false)))
-
 (defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
         event-handler (ui/event-handler e
@@ -1740,12 +1608,6 @@
                                 (when (= :mouse-pressed (:type action))
                                   (.requestFocus parent)
                                   (.consume e))
-                                (when (= :drag-detected (:type action))
-                                  (handle-free-camera-mode! view-id image-view action))
-                                (when (not= :mouse-clicked (:type action))
-                                  (ui/user-data! parent ::last-mouse-action action))
-                                (when (= :mouse-released (:type action))
-                                  (handle-free-camera-mode! view-id image-view action))
                                 (g/transact
                                   (concat
                                     (g/set-property view-id :cursor-pos [x y])
@@ -1754,42 +1616,41 @@
                             (catch Throwable error
                               (reset! process-events? false)
                               (error-reporting/report-exception! error)))))]
-    (ui/on-mouse! parent (fn [type e] (cond
-                                        (= type :exit)
-                                        (g/set-property! view-id :cursor-pos nil))))
-    (.setOnMousePressed parent event-handler)
-    (.setOnMouseReleased parent event-handler)
-    (.setOnMouseClicked parent event-handler)
-    (.setOnMouseMoved parent event-handler)
-    (.setOnMouseDragged parent event-handler)
-    (.setOnDragDetected parent event-handler)
-    (.setOnDragOver parent event-handler)
-    (.setOnDragDropped parent event-handler)
-    (.setOnScroll parent event-handler)
-    (.addEventFilter parent KeyEvent/KEY_RELEASED
-      (ui/event-handler e
-        (let [action (i/action-from-jfx e)]
-          (g/update-property! view-id :input-state i/update-input-state action)
-          (let [current-input (g/node-value view-id :input-state)]
-            (when (contains? (:mouse-buttons current-input) :secondary)
-              (.consume e))))))
-    (.addEventFilter parent KeyEvent/KEY_PRESSED
-      (ui/event-handler e
-        (when @process-events?
-          (let [action (i/action-from-jfx e)
-                _ (g/update-property! view-id :input-state i/update-input-state action)
-                current-input (g/node-value view-id :input-state)
-                is-secondary (contains? (:mouse-buttons current-input) :secondary)]
-            (when (and (= (:key-code action) KeyCode/ESCAPE)
-                       (not is-secondary))
-              (cancel-free-camera-mode! view-id image-view))
-            ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
-            ;; would be consumed by the TabPane and will trigger next/prev tab selection.
-            ;; Because of that, such key presses will not reach the workbench view and
-            ;; will not trigger the commands as might be expected
-            (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
-                      is-secondary)
-              (.consume e))))))))
+    (doto parent
+    ;; TODO: Why did we add this this? This fixed something...
+      (ui/on-mouse! (fn [type e]
+                      (cond (= type :exit)
+                            (g/set-property! view-id :cursor-pos nil))))
+      (.setOnMousePressed event-handler)
+      (.setOnMouseReleased event-handler)
+      (.setOnMouseClicked event-handler)
+      (.setOnMouseMoved event-handler)
+      (.setOnMouseDragged event-handler)
+      (.setOnDragDetected event-handler)
+      (.setOnDragOver event-handler)
+      (.setOnDragDropped event-handler)
+      (.setOnScroll event-handler)
+      (.addEventFilter KeyEvent/KEY_RELEASED
+        (ui/event-handler e
+          (let [action (i/action-from-jfx e)]
+            (g/update-property! view-id :input-state i/update-input-state action)
+            (let [current-input (g/node-value view-id :input-state)]
+              (when (contains? (:mouse-buttons current-input) :secondary)
+                (.consume e))))))
+      (.addEventFilter KeyEvent/KEY_PRESSED
+        (ui/event-handler e
+          (when @process-events?
+            (let [action (i/action-from-jfx e)
+                  _ (g/update-property! view-id :input-state i/update-input-state action)
+                  current-input (g/node-value view-id :input-state)
+                  is-secondary (contains? (:mouse-buttons current-input) :secondary)]
+              ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
+              ;; would be consumed by the TabPane and will trigger next/prev tab selection.
+              ;; Because of that, such key presses will not reach the workbench view and
+              ;; will not trigger the commands as might be expected
+              (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
+                        is-secondary)
+                (.consume e)))))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
@@ -1947,6 +1808,7 @@
                                                                                    (g/operation-label (localization/message "operation.select"))
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))
+                                                       :image-view (g/node-value view-id :image-view)
                                                        :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
@@ -1958,6 +1820,7 @@
 
                   (g/connect camera          :camera                        view-id         :camera)
                   (g/connect camera          :input-handler                 view-id         :input-handlers)
+                  (g/connect camera          :update-tick-handler           view-id         :update-tick-handlers)
                   (g/connect camera          :cursor-type                   view-id         :cursor-type)
                   (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                   (g/connect view-id         :viewport                      camera          :viewport)

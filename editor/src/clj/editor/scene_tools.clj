@@ -502,7 +502,7 @@
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
-(defn handle-input [self action selection-data]
+(defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
                      (let [evaluation-context (g/make-evaluation-context)

@@ -569,7 +569,7 @@
             viewport (g/node-value view :viewport)
             local-cam (g/node-value camera :local-camera)
             end-camera (camera/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
-        (scene/set-camera! camera local-cam end-camera animate?)))))
+        (camera/set-camera! camera local-cam end-camera animate?)))))
 
 (defn- camera-filter-fn [camera]
   (let [^Point3d p (:position camera)
