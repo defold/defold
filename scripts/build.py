@@ -1453,9 +1453,15 @@ class Configuration(object):
 
         # upload mouse_capture lib on desktop platforms
         if self.is_desktop_target():
-            mouse_capture_name = format_lib("mouse_capture", self.target_platform)[0]
+            mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)[0]
+            self._log(mouse_capture_shared)
             mouse_capture_lib = join(lib_dir, mouse_capture_name)
-            mouse_capture_target_name = format_lib("mouse_capture_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            mouse_capture_target_name = format_lib("mouse_capture_shared" + self.target_platform.replace('-', '_'), self.target_platform)[0]
+            self._log(mouse_capture_name)
+            self._log(mouse_capture_lib)
+            self._log(mouse_capture_target_name)
+            self._log(full_archive_path)
+            self._log('%s/%s' % (full_archive_path, mouse_capture_target_name))
             self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_target_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
