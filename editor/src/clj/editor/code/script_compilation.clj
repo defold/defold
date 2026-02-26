@@ -19,6 +19,7 @@
             [editor.code.preprocessors :as preprocessors]
             [editor.code.resource :as r]
             [editor.image :as image]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.luajit :as luajit]
@@ -33,8 +34,7 @@
             [util.coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [com.google.protobuf ByteString]
-           [java.io StringReader]))
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 
@@ -69,7 +69,7 @@
 (def resource-kind->workspace->extensions
   "Declares which file extensions are valid for different kinds of resource
   properties. This affects the Property Editor, but is also used for validation."
-  {"atlas"        #(workspace/resource-kind-extensions % :atlas)
+  {"atlas"        #(workspace/resource-kind-extensions %1 :atlas %2)
    "font"          (constantly "font")
    "material"      (constantly "material")
    "buffer"        (constantly "buffer")
@@ -79,13 +79,13 @@
 
 (def valid-resource-kind? (partial contains? resource-kind->workspace->extensions))
 
-(defn resource-kind-extensions [workspace resource-kind]
+(defn resource-kind-extensions [workspace resource-kind evaluation-context]
   (when-let [workspace->extensions (resource-kind->workspace->extensions resource-kind)]
-    (workspace->extensions workspace)))
+    (workspace->extensions workspace evaluation-context)))
 
-(defn script-property-edit-type [workspace prop-type resource-kind script-property-type]
+(defn script-property-edit-type [workspace prop-type resource-kind script-property-type evaluation-context]
   (let [base-map (if (= resource/Resource prop-type)
-                   {:type prop-type :ext (resource-kind-extensions workspace resource-kind)}
+                   {:type prop-type :ext (resource-kind-extensions workspace resource-kind evaluation-context)}
                    {:type prop-type})]
     (assoc base-map :script-property-type script-property-type)))
 
@@ -98,16 +98,16 @@
       (cond
         (not ext-match?)
         (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' is not of type %s"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)
-                           (validation/format-ext expected-ext)))
+                   (localization/message "error.resource-assignment-not-of-type"
+                                         {"property" (validation/format-name prop-name)
+                                          "resource" (resource/proj-path resource)
+                                          "type" (validation/format-ext-message expected-ext)}))
 
         (not (resource/exists? resource))
         (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' could not be found"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)))))))
+                   (localization/message "error.property-resource-not-found"
+                                         {"property" (validation/format-name prop-name)
+                                          "resource" (resource/proj-path resource)}))))))
 
 (defn validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
   (when (= resource/Resource (:type edit-type))
@@ -170,13 +170,13 @@
          (fn [{:keys [message cursor-range]}]
            (g/->error _node-id :modified-lines :fatal resource message {:cursor-range cursor-range})))))
 
-(defn build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node]
+(defn build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node evaluation-context]
   (let [workspace (resource/workspace resource)]
     (if-some [errors
               (not-empty
                 (keep (fn [{:keys [name resource-kind type value]}]
                         (let [prop-type (script-property-type->property-type type)
-                              edit-type (script-property-edit-type workspace prop-type resource-kind type)]
+                              edit-type (script-property-edit-type workspace prop-type resource-kind type evaluation-context)]
                           (validate-value-against-edit-type _node-id :lines name value edit-type)))
                       script-properties))]
       (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
@@ -187,11 +187,11 @@
                 exception))]
         (if-some [exception-message (ex-message preprocessed-lines)]
           (let [exception preprocessed-lines
-                build-error-message (str "Lua preprocessing failed.\n" exception-message)
+                build-error-message (localization/message "error.lua-preprocessing-failed" {"error" exception-message})
                 log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
             (log/error :message log-error-message :exception exception)
             (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
-              (let [exception-resource (workspace/resolve-resource resource proj-path)
+              (let [exception-resource (workspace/resolve-resource resource proj-path evaluation-context)
                     exception-node-id (proj-path->resource-node proj-path)
                     error-node-id (or exception-node-id _node-id)
                     error-resource (if (nil? exception-node-id) resource exception-resource)
@@ -200,7 +200,7 @@
               (g/->error _node-id :modified-lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
-                  (lua-parser/lua-info workspace valid-resource-kind? reader))]
+                  (lua-parser/lua-info workspace valid-resource-kind? reader evaluation-context))]
             (g/precluding-errors (lua-info-errors _node-id resource preprocessed-lua-info)
               (let [preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
                     preprocessed-modules (lua-info->modules preprocessed-lua-info)

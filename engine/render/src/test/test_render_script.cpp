@@ -26,6 +26,8 @@
 #include "render/font/font_renderer.h"
 #include "render/font/font_glyphbank.h"
 #include "font/font.h"
+#include <platform/window.hpp>
+
 #include <dmsdk/font/fontcollection.h>
 
 #include "render/render_ddf.h"
@@ -88,7 +90,7 @@ static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
 class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
-    dmPlatform::HWindow         m_Window;
+    HWindow                     m_Window;
     dmScript::HContext          m_ScriptContext;
     dmRender::HRenderContext    m_Context;
     dmGraphics::HContext        m_GraphicsContext;
@@ -106,7 +108,8 @@ protected:
     {
         dmGraphics::InstallAdapter();
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         win_params.m_Width = 20;
         win_params.m_Height = 10;
         win_params.m_ContextAlphabits = 8;

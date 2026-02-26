@@ -37,13 +37,14 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.id-vec :as iv])
   (:import [editor.properties Curve CurveSpread]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.scene Node Parent]
+           [javafx.scene Node]
            [javafx.scene.control Slider]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]))
@@ -106,15 +107,15 @@
 
 (handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
-    (when-let [node-id (handler/selection->node-id selection)]
+    (when-let [node-id (handler/selection->node-id selection evaluation-context)]
       (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
   (run [property selection search-results-view app-view workspace]
-    (let [localization (g/with-auto-evaluation-context evaluation-context
-                         (workspace/localization workspace evaluation-context))]
+    (g/let-ec [localization (workspace/localization workspace evaluation-context)
+               node-id (handler/selection->node-id selection evaluation-context)]
       (app-view/show-override-inspector!
         app-view
         search-results-view
-        (handler/selection->node-id selection)
+        node-id
         [(:key property)]
         localization))))
 
@@ -131,7 +132,7 @@
       true))
   (options [property selection user-data evaluation-context]
     (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
+      (when-let [node-id (handler/selection->node-id selection evaluation-context)]
         (let [prop-kws [(:key property)]
               source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
           (when source-prop-infos-by-prop-kw
@@ -150,7 +151,7 @@
   (active? [property selection user-data evaluation-context]
     (or (some? user-data)
         (and (= 1 (count (:original-values property)))
-             (if-let [node-id (handler/selection->node-id selection)]
+             (if-let [node-id (handler/selection->node-id selection evaluation-context)]
                (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
                false))))
   (enabled? [user-data]
@@ -159,7 +160,7 @@
       true))
   (options [property selection user-data evaluation-context]
     (when (nil? user-data)
-      (when-let [node-id (handler/selection->node-id selection)]
+      (when-let [node-id (handler/selection->node-id selection evaluation-context)]
         (let [prop-kws [(:key property)]
               source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
           (when source-prop-infos-by-prop-kw
@@ -186,11 +187,11 @@
    {:icon "icons/32/Icons_S_02_Reset.png"
     :command :private/clear-override}])
 
-(defrecord SelectionProvider [original-node-ids]
+(defonce/record SelectionProvider [original-node-ids]
   handler/SelectionProvider
-  (selection [_] original-node-ids)
-  (succeeding-selection [_])
-  (alt-selection [_]))
+  (selection [_this _evaluation-context] original-node-ids)
+  (succeeding-selection [_this _evaluation-context])
+  (alt-selection [_this _evaluation-context]))
 
 (defn- category-property-edit-types [{:keys [display-order properties]}]
   (into [(pair nil
@@ -291,7 +292,7 @@
                    (fn [^double delta]
                      (let [new-doubles (vswap!
                                          doubles-vol
-                                         coll/mapv>
+                                         coll/mapv->
                                          #(cond-> (+ ^double % (* delta precision))
                                                   min-value (max (double min-value))
                                                   max-value (min (double max-value))))
@@ -350,7 +351,7 @@
                              {:fx/type fx.column-constraints/lifecycle
                               :percent-width (* 100 (double (/ 1 (count labels))))}))
      :children
-     (coll/transfer labels []
+     (coll/into-> labels []
        (map-indexed
          (fn [i label]
            {:fx/type fxui/horizontal
@@ -516,8 +517,8 @@
 (defn- single-drag-resource [^DragEvent e valid-extensions workspace]
   {:pre [(set? valid-extensions)]}
   (let [files (.getFiles (.getDragboard e))]
-    (when-some [file (and (= 1 (count files))
-                          (first files))]
+    (when-some [file (when (= 1 (count files))
+                       (first files))]
       (when-some [proj-path (workspace/as-proj-path workspace file)]
         (let [resource (workspace/resolve-workspace-resource workspace proj-path)
               resource-ext (resource/type-ext resource)]
@@ -528,7 +529,7 @@
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
         {:keys [ext dialog-accept-fn]} (:edit-type property)
-        ext-set (set ext)
+        ext-set (if (string? ext) #{ext} (set ext))
         dialog-opts (cond-> {}
                             ext (assoc :ext ext)
                             dialog-accept-fn (assoc :accept-fn dialog-accept-fn))
@@ -697,11 +698,7 @@
     (.requestFocus ^Node (.getSource e))
     (.consume e)))
 
-(fxui/defc grid-view
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization (:context props))
-              :key :localization-state}]}
-  [{:keys [localization-state properties context]}]
+(defn- grid-view [{:keys [localization-state properties context]}]
   (let [properties (properties/coalesce properties)
         selection-provider (->SelectionProvider (:original-node-ids properties))]
     {:fx/type fxui/vertical
@@ -727,7 +724,7 @@
                                              :hgrow :always}]
                        :spacing :small
                        :children
-                       (coll/transfer properties []
+                       (coll/into-> properties []
                          (coll/mapcat-indexed
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]
@@ -762,20 +759,35 @@
                                   :catch {:fx/type error-view}})))))})))))
           (into []))}))
 
-(defn pane-view [{:keys [parent context selected-node-properties]}]
-  {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value :value parent}
-   :props {:children [{:fx/type fxui/scroll
-                       :anchor-pane/top 0
-                       :anchor-pane/bottom 0
-                       :anchor-pane/left 0
-                       :anchor-pane/right 0
-                       :content {:fx/type grid-view
-                                 :context context
-                                 :properties selected-node-properties}}]}})
+(def ^:private properties-message (localization/message "pane.properties"))
+
+(fxui/defc properties-pane-view
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [localization-state context selected-node-properties]}]
+  {:fx/type fxui/titled-pane
+   :title (localization-state properties-message)
+   :content {:fx/type fxui/scroll
+             :id "properties"
+             :content {:fx/type grid-view
+                       :localization-state localization-state
+                       :context context
+                       :properties selected-node-properties}}})
+
+(g/defnk produce-pane-desc
+  [workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
+  {:fx/type fxui/ext-dedupe-identical-desc
+   :desc {:fx/type properties-pane-view
+          :localization localization
+          :context {:workspace workspace
+                    :project project
+                    :app-view app-view
+                    :prefs prefs
+                    :localization localization
+                    :search-results-view search-results-view
+                    :color-dropper-view color-dropper-view}
+          :selected-node-properties selected-node-properties}})
 
 (g/defnode PropertiesView
-  (property parent-view Parent)
   (property prefs g/Any)
 
   (input workspace g/Any)
@@ -786,33 +798,17 @@
   (input color-dropper-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output description g/Any :cached
-          (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
-            {:fx/type fxui/ext-dedupe-identical-desc
-             :desc {:fx/type pane-view
-                    :parent parent-view
-                    :context {:workspace workspace
-                              :project project
-                              :app-view app-view
-                              :prefs prefs
-                              :localization localization
-                              :search-results-view search-results-view
-                              :color-dropper-view color-dropper-view}
-                    :selected-node-properties selected-node-properties}})))
+  (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
-  (let [properties-view (first
-                          (g/tx-nodes-added
-                            (g/transact
-                              (g/make-nodes view-graph [view [PropertiesView :parent-view parent :prefs prefs]]
-                                (g/connect workspace :_node-id view :workspace)
-                                (g/connect workspace :localization view :localization)
-                                (g/connect project :_node-id view :project)
-                                (g/connect app-view :_node-id view :app-view)
-                                (g/connect app-view :selected-node-properties view :selected-node-properties)
-                                (g/connect search-results-view :_node-id view :search-results-view)
-                                (g/connect color-dropper-view :_node-id view :color-dropper-view)))))]
-    (ui/node-timer!
-      parent 30 "refresh-properties-view"
-      #(fxui/advance-ui-user-data-component! parent ::properties-view (g/node-value properties-view :description)))
-    properties-view))
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes view-graph [view [PropertiesView :prefs prefs]]
+          (g/connect workspace :_node-id view :workspace)
+          (g/connect workspace :localization view :localization)
+          (g/connect project :_node-id view :project)
+          (g/connect app-view :_node-id view :app-view)
+          (g/connect app-view :selected-node-properties view :selected-node-properties)
+          (g/connect search-results-view :_node-id view :search-results-view)
+          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))

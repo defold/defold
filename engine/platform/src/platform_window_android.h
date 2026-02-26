@@ -15,7 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_ANDROID_H
 #define DM_PLATFORM_WINDOW_ANDROID_H
 
-#include "platform_window.h"
+#include "window.hpp"
 
 #include <EGL/egl.h>
 #include <GLES/gl.h>
@@ -32,7 +32,7 @@ namespace dmPlatform
     JavaVM*      GetAndroidJavaVM();
     jobject      GetAndroidActivity();
     android_app* GetAndroidApp();
-    bool         GetSafeAreaAndroid(HWindow window, SafeArea* out);
+    bool         GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

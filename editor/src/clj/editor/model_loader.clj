@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -80,6 +81,9 @@
   (try
     (load-scene-internal resource)
     (catch Exception e
-      (let [msg (format "The file '%s' failed to load:\n%s" (resource/proj-path resource) (.getMessage e))]
-        (log/error :message msg :exception e)
-        (g/->error node-id nil :fatal nil msg {:type :invalid-content :resource resource})))))
+      (let [path (resource/proj-path resource)
+            message (.getMessage e)]
+        (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
+        (g/->error node-id nil :fatal nil
+                   (localization/message "error.model-load-failed" {"file" path "error" message})
+                   {:type :invalid-content :resource resource})))))

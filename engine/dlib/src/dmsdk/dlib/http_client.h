@@ -15,7 +15,7 @@
 #ifndef DMSDK_HTTP_CLIENT_H
 #define DMSDK_HTTP_CLIENT_H
 
-/*# SDK Http Client API documentation
+/*# Http Client API documentation
  * Http client functions.
  *
  * @document

@@ -9,10 +9,13 @@
             [internal.java :as java]
             [internal.util :as util]
             [util.coll :as coll]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.path :as path])
   (:import [java.io StringReader]
            [java.time LocalDate]
            [javafx.scene.control Label]))
+
+(set! *warn-on-reflection* true)
 
 (defn- bundle [locale->content]
   (coll/pair-map-by
@@ -27,7 +30,8 @@
    (localization/make
      (test-util/make-test-prefs)
      :test
-     (bundle locale->content))))
+     (bundle locale->content)
+     #(throw %))))
 
 
 (deftest pattern-test
@@ -104,16 +108,16 @@
   (let [errors (util/group-into
                  {} []
                  :path identity
-                 (coll/transfer (fs/class-path-walker java/class-loader "localization") :eduction
+                 (coll/into-> (fs/class-path-walker java/class-loader "localization") :eduction
                    (filter #(.endsWith (str %) ".editor_localization"))
                    (mapcat (fn [path]
-                             (e/map #(-> {:path (str (.getFileName (fs/path path))) :key (key %) :string (val %)})
+                             (e/map #(-> {:path (str (.getFileName (path/of path))) :key (key %) :string (val %)})
                                     (java-properties/parse (io/reader path)))))
                    (filter #(string/includes? (:string %) "..."))))]
     (is (empty? errors)
         (coll/join-to-string
           "\n"
-          (coll/transfer errors :eduction
+          (coll/into-> errors :eduction
             (map (fn [path+error]
                    (str "Triple dots (...) instead of ellipsis (…) in " (key path+error) ":\n"
                         (coll/join-to-string "\n" (e/map #(str (:key %) " = " (:string %)) (val path+error)))))))))))

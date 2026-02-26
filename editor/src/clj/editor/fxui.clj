@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.composite :as fx.composite]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
@@ -23,6 +24,7 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-button :as fx.menu-button]
@@ -37,6 +39,7 @@
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -55,14 +58,14 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang MultiFn]
-           [com.defold.control ButtonWithCappedMinWidth ListCell]
+           [com.defold.control ButtonWithCappedMinWidth ListCell ResizableImageView]
            [java.util Collection]
            [javafx.animation Animation KeyFrame KeyValue SequentialTransition Timeline TranslateTransition]
            [javafx.application Platform]
-           [javafx.beans InvalidationListener Observable]
+           [javafx.beans Observable]
            [javafx.beans.binding Bindings]
            [javafx.beans.value ChangeListener ObservableValue]
-           [javafx.collections MapChangeListener MapChangeListener$Change ObservableList ObservableMap]
+           [javafx.collections ObservableList]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
@@ -1035,6 +1038,18 @@
       resolve-label-color
       resolve-tooltip))
 
+(defn titled-pane
+  "Fake titled pane as a simple vbox with a title label and growing content."
+  [{:keys [title content] :as props}]
+  (-> props
+      (dissoc :title :content)
+      (assoc :fx/type vertical
+             :children [{:fx/type label
+                         :style-class "fake-titled-pane-label"
+                         :text title}
+                        (assoc content :v-box/vgrow :always)])
+      (add-style-classes "fake-titled-pane")))
+
 (defn resolve-input-color [props]
   (let [color (:color props ::not-found)]
     (case color
@@ -1703,3 +1718,19 @@
                 child-instance-meta))))))
     (delete [_ component opts]
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
+(def resizable-image
+  (fx.composite/describe
+    ResizableImageView
+    :ctor []
+    ;; ResizableImageView uses fitToWidth and fitToHeight internally during
+    ;; resize, ignoring externally set values
+    :props (dissoc fx.image-view/props :fit-to-width :fit-to-height)))
+
+(defn- customize-tree-view! [tree-view]
+  (ui/customize-tree-view! tree-view {:double-click-expand false}))
+
+(defn tree-view [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created customize-tree-view!
+   :desc (assoc props :fx/type fx.tree-view/lifecycle)})

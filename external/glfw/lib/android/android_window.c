@@ -45,6 +45,7 @@
 #include "android_log.h"
 #include "android_util.h"
 #include "android_joystick.h"
+#include "android_jni.h"
 
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
@@ -185,7 +186,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
         computeIconifiedState();
     }
-    
+
     _glfwTerminateJoysticks();
 
     return GL_TRUE;
@@ -361,19 +362,15 @@ static void CreateGLSurface()
     // We might have tried to create the surface just as we received an APP_CMD_TERM_WINDOW on the looper thread
     if (_glfwWinAndroid.surface != EGL_NO_SURFACE)
     {
-        // This thread attachment is a workaround for this crash 
+        // This thread attachment is a workaround for this crash
         // https://github.com/defold/defold/issues/6956
-        // only on Android 13 
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
+        // only on Android 13
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
 
         make_current(&_glfwWinAndroid);
-        
-        if (vm != 0)
-        {
-            (*vm)->DetachCurrentThread(vm);
-        }
+
+        JNIDetachCurrentThreadIfNeeded(did_attach);
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
 
         computeIconifiedState();
@@ -384,9 +381,34 @@ void glfwAndroidFlushEvents()
 {
     spinlock_lock(&g_EventLock);
 
-    for (int i = 0; i < g_NumAppCommands; ++i)
+    int app_commands[MAX_APP_COMMANDS];
+    int num_app_commands = 0;
+    num_app_commands = g_NumAppCommands;
+    memcpy(app_commands, g_AppCommands, num_app_commands * sizeof(int));
+    g_NumAppCommands = 0;
+
+    static struct InputEvent* flush_input_events = 0;
+    static int flush_input_events_capacity = 0;
+    int num_input_events = g_NumAppInputEvents;
+    if (num_input_events > flush_input_events_capacity)
     {
-        int cmd = g_AppCommands[i];
+        flush_input_events_capacity = num_input_events;
+        flush_input_events = realloc(flush_input_events, num_input_events * sizeof(struct InputEvent));
+    }
+
+    struct InputEvent* input_events = 0;
+    if (num_input_events > 0)
+    {
+        memcpy(flush_input_events, g_AppInputEvents, num_input_events * sizeof(struct InputEvent));
+        input_events = flush_input_events;
+    }
+    g_NumAppInputEvents = 0;
+
+    spinlock_unlock(&g_EventLock);
+
+    for (int i = 0; i < num_app_commands; ++i)
+    {
+        int cmd = app_commands[i];
 
         LOGV("handleCommand (main thread): %s", _glfwGetAndroidCmdName(cmd));
 
@@ -443,7 +465,6 @@ void glfwAndroidFlushEvents()
 
         }
     }
-    g_NumAppCommands = 0;
 
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
     if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
@@ -455,26 +476,23 @@ void glfwAndroidFlushEvents()
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;
-    if (g_NumAppInputEvents > 0)
+    if (num_input_events > 0)
     {
         env = g_AndroidApp->activity->env;
         vm = g_AndroidApp->activity->vm;
         (*vm)->AttachCurrentThread(vm, &env, NULL);
     }
 
-    for (int i = 0; i < g_NumAppInputEvents; ++i)
+    for (int i = 0; i < num_input_events; ++i)
     {
-        struct InputEvent* event = &g_AppInputEvents[i];
+        struct InputEvent* event = &input_events[i];
         _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
     }
-    g_NumAppInputEvents = 0;
 
     if (vm != 0)
     {
         (*vm)->DetachCurrentThread(vm);
     }
-
-    spinlock_unlock(&g_EventLock);
 }
 
 void androidDestroyWindow( void )

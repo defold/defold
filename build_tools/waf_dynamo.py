@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
@@ -37,10 +37,8 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
-script_dir = os.path.dirname(__file__)
-defold_root = os.path.abspath(os.path.join(script_dir, ".."))
-
 # import the vendor specific build setup
+script_dir = os.path.dirname(__file__)
 path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
 if os.path.exists(path):
     sys.dont_write_bytecode = True
@@ -70,7 +68,7 @@ if 'waf_dynamo_vendor' not in sys.modules:
 
 
 def is_platform_private(platform):
-    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
 
 def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
@@ -165,6 +163,10 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs = ['GRAPHICS']
         graphics_lib_symbols = ['GraphicsAdapterPS5']
 
+    if platform in ['x86_64-xbone']:
+        graphics_lib = 'GRAPHICS'
+        graphics_lib_symbols = ['GraphicsAdapterDX12']
+
     return graphics_libs, graphics_lib_symbols
 
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
@@ -205,145 +207,11 @@ def copy_file_task(bld, src, name=None):
                name = name,
                shell = True)
 
-#   Extract api docs from source files and store the raw text in .apidoc
-#   files per file for later collation into .json and .sdoc files.
-def apidoc_extract_task(bld, src):
-    import re
-    from collections import defaultdict
-    all_docs = {}
-
-    def _strip_comment_stars(str):
-        lines = str.split('\n')
-        ret = []
-        for line in lines:
-            line = line.strip()
-            if line.startswith('*'):
-                line = line[1:]
-                if line.startswith(' '):
-                    line = line[1:]
-            ret.append(line)
-        return '\n'.join(ret)
-
-    def _parse_comment(source):
-        str = _strip_comment_stars(source)
-        # The regexp means match all strings that:
-        # * begins with line start, possible whitespace and an @
-        # * followed by non-white-space (the tag)
-        # * followed by possible spaces
-        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-        comment = {
-            "is_document": False,
-            "namespace": None,
-            "path": None
-        }
-        for (tag, value) in lst:
-            tag = tag.strip()
-            value = value.strip()
-            if tag == 'document':
-                comment["is_document"] = True
-            else:
-                comment[tag] = value
-        return comment
-
-    def _parse_source(source_path):
-        resource = bld.path.find_resource(source_path)
-        if not resource:
-            sys.exit("Couldn't find resource: %s" % resource)
-            return
-
-        elements = {}
-        resource_path = resource.abspath()
-        resource_file = os.path.basename(resource_path)
-        relative_path = resource_path.replace(defold_root, "")[1:]
-
-        with open(resource_path, encoding='utf8') as in_f:
-            source = in_f.read()
-            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
-            default_namespace = None
-            for comment_str in lst:
-                comment = _parse_comment(comment_str)
-
-                namespace = comment.get("namespace")
-                if comment["is_document"]:
-                    comment_path = comment.get("path")
-                    if not comment_path:
-                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str + ("* @path %s\n" % relative_path)
-                    else:
-                        # there really shouldn't be any files with hardcoded paths anymore
-                        # but let's keep this here for some time in case we introduce a hardcoded
-                        # path somewhere again
-                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
-
-                    comment_file = comment.get("file")
-                    if not comment_file:
-                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str + ("* @file %s\n" % resource_file)
-                    elif comment_file != resource_file:
-                        # there shouldn't be any of these, but let's keep it here anyway
-                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
-
-                    comment_language = comment.get("language")
-                    if not comment_language:
-                        print("Missing @language in %s, assuming C++" % (resource_path))
-                        comment_str = comment_str + "* @language C++\n"
-
-                    if namespace:
-                        default_namespace = namespace
-
-                if not namespace:
-                    namespace = default_namespace
-                    comment["namespace"] = default_namespace
-
-                if namespace:
-                    if namespace not in elements:
-                        elements[namespace] = []
-                    elements[namespace].append('/' + comment_str + '*/')
-                else:
-                    if resource_path not in elements:
-                        elements[resource_path] = []
-                    elements[resource_path].append('/' + comment_str + '*/')
-
-        return elements
-
-    def extract_docs(bld, src):
-        docs = defaultdict(list)
-        # Gather data
-        for s in src:
-            elements = _parse_source(s)
-            for k,v in elements.items():
-                # turn path into key which will later be used as the
-                # build target filename
-                key = "-".join(os.path.normpath(s).split(os.sep))
-                key = key.replace("..-", "")
-                docs[key] = docs[key] + v
-        all_docs.update(docs)
-        return docs
-
-    def write_docs(task):
-        for o in task.outputs:
-            name = os.path.splitext(o.name)[0] # remove .apidoc
-            docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
-                out_f.write('\n'.join(docs))
-
-    if not getattr(Options.options, 'skip_apidocs', False):
-        docs = extract_docs(bld, src)
-        target = []
-        for key in docs.keys():
-            target.append(key + '.apidoc')
-        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
-
-
 # Add single dmsdk file.
 # * 'source' file is installed into 'target' directory
 # * 'source' file is added to documentation pipeline
 def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
-    apidoc_extract_task(bld, source)
 
 # Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
@@ -364,7 +232,6 @@ def dmsdk_add_files(bld, target, source):
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
             bld.install_files(os.path.join(target, sdk_dir), f)
-    apidoc_extract_task(bld, doc_files)
 
 def getAndroidNDKArch(target_arch):
     return 'arm64' if 'arm64' == target_arch else 'arm'
@@ -424,17 +291,19 @@ def default_flags(self):
     target_os = build_util.get_target_os()
     target_arch = build_util.get_target_architecture()
 
+    use_cl_exe = target_os in [TargetOS.WINDOWS, TargetOS.XBONE]
+
     opt_level = Options.options.opt_level
     if opt_level == "2" and TargetOS.WEB == target_os:
         opt_level = "3" # emscripten highest opt level
-    elif opt_level == "0" and TargetOS.WINDOWS in target_os:
+    elif opt_level == "0" and use_cl_exe:
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan or Options.options.with_msan) and opt_level != '0':
         opt_level = 1
 
-    FLAG_ST = '/%s' if TargetOS.WINDOWS == target_os else '-%s'
+    FLAG_ST = '/%s' if use_cl_exe else '-%s'
 
     # Common for all platforms
     flags = []
@@ -451,13 +320,15 @@ def default_flags(self):
             flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
-        flags += [self.env.DEFINES_ST % 'NDEBUG']
+        self.env.append_value('DEFINES', 'NDEBUG')
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+        if use_cl_exe and f == 'LINKFLAGS':
+            continue # There is no such option for link.exe
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
-        if TargetOS.WINDOWS == target_os:
+        if use_cl_exe:
             flags += ['/showIncludes']
         else:
             flags += ['-H']
@@ -465,21 +336,17 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
-
     if not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
-       for f in ['CFLAGS', 'CXXFLAGS']:
-           self.env.append_value(f, self.env.DEFINES_ST % "GITHUB_CI")
-           self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
+        self.env.append_value('DEFINES', 'GITHUB_CI')
+        self.env.append_value('DEFINES', 'JC_TEST_USE_COLORS=1')
 
-    for f in ['CFLAGS', 'CXXFLAGS']:
-        if '64' in target_arch:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_64BIT')
-        else:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_32BIT')
+    if '64' in target_arch:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_64BIT')
+    else:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -770,7 +637,7 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-        if use_crash and name in 'LINKFLAGS':
+        if use_crash and name == 'LINKFLAGS':
             for i, v in enumerate(arr):
                 if v.startswith('EXPORTED_FUNCTIONS'):
                     arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
@@ -834,6 +701,10 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
+    elif Options.options.with_msan and build_util.get_target_os() in ('linux', 'ps5'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('CFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=memory'])
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1270,7 +1141,8 @@ def android_package(task):
         proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % sdkinfo['path']
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        java_runtime_flags = task.env.get_flat('JAVA_RUNTIME_FLAGS')
+        ret = bld.exec_command('%s %s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], java_runtime_flags, proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
         if ret != 0:
             error('Error running proguard')
             return 1
@@ -1752,6 +1624,8 @@ def detect(conf):
     if not platform:
         platform = host_platform
 
+    conf.env['JAVA_RUNTIME_FLAGS'] = shlex.split(os.environ.get('DM_JAVA_RUNTIME_FLAGS', ''))
+
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
 
@@ -1774,6 +1648,8 @@ def detect(conf):
 
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
+
+    conf.find_program('protoc', var='PROTOC', mandatory = True, path_list = [os.path.join(dynamo_home, "ext", "bin", host_platform)])
 
     # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -1922,36 +1798,38 @@ def detect(conf):
 
     platform_setup_tools(conf, build_util)
 
-    # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
-    if TargetOS.WINDOWS == target_os:
-        includes = sdkinfo['includes']['path']
-        libdirs = sdkinfo['lib_paths']['path']
-        bindirs = sdkinfo['bin_paths']['path']
+    if not is_platform_private(platform):
+        # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
+        if TargetOS.WINDOWS == target_os:
+            includes = sdkinfo['includes']['path']
+            libdirs = sdkinfo['lib_paths']['path']
+            bindirs = sdkinfo['bin_paths']['path']
 
-        bindirs.append(build_util.get_binary_path())
-        bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
+            bindirs.append(build_util.get_binary_path())
+            bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
 
-        # The JDK dir doesn't get added since we use no_autodetect
-        bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
+            # The JDK dir doesn't get added since we use no_autodetect
+            bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
 
-        # there's no lib prefix anymore so we need to set our our lib dir first so we don't
-        # pick up the wrong hid.lib from the windows sdk
-        libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
-        if build_util.get_target_platform() == 'win32':
-            libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
+            # there's no lib prefix anymore so we need to set our our lib dir first so we don't
+            # pick up the wrong hid.lib from the windows sdk
+            libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
+            if build_util.get_target_platform() == 'win32':
+                libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
 
-        conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
-        conf.env['INCLUDES'] = includes
-        conf.env['LIBPATH']  = libdirs
-        conf.load('msvc', funs='no_autodetect')
+            conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
+            conf.env['INCLUDES'] = includes
+            conf.env['LIBPATH']  = libdirs
+            conf.load('msvc', funs='no_autodetect')
 
-        if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
-    else:
-        conf.options.check_c_compiler = 'clang gcc'
-        conf.options.check_cxx_compiler = 'clang++ g++'
-        conf.load('compiler_c')
-        conf.load('compiler_cxx')
+            if not Options.options.skip_codesign:
+                conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
+        else:
+            conf.options.check_c_compiler = 'clang gcc'
+            conf.options.check_cxx_compiler = 'clang++ g++'
+
+            conf.load('compiler_c')
+            conf.load('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)
@@ -2244,6 +2122,7 @@ def options(opt):
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
+    opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

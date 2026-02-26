@@ -19,8 +19,8 @@
 #include <string.h>
 #include <script/script.h>
 
-#include <dlib/job_thread.h>
 #include <resource/resource.h>
+#include <dlib/jobsystem.h>
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
@@ -32,7 +32,7 @@
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 namespace dmMessage { struct URL; }
 
@@ -259,10 +259,10 @@ namespace dmGameSystem
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
-        dmJobThread::HContext   m_JobThread;
+        HJobContext             m_JobContext;
         dmScript::HContext      m_ScriptContext;
         dmConfigFile::HConfig   m_ConfigFile;
-        dmPlatform::HWindow     m_Window;
+        HWindow                 m_Window;
     };
 
 

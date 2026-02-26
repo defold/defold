@@ -21,11 +21,13 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.row-constraints :as fx.row-constraints]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -44,10 +46,13 @@
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.path :as path])
   (:import [com.defold.editor.luart DefoldLuaFn]
+           [java.net URI URISyntaxException]
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.beans.property ReadOnlyProperty]
@@ -55,6 +60,7 @@
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control CheckBox TextField]
+           [javafx.scene.image Image]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [org.luaj.vm2 LuaError LuaValue]))
@@ -64,6 +70,16 @@
 ;; See also:
 ;; - Components doc: https://docs.google.com/document/d/1e6kmVLspQEoe17Ys1nmbbf54cqUn2fNPZowIe7JBwl4/edit
 ;; - Reactive UI doc: https://docs.google.com/document/d/1cgqFPLUc3YQih2tsEA067Pz9Q0nWlKoVflqLEVX8CPY/edit
+
+;; The value gets bound to a volatile with evaluation context. When the context
+;; becomes invalid (fills the cache after use), the volatile is set to nil to
+;; signal that this context can't be used anymore. The default value is a
+;; reduced instance to support `deref`, but not `vreset!`
+(def ^:private ^:dynamic *lifecycle-evaluation-context-ideref* (reduced nil))
+
+(defn- lifecycle-evaluation-context []
+  {:post [(some? %)]}
+  @*lifecycle-evaluation-context-ideref*)
 
 (s/def ::create ifn?)
 (s/def ::advance ifn?)
@@ -295,6 +311,31 @@
                    :fit-width fit-size
                    :fit-height fit-size}]}
       alignment)))
+
+(defn- construct-image [s workspace]
+  (if (string/starts-with? s "/")
+    (when-let [resource (workspace/find-resource workspace s (lifecycle-evaluation-context))]
+      (when (resource/exists? resource)
+        (with-open [is (io/input-stream resource)]
+          (Image. is))))
+    (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
+      (when (.getScheme uri)
+        (Image. s #_background-loading true)))))
+
+(fxui/defc image-view
+  {:compose [{:fx/type fx/ext-get-env :env [:workspace]}
+             {:fx/type fxui/ext-memo :fn construct-image :args [(:image props) (:workspace props)] :key :image}]}
+  [{:keys [image alignment width height]
+    :or {alignment :top-left}}]
+  (if image
+    (-> {:fx/type fx.stack-pane/lifecycle
+         :children [{:fx/type fxui/resizable-image :image image}]}
+        (apply-alignment alignment)
+        (cond->
+          width (assoc :min-width width :pref-width width :max-width width)
+          height (assoc :min-height height :pref-height height :max-height height))
+        (wrap-in-alignment-container alignment))
+    {:fx/type fx.region/lifecycle}))
 
 ;; endregion
 
@@ -723,16 +764,6 @@
 
 ;; region functions
 
-;; The value gets bound to a volatile with evaluation context. When the context
-;; becomes invalid (fills the cache after use), the volatile is set to nil to
-;; signal that this context can't be used anymore. The default value is a
-;; reduced instance to support `deref`, but not `vreset!`
-(def ^:private ^:dynamic *lifecycle-evaluation-context-ideref* (reduced nil))
-
-(defn- lifecycle-evaluation-context []
-  {:post [(some? %)]}
-  @*lifecycle-evaluation-context-ideref*)
-
 (defmacro ^:private with-nestable-evaluation-context [& body]
   `(if @*lifecycle-evaluation-context-ideref*
      (do ~@body)
@@ -766,6 +797,7 @@
          Expected keys:
            :desc            extension cljfx description
            :localization    localization instance
+           :workspace       node id of a Workspace
 
          Provides:
            - evaluation context: shared along the whole cljfx tree during
@@ -774,7 +806,7 @@
            - localization state: available in cljfx env using [[fx/ext-get-env]]
              with :localization-state key"
    :compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}
-             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props)}}
+             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props) :workspace (:workspace props)}}
              {:fx/type ext-with-evaluation-context}]}
   [{:keys [desc]}]
   desc)
@@ -789,11 +821,12 @@
    :props {:showing (fxui/dialog-showing? props)}
    :desc desc})
 
-(defn- make-lua-show-dialog-fn [localization]
+(defn- make-lua-show-dialog-fn [workspace localization]
   (rt/suspendable-lua-fn show-dialog [{:keys [rt]} lua-dialog-component]
     (let [desc {:fx/type show-dialog-wrapper-view
                 :desc {:fx/type root-view
                        :localization localization
+                       :workspace workspace
                        :desc (rt/->clj rt ui-docs/component-coercer lua-dialog-component)}}
           f (future/make)]
       (fx/run-later
@@ -829,12 +862,12 @@
             :or {title default-select-external-file-dialog-title-message path "."}} opts
            initial-path (.normalize (.resolve project-path path))
            [^Path initial-directory-path initial-file-name]
-           (if (fs/path-exists? initial-path)
-             (if (fs/path-is-directory? initial-path)
+           (if (path/exists? initial-path)
+             (if (path/directory? initial-path)
                [initial-path nil]
                [(.getParent initial-path) (str (.getFileName initial-path))])
              (let [parent-path (.getParent initial-path)]
-               (if (fs/path-is-directory? parent-path)
+               (if (path/directory? parent-path)
                  [parent-path (str (.getFileName initial-path))]
                  [project-path nil])))
            dialog (doto (FileChooser.)
@@ -882,8 +915,8 @@
             :or {title default-select-external-directory-dialog-title-message path "."}} opts
            resolved-path (.normalize (.resolve project-path path))
            ^Path initial-path (cond
-                                (not (fs/path-exists? resolved-path)) project-path
-                                (fs/path-is-directory? resolved-path) resolved-path
+                                (not (path/exists? resolved-path)) project-path
+                                (path/directory? resolved-path) resolved-path
                                 :else (.getParent resolved-path))
            dialog (doto (DirectoryChooser.)
                     (.setTitle (localization title))
@@ -1254,6 +1287,7 @@
             [ui-docs/paragraph-component paragraph-view]
             [ui-docs/heading-component heading-view]
             [ui-docs/icon-component icon-view]
+            [ui-docs/image-component image-view]
             [ui-docs/button-component button-view]
             [ui-docs/check-box-component check-box-view]
             [ui-docs/select-box-component select-box-view]
@@ -1269,7 +1303,7 @@
          (eduction
            (map (fn [[script-doc lua-fn]]
                   [(:name script-doc) lua-fn]))
-           [[ui-docs/show-dialog-doc (make-lua-show-dialog-fn localization)]
+           [[ui-docs/show-dialog-doc (make-lua-show-dialog-fn workspace localization)]
             [ui-docs/function-component-doc function-component-lua-fn]
             [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path localization)]
             [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path localization)]

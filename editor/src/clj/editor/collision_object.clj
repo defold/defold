@@ -49,6 +49,11 @@
 (set! *warn-on-reflection* true)
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
+(def ^:private collision-shape-message (properties/label-message :collision-object :collision-shape))
+(def ^:private dimensions-message (properties/label-message :collision-object.shape :dimensions))
+(def ^:private diameter-message (properties/label-message :collision-object.shape :diameter))
+(def ^:private height-message (properties/label-message :collision-object.shape :height))
+(def ^:private mass-message (properties/label-message :collision-object :mass))
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
 
@@ -269,7 +274,8 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
+            (dynamic error (g/fnk [_node-id diameter]
+                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
 
   (display-order [Shape :diameter])
 
@@ -298,10 +304,12 @@
             (default [0.0 0.0 0.0]) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :dimensions))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :dimensions))
-            (dynamic error (validation/prop-error-fnk :fatal
-                                                      (fn [d _] (when (some #(<= % 0.0) d)
-                                                                  "All dimensions must be greater than zero"))
-                                                      dimensions))
+            (dynamic error (g/fnk [_node-id dimensions]
+                             (validation/prop-error :fatal _node-id :dimensions
+                                                    (fn [d _] (when (some #(<= % 0.0) d)
+                                                                (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-zero")))
+                                                    dimensions
+                                                    dimensions-message)))
             (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["W" "H" "D"]})))
 
   (display-order [Shape :dimensions])
@@ -327,12 +335,14 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
+            (dynamic error (g/fnk [_node-id diameter]
+                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :height))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
+            (dynamic error (g/fnk [_node-id height]
+                             (validation/prop-error :fatal _node-id :height validation/prop-zero-or-below? height height-message))))
 
   (display-order [Shape :diameter :height])
 
@@ -598,17 +608,19 @@
                    (update :embedded-collision-shape merge-convex-shape convex-shape)
                    (update-in [:embedded-collision-shape :shapes] insert-id-hashes))]
     (g/precluding-errors
-      [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
+      [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape collision-shape-message)
        (when (= :collision-object-type-dynamic type)
-         (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass"))
+         (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass mass-message))
        (when (and (empty? (:collision-shape pb-msg))
                   (empty? (:embedded-collision-shape pb-msg)))
-         (g/->error _node-id :collision-shape :fatal collision-shape "Collision Object has no shapes"))
+         (g/->error _node-id :collision-shape :fatal collision-shape (localization/message "error.collision-object-has-no-shapes")))
        (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)
        (sequence (comp (map :shape-type)
                        (distinct)
                        (remove #(contains? (shape-type-physics-types %) project-physics-type))
-                       (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) project-physics-type))
+                       (map #(localization/message "error.collision-object-shape-not-supported-in-physics"
+                                                   {"shape" (shape-type-message %)
+                                                    "physics" project-physics-type}))
                        (map #(g/->error _node-id :shapes :fatal shapes %)))
                  shapes)
        (sequence (comp
@@ -647,7 +659,7 @@
                                             [:save-value :convex-shape-data])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
-                             (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
+                             (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape collision-shape-message)
                                  (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape))))
             (dynamic label (properties/label-dynamic :collision-object :collision-shape))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :collision-shape)))
@@ -664,7 +676,7 @@
                                   (not= :collision-object-type-dynamic type)))
             (dynamic error (g/fnk [_node-id mass type]
                              (when (= :collision-object-type-dynamic type)
-                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass"))))
+                               (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass mass-message))))
             (dynamic label (properties/label-dynamic :collision-object :mass))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :mass)))
 
@@ -751,6 +763,7 @@
       :sanitize-fn sanitize-collision-object
       :icon collision-object-icon
       :icon-class :design
+      :category (localization/message "resource.category.components")
       :view-types [:scene :text]
       :view-opts {:scene {:grid true}}
       :tags #{:component}
@@ -785,19 +798,20 @@
           (g/operation-sequence op-seq)
           (select-fn [shape-node]))))))
 
-(defn- selection->collision-object [selection]
-  (handler/adapt-single selection CollisionObjectNode))
+(defn- selection->collision-object [selection evaluation-context]
+  (handler/adapt-single selection CollisionObjectNode evaluation-context))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
-         (if-not user-data
-           (localization/message "command.edit.add-embedded-component.variant.collision-object")
-           (shape-type-message (:shape-type user-data))))
-  (active? [selection] (selection->collision-object selection))
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.collision-object")
+      (shape-type-message (:shape-type user-data))))
+  (active? [selection evaluation-context] (selection->collision-object selection evaluation-context))
   (run [selection user-data app-view]
-    (add-shape-handler (selection->collision-object selection) (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids))))
-  (options [selection user-data]
-    (let [self (selection->collision-object selection)]
+    (g/let-ec [self (selection->collision-object selection evaluation-context)]
+      (add-shape-handler self (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
+  (options [selection user-data evaluation-context]
+    (let [self (selection->collision-object selection evaluation-context)]
       (when-not user-data
         (->> shape-type-ui
              (reduce-kv
@@ -820,7 +834,12 @@
           (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
             #(converter (g/node-value node-id :type evaluation-context)))))
 
-      nil)))
+      nil))
+  (fn CollisionObjectNode-lister [node-id evaluation-context]
+    (let [node (g/node-by-id (:basis evaluation-context) node-id)]
+      (when-let [edit-type-id (properties/edit-type-id (g/node-property-dynamic node :type :edit-type evaluation-context))]
+        (when-let [_converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
+          ["collision_type"])))))
 
 (ext-graph/register-property-setter!
   ::CollisionObjectNode

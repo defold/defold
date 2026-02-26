@@ -763,6 +763,10 @@ namespace dmConfigFile
                         // first test if the url is a valid file
                         return LoadFromFileInternal(url, argc, argv, config);
                     }
+                    else
+                    {
+                        return RESULT_FILE_NOT_FOUND;
+                    }
                 }
 #endif
                 return RESULT_INVALID_URI;

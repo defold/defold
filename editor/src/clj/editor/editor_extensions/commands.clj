@@ -64,10 +64,11 @@
                                             #(-> %
                                                  (g/node-value :resource evaluation-context)
                                                  resource/proj-path
-                                                 some?))
+                                                 some?)
+                                            evaluation-context)
                                           (node-ids->lua-selection q))
                                   (some-> selection
-                                          (handler/adapt-every resource/Resource)
+                                          (handler/adapt-every resource/Resource evaluation-context)
                                           (->> (into
                                                  []
                                                  (keep
@@ -82,17 +83,23 @@
 
 (defmethod gen-selection-query :outline [q acc _]
   (gen-query acc [env cont]
-             (when-let [res (some-> (:selection env)
-                                    (handler/adapt-every outline/OutlineNode)
-                                    (node-ids->lua-selection q))]
-               (cont assoc :selection res))))
+             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
+               (when-let [res (some-> (:selection env)
+                                      (handler/adapt-every outline/OutlineNode evaluation-context)
+                                      (node-ids->lua-selection q))]
+                 (when-not (:evaluation-context env)
+                   (g/update-cache-from-evaluation-context! evaluation-context))
+                 (cont assoc :selection res)))))
 
 (defmethod gen-selection-query :scene [q acc _]
   (gen-query acc [env cont]
-             (when-let [res (some-> (:selection env)
-                                    (handler/adapt-every scene/SceneNode)
-                                    (node-ids->lua-selection q))]
-               (cont assoc :selection res))))
+             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
+               (when-let [res (some-> (:selection env)
+                                      (handler/adapt-every scene/SceneNode evaluation-context)
+                                      (node-ids->lua-selection q))]
+                 (when-not (:evaluation-context env)
+                   (g/update-cache-from-evaluation-context! evaluation-context))
+                 (cont assoc :selection res)))))
 
 (defn- compile-query [q project]
   (reduce-kv

@@ -334,6 +334,8 @@
       orthographic-zoom :orthographic-zoom
       orthographic-mode :orthographic-mode)))
 
+(def ^:private orthographic-zoom-message (properties/label-message :camera :orthographic-zoom))
+
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
 
@@ -367,7 +369,8 @@
             (dynamic label (properties/label-dynamic :camera :orthographic-zoom))
             (dynamic tooltip (properties/tooltip-dynamic :camera :orthographic-zoom))
             (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed)))))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? orthographic-zoom)))
+            (dynamic error (g/fnk [_node-id orthographic-zoom]
+                             (validation/prop-error :fatal _node-id :orthographic-zoom validation/prop-zero-or-below? orthographic-zoom orthographic-zoom-message))))
 
   (input project-display-width g/Num)
   (input project-display-height g/Num)
@@ -393,6 +396,7 @@
     :load-fn load-camera
     :icon camera-icon
     :icon-class :property
+    :category (localization/message "resource.category.components")
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :tags #{:component}

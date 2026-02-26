@@ -41,6 +41,7 @@ import java.util.zip.ZipInputStream;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 
 import javax.imageio.ImageIO;
@@ -429,6 +430,28 @@ public class BundlerTest {
         verifyArchive();
     }
 
+    @Test
+    public void testBundleOutputInsideBuildDirectoryRejected() throws IOException, ConfigurationException, MultipleCompileException {
+        createDefaultFiles(contentRoot);
+        outputDir = new File(contentRoot, "build").getAbsolutePath();
+
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
+
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        setProjectProperties(project);
+
+        try {
+            project.build(new NullProgress(), "bundle");
+            fail("Expected bundle output under build directory to be rejected.");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains(outputDir));
+        }
+    }
+
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
         FileUtil.deleteOnExit(file);
@@ -767,5 +790,66 @@ public class BundlerTest {
         dumpExpectedAndActualFiles(expectedFiles, actualFiles);
         assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
+    }
+
+    @Test
+    public void testBundleWithDynamicLibraries()
+            throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+        setProjectProperties(project);
+
+        List<TaskResult> buildResult = project.build(new NullProgress(), "clean", "build");
+        for (TaskResult taskResult : buildResult) {
+            assertTrue(taskResult.toString(), taskResult.isOk());
+        }
+
+        String binaryOutputDir = project.getBinaryOutputDirectory();
+        File platformBinaryDir = new File(binaryOutputDir, platform.getExtenderPair());
+        platformBinaryDir.mkdirs();
+
+        String libName = platform.getLibPrefix() + "testlib" + platform.getLibSuffix();
+        createFile(platformBinaryDir.getAbsolutePath(), libName, "mock_library_content");
+
+        List<TaskResult> bundleResult = project.build(new NullProgress(), "bundle");
+        for (TaskResult taskResult : bundleResult) {
+            assertTrue(taskResult.toString(), taskResult.isOk());
+        }
+
+        List<String> bundleFiles = getBundleFiles();
+        String expectedLibPath = getExpectedDynamicLibraryPath(libName);
+
+        if (expectedLibPath != null) {
+            assertTrue(
+                    "Expected dynamic library " + expectedLibPath + " not found in bundle. Bundle files: "
+                            + bundleFiles,
+                    bundleFiles.contains(expectedLibPath));
+        }
+    }
+
+    private String getExpectedDynamicLibraryPath(String libName) {
+        if (platform == Platform.X86_64Linux || platform == Platform.Arm64Linux) {
+            return libName;
+        } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+            return libName;
+        } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
+            return "Contents/MacOS/" + libName;
+        } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+            return "Payload/unnamed.app/" + libName;
+        } else if (platform == Platform.Armv7Android) {
+            return "lib/armeabi-v7a/" + libName;
+        } else if (platform == Platform.Arm64Android) {
+            return "lib/arm64-v8a/" + libName;
+        }
+        return null;
     }
 }

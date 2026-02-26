@@ -1,0 +1,3 @@
+name: "valid"
+mesh: "/model/dynamic_vertex_attributes.glb"
+material: "/model/dynamic_vertex_attributes.material"

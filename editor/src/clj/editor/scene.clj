@@ -15,8 +15,8 @@
 (ns editor.scene
   (:require [cljfx.api :as fx]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.text-area :as fx.text-area]
             [clojure.set :as set]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -57,7 +57,6 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -109,13 +108,21 @@
   (when-let [resource (some-> node-id resource-node/owner-resource)]
     (resource/resource-name resource)))
 
-(defn- error-message-lines
-  [error-values]
+(def ^:private error-render-title-message
+  (localization/message "error.render.title"))
+
+(def ^:private error-render-unknown-resource-message
+  (localization/message "error.render.unknown-resource"))
+
+(def ^:private error-render-and-more-message
+  (localization/message "error.render.and-more"))
+
+(defn- error-message-lines [error-values localization-state]
   (let [max-error-count 15 ; We limit the number of errors since traversing deep trees is slow.
 
         distinct-errors
-        (coll/transfer error-values []
-          (mapcat #(tree-seq :causes :causes %))
+        (coll/into-> error-values []
+          (coll/tree-xf :causes :causes)
           (filter :message)
           (remove :causes)
           (map #(select-keys % [:_node-id :message]))
@@ -123,30 +130,22 @@
           (take (inc max-error-count))) ; Produce one more error than we'll use so we'll know if we're over the limit.
 
         error-message-lines
-        (coll/transfer distinct-errors ["RENDER ERROR:" ""]
+        (coll/into-> distinct-errors [(localization-state error-render-title-message)
+                                      ""]
           (take max-error-count)
           (map (fn [{:keys [_node-id message]}]
-                 (let [resource-name (get-resource-name _node-id)]
-                   (format "- %s: %s"
-                           (or resource-name "unknown")
-                           message)))))]
+                 (let [resource-name (or (get-resource-name _node-id)
+                                         (localization-state error-render-unknown-resource-message))]
+                   (str "- " resource-name ": " (localization-state message))))))]
 
     (cond-> error-message-lines
             (< max-error-count (count distinct-errors))
-            (conj "...and more"))))
-
-(def ^:private renderable->error-value (comp :error :user-data))
+            (conj (localization-state error-render-and-more-message)))))
 
 (defn- render-error
-  [gl render-args renderables _nrenderables]
+  [gl render-args _renderables _nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [error-values (e/map renderable->error-value renderables)
-          error-message-lines (error-message-lines error-values)]
-      (->> error-message-lines
-           (e/map-indexed coll/pair)
-           (run!
-             (fn [[index error-message-line]]
-               (scene-text/overlay gl error-message-line 24.0 (- -22.0 (* 14 index)))))))))
+    (scene-text/overlay gl "RENDER ERROR" 24.0 -22.0)))
 
 (defn substitute-render-data
   [error]
@@ -324,7 +323,7 @@
                             :picking-rect :select-batch-key})
 
 (defn- make-aabb-renderables [renderables]
-  (coll/transfer renderables []
+  (coll/into-> renderables []
     (keep :aabb)
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
@@ -825,17 +824,24 @@
             (:preview-anim-data updatable)))
         active-updatable-ids))
 
+(fxui/defc error-overlay
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [localization-state error]}]
+  {:fx/type fx.text-area/lifecycle
+   :style-class "info-text-area"
+   :editable false
+   :wrap-text true
+   :text (coll/join-to-string "\n" (error-message-lines [error] localization-state))})
+
 (g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap]
   (if-let [error (:error scene)]
-    {:children [{:fx/type cljfx.fx.text-area/lifecycle
+    {:children [{:fx/type error-overlay
                  :anchor-pane/bottom 0
                  :anchor-pane/left 0
                  :anchor-pane/right 0
                  :anchor-pane/top 0
-                 :style-class "info-text-area"
-                 :editable false
-                 :wrap-text true
-                 :text (string/join \newline (error-message-lines [error]))}]}
+                 :localization localization
+                 :error error}]}
     (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
       overlay-anchor-pane-props
       (let [info-text
@@ -959,7 +965,7 @@
             (:renderables scene-render-data))
 
           sorted-renderables-by-pass
-          (coll/transfer all-renderables-by-pass {}
+          (coll/into-> all-renderables-by-pass {}
             (map (fn [[pass renderables]]
                    (pair pass
                          (vec (render-sort renderables))))))]
@@ -1017,13 +1023,6 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
-(defn- advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
-    (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
-
 (defn cursor
   "Maps inconsistent cursor types across platforms.
   See https://bugs.openjdk.org/browse/JDK-8101062"
@@ -1048,7 +1047,7 @@
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
-          (advance-user-data-component!
+          (fxui/advance-graph-user-data-component!
             node-id :overlay-anchor-pane
             {:fx/type fxui/ext-with-anchor-pane-props
              :props overlay-anchor-pane-props
@@ -1069,6 +1068,7 @@
         (scene-cache/drop-context! gl)
         (.glFinish gl))
       (.destroy picking-drawable))
+    (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
     (g/transact
       (concat
         (g/set-property node-id :drawable nil)
@@ -1529,38 +1529,43 @@
       (for [node-id scene-node-ids]
         (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
 
-(declare selection->movable)
+(defn- selection->movable
+  ([selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (selection->movable selection evaluation-context)))
+  ([selection evaluation-context]
+   (handler/selection->node-ids selection scene-tools/manip-movable? evaluation-context)))
 
 (handler/defhandler :scene.move-up :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
 
 (handler/defhandler :scene.move-down :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
 
 (handler/defhandler :scene.move-left :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-up-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
 
 (handler/defhandler :scene.move-down-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
 
 (handler/defhandler :scene.move-left-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
 
 (handler/defhandler :scene.move-right-major :workbench
-  (active? [selection] (selection->movable selection))
+  (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
 (defn- handle-key-pressed! [^KeyEvent event]
@@ -1862,9 +1867,14 @@
     (.destroy drawable)
     (g/set-property! node-id :drawable nil)))
 
-(defn- focus-view [view-id opts]
-  (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
-    (.requestFocus image-view)))
+(defn- focus-view! [view-id _opts done-fn]
+  (if-some [^ImageView image-view (g/node-value view-id :image-view)]
+    (do
+      (.requestFocus image-view)
+      (ui/run-later
+        (refresh-scene-view! view-id 1/60)
+        (done-fn)))
+    (done-fn)))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
@@ -1873,7 +1883,7 @@
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview
                                 :dispose-preview-fn dispose-preview
-                                :focus-fn focus-view))
+                                :focus-fn focus-view!))
 
 (g/defnk produce-transform [position rotation scale]
   (math/clj->mat4 position rotation scale))
@@ -1908,7 +1918,7 @@
     num))
 
 (defn non-zeroify-scale [scale]
-  (coll/transform scale
+  (coll/transform-> scale
     (map non-zeroify-component)))
 
 (g/defnode SceneNode
@@ -1982,6 +1992,3 @@
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))
-
-(defn selection->movable [selection]
-  (handler/selection->node-ids selection scene-tools/manip-movable?))

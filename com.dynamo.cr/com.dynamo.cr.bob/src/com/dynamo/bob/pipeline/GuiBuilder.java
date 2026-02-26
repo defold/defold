@@ -233,7 +233,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
         }
         if (n.getType() == Type.TYPE_TEMPLATE && n.getTemplate().isEmpty()) {
-            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template"));
+            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template", input));
         }
     }
 

@@ -37,6 +37,9 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (!enabled)
             return false;
 
+        if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
+            return false;
+
         String path = fontDesc.getFont().toLowerCase();
         return path.endsWith(".ttf");
     }
@@ -128,8 +131,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setSdfOutline(Fontc.GetFontMapSdfOutline(fontDesc));
             fontMapBuilder.setSdfShadow(Fontc.GetFontMapSdfShadow(fontDesc));
         }
-
-        fontMapBuilder.setPadding(Fontc.GetFontMapPadding(fontDesc));
 
         fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
         fontMapBuilder.setRenderMode(fontDesc.getRenderMode());

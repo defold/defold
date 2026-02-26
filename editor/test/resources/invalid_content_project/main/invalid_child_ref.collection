@@ -1,0 +1,6 @@
+name: "invalid"
+embedded_instances {
+  id: "root"
+  children: "missing"
+  data: ""
+}

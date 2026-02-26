@@ -48,6 +48,7 @@ public class Platform {
     public static final Platform Arm64NX64      = new Platform(OS.OS_ID_SWITCH,     "arm64",        true,   "nx64",     new String[] {".nss"},           "",     "",     "",         new String[] {"nx64", "arm64-nx64"},        PlatformArchitectures.NX64,         "arm64-nx64");
     public static final Platform X86_64PS4      = new Platform(OS.OS_ID_PS4,        "x86_64",       true,   "ps4",      new String[] {".elf"},           "",     "",     "",         new String[] {"ps4", "x86_64-ps4"},         PlatformArchitectures.PS4,          "x86_64-ps4");
     public static final Platform X86_64PS5      = new Platform(OS.OS_ID_PS5,        "x86_64",       true,   "ps5",      new String[] {".elf"},           "",     "",     "",         new String[] {"ps5", "x86_64-ps5"},         PlatformArchitectures.PS5,          "x86_64-ps5");
+    public static final Platform X86_64XBone    = new Platform(OS.OS_ID_XBOX,       "x86_64",       true,   "xbone",   new String[] {".exe"},           "",     "",     ".dll",      new String[] {"x86_64-xbone"},              PlatformArchitectures.XBoxOne,      "x86_64-xbone");
 
     private static final HashMap<String, Platform> map = new HashMap<>();
 

@@ -47,6 +47,7 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_WEIGHTS;
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
+    extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
@@ -188,11 +189,11 @@ namespace dmRender
 
     struct MaterialProgramAttributeInfo
     {
-        dmhash_t                           m_AttributeNameHash;
-        const dmGraphics::VertexAttribute* m_Attribute;
-        const uint8_t*                     m_ValuePtr;
-        dmhash_t                           m_ElementIds[4];
-        uint32_t                           m_ElementIndex;
+        dmhash_t                               m_AttributeNameHash;
+        const dmGraphics::VertexAttributeInfo* m_Attribute;
+        const uint8_t*                         m_ValuePtr;
+        dmhash_t                               m_ElementIds[4];
+        uint32_t                               m_ElementIndex;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -331,10 +332,11 @@ namespace dmRender
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
     bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
-    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
+    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttributeInfo** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
     void                            GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata);
+    void                            GetMaterialProgramVertexAttributeInfos(HMaterial material, const dmGraphics::VertexAttributeInfo** attribute_infos, uint32_t* num_attribute_infos);
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);

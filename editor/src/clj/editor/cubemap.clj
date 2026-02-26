@@ -144,9 +144,17 @@
    :pz :front
    :nz :back})
 
+(def ^:private cubemap-dir->message
+  {:px (properties/label-message :cubemap :right)
+   :nx (properties/label-message :cubemap :left)
+   :py (properties/label-message :cubemap :top)
+   :ny (properties/label-message :cubemap :bottom)
+   :pz (properties/label-message :cubemap :front)
+   :nz (properties/label-message :cubemap :back)})
+
 (defn- cubemap-images-missing-error [node-id cubemap-image-resources]
   (when-let [error (some (fn [[dir image-resource]]
-                           (when-let [message (validation/prop-resource-missing? image-resource (properties/keyword->name (cubemap-dir->property dir)))]
+                           (when-let [message (validation/prop-resource-missing? image-resource (cubemap-dir->message dir))]
                              [dir message]))
                          cubemap-image-resources)]
     (let [[dir message] error]
@@ -159,11 +167,21 @@
   (let [sizes (vals cubemap-image-sizes)]
     (when (and (every? some? sizes)
                (not (apply = sizes)))
-      (let [message (apply format
-                           "Cubemap image sizes differ:\n%s = %s\n%s = %s\n%s = %s\n%s = %s\n%s = %s\n%s = %s"
-                           (mapcat (fn [dir] [(properties/keyword->name (cubemap-dir->property dir)) (size->width-x-height (dir cubemap-image-sizes))])
-                                   [:px :nx :py :ny :pz :nz]))]
-        (g/->error node-id nil :fatal nil message)))))
+      (g/->error node-id nil :fatal nil
+                 (localization/message
+                   "error.cubemap-image-sizes-differ"
+                   {"right" (cubemap-dir->message :px)
+                    "right_size" (size->width-x-height (:px cubemap-image-sizes))
+                    "left" (cubemap-dir->message :nx)
+                    "left_size" (size->width-x-height (:nx cubemap-image-sizes))
+                    "top" (cubemap-dir->message :py)
+                    "top_size" (size->width-x-height (:py cubemap-image-sizes))
+                    "bottom" (cubemap-dir->message :ny)
+                    "bottom_size" (size->width-x-height (:ny cubemap-image-sizes))
+                    "front" (cubemap-dir->message :pz)
+                    "front_size" (size->width-x-height (:pz cubemap-image-sizes))
+                    "back" (cubemap-dir->message :nz)
+                    "back_size" (size->width-x-height (:nz cubemap-image-sizes))})))))
 
 (g/defnk produce-build-targets [_node-id resource cubemap-image-generators cubemap-image-resources cubemap-image-sizes texture-profile build-settings]
   (g/precluding-errors
@@ -179,9 +197,9 @@
 
 (defmacro cubemap-side-error [property]
   (let [prop-kw (keyword property)
-        prop-name (properties/keyword->name prop-kw)]
+        prop-message-str (str "property.cubemap." property)]
     `(g/fnk [~'_node-id ~property ~'cubemap-image-sizes]
-            (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property ~prop-name)
+            (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property (localization/message ~prop-message-str))
                 (cubemap-image-sizes-error ~'_node-id ~'cubemap-image-sizes)))))
 
 (g/defnode CubemapNode
@@ -310,4 +328,5 @@
     :load-fn load-cubemap
     :icon cubemap-icon
     :icon-class :design
+    :category (localization/message "resource.category.resources")
     :view-types [:scene :text]))

@@ -26,13 +26,16 @@ __pycache__
 
 /.ccache
 *.iml
-*.apidoc_
+*.apidoc
 engine/.clang_complete
 /.vscode
+/.vs
 /.idea
 .npm
 /**/.project
 /**/.gradle
+*.eclipse.buildship.core.prefs
+*.classpath
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath

@@ -17,7 +17,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/thread.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
@@ -123,7 +123,7 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
-        m_JobThread               = params.m_JobThread;
+        m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -131,7 +131,7 @@ namespace dmGraphics
         if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
             m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -1060,7 +1060,7 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1209,7 +1209,7 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
@@ -1237,7 +1237,7 @@ namespace dmGraphics
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
 
-        context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
+        context->m_AsyncProcessingSupport = context->m_JobContext != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
@@ -1774,23 +1774,95 @@ bail:
         return cached_pipeline;
     }
 
-    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, const void* data)
+    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data)
     {
         if (size == 0)
         {
             return;
         }
 
-        // Coherent memory writes does not seem to be properly synced on MoltenVK,
-        // so for now we always mark the old buffer for destruction when updating the data.
-    #ifndef __MACH__
-        if (size != buffer->m_MemorySize)
-    #endif
+        if (offset == 0)
         {
-            DestroyResourceDeferred(context, buffer);
+            // Coherent memory writes does not seem to be properly synced on MoltenVK,
+            // so for now we always mark the old buffer for destruction when updating the data.
+        #ifndef __MACH__
+            if (size != buffer->m_MemorySize)
+        #endif
+            {
+                DestroyResourceDeferred(context, buffer);
+            }
         }
 
-        DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        DeviceBufferUploadHelper(context, data, size, offset, buffer);
+    }
+
+    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
+        ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        return (HUniformBuffer) ubo;
+    }
+
+    static void VulkanSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        VulkanContext* context   = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        SetDeviceBuffer(context, &ubo->m_DeviceBuffer, size, offset, data);
+    }
+
+    static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        {
+            return;
+        }
+
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+        }
+
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+    }
+
+    static void VulkanEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
+
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void VulkanDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
+
+        VulkanDisableUniformBuffer(_context, uniform_buffer);
+
+        if (!ubo->m_DeviceBuffer.m_Destroyed)
+        {
+            DestroyResourceDeferred(context, &ubo->m_DeviceBuffer);
+        }
+
+        delete ubo;
     }
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1829,7 +1901,7 @@ bail:
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, 0, data);
     }
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1897,7 +1969,7 @@ bail:
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, 0, data);
     }
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1932,9 +2004,11 @@ bail:
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_StreamCount = stream_count;
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
 
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+        for (uint32_t i = 0; i < stream_count; ++i)
         {
             VertexStream& stream = stream_declaration->m_Streams[i];
 
@@ -2033,6 +2107,14 @@ bail:
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
+
+        if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
+        {
+            context->m_MainVertexDeclarationStreams[binding_index].SetCapacity(vertex_declaration->m_StreamCount);
+            context->m_MainVertexDeclarationStreams[binding_index].SetSize(vertex_declaration->m_StreamCount);
+        }
+        memset(context->m_MainVertexDeclarationStreams[binding_index].Begin(), 0, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        context->m_MainVertexDeclaration[binding_index].m_Streams = context->m_MainVertexDeclarationStreams[binding_index].Begin();
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
@@ -2244,7 +2326,7 @@ bail:
         {
             ShaderResourceBinding* res = next->m_Res;
 
-            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index++];
+            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
             vk_write_desc_info.sType                 = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext                 = 0;
             vk_write_desc_info.dstSet                = vk_descriptor_sets[res->m_Set];
@@ -2257,14 +2339,14 @@ bail:
 
             switch(res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                     UpdateImageDescriptor(context,
                         context->m_TextureUnits[next->m_TextureUnit],
                         res,
                         vk_write_image_descriptors[image_to_write_index++],
                         vk_write_desc_info);
                     break;
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                case BINDING_FAMILY_STORAGE_BUFFER:
                 {
                     const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
 
@@ -2278,36 +2360,73 @@ bail:
                         binding.m_BufferOffset,
                         VK_WHOLE_SIZE);
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
-                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+                    VulkanUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
 
-                    assert(uniform_size_nonalign > 0);
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        {
+                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                res->m_Name,
+                                pgm_layout->m_Hash);
 
-                    // Copy client data to aligned host memory
-                    // The data_offset here is the offset into the programs uniform data,
-                    // i.e the source buffer.
-                    memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
-                        &program->m_UniformData[next->m_DataOffset], uniform_size_nonalign);
+                            // Fallback to the scratch buffer uniform setup
+                            bound_ubo = 0;
+                        }
+                    }
 
-                    UpdateUniformBufferDescriptor(context,
-                        scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                        vk_write_buffer_descriptors[buffer_to_write_index++],
-                        vk_write_desc_info,
-                        0,
-                        uniform_size_align);
+                    if (bound_ubo)
+                    {
+                        // TODO: We shouldn't have to rebind this UBO every time it has to be used,
+                        //       but in order for us to do that we need persistent descriptor sets.
+                        //       To solve that, we should cache bindings. For now we simply update
+                        //       the descriptor every frame, like animals..
+                        UpdateUniformBufferDescriptor(context,
+                            bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
+                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            vk_write_buffer_descriptors[buffer_to_write_index++],
+                            vk_write_desc_info,
+                            0,
+                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+                        TouchResource(context, &bound_ubo->m_DeviceBuffer);
+                    }
+                    else
+                    {
+                        dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                        const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
+                        const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
-                    scratch_buffer->m_MappedDataCursor += uniform_size_align;
-                    TouchResource(context, &scratch_buffer->m_DeviceBuffer);
+                        assert(uniform_size_nonalign > 0);
 
-                    dynamic_offset_index++;
+                        // Copy client data to aligned host memory
+                        // The data_offset here is the offset into the programs uniform data,
+                        // i.e the source buffer.
+                        memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
+                            &program->m_UniformData[next->m_UniformBufferOffset], uniform_size_nonalign);
+
+                        UpdateUniformBufferDescriptor(context,
+                            scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
+                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            vk_write_buffer_descriptors[buffer_to_write_index++],
+                            vk_write_desc_info,
+                            0,
+                            uniform_size_align);
+
+                        scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                        TouchResource(context, &scratch_buffer->m_DeviceBuffer);
+
+                        dynamic_offset_index++;
+                    }
                 } break;
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                 default: continue;
             }
+
+            uniform_to_write_index++;
         }
 
         vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
@@ -2626,22 +2745,6 @@ bail:
         return true;
     }
 
-    static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
-    {
-        if (ShaderResourceBinding::BINDING_FAMILY_GENERIC)
-            return (VkDescriptorType) -1;
-
-        if (res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE)
-        {
-            return TextureTypeToDescriptorType(res.m_Type.m_ShaderType);
-        }
-        else if (res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
-        {
-            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        }
-        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    }
-
     static void CreatePipelineLayout(VulkanContext* context, VulkanProgram* program, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t max_sets)
     {
         program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
@@ -2681,7 +2784,7 @@ bail:
         for (int i = 0; i < texture_resources.Size(); ++i)
         {
             const ShaderResourceBinding& shader_res = texture_resources[i];
-            assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+            assert(shader_res.m_BindingFamily == BINDING_FAMILY_TEXTURE);
 
             ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
 
@@ -2715,7 +2818,7 @@ bail:
         return bits;
     }
 
-    static void FillProgramResourceBindings(
+    static void VulkanFillProgramResourceBindings(
         VulkanProgram*                   program,
         dmArray<ShaderResourceBinding>&  resources,
         dmArray<ShaderResourceTypeInfo>& stage_type_infos,
@@ -2737,7 +2840,6 @@ bail:
             if (binding.descriptorCount == 0)
             {
                 binding.binding            = res.m_Binding;
-                binding.descriptorType     = GetDescriptorType(res);
                 binding.descriptorCount    = 1;
                 binding.pImmutableSamplers = 0;
 
@@ -2746,7 +2848,9 @@ bail:
 
                 switch(res.m_BindingFamily)
                 {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    case BINDING_FAMILY_TEXTURE:
+                        binding.descriptorType = TextureTypeToDescriptorType(res.m_Type.m_ShaderType);
+
                         if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
                             // Texture unit will be resolved in a second pass after.
@@ -2764,48 +2868,56 @@ bail:
                         dmLogInfo("Texture: name=%s, set=%d, binding=%d, sampler-index=%d", res.m_Name, res.m_Set, res.m_Binding, res.m_BindingInfo.m_SamplerTextureIndex);
                     #endif
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    case BINDING_FAMILY_STORAGE_BUFFER:
+                        binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
                     #if 0
                         dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
                     #endif
                         break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
+                        binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                        program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                        program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
                     break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    case BINDING_FAMILY_GENERIC:
                     default:break;
                 }
 
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
             #if 0
-                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_UniformBufferOffset);
             #endif
             }
 
+            assert(res.m_StageFlags != 0);
             binding.stageFlags |= GetShaderStageFlags(res.m_StageFlags);
         }
     }
 
-    static void FillProgramResourceBindings(
+    static void VulkanFillProgramResourceBindings(
         VulkanProgram*               program,
         VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
         ProgramResourceBindingsInfo& info)
     {
-        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
-        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
-        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        // TODO: We should do this as a two-pass function, one that does the "base" program setup,
+        //       and then one pass that does all the vulkan specific setup. So we can keep the two code paths aligned.
+        program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+
+        VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        VulkanFillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
 
         // Each module must resolve samplers individually since there is no contextual information across modules (currently)
         ResolveSamplerTextureUnits(program, program->m_BaseProgram.m_ShaderMeta.m_Textures);
@@ -2819,7 +2931,7 @@ bail:
         uint32_t ssbo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment;
 
         ProgramResourceBindingsInfo binding_info = {};
-        FillProgramResourceBindings(program, bindings, ubo_alignment, ssbo_alignment, binding_info);
+        VulkanFillProgramResourceBindings(program, bindings, ubo_alignment, ssbo_alignment, binding_info);
 
         program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
@@ -3099,7 +3211,7 @@ bail:
 
         ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -3117,7 +3229,7 @@ bail:
 
         ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
@@ -4251,7 +4363,7 @@ bail:
         VulkanSetTextureInternal(context, tex, params);
     }
 
-    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
+    static int AsyncProcessCallback(HJobContext, HJob job, void* _context, void* data)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4356,7 +4468,7 @@ bail:
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(HJobContext, HJob job, JobSystemStatus status, void* _context, void* data, int result)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4468,14 +4580,14 @@ bail:
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncProcessCallback;
             job.m_Callback = AsyncCompleteCallback;
             job.m_Context = (void*) context;
             job.m_Data = (void*) (uintptr_t) param_array_index;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-            dmJobThread::PushJob(context->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(context->m_JobContext, hjob);
         } 
         else
         {
@@ -4747,7 +4859,7 @@ bail:
         }
     }
 
-    static dmPlatform::HWindow VulkanGetWindow(HContext context)
+    static HWindow VulkanGetWindow(HContext context)
     {
         return ((VulkanContext*) context)->m_Window;
     }

@@ -188,6 +188,7 @@ namespace dmRender
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
+        font_map->m_IsDynamic = params.m_IsDynamic;
         font_map->m_Padding = params.m_Padding;
 
         font_map->m_OnGlyphCacheMiss = params.m_OnGlyphCacheMiss;
@@ -230,11 +231,13 @@ namespace dmRender
             dmGraphics::GetDefaultTextureFilters(graphics_context, font_map->m_MinFilter, font_map->m_MagFilter);
             // No mips for font cache
             font_map->m_MinFilter = ConvertMinTextureFilter(font_map->m_MinFilter);
+            font_map->m_IsSdf = 0;
         }
         else // Distance-field font
         {
             font_map->m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
             font_map->m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+            font_map->m_IsSdf = 1;
         }
 
         font_map->m_GraphicsContext = graphics_context;

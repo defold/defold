@@ -1386,13 +1386,44 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
-    #if defined(WIN32)
-    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    #elif defined(__linux__) || defined(DM_PLATFORM_VENDOR)
+    #if defined(__linux__) || defined(DM_PLATFORM_VENDOR)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, dmHttpClient::GetLastSocketResult(client));
+    #elif defined(WIN32)
+    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
     #else
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     #endif
+    dmHttpClient::Delete(client);
+}
+
+TEST(dmHttpClient, Proxy)
+{
+    char proxy_server_url[1024];
+    dmSnPrintf(proxy_server_url, sizeof(proxy_server_url), "http://localhost:%d", g_HttpPort);
+    dmURI::Parts proxy;
+    dmURI::Parse(proxy_server_url, &proxy);
+
+    dmURI::Parts uri;
+    dmURI::Parse("http://www.google.com", &uri);
+
+    // create a client which is establishing a proxy tunnel from
+    // localhost to www.google.com/proxy/to/www.google.com
+    // in this test we're not actually doing a request to google
+    // but we check that the httpclient first does a CONNECT and then
+    // a GET
+    dmHttpClient::NewParams params;
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &uri, 0, &proxy);
+    ASSERT_NE((void*) 0, client);
+    dmHttpClient::Result r = dmHttpClient::Request(client, "GET", "/proxy/to/www.google.com");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    dmHttpClient::Delete(client);
+
+    // create another client and check that we properly handle
+    // connection issues
+    client = dmHttpClient::New(&params, &uri, 0, &proxy);
+    ASSERT_NE((void*) 0, client);
+    r = dmHttpClient::Request(client, "GET", "/proxy/broken");
+    ASSERT_NE(dmHttpClient::RESULT_OK, r);
     dmHttpClient::Delete(client);
 }
 

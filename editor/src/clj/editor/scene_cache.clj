@@ -60,7 +60,7 @@
 (defn- clear-caches-by-context [caches-by-context destroy-batch-fn]
   (if (coll/empty? caches-by-context)
     caches-by-context
-    (coll/transfer caches-by-context (empty caches-by-context)
+    (coll/into-> caches-by-context (empty caches-by-context)
       (map (fn [[context cached-object+request-data-by-request-id :as entry]]
              (if (coll/empty? cached-object+request-data-by-request-id)
                entry
@@ -71,7 +71,7 @@
   (update cache-meta :caches clear-caches-by-context (:destroy-batch-fn cache-meta)))
 
 (defn- clear-object-caches [object-caches]
-  (coll/transfer object-caches (empty object-caches)
+  (coll/into-> object-caches (empty object-caches)
     (map (fn [[cache-id cache-meta]]
            (pair cache-id
                  (clear-cache-meta cache-meta))))))

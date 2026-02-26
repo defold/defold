@@ -200,6 +200,26 @@ public class FontTest {
     }
 
     @Test
+    public void testBMFontUnsortedGlyphs() throws Exception {
+
+        InputStream input = getClass().getResourceAsStream("bmfont_unsorted.fnt");
+        BMFont bmfont = new BMFont();
+        bmfont.parse(input);
+
+        assertEquals(96, bmfont.chars);
+        assertEquals(96, bmfont.charArray.size());
+
+        // verify that the characters have been sorted
+        int previousId = -1;
+        for (int i = 0; i < bmfont.chars; i++)
+        {
+            Char c = bmfont.charArray.get(i);
+            assertTrue( c.id > previousId);
+            previousId = c.id;
+        }
+    }
+
+    @Test
     public void testTTF() throws Exception {
 
         // create "font file"
@@ -244,6 +264,53 @@ public class FontTest {
 
         // unicode chars
         assertEquals(0xF8FF, glyphBank.getGlyphs(glyphBank.getGlyphsCount() - 1).getCharacter());
+    }
+
+    @Test
+    public void testTTFUnsortedCharacters() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("szktg6TDJ0eN$SM1ZGaIldyRjCxQWv42B7mUOV3Kfhb9cXEu5r8PYFALqHnwo!ip")
+            .build();
+
+        // temp output file
+        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
+        FileUtil.deleteOnExit(outfile);
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        FileOutputStream fontOutputStream = new FileOutputStream(outfile);
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        glyphBank.writeTo(fontOutputStream);
+
+        fontInputStream.close();
+        fontOutputStream.close();
+
+        // verify output
+        BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
+        glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
+
+        String actual = "";
+        for (int i=0; i < glyphBank.getGlyphsCount(); i++)
+        {
+            actual += new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter()));
+        }
+        assertEquals(actual, "!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
     }
 
     @Test

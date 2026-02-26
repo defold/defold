@@ -55,7 +55,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
+    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
     if use_profile_null:
         local_libs += ['profile_null']
     else:
@@ -112,7 +112,7 @@ def build(bld):
         name='test_http_server',
         source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
+    bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
     extra_defines = []
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
@@ -154,6 +154,7 @@ def build(bld):
     create_test(bld, 'test_set')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
+    create_test(bld, 'test_hash', extra_libs = ['THREAD'], extra_features = ['c'], extra_source = ['test_hash.c'])
 
     create_test(bld, 'test_time')
 
@@ -204,7 +205,7 @@ def build(bld):
         create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
         create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
         create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
-        create_test(bld, 'test_job_thread')
+        create_test(bld, 'test_job_system')
 
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_run)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])

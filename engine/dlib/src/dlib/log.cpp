@@ -317,6 +317,8 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
                 Module.print(UTF8ToString($0));
             }, output);
         }
+#elif defined(_GAMING_XBOX)
+    OutputDebugStringA(output);
 #elif !defined(ANDROID)
         fwrite(output, 1, output_len, stderr);
 #endif
@@ -571,6 +573,30 @@ bool SetLogFile(const char* path)
     }
     return true;
 }
+
+#if defined(_WIN32)
+
+bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size)
+{
+    buffer[0] = 0;
+    return 0 != FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
+                    NULL, hr,
+                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+                    (LPSTR) buffer, buffer_size,
+                    NULL);
+}
+
+void LogHResult(LogSeverity severity, HRESULT result, const char* str_buf)
+{
+    char msg[256];
+    char buffer[1024];
+    dmLog::HResultToString(result, msg, sizeof(msg));
+    dmSnPrintf(buffer, sizeof(buffer), "%s (hr: 0x%08x code: %d : '%s')\n", str_buf, result, HRESULT_CODE(result), msg);
+    dmLogError(buffer);
+    OutputDebugStringA(buffer);
+}
+#endif
+
 
 } //namespace dmLog
 

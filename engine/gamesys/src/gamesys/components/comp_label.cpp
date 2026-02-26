@@ -583,6 +583,9 @@ namespace dmGameSystem
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
         settings.m_Tracking = component->m_Tracking;
+        // legacy options for glyph bank fonts
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
         dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
     }
@@ -641,7 +644,9 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_LineBreak != 0);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompLabelGetConstantCallback, component);
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, value_index, out_value, false, CompLabelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompLabelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -709,7 +714,10 @@ namespace dmGameSystem
             component->m_LineBreak = params.m_Value.m_Bool;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, params.m_Options.m_Index, CompLabelSetConstantCallback, component);
+
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, value_index, CompLabelSetConstantCallback, component);
     }
 
     static bool CompLabelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

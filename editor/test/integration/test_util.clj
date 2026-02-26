@@ -32,6 +32,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -184,7 +185,12 @@
 (defn make-directory-deleter
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
+  directory path must be a temp directory.
+
+  IMPORTANT! If you use the deleter for a project directory where you set up a
+  system, you need to use (lsp/await (lsp/get-node-lsp project)) before the
+  body returns, otherwise you might get `:editor.resource/project-directory`
+  spec failures in the output."
   ^AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getCanonicalPath directory)
@@ -245,7 +251,11 @@
               :schemas [:default]))
 
 (def localization
-  (localization/make (make-test-prefs) ::test {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}))
+  (localization/make
+    (make-test-prefs)
+    ::test
+    {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}
+    ^[] Throwable/.printStackTrace))
 
 (declare resolve-prop)
 
@@ -428,10 +438,11 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
+  (symlink? [this] false)
   (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
@@ -686,8 +697,10 @@
            (workspace/resource-sync! ~'workspace)
            (fetch-libraries! ~'workspace)
            (let [~'project (setup-project! ~'workspace)
-                 ~'app-view (setup-app-view! ~'project)]
-             ~@body))))))
+                 ~'app-view (setup-app-view! ~'project)
+                 ret# (do ~@body)]
+             (lsp/await (lsp/get-node-lsp ~'project))
+             ret#))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]
@@ -970,9 +983,9 @@
   (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
-  (-> app-view
-    app-view/->selection-provider
-    handler/selection))
+  (let [selection-provider (app-view/->selection-provider app-view)]
+    (g/with-auto-evaluation-context evaluation-context
+      (handler/selection selection-provider evaluation-context))))
 
 ;; Extension library server
 
@@ -1003,20 +1016,34 @@
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
+(defn handler-enabled? [command command-contexts user-data]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/enabled? handler+command-context evaluation-context)))))
+
 (defn handler-run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/run)))
+  (g/let-ec [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+             handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+    (when handler+command-context
+      (handler/run handler+command-context))))
 
 (defn handler-options [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/options)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (when handler+command-context
+        (handler/options handler+command-context evaluation-context)))))
 
 (defn handler-state [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/state)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/state handler+command-context evaluation-context)))))
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]
@@ -1577,7 +1604,7 @@
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
-        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
+        post-save-actions (disk/write-save-data-to-disk! save-data nil localization nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
 
 (defn dirty-proj-paths [project]

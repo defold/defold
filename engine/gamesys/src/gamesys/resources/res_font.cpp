@@ -85,7 +85,7 @@ namespace dmGameSystem
             font->m_PendingJobs.OffsetCapacity(2);
         font->m_PendingJobs.Push(job_info);
 
-        dmJobThread::PushJob(font->m_Jobs, job_info->m_Job);
+        JobSystemPushJob(font->m_Jobs, job_info->m_Job);
     }
 
     static void RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
@@ -111,13 +111,13 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < font->m_PendingJobs.Size(); ++i)
         {
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
-            dmJobThread::HJob hjob = job_info->m_Job;
+            HJob hjob = job_info->m_Job;
 
-            dmJobThread::JobResult jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
-            while (dmJobThread::JOB_RESULT_PENDING == jr)
+            JobSystemResult jr = JobSystemCancelJob(font->m_Jobs, hjob);
+            while (JOBSYSTEM_RESULT_PENDING == jr)
             {
                 dmTime::Sleep(1000);
-                jr = dmJobThread::CancelJob(font->m_Jobs, hjob);
+                jr = JobSystemCancelJob(font->m_Jobs, hjob);
             }
 
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
@@ -365,6 +365,7 @@ namespace dmGameSystem
         params->m_SdfSpread          = ddf->m_SdfSpread;
         params->m_SdfOutline         = ddf->m_SdfOutline;
         params->m_SdfShadow          = ddf->m_SdfShadow;
+        params->m_IsDynamic          = 0;
     }
 
     static void GetMaxCellSize(HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
@@ -407,6 +408,7 @@ namespace dmGameSystem
 
         params->m_SdfSpread     = padding;
         params->m_SdfOutline    = CalcSdfValue(padding, outline_padding);
+        params->m_IsDynamic     = 1;
 
         float sdf_shadow = 1.0f;
         if (shadow_padding)
@@ -490,6 +492,7 @@ namespace dmGameSystem
         params->m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
         params->m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
         params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
+        params->m_Padding            = glyph_bank->m_Padding;
     }
 
     HFontCollection ResFontGetFontCollection(FontResource* resource)

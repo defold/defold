@@ -17,15 +17,16 @@
             [cljfx.fx.region :as fx.region]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.editor-tab :as editor-tab]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
-            [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
-            [editor.workspace :as workspace])
-  (:import [javafx.scene.control SplitPane Tab TabPane]))
+            [editor.workspace :as workspace]
+            [util.coll :refer [pair]])
+  (:import [javafx.scene.control SplitPane TabPane]))
 
 (set! *warn-on-reflection* true)
 
@@ -86,13 +87,10 @@
 
 (defn- open-resource+view-types [app-view evaluation-context]
   (into #{}
-        (map (fn [tab]
-               (let [view-type (ui/user-data tab :editor.app-view/view-type)
-                     view (ui/user-data tab :editor.app-view/view)]
-                 [(-> view
-                      (g/node-value :resource-node evaluation-context)
-                      (g/node-value :resource evaluation-context))
-                  view-type])))
+        (keep (fn [tab]
+                (when-let [view-type (editor-tab/view-type tab)]
+                  (when-let [resource (editor-tab/resource tab evaluation-context)]
+                    (pair resource view-type)))))
         (.getTabs ^TabPane (g/node-value app-view :active-tab-pane evaluation-context))))
 
 (defn exist-closed? [prefs workspace app-view evaluation-context]
@@ -110,29 +108,14 @@
   (->> (ordered-resource+view-types prefs workspace evaluation-context)
        (take 10)))
 
-(defn- tab->resource [^Tab tab]
-  {:pre [(some? tab)]
-   :post [#(resource/resource? %)]}
-  (-> tab
-      (ui/user-data :editor.app-view/view)
-      (g/node-value :view-data)
-      second
-      :resource))
-
-(defn- tab->prefs-data [tab]
-  (let [tab-resource (tab->resource tab)]
-    [(resource/proj-path tab-resource)
-     (-> tab-resource
-         resource/resource-type
-         :view-types
-         first
-         :id)]))
-
 (defn- collect-open-tabs [app-view]
-  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
-    (mapv (fn [^TabPane tab-pane]
-            (mapv tab->prefs-data (.getTabs tab-pane)))
-          (.getItems editor-tabs-split))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)]
+      (mapv (fn [^TabPane tab-pane]
+              (into []
+                    (keep #(editor-tab/prefs-data % evaluation-context))
+                    (.getTabs tab-pane)))
+            (.getItems editor-tabs-split)))))
 
 (defn- collect-tab-selections [app-view]
   (g/with-auto-evaluation-context evaluation-context
@@ -144,15 +127,15 @@
                                   (-> pane .getSelectionModel .getSelectedIndex))
                                 tab-panes)})))
 
-(defn save-open-tabs [prefs app-view]
+(defn save-open-tabs! [prefs app-view]
   (prefs/set! prefs [:workflow :open-tabs] (collect-open-tabs app-view)))
 
-(defn save-tab-selections [prefs app-view]
+(defn save-tab-selections! [prefs app-view]
   (prefs/set! prefs [:workflow :last-selected-tabs] (collect-tab-selections app-view)))
 
 (comment
-  (defn save-open-tabs [prefs app-view] nil)
-  (defn save-tab-selections [prefs app-view] nil)
+  (defn save-open-tabs! [prefs app-view] nil)
+  (defn save-tab-selections! [prefs app-view] nil)
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/main/main.collection" :collection] ["/scripts/knight.script" :code]]
                                                   [["/scripts/utils_blah.lua" :code]["/scripts/utils.lua" :code]]])
   (prefs/set! (dev/prefs) [:workflow :open-tabs] [[["/scripts/utils.lua" :code]["/scripts/knight.script" :code]]])

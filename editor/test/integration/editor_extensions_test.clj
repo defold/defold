@@ -24,7 +24,6 @@
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -40,9 +39,9 @@
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
             [util.diff :as diff]
-            [util.http-server :as http-server])
-  (:import [java.nio.file Files]
-           [java.nio.file.attribute PosixFilePermission]
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -261,9 +260,9 @@
 
 (deftype StaticSelection [selection]
   handler/SelectionProvider
-  (selection [_] selection)
-  (succeeding-selection [_] [])
-  (alt-selection [_] []))
+  (selection [_this _evaluation-context] selection)
+  (succeeding-selection [_this _evaluation-context] [])
+  (alt-selection [_this _evaluation-context] []))
 
 (defn- make-reload-resources-fn [workspace]
   (let [resource-sync (bound-fn* workspace/resource-sync!)]
@@ -304,15 +303,19 @@
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
 
+(defn- eval-handler-contexts [context-name selection]
+  (let [selection-provider (->StaticSelection selection)
+        command-context (handler/->context context-name {} selection-provider)]
+    (g/with-auto-evaluation-context evaluation-context
+      (handler/eval-contexts [command-context] false evaluation-context))))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (reload-editor-scripts! project)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
-                              (handler/eval-contexts
-                                [(handler/->context :outline {} (->StaticSelection [sprite-outline]))]
-                                false)
+                              (eval-handler-contexts :outline [sprite-outline])
                               {})]
         (is (= [0.0 0.0 0.0] (test-util/prop sprite-outline :position)))
         (is (= 1.0 (test-util/prop sprite-outline :playback-rate)))
@@ -326,11 +329,9 @@
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate))))
       (let [handler+context (handler/active
-                             (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                             (handler/eval-contexts
-                               [(handler/->context :global {} (->StaticSelection [sprite-outline]))]
-                               false)
-                             {})]
+                              (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
+                              (eval-handler-contexts :global [sprite-outline])
+                              {})]
         (is (= [1.0 1.0 1.0] (test-util/prop sprite-outline :scale)))
         (is (some? handler+context))
         (is (handler/enabled? handler+context))
@@ -347,9 +348,7 @@
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :asset-browser {} (->StaticSelection [(test-util/resource-node project "/test.txt")]))]
-                              false)
+                            (eval-handler-contexts :asset-browser [(test-util/resource-node project "/test.txt")])
                             {})]
       @(handler/run handler+context)
       ;; see test.editor_script:
@@ -364,9 +363,7 @@
 (defn- run-edit-menu-test-command! []
   (let [handler+context (handler/active
                           (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                          (handler/eval-contexts
-                            [(handler/->context :global {} (->StaticSelection []))]
-                            false)
+                          (eval-handler-contexts :global [])
                           {})]
     (assert handler+context "Test bug: undefined test command")
     @(handler/run handler+context)))
@@ -394,9 +391,7 @@
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :outline {} (->StaticSelection [node]))]
-                              false)
+                            (eval-handler-contexts :outline [node])
                             {})
           test-initial-state! (fn test-initial-state! []
                                 (is (= "properties" (test-util/prop node :id)))
@@ -434,9 +429,7 @@
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :asset-browser {} (->StaticSelection []))]
-                              false)
+                            (eval-handler-contexts :asset-browser [])
                             {})]
       @(handler/run handler+context)
       ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
@@ -656,6 +649,20 @@
         (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
         (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))]
+    (let [output-matches-expectation (= expected actual)]
+      (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
+
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
     (let [output (atom [])]
@@ -668,15 +675,22 @@
               [:out "path = 'does_not_exist.txt', exists = false, file = false, directory = false"]]
              @output)))))
 
+(def expected-ui-test-output
+  "editor.ui.image({}) => {} must have the \"image\" key
+editor.ui.image({image = false}) => false is not a string
+editor.ui.image({image = 'foo', width = false}) => false is not a number
+editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
+")
+
 (deftest ui-test
   (test-util/with-loaded-project "test/resources/editor_extensions/ui_project"
-    (let [output (atom [])]
-      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       ;; see test.editor_script: it creates a lot of ui components that should
       ;; form a valid UI tree. In case of any errors the output will get error
       ;; entries.
-      (is (= [] @output)))))
+      (expect-script-output expected-ui-test-output out))))
 
 (deftest prefs-round-trip-test
   (test-util/with-loaded-project "test/resources/editor_extensions/prefs_round_trip_project"
@@ -877,20 +891,6 @@ nesting:
 }
 ")
 
-(defn- normalize-pprint-output [output-string]
-  (let [hash->stable-id (volatile! {})]
-    (string/replace
-      output-string
-      #"0x[0-9a-f]+"
-      (fn [s]
-        (or (@hash->stable-id s)
-            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
-
-(defn- expect-script-output [expected actual]
-  (let [actual (normalize-pprint-output (str actual))]
-    (let [output-matches-expectation (= expected actual)]
-      (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
-
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
@@ -1086,15 +1086,15 @@ build/nested/game.project exists: true
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
-                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/of root path-str)))]
                            (loop [acc (transient #{})]
                              (if-let [e (.getNextZipEntry zis)]
                                (recur (conj! acc (.getName e)))
                                (persistent! acc)))))
           size (fn size [path-str]
-                 (fs/path-size (fs/path root path-str)))
+                 (path/byte-size (path/of root path-str)))
           list-methods (fn list-methods [path-str]
-                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
+                         (with-open [zis (ZipArchiveInputStream. (io/input-stream (path/of root path-str)))]
                            (loop [acc (transient {})]
                              (if-let [e (.getNextZipEntry zis)]
                                (recur (assoc! acc (.getName e) (condp = (.getMethod e)
@@ -1143,7 +1143,7 @@ build/nested/game.project exists: true
              (list-methods "mixed.zip")))
       (when-not (os/is-win32?)
         (is (contains?
-              (Files/getPosixFilePermissions (fs/path root "build" "script.sh") fs/empty-link-option-array)
+              (path/posix-file-permissions (path/of root "build" "script.sh"))
               PosixFilePermission/OWNER_EXECUTE))))))
 
 (def expected-zlib-test-output
@@ -2091,7 +2091,7 @@ emitters: 0
                           (derive :cat :mammal)
                           (derive :sparrow :bird)
                           (derive :eagle :bird)))
-          sound-chain (graph/make-inheritance-chain h-ref)]
+          sound-chain (graph/make-inheritance-chain :hierarchy-ref h-ref)]
       (sound-chain :animal (constantly :grunt))
       (sound-chain :mammal (constantly :roar))
       (sound-chain :bird (constantly :chirp))
@@ -2104,7 +2104,7 @@ emitters: 0
       (is (= :meow ((sound-chain :cat) {:happy true})))))
   (testing "hierarchy modification"
     (let [h-ref (atom (derive (make-hierarchy) :mammal :animal))
-          sound-chain (graph/make-inheritance-chain h-ref)]
+          sound-chain (graph/make-inheritance-chain :hierarchy-ref h-ref)]
       (sound-chain :animal (constantly :grunt))
       (sound-chain :mammal (constantly :roar))
       (is (= :roar ((sound-chain :mammal) {})))
@@ -2152,6 +2152,89 @@ Expected errors:
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-game-project-properties-test-output out))))
+
+(def ^:private expected-properties-game-project-test-output
+  "game.project targeted checks:
+  sorted_and_unique = ok
+  contains project.title = ok
+  contains display.width = ok
+  contains physics.type = ok
+  all listed are readable = ok
+test.collection targeted checks:
+  sorted_and_unique = ok
+  contains children = ok
+  contains name = ok
+  contains path = ok
+  all listed are readable = ok
+test.go targeted checks:
+  sorted_and_unique = ok
+  contains components = ok
+  contains path = ok
+  all listed are readable = ok
+  has component nodes = ok
+  contains component-reference component = ok
+  contains label component = ok
+  contains collisionobject component = ok
+  all component nodes have type = ok
+  all component nodes are readable = ok
+  collisionobject has collision_type = ok
+  collisionobject has shapes = ok
+  collisionobject has shape nodes = ok
+  collision shape has type = ok
+  collision shape is readable = ok
+test.gui targeted checks:
+  sorted_and_unique = ok
+  contains nodes = ok
+  contains materials = ok
+  contains textures = ok
+  contains path = ok
+  all listed are readable = ok
+  contains gui nodes = ok
+  gui node has Landscape:position = ok
+  gui node does not have Portrait:position = ok
+  gui node is readable = ok
+test.particlefx targeted checks:
+  sorted_and_unique = ok
+  contains emitters = ok
+  contains modifiers = ok
+  contains path = ok
+  all listed are readable = ok
+  contains emitters = ok
+  emitter has modifiers = ok
+  emitter modifier has type = ok
+  emitter modifier is readable = ok
+test.tilemap targeted checks:
+  sorted_and_unique = ok
+  contains layers = ok
+  contains tile_source = ok
+  contains path = ok
+  all listed are readable = ok
+  contains layer nodes = ok
+  layer has tiles = ok
+  layer is readable = ok
+test.tilesource targeted checks:
+  sorted_and_unique = ok
+  contains animations = ok
+  contains collision_groups = ok
+  contains tile_collision_groups = ok
+  contains path = ok
+  all listed are readable = ok
+  contains animation nodes = ok
+  animation has id = ok
+  animation is readable = ok
+test.editor_script targeted checks:
+  sorted_and_unique = ok
+  contains path = ok
+  contains text = ok
+  all listed are readable = ok
+")
+
+(deftest properties-game-project-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/properties_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-properties-game-project-test-output out))))
 
 (def ^:private expected-localization-output
   "message => Build

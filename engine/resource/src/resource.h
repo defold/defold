@@ -20,7 +20,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/http_cache.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -137,7 +137,7 @@ namespace dmResource
         EmbeddedResource        m_ArchiveManifest;
         dmHttpCache::HCache     m_HttpCache;
 
-        dmJobThread::HContext   m_JobThreadContext;
+        HJobContext             m_JobThreadContext;
 
         NewFactoryParams()
         {
@@ -388,7 +388,7 @@ namespace dmResource
     Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
 
     // Get the assigned Job thread
-    dmJobThread::HContext GetJobThread(const dmResource::HFactory factory);
+    HJobContext GetJobThread(const dmResource::HFactory factory);
 }
 
 #endif // DM_RESOURCE_H

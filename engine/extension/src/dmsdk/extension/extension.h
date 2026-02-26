@@ -30,13 +30,13 @@ extern "C" {
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
 
-/*# SDK Extension API documentation
+/*# Extension API documentation
  *
  * Functions for creating and controlling engine native extension libraries.
  *
  * @document
  * @name Extension
- * @language C++
+ * @language C
  */
 
 /*# result enumeration

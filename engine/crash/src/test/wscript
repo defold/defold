@@ -13,9 +13,9 @@ def build(bld):
         libs.append('UNWIND')
 
     extra_features = []
-    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         libs += ['SOCKET']
-        extra_features = ['skip_test'] # until we've implemented a crash handler for PS4
+        extra_features = ['skip_test'] # until we've implemented a crash handler for these platforms
 
     exported_symbols = ['CrashExt', 'ResourceProviderFile']
 

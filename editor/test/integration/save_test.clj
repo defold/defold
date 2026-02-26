@@ -114,7 +114,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (< 100 lf))
           (is (> 100 crlf))
-          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil nil)
+          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil test-util/localization nil)
           (is (= line-endings-before (line-endings-by-resource project))))))
 
     (testing "autocrlf true"
@@ -127,7 +127,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (> 100 lf))
           (is (< 100 crlf))
-          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil nil)
+          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil test-util/localization nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
 
 (defn- workspace-file
@@ -392,7 +392,7 @@
         ;; these endpoints from what we expect to be in the cache after the
         ;; save operation concludes.
         (with-redefs [disk/write-save-data-to-disk!
-                      (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _opts]
+                      (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _localization _opts]
                         (swap! invalidated-save-data-endpoints-atom
                                (fn [invalidated-save-data-endpoints]
                                  (into invalidated-save-data-endpoints
@@ -441,7 +441,7 @@
       ;; progress. The purpose of this is to verify that the edits that were
       ;; made while saving are unsaved after we wrap up the save process.
       (with-redefs [disk/write-save-data-to-disk!
-                    (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _opts]
+                    (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _localization _opts]
                       ;; This function runs on a background thread as part of
                       ;; the save process. Simulate a concurrent edit on the UI
                       ;; thread before proceeding with the background thread.

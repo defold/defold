@@ -86,6 +86,21 @@
 
 (def ^:private tile-border-size 3.0)
 
+(def ^:private id-message (properties/label-message :id))
+(def ^:private image-message (properties/label-message :image))
+(def ^:private collision-message (properties/label-message :tile-source :collision))
+(def ^:private start-tile-message (properties/label-message :tile-source :start-tile))
+(def ^:private end-tile-message (properties/label-message :tile-source :end-tile))
+(def ^:private fps-message (properties/label-message :tile-source :fps))
+(def ^:private tile-width-message (properties/label-message :tile-source :tile-width))
+(def ^:private tile-height-message (properties/label-message :tile-source :tile-height))
+(def ^:private tile-margin-message (properties/label-message :tile-source :tile-margin))
+(def ^:private tile-spacing-message (properties/label-message :tile-source :tile-spacing))
+(def ^:private extrude-borders-message (properties/label-message :tile-source :extrude-borders))
+(def ^:private inner-padding-message (properties/label-message :tile-source :inner-padding))
+(def ^:private more-than-max-collision-groups-in-use-message (localization/message "error.tile-source.more-than-max-collision-groups-in-use" {"max" collision-groups/MAX-GROUPS}))
+(def ^:private tile-data-could-not-be-generated-due-to-invalid-values-message (localization/message "error.tile-source.tile-data-could-not-be-generated-due-to-invalid-values"))
+
 (defn- tile-coords
   [tile-index tile-source-attributes [scale-x scale-y]]
   (let [w (:width tile-source-attributes)
@@ -137,7 +152,7 @@
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id resource packed-image-generator texture-set texture-profile build-settings]
-  (let [workspace (project/workspace (project/get-project _node-id))
+  (let [workspace (resource/workspace resource)
         compress? (:compress-textures? build-settings false)
         texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
     [(bt/with-content-hash
@@ -156,9 +171,9 @@
 
   (property id g/Str ; Always assigned in load-fn.
             (dynamic error (g/fnk [_node-id id collision-groups-data]
-                             (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
+                             (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
                                  (when (collision-groups/overallocated? collision-groups-data)
-                                   (validation/prop-error :warning _node-id :id (constantly "More than 16 collision groups in use.") id "Id"))))))
+                                   (g/->error _node-id :id :warning id more-than-max-collision-groups-in-use-message))))))
 
   (input collision-groups-data g/Any)
 
@@ -188,19 +203,19 @@
 
 (defn- prop-tile-range? [max v name]
   (when (or (< v 1) (< max v))
-    (format "'%s' is outside the tile range (1-%d)" name max)))
+    (localization/message "error.tile-source.tile-outside-range" {"property" name "max" max})))
 
 (defn- validate-animation-id [node-id id]
-  (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id"))
+  (validation/prop-error :fatal node-id :id validation/prop-empty? id id-message))
 
 (defn- validate-animation-start-tile [tile-count node-id start-tile]
-  (validation/prop-error :fatal node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))
+  (validation/prop-error :fatal node-id :start-tile (partial prop-tile-range? tile-count) start-tile start-tile-message))
 
 (defn- validate-animation-end-tile [tile-count node-id end-tile]
-  (validation/prop-error :fatal node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))
+  (validation/prop-error :fatal node-id :end-tile (partial prop-tile-range? tile-count) end-tile end-tile-message))
 
 (defn- validate-animation-fps [node-id fps]
-  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "FPS"))
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
 
 (def ^:private protobuf-animation-defaults
   "Default field values declared in the Tile$Animation protobuf message. Fields
@@ -322,26 +337,26 @@
   (output scene g/Any produce-animation-scene))
 
 (defn- validate-image-resource [node-id image-resource]
-  (or (validation/prop-error :fatal node-id :image validation/prop-nil? image-resource "Image")
-      (validation/prop-error :fatal node-id :image validation/prop-resource-not-exists? image-resource "Image")))
+  (or (validation/prop-error :fatal node-id :image validation/prop-nil? image-resource image-message)
+      (validation/prop-error :fatal node-id :image validation/prop-resource-not-exists? image-resource image-message)))
 
 (defn- validate-tile-width [node-id tile-width]
-  (validation/prop-error :fatal node-id :tile-width validation/prop-zero-or-below? tile-width "Tile Width"))
+  (validation/prop-error :fatal node-id :tile-width validation/prop-zero-or-below? tile-width tile-width-message))
 
 (defn- validate-tile-height [node-id tile-height]
-  (validation/prop-error :fatal node-id :tile-height validation/prop-zero-or-below? tile-height "Tile Height"))
+  (validation/prop-error :fatal node-id :tile-height validation/prop-zero-or-below? tile-height tile-height-message))
 
 (defn- validate-tile-margin [node-id tile-margin]
-  (validation/prop-error :fatal node-id :tile-margin validation/prop-negative? tile-margin "Tile Margin"))
+  (validation/prop-error :fatal node-id :tile-margin validation/prop-negative? tile-margin tile-margin-message))
 
 (defn- validate-tile-spacing [node-id tile-spacing]
-  (validation/prop-error :fatal node-id :tile-spacing validation/prop-negative? tile-spacing "Tile Spacing"))
+  (validation/prop-error :fatal node-id :tile-spacing validation/prop-negative? tile-spacing tile-spacing-message))
 
 (defn- validate-extrude-borders [node-id extrude-borders]
-  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders extrude-borders-message))
 
 (defn- validate-inner-padding [node-id inner-padding]
-  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding inner-padding-message))
 
 (defn- attach-animation-node [self animation-node]
   (concat
@@ -585,7 +600,7 @@
             metrics (texture-set-gen/calculate-tile-metrics image-size properties collision-size)]
         (when metrics
           (merge properties metrics)))
-      (g/->error _node-id :image :fatal image-resource "tile data could not be generated due to invalid values")))
+      (g/->error _node-id :image :fatal image-resource tile-data-could-not-be-generated-due-to-invalid-values-message)))
 
 (defn- check-anim-error [tile-count anim-data]
   ;; This is used from the TileSourceNode to validate the animations in the
@@ -668,7 +683,7 @@
             (dynamic label (properties/label-dynamic :tile-source :collision))
             (dynamic tooltip (properties/tooltip-dynamic :tile-source :collision))
             (dynamic error (g/fnk [_node-id collision image-dim-error tile-width-error tile-height-error]
-                             (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision "Collision"))))
+                             (validation/prop-error :fatal _node-id :collision validation/prop-resource-not-exists? collision collision-message))))
   (property material-tag g/Str (default (protobuf/default Tile$TileSet :material-tag))
             (dynamic visible (g/constantly false)))
   (property original-convex-hulls g/Any ; No protobuf counterpart.
@@ -776,9 +791,11 @@
                     {coll-w :width coll-h :height} collision-size]
                 (when (or (not= img-w coll-w)
                           (not= img-h coll-h))
-                  (g/error-fatal (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
-                                         img-w img-h
-                                         coll-w coll-h)))))))
+                  (g/error-fatal (localization/message "error.tile-source.image-and-collision-dimensions-must-match"
+                                                       {"image_width" img-w
+                                                        "image_height" img-h
+                                                        "collision_width" coll-w
+                                                        "collision_height" coll-h})))))))
   (output tile-width-error g/Err
           (g/fnk [image-size collision-size tile-width tile-margin]
             (let [dims (or image-size collision-size)]
@@ -786,8 +803,9 @@
                 (let [{w :width} dims
                       total-w (+ tile-width tile-margin)]
                   (when (< w total-w)
-                    (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
-                                           total-w w))))))))
+                    (g/error-fatal (localization/message "error.tile-source.total-width-exceeds-image-width"
+                                                         {"total_width" total-w
+                                                          "image_width" w}))))))))
   (output tile-height-error g/Err
           (g/fnk [image-size collision-size tile-height tile-margin]
             (let [dims (or image-size collision-size)]
@@ -795,8 +813,9 @@
                 (let [{h :height} dims
                       total-h (+ tile-height tile-margin)]
                   (when (< h total-h)
-                    (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
-                                           total-h h)))))))))
+                    (g/error-fatal (localization/message "error.tile-source.total-height-exceeds-image-height"
+                                                         {"total_height" total-h
+                                                          "image_height" h})))))))))
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -1070,11 +1089,11 @@
     (g/transact
       (make-collision-group-node self project select-fn id))))
 
-(defn- selection->tile-source [selection]
-  (handler/adapt-single selection TileSourceNode))
+(defn- selection->tile-source [selection evaluation-context]
+  (handler/adapt-single selection TileSourceNode evaluation-context))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (active? [selection] (selection->tile-source selection))
+  (active? [selection evaluation-context] (selection->tile-source selection evaluation-context))
   (label [selection user-data]
          (if-not user-data
            (localization/message "command.edit.add-embedded-component.variant.tile-source")
@@ -1092,7 +1111,8 @@
                :user-data {:action add-collision-group-node!
                            :label (localization/message "command.edit.add-embedded-component.variant.tile-source.option.collision-group")}}]))
   (run [selection user-data app-view]
-    ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
+    (g/let-ec [tile-source-node (selection->tile-source selection evaluation-context)]
+      ((:action user-data) tile-source-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn register-resource-types [workspace]
   (concat
@@ -1113,5 +1133,6 @@
       :load-fn load-tile-source
       :icon tile-source-icon
       :icon-class :design
+      :category (localization/message "resource.category.resources")
       :view-types [:scene :text]
       :view-opts {:scene {:tool-controller ToolController}})))

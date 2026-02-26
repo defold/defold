@@ -19,7 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "hid.h"
 #include "hid_private.h"
@@ -298,7 +298,7 @@ namespace dmHID
                 TouchDevice* device = &context->m_TouchDevices[t];
                 TouchDevicePacket* packet = &device->m_Packet;
 
-                dmPlatform::TouchData touch_data[dmHID::MAX_TOUCH_COUNT] = {};
+                WindowTouchData touch_data[dmHID::MAX_TOUCH_COUNT] = {};
                 packet->m_TouchCount = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
 
                 if (packet->m_TouchCount > 0)
@@ -350,6 +350,6 @@ namespace dmHID
 
     void ResetKeyboard(HContext context)
     {
-        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_RESET, true);
+        dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_KEYBOARD_RESET, true);
     }
 }

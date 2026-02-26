@@ -75,6 +75,12 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct VulkanUniformBuffer
+    {
+        UniformBuffer m_BaseUniformBuffer;
+        DeviceBuffer  m_DeviceBuffer;
+    };
+
     struct VulkanTexture
     {
         struct VulkanHandle
@@ -381,8 +387,8 @@ namespace dmGraphics
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        dmPlatform::HWindow                m_Window;
-        dmPlatform::WindowResizeCallback   m_WindowResizeCallback;
+        HWindow                            m_Window;
+        FWindowResizeCallback              m_WindowResizeCallback;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                      m_PipelineCache;
@@ -401,7 +407,7 @@ namespace dmGraphics
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
         // Async process resources
-        dmJobThread::HContext              m_JobThread;
+        HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
@@ -420,6 +426,7 @@ namespace dmGraphics
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
         VertexDeclaration               m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
@@ -427,6 +434,7 @@ namespace dmGraphics
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        VulkanUniformBuffer*            m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         VulkanProgram*                  m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;
@@ -551,7 +559,7 @@ namespace dmGraphics
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
-    VkResult     CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    VkResult     CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 
     bool         LoadVulkanLibrary();
     void         LoadVulkanFunctions(VkInstance vk_instance);

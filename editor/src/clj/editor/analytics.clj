@@ -15,14 +15,16 @@
 (ns editor.analytics
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [editor.localization :as localization]
             [editor.system :as sys]
             [service.log :as log])
   (:import [clojure.lang PersistentQueue]
            [com.defold.editor Editor]
+           [com.dynamo.bob Platform]
            [java.io File]
            [java.net HttpURLConnection MalformedURLException URL]
            [java.nio.charset StandardCharsets]
-           [java.util UUID]
+           [java.util Locale UUID]
            [java.util.concurrent CancellationException]))
 
 (set! *warn-on-reflection* true)
@@ -117,10 +119,14 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- batch->payload
-  ^bytes [batch]
+  ^bytes [batch localization]
   (let [config @config-atom
         cid (get config :cid)
-        payload {:client_id cid :events batch}
+        payload {:client_id cid
+                 :events batch
+                 :user_properties {:locale {:value (localization/current-locale @localization)}}
+                 :device {:language (.getLanguage (Locale/getDefault))
+                          :operating_system (.getOs (Platform/getHostPlatform))}}
         ^String payload-json (json/write-str payload)]
     (.getBytes payload-json StandardCharsets/UTF_8)))
 
@@ -167,29 +173,29 @@
   "Sends one batch of events from the queue. Returns false if there were events
   on the queue that could not be sent. Otherwise removes the successfully sent
   events from the queue and returns true."
-  [analytics-url]
+  [analytics-url localization]
   (let [event-queue @event-queue-atom
         batch (into [] (take batch-size) event-queue)]
     (if (empty? batch)
       true
-      (if-not (send-payload! analytics-url (batch->payload batch))
+      (if-not (send-payload! analytics-url (batch->payload batch localization))
         false
         (do
           (swap! event-queue-atom pop-count (count batch))
           true)))))
 
-(defn- send-remaining-batches! [analytics-url]
+(defn- send-remaining-batches! [analytics-url localization]
   (let [event-queue @event-queue-atom]
     (loop [event-queue event-queue]
       (when-some [batch (not-empty (into [] (take batch-size) event-queue))]
-        (send-payload! analytics-url (batch->payload batch))
+        (send-payload! analytics-url (batch->payload batch localization))
         (recur (pop-count event-queue (count batch)))))
     (swap! event-queue-atom pop-count (count event-queue))
     nil))
 
 (declare shutdown!)
 
-(defn- start-worker! [analytics-url ^long send-interval]
+(defn- start-worker! [analytics-url localization ^long send-interval]
   (let [stopped-atom (atom false)
         thread (future
                  (try
@@ -203,12 +209,12 @@
                          nil)
 
                        @stopped-atom
-                       (send-remaining-batches! analytics-url)
+                       (send-remaining-batches! analytics-url localization)
 
                        :else
                        (do
                          (Thread/sleep send-interval)
-                         (if (send-one-batch! analytics-url)
+                         (if (send-one-batch! analytics-url localization)
                            (recur 0)
                            (recur (inc failed-send-attempts))))))
                    (catch CancellationException _
@@ -243,7 +249,7 @@
 ;; Public interface
 ;; -----------------------------------------------------------------------------
 
-(defn start! [^String analytics-url send-interval]
+(defn start! [^String analytics-url localization send-interval]
   {:pre [(valid-analytics-url? analytics-url)]}
   (let [config (reset! config-atom (read-config!))]
     (when (some? (sys/defold-version))
@@ -251,7 +257,7 @@
              (fn [started-worker]
                (when (some? started-worker)
                  (shutdown-worker! started-worker 0))
-               (start-worker! analytics-url send-interval))))
+               (start-worker! analytics-url localization send-interval))))
     (:cid config)))
 
 (defn shutdown!
@@ -281,13 +287,16 @@
 
 (defn track-exception! [^Throwable exception]
   (append-event! {:name "exception"
-                  :params {:name (.getSimpleName (class exception)) 
+                  :params {:name (.getSimpleName (class exception))
                            :engagement_time_msec "100"
                            :session_id session-id}}))
 
 (defn track-screen! [^String screen-name]
-    (append-event! {:name "page_view"
-                    :params {:page_location screen-name
-                             :engagement_time_msec "100"
-                             :session_id session-id}}))
+  (append-event! {:name "page_view"
+                  :params {:page_location screen-name
+                           :engagement_time_msec "100"
+                           :session_id session-id}}))
 
+(defn track-locale! [^String locale-name]
+  (append-event! {:name "change_locale"
+                  :params {:locale locale-name}}))

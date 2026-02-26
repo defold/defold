@@ -54,6 +54,10 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private mesh-icon "icons/32/Icons_22-Model.png")
+(def ^:private material-message (properties/label-message :material))
+(def ^:private normal-stream-message (properties/label-message :mesh :normal-stream))
+(def ^:private position-stream-message (properties/label-message :mesh :position-stream))
+(def ^:private vertices-message (properties/label-message :mesh :vertices))
 
 (shader/defshader model-id-vertex-shader
   (attribute vec4 position)
@@ -105,18 +109,17 @@
   (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
     (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
-(defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-kw]
+(defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-message]
   (when (seq stream-ids)
     (if (str/blank? stream-id)
       (when (= :vertex-space-world vertex-space)
-        (let [prop-name (validation/keyword->name prop-kw)]
-          (format "'%s' must be specified when using a material with a world-space 'Vertex Space' setting" prop-name)))
+        (localization/message "error.mesh.stream-must-be-specified-for-world-vertex-space" {"property" prop-message}))
       (when (not-any? #(= stream-id %) stream-ids)
-        (format "Stream '%s' could not be found in the specified buffer" stream-id)))))
+        (localization/message "error.mesh.stream-not-found-in-buffer" {"stream" stream-id})))))
 
-(defn- validate-stream-id [_node-id prop-kw stream-id stream-ids vertices-resource vertex-space]
+(defn- validate-stream-id [_node-id prop-kw prop-message stream-id stream-ids vertices-resource vertex-space]
   (when (some? vertices-resource)
-    (validation/prop-error :fatal _node-id prop-kw prop-stream-id-error-message stream-id stream-ids vertex-space prop-kw)))
+    (validation/prop-error :fatal _node-id prop-kw prop-stream-id-error-message stream-id stream-ids vertex-space prop-message)))
 
 (defn position-stream-name? [stream-name specified-position-stream-name]
   (if-not (str/blank? specified-position-stream-name)
@@ -129,10 +132,10 @@
     (= stream-name "normal")))
 
 (g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
-  (or (some->> [(prop-resource-error :fatal _node-id :material material "Material")
-                (prop-resource-error :fatal _node-id :vertices vertices "Vertices")
-                (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)
-                (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)]
+  (or (some->> [(prop-resource-error :fatal _node-id :material material material-message)
+                (prop-resource-error :fatal _node-id :vertices vertices vertices-message)
+                (validate-stream-id _node-id :position-stream position-stream-message position-stream stream-ids vertices vertex-space)
+                (validate-stream-id _node-id :normal-stream normal-stream-message normal-stream stream-ids vertices vertex-space)]
                (filterv some?)
                not-empty
                g/error-aggregate)
@@ -417,7 +420,7 @@
                                             [:shader :shader]
                                             [:vertex-space :vertex-space])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material "Material")))
+                                  (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
 
@@ -459,14 +462,14 @@
 
   (property position-stream g/Str (default (protobuf/default MeshProto$MeshDesc :position-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids position-stream]
-                             (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)))
+                             (validate-stream-id _node-id :position-stream position-stream-message position-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids ""))))
             (dynamic label (properties/label-dynamic :mesh :position-stream))
             (dynamic tooltip (properties/tooltip-dynamic :mesh :position-stream)))
 
   (property normal-stream g/Str (default (protobuf/default MeshProto$MeshDesc :normal-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids normal-stream]
-                             (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)))
+                             (validate-stream-id _node-id :normal-stream normal-stream-message normal-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids ""))))
             (dynamic label (properties/label-dynamic :mesh :normal-stream))
             (dynamic tooltip (properties/tooltip-dynamic :mesh :normal-stream)))
@@ -527,6 +530,7 @@
     :ddf-type MeshProto$MeshDesc
     :load-fn load-mesh
     :icon mesh-icon
+    :category (localization/message "resource.category.components")
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))

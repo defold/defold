@@ -22,7 +22,7 @@
 
 namespace dmBuffer
 {
-    /*# SDK Buffer API documentation
+    /*# Buffer API documentation
      *
      * Buffer API for data buffers as the main way to communicate between systems.
      *

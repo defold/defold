@@ -54,6 +54,7 @@
            ["Alt+Up" :code.goto-line-start]
            ["Alt+Up" :edit.reorder-up]
            ["Backspace" :code.delete-previous-char]
+           ["Backspace" :edit.delete]
            ["Ctrl+A" :code.goto-line-start]
            ["Ctrl+E" :code.goto-line-end]
            ["Ctrl+I" :code.reindent]

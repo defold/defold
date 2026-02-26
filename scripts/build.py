@@ -59,6 +59,8 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-webgpu': 'WITH_WEBGPU'
 }
 
+JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
+
 sys.dont_write_bytecode = True
 try:
     import build_vendor
@@ -129,7 +131,7 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
-    "jctest-0.12",
+    "jctest-0.13",
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -399,7 +401,7 @@ def get_host_platform():
 def format_exes(name, platform):
     prefix = ''
     suffix = ['']
-    if 'win32' in platform:
+    if platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
         suffix = ['.exe']
     elif 'android' in platform:
         prefix = 'lib'
@@ -1457,7 +1459,7 @@ class Configuration(object):
                 shutil.copy2(engine, engine_stripped)
                 if self._strip_engine(engine_stripped):
                     self.upload_to_archive(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
-                if 'win32' in self.target_platform:
+                if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
@@ -1517,7 +1519,7 @@ class Configuration(object):
     def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
 
@@ -1683,7 +1685,6 @@ class Configuration(object):
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
 # - 'com.dynamo.cr/com.dynamo.cr.test'
-# - 'com.dynamo.cr/com.dynamo.cr.common'
 # Maybe in the future we consider to move it into install_ext
     def get_gradle_wrapper(self):
         if os.name == 'nt':  # Windows
@@ -1695,7 +1696,6 @@ class Configuration(object):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
@@ -1710,7 +1710,7 @@ class Configuration(object):
         if self.verbose:
             gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
         s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
@@ -1876,7 +1876,6 @@ class Configuration(object):
 
     def build_bob(self):
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
@@ -1892,7 +1891,7 @@ class Configuration(object):
         if self.verbose:
             gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
         flags = ''
         if self.keep_bob_uncompressed:
             flags = '-Pkeep-bob-uncompressed'
@@ -2807,6 +2806,7 @@ class Configuration(object):
         if not 'JAVA_HOME' in os.environ:
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
+        env['DM_JAVA_RUNTIME_FLAGS'] = JAVA_RUNTIME_FLAGS
 
         env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home

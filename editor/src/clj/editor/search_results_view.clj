@@ -231,7 +231,7 @@
   {:value-path (:path item)})
 
 (defn- init-search-in-files-tree-view! [^TreeView tree-view]
-  (ui/customize-tree-view! tree-view {:double-click-expand? false})
+  (ui/customize-tree-view! tree-view {:double-click-expand false})
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (.setShowRoot tree-view false)
   (.setRoot tree-view (doto (TreeItem.)
@@ -802,7 +802,7 @@
                           display-order
                           (->> (if has-specific-properties
                                  properties
-                                 (coll/transfer (tree-seq :children :children tree) #{}
+                                 (coll/into-> (tree-seq :children :children tree) #{}
                                    (drop 1)
                                    (mapcat :overridden-properties)))
                                (sort-by property-keyword->display-order)
