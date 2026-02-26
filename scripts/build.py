@@ -1454,7 +1454,6 @@ class Configuration(object):
         # upload mouse_capture lib on desktop platforms
         if self.is_desktop_target():
             mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)[0]
-            self._log(mouse_capture_shared)
             mouse_capture_lib = join(lib_dir, mouse_capture_name)
             mouse_capture_target_name = format_lib("mouse_capture_shared" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self._log(mouse_capture_name)
