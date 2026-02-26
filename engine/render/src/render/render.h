@@ -47,6 +47,7 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_WEIGHTS;
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
+    extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;

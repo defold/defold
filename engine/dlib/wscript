@@ -70,7 +70,7 @@ def shutdown(sht):
 
     server_sockets = None
     bash_prefix = ''
-    if os.environ.get('MSYSTEM', '') in ('MINGW32','MINGW64'):
+    if os.environ.get('MSYSTEM', '') in ('MINGW32','MINGW64','CLANGARM64'):
         bash_prefix = 'sh '
 
     configfilepath = None
@@ -86,7 +86,9 @@ def shutdown(sht):
             os.unlink(server_log_path)
 
         os.environ['TEST_HTTP_SERVER_LOG'] = server_log_path
-        os.system(bash_prefix + './scripts/start_http_server.sh')
+        cmd = bash_prefix + './scripts/start_http_server.sh'
+        print(f"CMD: '{cmd}'")
+        os.system(cmd)
         atexit.register(os.system, bash_prefix + './scripts/stop_http_server.sh')
 
         start = time.time()

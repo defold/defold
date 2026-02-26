@@ -185,6 +185,7 @@ namespace dmRig
         const float** normals,
         const float** tangents,
         const float** colors,
+        const float** texture_transform_2d,
         const float** uv_channels,
         uint32_t uv_channels_count);
 

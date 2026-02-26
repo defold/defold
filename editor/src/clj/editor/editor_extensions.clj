@@ -154,6 +154,12 @@
           node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
       (some? (graph/ext-value-getter node-id-or-resource property project evaluation-context)))))
 
+(defn- make-ext-properties-fn [project]
+  (rt/lua-fn ext-properties [{:keys [rt evaluation-context]} lua-node-id-or-path]
+    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (graph/ext-readable-properties node-id-or-resource project evaluation-context))))
+
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
@@ -934,6 +940,7 @@
                                   "can_reorder" (graph/make-ext-can-reorder-fn project)
                                   "can_reset" (graph/make-ext-can-reset-fn project)
                                   "can_set" (make-ext-can-set-fn project)
+                                  "properties" (make-ext-properties-fn project)
                                   "command" commands/ext-command-fn
                                   "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                   "create_resources" (make-ext-create-resources-fn project reload-resources!)

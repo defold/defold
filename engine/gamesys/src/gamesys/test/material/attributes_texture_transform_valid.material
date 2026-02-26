@@ -1,0 +1,3 @@
+name: "custom_attributes_texture_transform_valid"
+vertex_program: "/material/attributes_texture_transform.vp"
+fragment_program: "/material/attributes_texture_transform.fp"

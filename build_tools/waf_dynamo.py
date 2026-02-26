@@ -300,7 +300,7 @@ def default_flags(self):
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan or Options.options.with_msan) and opt_level != '0':
         opt_level = 1
 
     FLAG_ST = '/%s' if use_cl_exe else '-%s'
@@ -701,6 +701,10 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
+    elif Options.options.with_msan and build_util.get_target_os() in ('linux', 'ps5'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('CFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=memory'])
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -2117,6 +2121,7 @@ def options(opt):
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
+    opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

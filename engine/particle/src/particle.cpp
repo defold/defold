@@ -1253,6 +1253,7 @@ namespace dmParticle
         Vector4 color_to_write;
         dmVMath::Matrix4 world_matrix;
         float page_index;
+        float texture_transform_packed[9];
         dmGraphics::WriteAttributeParams write_params = {};
 
         const float* world_matrix_channel[] = { (float*) &world_matrix };
@@ -1261,6 +1262,7 @@ namespace dmParticle
         const float* position_local_channel[] = { (float*) position_local_flat };
         const float* color_channel[] = { (float*) &color_to_write };
         const float* tex_coord_channel[] = { tex_coord_flat };
+        const float* texture_transform_channel[] = { texture_transform_packed };
 
         write_params.m_VertexAttributeInfos = &attribute_infos;
         write_params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
@@ -1274,6 +1276,11 @@ namespace dmParticle
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsWorldSpace, position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        if (material_attribute_info_meta.m_HasAttributeTextureTransform2D)
+        {
+            dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TextureTransform2D, texture_transform_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+        }
 
         uint32_t particle_full_count = emitter->m_Particles.Size();
         uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
@@ -1388,6 +1395,21 @@ namespace dmParticle
                     uint32_t page_indices_index = frame_indices[tile];
                     page_index                  = (float) page_indices[page_indices_index];
                 }
+            }
+
+            if (material_attribute_info_meta.m_HasAttributeTextureTransform2D)
+            {
+                // Full 2D affine from unit square to atlas quad (supports rotation)
+                const float* tc = tex_coord;
+                texture_transform_packed[0] = tc[2] - tc[0];
+                texture_transform_packed[1] = tc[3] - tc[1];
+                texture_transform_packed[2] = 0.0f;
+                texture_transform_packed[3] = tc[6] - tc[0];
+                texture_transform_packed[4] = tc[7] - tc[1];
+                texture_transform_packed[5] = 0.0f;
+                texture_transform_packed[6] = tc[0];
+                texture_transform_packed[7] = tc[1];
+                texture_transform_packed[8] = 1.0f;
             }
 
             // world_matrix already set from particle_transform_no_scale (no size) above

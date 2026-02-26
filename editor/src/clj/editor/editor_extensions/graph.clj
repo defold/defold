@@ -37,6 +37,7 @@
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv])
   (:import [com.dynamo.particle.proto Particle$ModifierType]
@@ -205,6 +206,12 @@
     (keyword property)
     (keyword (string/replace property "_" "-"))))
 
+(defn- prop-kw->property [prop-kw]
+  (let [property (name prop-kw)]
+    (if (string/starts-with? property "__")
+      property
+      (string/replace property "-" "_"))))
+
 (defn- outline-property [node-id property evaluation-context]
   (let [prop-kw (property->prop-kw property)
         outline-property (-> node-id
@@ -217,7 +224,7 @@
               (not (contains? outline-property :prop-kw))
               (assoc :prop-kw prop-kw)))))
 
-(defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f]
+(defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f result-fn]
   (fn/memoize
     (fn build-property-fn [node-type-kw]
       (let [seen (HashSet.)
@@ -233,16 +240,30 @@
                                 (conj! fs f)
                                 fs))))
                    (persistent! fs)))]
-        (case (count fs)
-          0 fn/constantly-nil
-          1 (fs 0)
-          (fn
-            ([] (coll/some #(%) fs))
-            ([a] (coll/some #(% a) fs))
-            ([a b] (coll/some #(% a b) fs))
-            ([a b c] (coll/some #(% a b c) fs))
-            ([a b c d] (coll/some #(% a b c d) fs))
-            ([a b c d e] (coll/some #(% a b c d e) fs))))))))
+        (result-fn fs)))))
+
+(defn first-non-nil-result-fn [fs]
+  (case (count fs)
+    0 fn/constantly-nil
+    1 (fs 0)
+    (fn
+      ([] (coll/some #(%) fs))
+      ([a] (coll/some #(% a) fs))
+      ([a b] (coll/some #(% a b) fs))
+      ([a b c] (coll/some #(% a b c) fs))
+      ([a b c d] (coll/some #(% a b c d) fs))
+      ([a b c d e] (coll/some #(% a b c d e) fs)))))
+
+(defn all-results-fn [fs]
+  (case (count fs)
+    0 (constantly [])
+    (fn
+      ([] (mapv #(%) fs))
+      ([a] (mapv #(% a) fs))
+      ([a b] (mapv #(% a b) fs))
+      ([a b c] (mapv #(% a b c) fs))
+      ([a b c d] (mapv #(% a b c d) fs))
+      ([a b c d e] (mapv #(% a b c d e) fs)))))
 
 (defn make-inheritance-chain
   "Create an inheritance chain
@@ -251,58 +272,79 @@
   though it dispatches only on a single value. Register methods by calling the
   inheritance chain instance with 2 args: dispatch value and a function.
   Get a method chain by calling the inheritance chain instance with a dispatch
-  value. If there are multiple methods that satisfy the dispatch value, they
-  will be tried in order, from most specific to least specific, until a method
-  returns a non-nil value."
-  ([]
-   (make-inheritance-chain #'clojure.core/global-hierarchy))
-  ([hierarchy-ref]
-   (let [state-atom (atom {::builder nil
-                           ::hierarchy @hierarchy-ref
-                           ::node-type-kw->f {}})]
-     (fn inheritance-chain
-       ([node-type-kw]
-        (let [h @hierarchy-ref
-              {::keys [builder hierarchy] :as current-state} @state-atom
-              builder (if (and builder (identical? hierarchy h))
-                        builder
-                        (let [builder (make-property-fn-builder h (::node-type-kw->f current-state))]
-                          (swap! state-atom assoc ::hierarchy h ::builder builder)
-                          builder))]
-          (builder node-type-kw)))
-       ([node-type-kw f]
-        (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
-        nil)))))
+  value. The result value depends on the result-fn, which gets an ordered list
+  of functions and invokes them as it wishes. By default, if there are multiple
+  methods that satisfy the dispatch value, they will be tried in order, from
+  most specific to least specific, until a method returns a non-nil value.
+
+  Kv-args:
+    :hierarchy-ref    a reference to a Clojure hierarchy object
+    :result-fn        a function that controls the production of the final
+                      result from a list of sorted candidate fns, see, e.g.,
+                      [[first-non-nil-result-fn]] or [[all-results-fn]]"
+  [& {:keys [hierarchy-ref result-fn]
+      :or {hierarchy-ref #'clojure.core/global-hierarchy
+           result-fn first-non-nil-result-fn}}]
+  (let [state-atom (atom {::builder nil
+                          ::hierarchy @hierarchy-ref
+                          ::node-type-kw->f {}})]
+    (fn inheritance-chain
+      ([node-type-kw]
+       (let [h @hierarchy-ref
+             {::keys [builder hierarchy] :as current-state} @state-atom
+             builder (if (and builder (identical? hierarchy h))
+                       builder
+                       (let [builder (make-property-fn-builder h (::node-type-kw->f current-state) result-fn)]
+                         (swap! state-atom assoc ::hierarchy h ::builder builder)
+                         builder))]
+         (builder node-type-kw)))
+      ([node-type-kw f]
+       (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
+       nil))))
 
 (defonce ^:private ext-property-getter
   (make-inheritance-chain))
+
+(defonce ^:private ext-property-lister
+  (make-inheritance-chain :result-fn all-results-fn))
 
 (defn register-property-getter!
   "Register a getter associated with a node type
 
   Args:
     node-type-kw    keyword of a graph node type
-    f               a function of 3 args:
+    getter-fn       a function of 3 args:
                       node-id               the node id to resolve the value
                       property              string property name
+                      evaluation-context    the evaluation context
+    lister-fn       optional, a function of 2 args:
+                      node-id               the node id to resolve the list of
+                                            available property names
                       evaluation-context    the evaluation context"
-  [node-type-kw f]
-  {:pre [(qualified-keyword? node-type-kw) (ifn? f)]}
-  (ext-property-getter node-type-kw f))
+  ([node-type-kw getter-fn]
+   (register-property-getter! node-type-kw getter-fn nil))
+  ([node-type-kw getter-fn lister-fn]
+   {:pre [(qualified-keyword? node-type-kw) (ifn? getter-fn) (or (nil? lister-fn) (ifn? lister-fn))]}
+   (ext-property-getter node-type-kw getter-fn)
+   (when lister-fn (ext-property-lister node-type-kw lister-fn))))
 
 (register-property-getter!
   :editor.code.resource/CodeEditorResourceNode
   (fn CodeEditorResourceNode-getter [node-id property evaluation-context]
     (case property
       "text" #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context))
-      nil)))
+      nil))
+  (fn CodeEditorResourceNode-lister [_ _]
+    ["text"]))
 
 (register-property-getter!
   :editor.resource/ResourceNode
   (fn ResourceNode-getter [node-id property evaluation-context]
     (case property
       "path" #(resource/resource->proj-path (g/node-value node-id :resource evaluation-context))
-      nil)))
+      nil))
+  (fn ResourceNode-lister [_ _]
+    ["path"]))
 
 (register-property-getter!
   :editor.tile-source/TileSourceNode
@@ -314,21 +356,27 @@
           (comp inc key) ;; 0-indexed to 1-indexed
           #(g/node-value (val %) :id evaluation-context)
           (g/node-value node-id :tile->collision-group-node evaluation-context)))
-      nil)))
+      nil))
+  (fn TileSourceNode-lister [_ _]
+    ["tile_collision_groups"]))
 
 (register-property-getter!
   :editor.tile-map/LayerNode
   (fn LayerNode-getter [node-id property evaluation-context]
     (case property
       "tiles" #(tile-map/make (g/node-value node-id :cell-map evaluation-context))
-      nil)))
+      nil))
+  (fn LayerNode-lister [_ _]
+    ["tiles"]))
 
 (register-property-getter!
   :editor.particlefx/ModifierNode
   (fn ModifierNode-getter [node-id property evaluation-context]
     (case property
       "type" #(g/node-value node-id :type evaluation-context)
-      nil)))
+      nil))
+  (fn ModifierNode-lister [_ _]
+    ["type"]))
 
 (def ^:private game-project-setting-path-regex #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -337,14 +385,25 @@
   (fn GameProjectNode-getter [node-id property evaluation-context]
     (when (re-matches game-project-setting-path-regex property)
       (let [path (string/split property #"\." 2)]
-        #(game-project/get-setting node-id path evaluation-context)))))
+        #(game-project/get-setting node-id path evaluation-context))))
+  (fn GameProjectNode-lister [node-id evaluation-context]
+    (coll/into-> (:meta-settings (g/node-value node-id :form-data evaluation-context)) []
+      (map :path)
+      (map #(coll/join-to-string "." %))
+      (filter #(re-matches game-project-setting-path-regex %)))))
 
 (register-property-getter!
   ::outline/OutlineNode
   (fn OutlineNode-getter [node-id property evaluation-context]
     (when-let [outline-property (outline-property node-id property evaluation-context)]
       (when-let [to (-> outline-property properties/property-edit-type-id edit-type-id->value-converter :to)]
-        #(some-> (properties/value outline-property) to)))))
+        #(some-> (properties/value outline-property) to))))
+  (fn OutlineNode-lister [node-id evaluation-context]
+    (coll/into-> (:properties (g/node-value node-id :_properties evaluation-context)) []
+      (keep (fn [[prop-kw outline-property]]
+              (when (and (properties/visible? outline-property)
+                         (some? (-> outline-property properties/property-edit-type-id edit-type-id->value-converter)))
+                (prop-kw->property prop-kw)))))))
 
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
@@ -366,13 +425,38 @@
           {:keys [basis]} evaluation-context
           node-type (g/node-type* basis node-id)
           workspace (project/workspace project evaluation-context)]
-      (or (attachment/find-alternative workspace node-id #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context) evaluation-context)
+      (or (coll/some #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context)
+                     (attachment/alternatives workspace node-id evaluation-context))
           (case property
             "type" (when-let [type-name (node-types/->name node-type)]
                      (constantly type-name))
             (let [list-kw (property->prop-kw property)]
               (when (attachment/defined? workspace node-id list-kw evaluation-context)
                 #(mapv rt/wrap-userdata (attachment/get workspace node-id list-kw evaluation-context)))))))))
+
+;; endregion
+
+;; region properties list
+
+(defn ext-readable-properties
+  "Return readable property names for a node/resource.
+
+  Work in progress"
+  [node-id-or-resource project evaluation-context]
+  (if (resource/resource? node-id-or-resource)
+    ["children" "path"]
+    (let [node-id node-id-or-resource
+          workspace (project/workspace project evaluation-context)
+          explicit-type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
+      (-> (e/distinct
+            (e/concat
+              (->> (attachment/alternatives workspace node-id evaluation-context)
+                   (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
+              (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
+              (when explicit-type-name ["type"])))
+          vec
+          sort
+          vec))))
 
 ;; endregion
 
@@ -548,11 +632,12 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  (attachment/find-alternative
-    (project/workspace project evaluation-context)
-    node-id
+  (coll/some
     #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
-    evaluation-context))
+    (attachment/alternatives
+      (project/workspace project evaluation-context)
+      node-id
+      evaluation-context)))
 
 ;; endregion
 
