@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
