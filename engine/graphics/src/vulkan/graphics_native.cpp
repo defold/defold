@@ -56,7 +56,7 @@ namespace dmGraphics
         return g_extension_names;
     }
 
-    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_randerdoc)
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation)
     {
         uint16_t count = 0;
         if (use_validation)

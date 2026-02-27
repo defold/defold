@@ -133,7 +133,7 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_Window = m_Window;
         // graphics_context_params.m_JobContext = m_JobContext;
