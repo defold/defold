@@ -95,6 +95,15 @@ Macros currently mean no foreseeable performance gain, however."
     Descriptors$FieldDescriptor$JavaType/ENUM (desc->pb-class (.getEnumType field-desc))
     Descriptors$FieldDescriptor$JavaType/MESSAGE (desc->pb-class (.getMessageType field-desc))))
 
+(defn pb-field-desc-field-kind
+  [^Descriptors$FieldDescriptor field-desc]
+  (cond
+    (.isMapField field-desc) :pb-field-kind/map
+    (.isRepeated field-desc) :pb-field-kind/list
+    (.isOptional field-desc) :pb-field-kind/optional
+    (.isRequired field-desc) :pb-field-kind/required
+    :else (assert false)))
+
 (defn- new-builder
   ^Message$Builder [^Class cls]
   (java/invoke-no-arg-class-method cls "newBuilder"))
@@ -336,14 +345,7 @@ Macros currently mean no foreseeable performance gain, however."
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field-desc]
                  (let [field-key (field->key field-desc)
-
-                       field-kind
-                       (cond
-                         (.isMapField field-desc) :pb-field-kind/map
-                         (.isRepeated field-desc) :pb-field-kind/list
-                         (.isOptional field-desc) :pb-field-kind/optional
-                         (.isRequired field-desc) :pb-field-kind/required
-                         :else (assert false))
+                       field-kind (pb-field-desc-field-kind field-desc)
 
                        [key-info value-info]
                        (if (.isMapField field-desc)
@@ -457,17 +459,30 @@ Macros currently mean no foreseeable performance gain, however."
                       value-field-infos (field-infos value-class)]
                   (field-value-paths-impl path value value-field-infos field-info-pred)))
               (when (field-info-pred field-info)
-                (if-some [default-value (:value-default field-info)]
-                  (let [path (conj path field-key)
-                        field-value (get pb-map field-key)
-                        value (if (nil? field-value)
-                                default-value
-                                field-value)]
-                    [[path value]])
-                  (let [value (get pb-map field-key ::not-found)]
-                    (when (not= ::not-found value)
-                      (let [path (conj path field-key)]
-                        [[path value]]))))))))))))
+                (let [field-value (get pb-map field-key ::no-value)
+                      default-value (:value-default field-info)
+                      value (cond
+                              (:is-oneof-field field-info)
+                              (case field-value
+                                ::no-value ::no-value
+                                nil default-value
+                                field-value)
+
+                              (some? default-value)
+                              (case field-value
+                                ::no-value default-value
+                                nil default-value
+                                field-value)
+
+                              :else
+                              (case field-value
+                                ::no-value ::no-value
+                                nil nil
+                                field-value))]
+
+                  (when (not= ::no-value value)
+                    (let [path (conj path field-key)]
+                      [[path value]])))))))))))
 
 (defn field-value-paths
   [^Class pb-class pb-map field-info-pred]
@@ -585,16 +600,14 @@ Macros currently mean no foreseeable performance gain, however."
                     is-default
                     (let [entry-desc (.getMessageType field-desc)
                           value-field-desc (.findFieldByName entry-desc "value")]
-                      (if (not= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType value-field-desc))
-                        is-default
-                        (do
-                          (doseq [index (range entry-count)]
-                            (let [entry-builder (.toBuilder ^Message (.getRepeatedField builder field-desc index))
-                                  value-builder (.toBuilder ^Message (.getField entry-builder value-field-desc))]
-                              (clear-defaults-from-builder! value-builder)
-                              (.setField entry-builder value-field-desc (.build value-builder))
-                              (.setRepeatedField builder field-desc index (.build entry-builder))))
-                          false)))))
+                      (when (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType value-field-desc))
+                        (doseq [index (range entry-count)]
+                          (let [entry-builder (.toBuilder ^Message (.getRepeatedField builder field-desc index))
+                                value-builder (.toBuilder ^Message (.getField entry-builder value-field-desc))]
+                            (clear-defaults-from-builder! value-builder)
+                            (.setField entry-builder value-field-desc (.build value-builder))
+                            (.setRepeatedField builder field-desc index (.build entry-builder)))))
+                      false)))
 
                 (.isRepeated field-desc)
                 (let [item-count (.getRepeatedFieldCount builder field-desc)]
@@ -610,7 +623,9 @@ Macros currently mean no foreseeable performance gain, however."
               ;; Non-message field.
               (cond
                 (.getRealContainingOneof field-desc)
-                false
+                (if (.hasField builder field-desc)
+                  false
+                  is-default)
 
                 (.isOptional field-desc)
                 (cond

@@ -252,12 +252,59 @@
 
                    (if (identical? lower-order-fn-promise cache-value)
                      ;; We just inserted our promise into the cache, so we're
-                     ;; responsible for delivering the result.
-                     (let [early-fn (apply higher-order-fn args)]
-                       (assert (ifn? early-fn) "The higher-order-fn must return a function.")
-                       (deliver lower-order-fn-promise early-fn)
-                       (swap! cache-atom assoc cache-key early-fn)
-                       early-fn)
+                     ;; responsible for delivering the result. In the event that
+                     ;; the higher-order-fn throws an exception when attempting
+                     ;; to produce the lower-order-fn, we deliver a lower-order
+                     ;; function that rethrows the exception when called to the
+                     ;; lower-order-fn-promise before rethrowing.
+                     (let [[lower-order-fn exception]
+                           (try
+                             (let [lower-order-fn (apply higher-order-fn args)]
+                               (assert (ifn? lower-order-fn) "The higher-order-fn must return a function.")
+                               (pair lower-order-fn nil))
+                             (catch Throwable exception
+                               ;; The higher-order-fn threw an exception before
+                               ;; it could return a lower-order-fn. Deliver a
+                               ;; lower-order function that throws a wrapped
+                               ;; version of the original exception to any
+                               ;; concurrent threads that managed to obtain the
+                               ;; lower-order-fn-promise since we inserted it
+                               ;; into the cache-atom above. We will rethrow
+                               ;; this exception below, so our own thread should
+                               ;; never see this throwing lower-order function.
+                               (letfn [(throwing-lower-order-fn [& _args]
+                                         (throw
+                                           (ex-info
+                                             "An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
+                                             {}
+                                             exception)))]
+                                 (pair throwing-lower-order-fn exception))))]
+
+                       ;; We always deliver *something* to this promise.
+                       (deliver lower-order-fn-promise lower-order-fn)
+
+                       ;; Update the cache. If everything went well so far, we
+                       ;; replace the lower-order-fn-promise we inserted into
+                       ;; the cache with the actual lower-order-fn. Otherwise,
+                       ;; if the higher-order-fn threw an exception when
+                       ;; attempting to produce the lower-order-fn, we clear out
+                       ;; the lower-order-fn-promise from the cache so that
+                       ;; later calls to the memoized-fn can retry the process.
+                       (swap! cache-atom
+                              (fn [cache]
+                                (let [cache-value (get cache cache-key)]
+                                  (if-not (identical? lower-order-fn-promise cache-value)
+                                    cache
+                                    (if (nil? exception)
+                                      (assoc cache cache-key lower-order-fn)
+                                      (dissoc cache cache-key))))))
+
+                       ;; We've delivered the promise and updated the cache, so
+                       ;; all that remains is to return the lower-order-fn or
+                       ;; rethrow the exception.
+                       (if (nil? exception)
+                         lower-order-fn
+                         (throw exception)))
 
                      ;; Found an already-existing promise or function in the
                      ;; cache. Return the function unaltered, or a function that

@@ -1323,14 +1323,6 @@
                    (build-output-infos->diff-data bob-build-output-infos)
                    opts))))
 
-(defn- pb-field-kind
-  [^Descriptors$FieldDescriptor field-desc]
-  (cond
-    (.isRepeated field-desc) :repeated
-    (.isRequired field-desc) :required
-    (.isOptional field-desc) :optional
-    :else (assert false)))
-
 (defn- pb-desc-info-impl
   [^Descriptors$Descriptor desc seen-descs field-info-predicate]
   (letfn [(recurse [^Descriptors$FieldDescriptor field-desc]
@@ -1358,7 +1350,7 @@
                                                  value-message (assoc :value-message value-message))}))
 
                         field-name (.getName field-desc)
-                        field-kind (pb-field-kind field-desc)
+                        field-kind (protobuf/pb-field-desc-field-kind field-desc)
                         field-info (coll/merge {:field-kind field-kind}
                                                key-info
                                                value-info)]

@@ -125,6 +125,18 @@ message JavaCasingMsg {
 }
 
 // -----------------------------------------------------------------------------
+// Map fields
+// -----------------------------------------------------------------------------
+
+message MappedPrimitive {
+    map<string, double> string_to_number = 1;
+}
+
+message MappedMessage {
+    map<string, DefaultValue> string_to_message = 1;
+}
+
+// -----------------------------------------------------------------------------
 // JSON-like structure
 // -----------------------------------------------------------------------------
 
@@ -218,12 +230,37 @@ message ResourceSelfReferencingRepeated {
     optional ResourceSelfReferencingRepeated next = 2;
 }
 
-message ResourceOneof {
+message ResourceOneofSimple {
     oneof kind {
         string image = 1 [(resource) = true];
-        string defaulted_image = 2 [(resource) = true, default = "/default.png"];
-        ResourceSimple simple = 3;
-        ResourceDefaulted defaulted = 4;
-        ResourceRepeated repeated = 5;
+        JsonNull null = 2;
+    }
+}
+
+message ResourceOneofDefaulted {
+    oneof kind {
+        string image = 1 [(resource) = true, default = "/default.png"];
+        JsonNull null = 2;
+    }
+}
+
+message ResourceOneofSimpleNested {
+    oneof kind {
+        ResourceSimple simple = 1;
+        JsonNull null = 2;
+    }
+}
+
+message ResourceOneofDefaultedNested {
+    oneof kind {
+        ResourceDefaulted defaulted = 1;
+        JsonNull null = 2;
+    }
+}
+
+message ResourceOneofRepeatedNested {
+    oneof kind {
+        ResourceRepeated repeated = 1;
+        JsonNull null = 2;
     }
 }

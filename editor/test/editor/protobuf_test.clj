@@ -16,7 +16,7 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$JsonObject TestDdf$JsonValue TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSelfReferencingDefaulted TestDdf$ResourceSelfReferencingRepeated TestDdf$ResourceSelfReferencingSimple TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$JsonArray TestDdf$JsonNull TestDdf$JsonObject TestDdf$JsonValue TestDdf$MappedPrimitive TestDdf$MappedMessage TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceOneofDefaulted TestDdf$ResourceOneofDefaultedNested TestDdf$ResourceOneofRepeatedNested TestDdf$ResourceOneofSimple TestDdf$ResourceOneofSimpleNested TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSelfReferencingDefaulted TestDdf$ResourceSelfReferencingRepeated TestDdf$ResourceSelfReferencingSimple TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
@@ -293,6 +293,16 @@
                                          :m30 zero :m31 zero :m32 zero :m33 one}))))))
 
 (deftest resource-field-value-paths-test
+  (testing "Matches only resource fields"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$DefaultValue
+             {:uint-value 1234
+              :string-value "/image.png"
+              :quat-value [0.1 0.2 0.3 1.4]
+              :enum-value :enum-val0
+              :bool-value false}))))
+
   (testing "Simple"
     (is (= []
            (protobuf/resource-field-value-paths
@@ -557,7 +567,170 @@
              {:repeateds {"a" {:images ["/image00.png"
                                         "/image01.png"]}
                           "b" {:images ["/image10.png"
-                                        "/image11.png"]}}})))))
+                                        "/image11.png"]}}}))))
+
+  (testing "Self-referencing simple"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {})))
+    (is (= [[[:image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:image "/image.png"})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:next {}})))
+    (is (= [[[:next :image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:next {:image nil}})))
+    (is (= [[[:next :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:next {:image "/image.png"}}))))
+
+  (testing "Self-referencing defaulted"
+    (is (= [[[:image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {})))
+    (is (= [[[:image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:image "/image.png"})))
+    (is (= [[[:image] "/default.png"]
+            [[:next :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:next {}})))
+    (is (= [[[:image] "/default.png"]
+            [[:next :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:next {:image nil}})))
+    (is (= [[[:image] "/default.png"]
+            [[:next :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:next {:image "/image.png"}}))))
+
+  (testing "Self-referencing repeated"
+    (is (= [[[:images 0] nil]
+            [[:images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:images [nil
+                       nil]})))
+    (is (= [[[:images 0] "/image0.png"]
+            [[:images 1] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:images ["/image0.png"
+                       "/image1.png"]})))
+    (is (= [[[:next :images 0] nil]
+            [[:next :images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:next {:images [nil
+                              nil]}})))
+    (is (= [[[:next :images 0] "/image0.png"]
+            [[:next :images 1] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:next {:images ["/image0.png"
+                              "/image1.png"]}}))))
+
+  (testing "Oneof simple"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimple
+             {})))
+    (is (= [[[:image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimple
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimple
+             {:image "/image.png"}))))
+
+  (testing "Oneof defaulted"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaulted
+             {})))
+    (is (= [[[:image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaulted
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaulted
+             {:image "/image.png"}))))
+
+  (testing "Oneof simple nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {:simple {}})))
+    (is (= [[[:simple :image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {:simple {:image nil}})))
+    (is (= [[[:simple :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {:simple {:image "/image.png"}}))))
+
+  (testing "Oneof defaulted nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {})))
+    (is (= [[[:defaulted :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {:defaulted {}})))
+    (is (= [[[:defaulted :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {:defaulted {:image nil}})))
+    (is (= [[[:defaulted :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {:defaulted {:image "/image.png"}}))))
+
+  (testing "Oneof repeated nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofRepeatedNested
+             {})))
+    (is (= [[[:repeated :images 0] nil]
+            [[:repeated :images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofRepeatedNested
+             {:repeated {:images [nil
+                                  nil]}})))
+    (is (= [[[:repeated :images 0] "/image0.png"]
+            [[:repeated :images 1] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofRepeatedNested
+             {:repeated {:images ["/image0.png"
+                                  "/image1.png"]}})))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-with-defaults
@@ -1750,6 +1923,31 @@ mapped_message {
 ;; oneof-fields
 ;; -----------------------------------------------------------------------------
 
+(deftest oneof-field-is-initially-default-test
+  (testing "Reports as already default when cleared from initial state."
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (.toBuilder (TestDdf$JsonValue/getDefaultInstance)))))
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (TestDdf$JsonValue/newBuilder)))))
+
+  (testing "Reports as previously non-default when clearing set primitive fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setNull (TestDdf$JsonValue/newBuilder) TestDdf$JsonNull/NULL))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setBool (TestDdf$JsonValue/newBuilder) false))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setNumber (TestDdf$JsonValue/newBuilder) 0.0))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setString (TestDdf$JsonValue/newBuilder) "")))))
+
+  (testing "Reports as previously non-default when clearing set message fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setArray (TestDdf$JsonValue/newBuilder)
+                             (TestDdf$JsonArray/getDefaultInstance)))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setObject (TestDdf$JsonValue/newBuilder)
+                              (TestDdf$JsonObject/getDefaultInstance)))))))
+
 (deftest oneof-field-map-without-defaults-test
   (testing "Returns map with a single field of the selected type."
     (is (= {:null :null}
@@ -1828,6 +2026,33 @@ object {
     }
   }
 }")))))
+
+;; -----------------------------------------------------------------------------
+;; map fields
+;; -----------------------------------------------------------------------------
+
+(deftest map-field-is-initially-default-test
+  (testing "Reports as already default when clearing primitive field from initial state."
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (.toBuilder (TestDdf$MappedPrimitive/getDefaultInstance)))))
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (TestDdf$MappedPrimitive/newBuilder)))))
+
+  (testing "Reports as already default when clearing message field from initial state."
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (.toBuilder (TestDdf$MappedMessage/getDefaultInstance)))))
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (TestDdf$MappedMessage/newBuilder)))))
+
+  (testing "Reports as previously non-default when clearing set primitive fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.putStringToNumber (TestDdf$MappedPrimitive/newBuilder) "" 0.0)))))
+
+  (testing "Reports as previously non-default when clearing set message fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.putStringToMessage (TestDdf$MappedMessage/newBuilder)
+                                       ""
+                                       (TestDdf$DefaultValue/getDefaultInstance)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; self-referencing-types
