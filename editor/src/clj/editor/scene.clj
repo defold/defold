@@ -1492,8 +1492,6 @@
                                     (not (identical? last-renderables renderables))
                                     (and has-active-updatables (= :playing play-mode)))
                                 inc)]
-      (when (seq action-queue)
-        (g/set-property! view-id :input-action-queue []))
       (profiler/profile "input-dispatch" -1
         (let [input-handlers (g/sources-of view-id :input-handlers)
               input-state (g/node-value view-id :input-state)]
@@ -1505,6 +1503,9 @@
         (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
               input-state (g/node-value view-id :input-state)]
           (dispatch-update-tick update-tick-handlers input-state dt)))
+      (when (seq action-queue)
+        (g/set-property! view-id :input-action-queue [])
+        (g/update-property! view-id :input-state assoc :scroll-delta [0.0 0.0]))
       (when has-active-updatables
         (g/set-property! view-id :updatable-states new-updatable-states))
       (profiler/profile "render" -1
@@ -1610,7 +1611,8 @@
                                   (.consume e))
                                 (g/transact
                                   (concat
-                                    (g/set-property view-id :cursor-pos [screen-x screen-y])
+                                    (when screen-x
+                                      (g/set-property view-id :cursor-pos [screen-x screen-y]))
                                     (g/set-property view-id :tool-picking-rect picking-rect)
                                     (g/update-property view-id :input-action-queue conj action)))))
                             (catch Throwable error
@@ -1620,7 +1622,7 @@
     ;; TODO: Why did we add this this? This fixed something...
       (ui/on-mouse! (fn [type e]
                       (cond (= type :exit)
-                            (g/set-property! view-id :cursor-pos nil))))
+                            (g/set-property! view-id :cursor-pos [0.0 0.0]))))
       (.setOnMousePressed event-handler)
       (.setOnMouseReleased event-handler)
       (.setOnMouseClicked event-handler)

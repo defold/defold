@@ -38,10 +38,10 @@
                  DragEvent/DRAG_OVER :drag-over
                  DragEvent/DRAG_DROPPED :drag-dropped})
 
-(defrecord InputState [mouse-buttons pressed-keys modifiers cursor-pos view-pos])
+(defrecord InputState [mouse-buttons pressed-keys modifiers cursor-pos view-pos scroll-delta])
 
 (defn make-input-state []
-  (->InputState #{} #{} #{} nil nil))
+  (->InputState #{} #{} #{} [0.0 0.0] [0.0 0.0] [0.0 0.0]))
 
 (def ^:private mouse-capture-context (atom nil))
 
@@ -225,6 +225,9 @@
 
       (= :mouse-released (:type action))
       (update :mouse-buttons disj (:button action))
+
+      (= :scroll (:type action))
+      (update :scroll-delta #(mapv + % [(:delta-x action) (:delta-y action)]))
 
       (and (= :key-pressed (:type action))
            (let [code (:key-code action)]

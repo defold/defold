@@ -401,6 +401,28 @@
     :orthographic (dolly-orthographic camera delta)
     :perspective (dolly-perspective camera delta)))
 
+(def ^:private dolly-friction 8.0)
+(def ^:private dolly-sensitivity 0.5)
+
+(def ^:private dolly-smooth-speed 15.0)
+(def dolly-velocity (atom 0.0))
+(def dolly-target (atom 0.0))
+
+(defn- apply-dolly-easing [self camera dt]
+  (let [remaining @dolly-target]
+    (if (< (Math/abs (double remaining)) 0.01)
+      (do
+        (reset! dolly-target 0.0)
+        camera)
+      (let [step (* (Math/signum (double remaining))
+                    (min (Math/abs (double remaining))
+                         (* dolly-smooth-speed (Math/abs (double remaining)) (double dt))))]
+        (reset! dolly-target (- remaining step))
+        (dolly camera step)))))
+
+(defn- add-dolly-impulse! [self delta]
+  (swap! dolly-target + (* delta dolly-sensitivity)))
+
 (defn mode-2d? [camera]
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
        (= :orthographic (:type camera))))
@@ -819,6 +841,11 @@
                                  initial-y
                                  (significant-drag? [x y] [initial-x initial-y]))]
     (case type
+      :scroll (if (contains? movements-enabled :dolly)
+                (do
+                  (add-dolly-impulse! self (* -0.002 (:delta-y action)))
+                  nil)
+                action)
       :mouse-pressed
       (do
         (g/user-data-swap! self ::ui-state assoc
@@ -943,16 +970,15 @@
           camera (g/node-value self :camera)
           is-mode-2d (mode-2d? camera)
           filter-fn (:filter-fn camera)
-          ;; Apply scroll delta from input-state
           {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
           is-primary (contains? mouse-buttons :primary)
-          scroll-delta-y (:scroll-delta-y input-state 0.0)
+          scroll-delta-y (second (:scroll-delta input-state [0.0 0.0]))
           mouse-x (:view-pos input-state)
           mouse-y (:view-pos input-state)
           mouse-x (first mouse-x)
           mouse-y (second mouse-y)
           movements-enabled (g/node-value self :movements-enabled)
-          alt (:alt input-state)
+          alt (contains? (:modifiers input-state) :alt)
           has-mouse-moved (and mouse-x mouse-y last-x last-y (not= :idle movement))
           is-significant-drag (and initial-x
                                    initial-y
@@ -980,7 +1006,8 @@
                      (tumble (- last-x mouse-x) (- last-y mouse-y)))
 
                    filter-fn
-                   filter-fn)]
+                   filter-fn)
+          camera (apply-dolly-easing self camera dt)]
       ;; Update camera state
       (g/set-property! self :local-camera camera)
       ;; Update ui-state with latest mouse position and dragging status
@@ -995,6 +1022,9 @@
                                    is-primary)
                              :pan
                              :none)))))))
+
+(defn- handle-input-fnk [self input-state action user-data]
+  (handle-input self input-state action user-data))
 
 (defn- handle-update-tick-fnk [self input-state dt]
   (handle-update-tick self input-state dt))
@@ -1021,7 +1051,7 @@
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
 
-  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output input-handler Runnable :cached (g/constantly handle-input-fnk))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
