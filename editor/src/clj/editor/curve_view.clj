@@ -258,7 +258,7 @@
       (g/set-property controller :handle nil)
       (g/set-property controller :initial-evaluation-context nil))))
 
-(defn handle-input [self action _user-data]
+(defn handle-input [self _input-state action _user-data]
   (let [^Point3d start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         handle (g/node-value self :handle)
@@ -491,6 +491,7 @@
   (property hidden-curves g/Any)
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
+  (property input-state g/Any (default {}))
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
