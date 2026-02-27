@@ -2212,9 +2212,11 @@ static void LogFrameBufferError(GLenum status)
         {
             if (context->m_CurrentTextures[unit].m_Texture)
             {
+                OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+
                 // Can we use the actual texture pointer instead of extracting this from the asset container every time?
                 DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-                OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, context->m_CurrentTextures[unit].m_Texture);
+                OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, binding.m_Texture);
                 if (!tex)
                 {
                     continue;
@@ -2223,17 +2225,29 @@ static void LogFrameBufferError(GLenum status)
                 glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
                 CHECK_GL_ERROR;
 
-                uint8_t id_index = context->m_CurrentTextures[unit].m_TextureIdIndex;
+                uint8_t id_index = binding.m_TextureIdIndex;
+
+                // Reset binding usage flags; they will be set depending on how we bind below.
+                binding.m_BoundAsTexture = 0;
+                binding.m_BoundAsImage   = 0;
+
                 bool bind_as_texture = true;
                 if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
-                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
+                    bool bound_as_image = BindComputeImage(context, tex, unit, id_index, false);
+                    if (bound_as_image)
+                    {
+                        binding.m_BoundAsImage = 1;
+                        bind_as_texture = false;
+                    }
                 }
 
                 if (bind_as_texture)
                 {
                     glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
                     CHECK_GL_ERROR;
+
+                    binding.m_BoundAsTexture = 1;
 
                     GLenum gl_type = GetOpenGLTextureType(tex->m_Type);
 
@@ -4968,8 +4982,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
 
-        context->m_CurrentTextures[unit].m_Texture = texture;
-        context->m_CurrentTextures[unit].m_TextureIdIndex = id_index;
+        assert(unit < DM_MAX_TEXTURE_UNITS);
+        OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+        binding.m_Texture        = texture;
+        binding.m_TextureIdIndex = id_index;
+        binding.m_BoundAsTexture = 0;
+        binding.m_BoundAsImage   = 0;
     }
 
     static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
@@ -4982,8 +5000,17 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
 
         assert(unit < DM_MAX_TEXTURE_UNITS);
-        context->m_CurrentTextures[unit].m_Texture = 0x0;
-        context->m_CurrentTextures[unit].m_TextureIdIndex = 0;
+        OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+
+        // Capture whether this unit actually had a texture/image bound so we only unbind when needed.
+        bool was_bound_as_texture = binding.m_BoundAsTexture != 0;
+        bool was_bound_as_image   = binding.m_BoundAsImage   != 0;
+
+        // Clear the cached binding for this unit.
+        binding.m_Texture        = 0x0;
+        binding.m_TextureIdIndex = 0;
+        binding.m_BoundAsTexture = 0;
+        binding.m_BoundAsImage   = 0;
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
@@ -4996,13 +5023,13 @@ static void LogFrameBufferError(GLenum status)
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
 
-        bool unbind_as_texture = true;
-        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
+        if (was_bound_as_image && (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D))
         {
-            unbind_as_texture = !BindComputeImage(context, tex, unit, 0, true);
+            // Only unbind image bindings if we previously bound this texture as an image on this unit.
+            BindComputeImage(context, tex, unit, 0, true);
         }
 
-        if (unbind_as_texture)
+        if (was_bound_as_texture)
         {
             glBindTexture(GetOpenGLTextureType(tex->m_Type), 0);
             CHECK_GL_ERROR;
