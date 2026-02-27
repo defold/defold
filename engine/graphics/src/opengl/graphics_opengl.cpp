@@ -4238,43 +4238,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         SetSampler(&tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
-
-        /*
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        if (tex == 0x0)
-        {
-            return;
-        }
-
-        GLenum gl_type       = GetOpenGLTextureType(tex->m_Type);
-        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMinFilter : minfilter);
-        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMagFilter : magfilter);
-
-        // Using a mipmapped min filter without any mipmaps will break the sampler
-        if (tex->m_MipMapCount <= 1)
-        {
-            gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
-        }
-
-        glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
-        CHECK_GL_ERROR;
-
-        glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
-        CHECK_GL_ERROR;
-
-        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
-        CHECK_GL_ERROR
-
-        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
-        CHECK_GL_ERROR
-
-        if (context->m_AnisotropySupport && max_anisotropy > 1.0f)
-        {
-            glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, context->m_MaxAnisotropy));
-            CHECK_GL_ERROR
-        }
-        */
     }
 
     static uint8_t OpenGLGetNumTextureHandles(HContext _context, HTexture texture)
