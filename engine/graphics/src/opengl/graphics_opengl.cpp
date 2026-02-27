@@ -661,6 +661,12 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
+    // Forward declarations for helper functions used before their definitions
+    static GLenum GetOpenGLTextureWrap(TextureWrap wrap);
+    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter);
+    static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter);
+    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind);
+
     static int WorkerAcquireContextRunner(HJobContext, HJob job, void* _context, void* _acquire_flag)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1545,7 +1551,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        if (glGenVertexArrays)
+        if (&glGenVertexArrays)
         {
             GLuint handle;
             glGenVertexArrays(1, &handle);
@@ -2083,7 +2089,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        if (glBindVertexArray)
+        if (&glBindVertexArray)
             glBindVertexArray(GetGLHandle(context, context->m_GlobalVAO));
 
         if (context->m_ModificationVersion != vertex_declaration->m_ModificationVersion || vertex_declaration->m_BoundForProgram != program)
@@ -2221,7 +2227,7 @@ static void LogFrameBufferError(GLenum status)
                 bool bind_as_texture = true;
                 if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
-                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index);
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
                 }
 
                 if (bind_as_texture)
