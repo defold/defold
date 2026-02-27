@@ -2196,6 +2196,84 @@ static void LogFrameBufferError(GLenum status)
                 }
             }
         }
+
+    #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
+        glEnable(GL_TEXTURE_2D);
+        CHECK_GL_ERROR;
+    #endif
+
+        for (int unit = 0; unit < DM_MAX_TEXTURE_UNITS; ++unit)
+        {
+            if (context->m_CurrentTextures[unit].m_Texture)
+            {
+                // Can we use the actual texture pointer instead of extracting this from the asset container every time?
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+                OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, context->m_CurrentTextures[unit].m_Texture);
+                if (!tex)
+                {
+                    continue;
+                }
+
+                glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
+                CHECK_GL_ERROR;
+
+                uint8_t id_index = context->m_CurrentTextures[unit].m_TextureIdIndex;
+                bool bind_as_texture = true;
+                if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
+                {
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index);
+                }
+
+                if (bind_as_texture)
+                {
+                    glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
+                    CHECK_GL_ERROR;
+
+                    GLenum gl_type = GetOpenGLTextureType(tex->m_Type);
+
+                    if (tex->m_Sampler.m_MinFilter != tex->m_SamplerDirty.m_MinFilter)
+                    {
+                        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMinFilter : minfilter);
+
+                        // Using a mipmapped min filter without any mipmaps will break the sampler
+                        if (tex->m_MipMapCount <= 1)
+                        {
+                            gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
+                        }
+
+                        glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+                        CHECK_GL_ERROR;
+                    }
+
+                    if (tex->m_Sampler.m_MagFilter != tex->m_SamplerDirty.m_MagFilter)
+                    {
+                        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMagFilter : magfilter);
+                        glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+                        CHECK_GL_ERROR;
+                    }
+
+                    if (tex->m_Sampler.m_AddressModeU != tex->m_SamplerDirty.m_AddressModeU)
+                    {
+                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
+                        CHECK_GL_ERROR
+                    }
+
+                    if (tex->m_Sampler.m_AddressModeV != tex->m_SamplerDirty.m_AddressModeV)
+                    {
+                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
+                        CHECK_GL_ERROR
+                    }
+
+                    if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy)
+                    {
+                        glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, context->m_MaxAnisotropy));
+                        CHECK_GL_ERROR
+                    }
+
+                    tex->m_Sampler = tex->m_SamplerDirty;
+                }
+            }
+        }
     }
 
     static void OpenGLDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
@@ -3834,6 +3912,15 @@ static void LogFrameBufferError(GLenum status)
         return context->m_MaxTextureSize;
     }
 
+    static inline void SetSampler(OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, float max_anisotropy)
+    {
+        sampler->m_MinFilter = min_filter;
+        sampler->m_MagFilter = mag_Filter;
+        sampler->m_AddressModeU = wrap_u;
+        sampler->m_AddressModeV = wrap_v;
+        sampler->m_MaxAnisotropy = max_anisotropy;
+    }
+
     static HTexture OpenGLNewTexture(HContext _context, const TextureCreationParams& params)
     {
         uint16_t num_texture_ids = 1;
@@ -3883,6 +3970,9 @@ static void LogFrameBufferError(GLenum status)
         tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
+
+        SetSampler(&tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+        tex->m_SamplerDirty = tex->m_Sampler;
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
@@ -4040,6 +4130,17 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        if (tex == 0x0)
+        {
+            return;
+        }
+
+        SetSampler(&tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+
+        /*
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         if (tex == 0x0)
@@ -4074,6 +4175,7 @@ static void LogFrameBufferError(GLenum status)
             glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, context->m_MaxAnisotropy));
             CHECK_GL_ERROR
         }
+        */
     }
 
     static uint8_t OpenGLGetNumTextureHandles(HContext _context, HTexture texture)
@@ -4780,6 +4882,10 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
 
+        context->m_CurrentTextures[unit].m_Texture = texture;
+        context->m_CurrentTextures[unit].m_TextureIdIndex = id_index;
+
+        /*
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         if (!tex)
@@ -4809,6 +4915,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
             OpenGLSetTextureParams(_context, texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         }
+        */
     }
 
     static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
