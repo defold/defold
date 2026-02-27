@@ -404,7 +404,7 @@
 (def ^:private dolly-friction 8.0)
 (def ^:private dolly-sensitivity 0.5)
 
-(def ^:private dolly-smooth-speed 15.0)
+(def ^:private dolly-smooth-speed 10.0)
 (def dolly-velocity (atom 0.0))
 (def dolly-target (atom 0.0))
 
