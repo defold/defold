@@ -31,8 +31,8 @@
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
-                   "lib" ["libmouse_capture_shared.dylib"
-                          ""]}
+                   "lib" ["libparticle_shared.dylib"
+                          "libmouse_capture_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
                   "lib" ["libparticle_shared.dylib"
                          "libmouse_capture_shared.dylib"]}
