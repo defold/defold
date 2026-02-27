@@ -246,7 +246,6 @@ typedef void (*FLogListener)(LogSeverity severity, const char* domain, const cha
  *
  * @struct
  * @name LogParams
- * @member m_Padding [type:uint8_t] Reserved for future use. Set to 0.
  */
 typedef struct LogParams
 {
