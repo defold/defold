@@ -39,6 +39,8 @@ public class MouseCapture {
 
     public static native Pointer MouseCapture_CreateContext();
 
+    public static native void MouseCapture_WarpCursor(int x, int y);
+
     public static native boolean MouseCapture_StartCapture(Pointer context, long window);
 
     public static native void MouseCapture_StopCapture(Pointer context);
@@ -48,8 +50,7 @@ public class MouseCapture {
     public static native void MouseCapture_DestroyContext(Pointer context);
 
     public static class MouseDelta extends Structure {
-        public MouseDelta() {
-        }
+        public MouseDelta() {}
 
         public double dx;
         public double dy;

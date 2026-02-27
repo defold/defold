@@ -909,6 +909,29 @@
 (def ^:private camera-speed-boost 3.0)
 (def ^:private camera-speed-precision 0.35)
 
+(defn- warp-mouse-around-edges [^ImageView image-view cursor-x cursor-y last-x last-y]
+  (if (and cursor-x last-x)
+    ;; TODO: Get screen dimentions
+    (let [screen-w (.getFitWidth image-view)
+          screen-h (.getFitHeight image-view)
+          margin 2
+          padding 5
+          [warp-x warp-y] (cond
+                            (< cursor-x margin)              [(- screen-w margin padding) cursor-y]
+                            (> cursor-x (- screen-w margin)) [(+ margin padding) cursor-y]
+                            (< cursor-y margin)              [cursor-x (- screen-h margin (- padding))]
+                            (> cursor-y (- screen-h margin)) [cursor-x (+ margin padding)]
+                            :else nil)]
+      (if warp-x
+        (let [origin (.localToScreen image-view 0.0 0.0)
+              screen-abs-x (+ (.getX origin) warp-x)
+              screen-abs-y (+ (.getY origin) (- screen-h warp-y))]
+          (i/warp-cursor screen-abs-x screen-abs-y)
+          [(double warp-x) (double warp-y)
+           (+ last-x (- warp-x cursor-x))
+           (+ last-y (- warp-y cursor-y))])
+        [cursor-x cursor-y last-x last-y]))))
+
 (defn- handle-update-tick [self input-state dt]
   (if (g/node-value self :free-camera-mode)
     (let [current-camera (g/node-value self :local-camera)
@@ -971,15 +994,15 @@
           is-mode-2d (mode-2d? camera)
           filter-fn (:filter-fn camera)
           {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
+          [cursor-x cursor-y] cursor-pos
           is-primary (contains? mouse-buttons :primary)
           scroll-delta-y (second (:scroll-delta input-state [0.0 0.0]))
-          mouse-x (:view-pos input-state)
-          mouse-y (:view-pos input-state)
-          mouse-x (first mouse-x)
-          mouse-y (second mouse-y)
+          [mouse-x mouse-y] (:view-pos input-state)
           movements-enabled (g/node-value self :movements-enabled)
           alt (contains? (:modifiers input-state) :alt)
           has-mouse-moved (and mouse-x mouse-y last-x last-y (not= :idle movement))
+          image-view (g/node-value self :image-view)
+          [mouse-x mouse-y last-x last-y] (warp-mouse-around-edges image-view mouse-x mouse-y last-x last-y)
           is-significant-drag (and initial-x
                                    initial-y
                                    mouse-x

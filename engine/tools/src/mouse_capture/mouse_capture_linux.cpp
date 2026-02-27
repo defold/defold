@@ -46,6 +46,16 @@ namespace dmMouseCapture
         return ctx;
     }
 
+    void WarpCursor(int x, int y)
+    {
+        static Display* display = XOpenDisplay(NULL);
+        if (!display)
+            return;
+        Window root = DefaultRootWindow(display);
+        XWarpPointer(display, None, root, 0, 0, 0, 0, x, y);
+        XFlush(display);
+    }
+
     bool StartCapture(HContext context, unsigned long window)
     {
         if (!context || context->m_Capturing || window == None)
