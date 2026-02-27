@@ -38,10 +38,10 @@
                  DragEvent/DRAG_OVER :drag-over
                  DragEvent/DRAG_DROPPED :drag-dropped})
 
-(defrecord InputState [mouse-buttons pressed-keys modifiers cursor-pos])
+(defrecord InputState [mouse-buttons pressed-keys modifiers cursor-pos view-pos])
 
 (defn make-input-state []
-  (->InputState #{} #{} #{} nil))
+  (->InputState #{} #{} #{} nil nil))
 
 (def ^:private mouse-capture-context (atom nil))
 
@@ -210,7 +210,9 @@
                        (filter action)
                        set)
         cursor-pos (when (and (:screen-x action) (:screen-y action))
-                     [(:screen-x action) (:screen-y action)])]
+                     [(:screen-x action) (:screen-y action)])
+        view-pos [(:x action) (:y action)]
+        state (assoc state :view-pos view-pos)]
     (cond-> state
       cursor-pos
       (assoc :cursor-pos cursor-pos)

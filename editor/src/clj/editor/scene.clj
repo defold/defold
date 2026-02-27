@@ -1601,7 +1601,7 @@
                         (when @process-events?
                           (try
                             (profiler/profile "input-event" -1
-                              (let [{:keys [x y] :as action} (augment-action view-id (i/action-from-jfx e))
+                              (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                                     pos [x y 0.0]
                                     picking-rect (selection/calc-picking-rect pos pos)]
                                 (g/update-property! view-id :input-state i/update-input-state action)
@@ -1610,7 +1610,7 @@
                                   (.consume e))
                                 (g/transact
                                   (concat
-                                    (g/set-property view-id :cursor-pos [x y])
+                                    (g/set-property view-id :cursor-pos [screen-x screen-y])
                                     (g/set-property view-id :tool-picking-rect picking-rect)
                                     (g/update-property view-id :input-action-queue conj action)))))
                             (catch Throwable error

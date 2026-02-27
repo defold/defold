@@ -733,7 +733,8 @@
                    (g/transact
                      [(g/set-property camera-node :local-camera end-camera)
                       (g/set-property camera-node :animating false)])
-                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+                   ;; TODO: This doesn't belong here
+                   (ui/user-data! (ui/main-scene) :editor.scene/ui/refresh-requested? true)
                    (when on-animation-end (on-animation-end)))))
      (g/transact
        (g/set-property camera-node :local-camera end-camera)))
@@ -943,9 +944,13 @@
           is-mode-2d (mode-2d? camera)
           filter-fn (:filter-fn camera)
           ;; Apply scroll delta from input-state
+          {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
+          is-primary (contains? mouse-buttons :primary)
           scroll-delta-y (:scroll-delta-y input-state 0.0)
-          mouse-x (:mouse-x input-state)
-          mouse-y (:mouse-y input-state)
+          mouse-x (:view-pos input-state)
+          mouse-y (:view-pos input-state)
+          mouse-x (first mouse-x)
+          mouse-y (second mouse-y)
           movements-enabled (g/node-value self :movements-enabled)
           alt (:alt input-state)
           has-mouse-moved (and mouse-x mouse-y last-x last-y (not= :idle movement))
@@ -954,7 +959,6 @@
                                    mouse-x
                                    mouse-y
                                    (significant-drag? [mouse-x mouse-y] [initial-x initial-y]))
-          is-secondary (contains? (:mouse-buttons input-state) :secondary)
           camera (cond-> camera
                    (and (not (zero? scroll-delta-y))
                         (contains? movements-enabled :dolly))
@@ -988,9 +992,12 @@
         (when is-significant-drag
           (g/set-property! self :cursor-type
                            (if (or (not= :perspective (:type (g/node-value self :local-camera)))
-                                   (not is-secondary))
+                                   is-primary)
                              :pan
                              :none)))))))
+
+(defn- handle-update-tick-fnk [self input-state dt]
+  (handle-update-tick self input-state dt))
 
 (g/defnode CameraController
   (property prefs g/Any)
@@ -1015,7 +1022,7 @@
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
 
   (output input-handler Runnable :cached (g/constantly handle-input))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
+  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
