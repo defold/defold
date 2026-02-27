@@ -625,6 +625,16 @@ void dmLogUnregisterListener(FLogListener listener)
     dmLogWarning("dmLog listener not found");
 }
 
+void dmLogInitialize(const LogParams* params)
+{
+    dmLog::LogInitialize(params);
+}
+
+void dmLogFinalize()
+{
+    dmLog::LogFinalize();
+}
+
 void dmLogSetLevel(LogSeverity severity)
 {
     dmLog::g_LogLevel = severity;

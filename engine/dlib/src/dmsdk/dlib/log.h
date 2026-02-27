@@ -240,6 +240,39 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
  */
 typedef void (*FLogListener)(LogSeverity severity, const char* domain, const char* formatted_string);
 
+/*# Log parameters.
+ *
+ * Parameters for dmLogInitialize().
+ *
+ * @struct
+ * @name LogParams
+ * @member m_Padding [type:uint8_t] Reserved for future use. Set to 0.
+ */
+typedef struct LogParams
+{
+#if !defined(__cplusplus)
+    uint8_t _padding; // to avoid empty C struct
+#endif
+
+} LogParams;
+
+/*# initialize the logging system.
+ *
+ * Running this function is only required in order to start the log server.
+ * The function never fails even if the log server cannot be started.
+ * Any startup errors are reported to stderr.
+ *
+ * @name dmLogInitialize
+ * @param params [type:LogParams*] log parameters
+ */
+void dmLogInitialize(const LogParams* params);
+
+/*# finalize the logging system.
+ *
+ * @name dmLogFinalize
+ */
+void dmLogFinalize();
+
 /*# register a log listener.
  *
  * Registers a log listener.
@@ -289,6 +322,22 @@ LogSeverity dmLogGetLevel();
 
 namespace dmLog
 {
+    typedef ::LogParams LogParams;
+
+    /**
+     * Initialize the logging system.
+     * Running this function is only required in order to start the log server.
+     * The function never fails even if the log server cannot be started.
+     * Any startup errors are reported to stderr.
+     * @param params log parameters
+     */
+    void LogInitialize(const LogParams* params);
+
+    /**
+     * Finalize the logging system.
+     */
+    void LogFinalize();
+
     void RegisterLogListener(FLogListener listener);
     void UnregisterLogListener(FLogListener listener);
     void Setlevel(LogSeverity severity);
