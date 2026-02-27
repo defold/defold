@@ -2226,27 +2226,16 @@ static void LogFrameBufferError(GLenum status)
 
                 uint8_t id_index = binding.m_TextureIdIndex;
 
-                // Reset binding usage flags; they will be set depending on how we bind below.
-                binding.m_BoundAsTexture = 0;
-                binding.m_BoundAsImage   = 0;
-
                 bool bind_as_texture = true;
                 if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
-                    bool bound_as_image = BindComputeImage(context, tex, unit, id_index, false);
-                    if (bound_as_image)
-                    {
-                        binding.m_BoundAsImage = 1;
-                        bind_as_texture = false;
-                    }
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
                 }
 
                 if (bind_as_texture)
                 {
                     glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
                     CHECK_GL_ERROR;
-
-                    binding.m_BoundAsTexture = 1;
 
                     GLenum gl_type = GetOpenGLTextureType(tex->m_Type);
 
@@ -4946,10 +4935,8 @@ static void LogFrameBufferError(GLenum status)
 
         assert(unit < DM_MAX_TEXTURE_UNITS);
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
-        binding.m_Texture        = texture;
+        binding.m_Texture         = texture;
         binding.m_TextureIdIndex = id_index;
-        binding.m_BoundAsTexture = 0;
-        binding.m_BoundAsImage   = 0;
     }
 
     static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
@@ -4963,30 +4950,8 @@ static void LogFrameBufferError(GLenum status)
 
         assert(unit < DM_MAX_TEXTURE_UNITS);
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
-
-        // Capture whether this unit actually had a texture/image bound so we only unbind when needed.
-        bool was_bound_as_texture = binding.m_BoundAsTexture != 0;
-        bool was_bound_as_image   = binding.m_BoundAsImage   != 0;
-
-        // Clear the cached binding for this unit.
-        binding.m_Texture        = 0x0;
+        binding.m_Texture         = 0x0;
         binding.m_TextureIdIndex = 0;
-        binding.m_BoundAsTexture = 0;
-        binding.m_BoundAsImage   = 0;
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-
-        if (!tex)
-        {
-            return;
-        }
-
-        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR;
-
-        // We no longer unbind image or sampler textures to 0 here:
-        // DrawSetup will bind the correct resources (or none) for each active unit before drawing.
     }
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)

@@ -75,8 +75,6 @@ namespace dmGraphics
     {
         HTexture m_Texture;
         uint8_t  m_TextureIdIndex;
-        uint8_t  m_BoundAsTexture;
-        uint8_t  m_BoundAsImage;
     };
 
     struct OpenGLRenderTargetAttachment
