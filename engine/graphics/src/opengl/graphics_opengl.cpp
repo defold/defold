@@ -2214,7 +2214,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
 
-                // Can we use the actual texture pointer instead of extracting this from the asset container every time?
                 DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
                 OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, binding.m_Texture);
                 if (!tex)
@@ -5023,17 +5022,8 @@ static void LogFrameBufferError(GLenum status)
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
 
-        if (was_bound_as_image && (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D))
-        {
-            // Only unbind image bindings if we previously bound this texture as an image on this unit.
-            BindComputeImage(context, tex, unit, 0, true);
-        }
-
-        if (was_bound_as_texture)
-        {
-            glBindTexture(GetOpenGLTextureType(tex->m_Type), 0);
-            CHECK_GL_ERROR;
-        }
+        // We no longer unbind image or sampler textures to 0 here:
+        // DrawSetup will bind the correct resources (or none) for each active unit before drawing.
     }
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
