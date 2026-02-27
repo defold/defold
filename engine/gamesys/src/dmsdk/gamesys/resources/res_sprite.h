@@ -30,13 +30,14 @@ namespace dmGameSystem
     {
         dmhash_t            m_SamplerNameHash;
         TextureSetResource* m_TextureSet;
+        uint8_t             m_TexturesGeneration;
     };
 
     struct SpriteResource
     {
         dmGameSystemDDF::SpriteDesc* m_DDF;
-        MaterialResource*           m_Material;
-        dmhash_t                    m_DefaultAnimation;
+        MaterialResource*            m_Material;
+        dmhash_t                     m_DefaultAnimation;
 
         // Sorted by the order of occurrance of samplers in the .material file
         SpriteTexture* m_Textures;
