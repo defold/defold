@@ -49,13 +49,13 @@
     :tumble :primary   false true  false false
     :track  :primary   false false true  false
     :dolly  :primary   false true  true  false
-    :dolly  :secondary false false true  false
+    ;; :dolly  :secondary false false true  false
     :track  :middle    false false false false
     :idle   :primary   false false false false
     :idle   :primary   true  false false false
     :idle   :primary   false false false true
-    :track  :secondary false false false false
-    :idle   :secondary true  false false false
+    ;; :track  :secondary false false false false
+    ;; :idle   :secondary true  false false false
     :idle   :secondary false true  false false
     :idle   :secondary false false false true
     :idle   :middle    true  false false false
