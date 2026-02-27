@@ -2233,7 +2233,13 @@ static void LogFrameBufferError(GLenum status)
 
                     if (tex->m_Sampler.m_MinFilter != tex->m_SamplerDirty.m_MinFilter)
                     {
-                        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMinFilter : minfilter);
+                        TextureFilter minfilter = tex->m_SamplerDirty.m_MinFilter;
+                        if (minfilter == TEXTURE_FILTER_DEFAULT)
+                        {
+                            minfilter = context->m_DefaultTextureMinFilter;
+                        }
+
+                        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
 
                         // Using a mipmapped min filter without any mipmaps will break the sampler
                         if (tex->m_MipMapCount <= 1)
@@ -2247,25 +2253,32 @@ static void LogFrameBufferError(GLenum status)
 
                     if (tex->m_Sampler.m_MagFilter != tex->m_SamplerDirty.m_MagFilter)
                     {
-                        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMagFilter : magfilter);
+                        TextureFilter magfilter = tex->m_SamplerDirty.m_MagFilter;
+                        if (magfilter == TEXTURE_FILTER_DEFAULT)
+                        {
+                            magfilter = context->m_DefaultTextureMagFilter;
+                        }
+
+                        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
                         glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
                         CHECK_GL_ERROR;
                     }
 
                     if (tex->m_Sampler.m_AddressModeU != tex->m_SamplerDirty.m_AddressModeU)
                     {
-                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
+                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeU));
                         CHECK_GL_ERROR
                     }
 
                     if (tex->m_Sampler.m_AddressModeV != tex->m_SamplerDirty.m_AddressModeV)
                     {
-                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
+                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeV));
                         CHECK_GL_ERROR
                     }
 
                     if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy)
                     {
+                        float max_anisotropy = tex->m_SamplerDirty.m_MaxAnisotropy;
                         glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, context->m_MaxAnisotropy));
                         CHECK_GL_ERROR
                     }
@@ -3921,6 +3934,71 @@ static void LogFrameBufferError(GLenum status)
         sampler->m_MaxAnisotropy = max_anisotropy;
     }
 
+    static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture)
+    {
+        if (!texture || texture->m_NumTextureIds == 0)
+        {
+            return;
+        }
+
+        // Pure compute/storage textures that are never sampled don't need sampler state
+        if ((texture->m_Type == TEXTURE_TYPE_IMAGE_2D || texture->m_Type == TEXTURE_TYPE_IMAGE_3D) &&
+            !(texture->m_UsageHintFlags & TEXTURE_USAGE_FLAG_SAMPLE))
+        {
+            return;
+        }
+
+        GLenum gl_type = GetOpenGLTextureType(texture->m_Type);
+
+        for (uint16_t idx = 0; idx < texture->m_NumTextureIds; ++idx)
+        {
+            GLuint gl_id = GetGLHandle(context, texture->m_TextureIds[idx]);
+
+            glBindTexture(gl_type, gl_id);
+            CHECK_GL_ERROR;
+
+            TextureFilter min_filter = texture->m_Sampler.m_MinFilter;
+            TextureFilter mag_filter = texture->m_Sampler.m_MagFilter;
+
+            if (min_filter == TEXTURE_FILTER_DEFAULT)
+            {
+                min_filter = context->m_DefaultTextureMinFilter;
+            }
+            if (mag_filter == TEXTURE_FILTER_DEFAULT)
+            {
+                mag_filter = context->m_DefaultTextureMagFilter;
+            }
+
+            GLenum gl_min_filter = GetOpenGLTextureFilter(min_filter);
+            GLenum gl_mag_filter = GetOpenGLTextureFilter(mag_filter);
+
+            // Using a mipmapped min filter without any mipmaps will break the sampler
+            if (texture->m_MipMapCount <= 1)
+            {
+                gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
+            }
+
+            glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+            CHECK_GL_ERROR;
+
+            glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+            CHECK_GL_ERROR;
+
+            glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeU));
+            CHECK_GL_ERROR;
+
+            glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeV));
+            CHECK_GL_ERROR;
+
+            if (context->m_AnisotropySupport && texture->m_Sampler.m_MaxAnisotropy > 1.0f)
+            {
+                glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                    dmMath::Min(texture->m_Sampler.m_MaxAnisotropy, context->m_MaxAnisotropy));
+                CHECK_GL_ERROR;
+            }
+        }
+    }
+
     static HTexture OpenGLNewTexture(HContext _context, const TextureCreationParams& params)
     {
         uint16_t num_texture_ids = 1;
@@ -3973,6 +4051,8 @@ static void LogFrameBufferError(GLenum status)
 
         SetSampler(&tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         tex->m_SamplerDirty = tex->m_Sampler;
+
+        ApplySamplerState(context, tex);
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
@@ -4884,38 +4964,6 @@ static void LogFrameBufferError(GLenum status)
 
         context->m_CurrentTextures[unit].m_Texture = texture;
         context->m_CurrentTextures[unit].m_TextureIdIndex = id_index;
-
-        /*
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return;
-        }
-
-        assert(id_index < tex->m_NumTextureIds);
-
-#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
-        glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR;
-#endif
-
-        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR;
-
-        bool bind_as_texture = true;
-        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
-        {
-            bind_as_texture = !BindComputeImage(context, tex, unit, id_index);
-        }
-
-        if (bind_as_texture)
-        {
-            glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
-            CHECK_GL_ERROR;
-            OpenGLSetTextureParams(_context, texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
-        }
-        */
     }
 
     static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
@@ -4926,6 +4974,10 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         OpenGLContext* context = (OpenGLContext*) _context;
+
+        assert(unit < DM_MAX_TEXTURE_UNITS);
+        context->m_CurrentTextures[unit].m_Texture = 0x0;
+        context->m_CurrentTextures[unit].m_TextureIdIndex = 0;
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
