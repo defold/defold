@@ -802,7 +802,6 @@
                                              :yaw yaw
                                              :smoothed-look-delta [0.0 0.0]})))
 
-;; TODO: This needs to take in an input-state and return input-state
 (defn handle-input [self input-state action _user-data]
   (let [image-view (g/node-value self :image-view)
         movements-enabled (g/node-value self :movements-enabled)

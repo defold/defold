@@ -753,7 +753,7 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     (scene/dispatch-input handlers {} action user-data))))
 
 (defn mouse-press!
   ([view x y]

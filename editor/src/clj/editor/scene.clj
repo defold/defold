@@ -1738,6 +1738,7 @@
   (property picking-drawable GLAutoDrawable)
 
   (input input-handlers Runnable :array)
+  (input update-tick-handlers Runnable :array)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input localization g/Any)
