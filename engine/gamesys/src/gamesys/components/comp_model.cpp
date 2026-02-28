@@ -102,6 +102,7 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer      m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         dmGraphics::HVertexDeclaration m_InstanceVertexDeclaration;
+        dmRender::HMaterial            m_Material;  // Material this was set up for; re-setup when effective material changes
         bool                           m_Initialized;
     };
 
@@ -862,6 +863,27 @@ namespace dmGameSystem
         SetMeshAttributeRenderData(world, component, render_context, &material_infos, attribute_infos, render_item, model_attributes, model_attribute_count, rd);
     }
 
+    static void ReleaseMeshAttributeRenderData(MeshAttributeRenderData* rd)
+    {
+        if (rd->m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(rd->m_VertexBuffer);
+            rd->m_VertexBuffer = 0;
+        }
+        if (rd->m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(rd->m_VertexDeclaration);
+            rd->m_VertexDeclaration = 0;
+        }
+        if (rd->m_InstanceVertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(rd->m_InstanceVertexDeclaration);
+            rd->m_InstanceVertexDeclaration = 0;
+        }
+        rd->m_Material     = 0;
+        rd->m_Initialized  = false;
+    }
+
     static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
         // assert(!rd->m_VertexBuffer);
@@ -896,7 +918,8 @@ namespace dmGameSystem
             SetMeshAttributeRenderData(world, component, render_context, &material_infos, attribute_infos, render_item, model_attributes, model_attribute_count, rd);
         }
 
-        rd->m_Initialized = true;
+        rd->m_Material     = material;
+        rd->m_Initialized  = true;
     }
 
     static void SetupRequiresBindPoseCaching(ModelComponent* component)
@@ -1563,12 +1586,16 @@ namespace dmGameSystem
                     render_item->m_AttributeRenderDataIndex = component->m_MeshAttributeRenderDatas.Size();
                     component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
                     component->m_MeshAttributeRenderDatas.SetSize(component->m_MeshAttributeRenderDatas.Capacity());
+                    memset(&component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
                 }
 
                 attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
 
-                //if (!attribute_rd->m_Initialized)
+                // Re-setup when not initialized or when effective material changed (e.g. render.enable_material vs disable_material)
+                if (!attribute_rd->m_Initialized || attribute_rd->m_Material != render_material)
                 {
+                    if (attribute_rd->m_Initialized)
+                        ReleaseMeshAttributeRenderData(attribute_rd);
                     SetupMeshAttributeRenderData(world, component,
                         render_context,
                         render_material,
@@ -1755,12 +1782,16 @@ namespace dmGameSystem
                     render_item->m_AttributeRenderDataIndex = component->m_MeshAttributeRenderDatas.Size();
                     component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
                     component->m_MeshAttributeRenderDatas.SetSize(component->m_MeshAttributeRenderDatas.Capacity());
+                    memset(&component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
                 }
 
                 attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
 
-                if (!attribute_rd->m_Initialized)
+                // Re-setup when not initialized or when effective material changed (e.g. render.enable_material vs disable_material)
+                if (!attribute_rd->m_Initialized || attribute_rd->m_Material != render_material)
                 {
+                    if (attribute_rd->m_Initialized)
+                        ReleaseMeshAttributeRenderData(attribute_rd);
                     SetupMeshAttributeRenderData(world, component,
                         render_context,
                         render_material,
