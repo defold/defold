@@ -14,6 +14,8 @@
 
 package com.defold.extension.pipeline;
 
+import com.defold.annotations.PluginApi;
+
 import java.io.File;
 import java.util.List;
 import java.util.Objects;
@@ -22,6 +24,7 @@ import java.util.Objects;
  * Implement this interface in com.defold.extension.pipeline package with no-argument constructor
  * to add support for transpiling a language to Lua that is then will be used during the build
  */
+@PluginApi
 public interface ILuaTranspiler {
 
     /**

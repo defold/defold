@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 package com.defold.extension.pipeline.texture;
+import com.defold.annotations.PluginApi;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 /**
@@ -20,6 +21,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
  * We will scan for public non-abstract classes that implement this interface inside the com.defold.extension.pipeline
  * package and instantiate them to transform Lua source code. Implementors must provide a no-argument constructor.
  */
+@PluginApi
 public interface ITextureCompressor {
     public String getName();
 

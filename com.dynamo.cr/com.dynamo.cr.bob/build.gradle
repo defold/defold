@@ -1,6 +1,21 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.ow2.asm:asm:9.9.1'
+    }
+}
+
 apply plugin: 'java'
 gradle.startParameter.parallelProjectExecutionEnabled = true
 apply from: '../com.dynamo.cr.bob/basic.gradle'
+
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.Opcodes
+
 
 allprojects {
     tasks.withType(Jar) {
@@ -369,7 +384,33 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
     }
 }
 
-task distBob(dependsOn: ['compile', 'createBobJar']) {
+
+task apiJar(type: Jar, dependsOn: [compileSrc, compileGenerated]) {
+    archiveBaseName = "bob-plugin-api"
+    destinationDirectory = file("${project.bobDir}/dist")
+
+    from(project.classesDir)
+    include '**/*.class'
+
+    eachFile { fileCopyDetails ->
+        def hasAnnotation = false
+        def reader = new ClassReader(fileCopyDetails.file.bytes)
+        reader.accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                if (descriptor.equals("Lcom/defold/annotations/PluginApi;")) {
+                    hasAnnotation = true
+                }
+                return super.visitAnnotation(descriptor, visible)
+            }
+        }, 0)
+        if (!hasAnnotation) {
+            fileCopyDetails.exclude()
+        }
+    }
+}
+
+task distBob(dependsOn: ['compile', 'createBobJar', 'apiJar']) {
     doLast {
         mkdir "${project.bobDir}/dist"
         mkdir "${project.bobDir}/tmp"
@@ -389,6 +430,10 @@ task install(dependsOn: ['distBob']) {
     doLast {
         copy {
             from "${project.bobDir}/dist/bob.jar"
+            into "${project.dynamoHome}/share/java"
+        }
+        copy {
+            from "${project.bobDir}/dist/bob-plugin-api.jar"
             into "${project.dynamoHome}/share/java"
         }
     }

@@ -249,7 +249,7 @@ platforms:
       libEndGroup:      ['-Wl,--end-group']
       # Java
       javaFlags:        []
-      javaPipelineClasspath: ['{{dynamo_home}}/share/java/bob-light.jar']
+      javaPipelineClasspath: ['{{dynamo_home}}/share/java/bob-plugin-api.jar']
 
     # Generates the ddf format files for use in the engine
     protoEngineCxxCmd:  '{{dynamo_home}}/ext/bin/{{host_platform}}/protoc --plugin=protoc-gen-ddf={{dynamo_home}}/bin/ddfc_cxx --ddf_out={{out_dir}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#protoIncludes}}-I{{{.}}} {{/protoIncludes}} {{src}}'

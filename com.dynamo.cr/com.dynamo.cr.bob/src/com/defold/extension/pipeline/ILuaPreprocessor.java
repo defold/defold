@@ -14,11 +14,14 @@
 
 package com.defold.extension.pipeline;
 
+import com.defold.annotations.PluginApi;
+
 /**
  * Interface for Lua source code preprocessing prior to compilation.
  * We will scan for public non-abstract classes that implement this interface inside the com.defold.extension.pipeline
  * package and instantiate them to transform Lua source code. Implementors must provide a no-argument constructor.
  */
+@PluginApi
 public interface ILuaPreprocessor {
     /**
      * Apply Lua source code preprocessing prior to compilation.
