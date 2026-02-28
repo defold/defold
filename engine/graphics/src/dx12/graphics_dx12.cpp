@@ -1625,7 +1625,9 @@ namespace dmGraphics
 
     static uint32_t DX12GetMaxElementsVertices(HContext context)
     {
-        return 65536;
+        // D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP=32
+        const uint64_t v = (1ULL << D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP) - 1ULL;
+        return v > 0xFFFFFFFFULL ? 0xFFFFFFFFu : (uint32_t)v;
     }
 
     static HIndexBuffer DX12NewIndexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1689,7 +1691,9 @@ namespace dmGraphics
 
     static uint32_t DX12GetMaxElementsIndices(HContext context)
     {
-        return 65536;
+        // D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP=32
+        const uint64_t v = (1ULL << D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP) - 1ULL;
+        return v > 0xFFFFFFFFULL ? 0xFFFFFFFFu : (uint32_t)v;
     }
 
     static HVertexDeclaration DX12NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
@@ -3000,7 +3004,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static uint32_t DX12GetMaxTextureSize(HContext context)
     {
-        return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+        return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION; //=16384
     }
 
     static HTexture DX12NewTexture(HContext _context, const TextureCreationParams& params)
@@ -3078,7 +3082,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static inline float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
     {
-        return dmMath::Min(max_anisotropy_requested, 32.0f); // TODO: What's the max limit here?
+        return dmMath::Min(max_anisotropy_requested, (float)D3D12_REQ_MAXANISOTROPY); // D3D12_REQ_MAXANISOTROPY=16
     }
 
     static inline D3D12_FILTER GetSamplerFilter(TextureFilter minfilter, TextureFilter magfilter)
