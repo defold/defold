@@ -864,8 +864,8 @@ namespace dmGameSystem
 
     static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
-        assert(!rd->m_VertexBuffer);
-        assert(!rd->m_VertexDeclaration);
+        // assert(!rd->m_VertexBuffer);
+        // assert(!rd->m_VertexDeclaration);
 
         dmGraphics::HContext graphics_context       = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
@@ -1567,7 +1567,7 @@ namespace dmGameSystem
 
                 attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
 
-                if (!attribute_rd->m_Initialized)
+                //if (!attribute_rd->m_Initialized)
                 {
                     SetupMeshAttributeRenderData(world, component,
                         render_context,
