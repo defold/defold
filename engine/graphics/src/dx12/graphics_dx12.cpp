@@ -3000,7 +3000,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static uint32_t DX12GetMaxTextureSize(HContext context)
     {
-        return 1024;
+        return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
     }
 
     static HTexture DX12NewTexture(HContext _context, const TextureCreationParams& params)
