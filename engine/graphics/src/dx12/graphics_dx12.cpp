@@ -45,6 +45,8 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
+    static const D3D12_RESOURCE_STATES DM_DX12_RESOURCE_STATE_BUFFER_READ = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER;
+
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
     bool                                DX12IsSupported();
     static HContext                     DX12GetContext();
@@ -1420,37 +1422,57 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
+        device_buffer->m_Destroyed = 0;
+        device_buffer->m_MappedDataPtr = 0;
     }
 
-    static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
+    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy)
     {
-        if (data == 0 || data_size == 0)
-            return;
-
-        if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
+        if (data_size == 0)
         {
-            CreateDeviceBuffer(context, device_buffer, data_size);
+            return;
         }
 
-        // create upload heap
-        // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
-        // We will upload the vertex buffer using this heap to the default heap
+        if (offset > buffer_size)
+        {
+            // TODO: Should we warn in the logs?
+            return;
+        }
+
+        if (data_size > (buffer_size - offset))
+        {
+            data_size = buffer_size - offset;
+
+            // TODO: Should we warn in the logs?
+        }
+
         ID3D12Resource* upload_heap;
         HRESULT hr = context->m_Device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),   // upload heap
-            D3D12_HEAP_FLAG_NONE,                               // no flags
-            &CD3DX12_RESOURCE_DESC::Buffer(data_size),          // resource description for a buffer
-            D3D12_RESOURCE_STATE_GENERIC_READ,                  // GPU will read from this buffer and copy its contents to the default heap
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(data_size),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
             NULL,
             DM_IID_PPV_ARGS(&upload_heap));
         CHECK_HR_ERROR(hr);
 
-        upload_heap->SetName(L"Vertex Buffer Upload Resource Heap");
+        upload_heap->SetName(L"Buffer Upload Resource Heap");
 
-        D3D12_SUBRESOURCE_DATA res_data = {};
-        res_data.pData      = data;
-        res_data.RowPitch   = data_size;
-        res_data.SlicePitch = data_size;
+        uint8_t* mapped_data = 0;
+        hr = upload_heap->Map(0, 0, (void**)&mapped_data);
+        CHECK_HR_ERROR(hr);
+
+        if (data)
+        {
+            memcpy(mapped_data, data, data_size);
+        }
+        else
+        {
+            // New buffer. want to alloc size, but have no data yet
+            memset(mapped_data, 0, data_size);
+        }
+
+        upload_heap->Unmap(0, 0);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
 
@@ -1461,14 +1483,15 @@ namespace dmGraphics
             cmd_list = one_time_cmd_list.m_CommandList;
         }
 
-        UpdateSubresources(cmd_list, device_buffer->m_Resource, upload_heap, 0, 0, 1, &res_data);
-
-        // transition the vertex buffer data from copy destination state to vertex buffer state
-        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+        if (state_before_copy != D3D12_RESOURCE_STATE_COPY_DEST)
+        {
+            cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, state_before_copy, D3D12_RESOURCE_STATE_COPY_DEST));
+        }
+        cmd_list->CopyBufferRegion(device_buffer->m_Resource, offset, upload_heap, 0, data_size);
+        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, DM_DX12_RESOURCE_STATE_BUFFER_READ));
 
         if (context->m_FrameBegun)
         {
-            // When frame is active, GPU may still use upload_heap; add to deferred release to avoid leak
             DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
             if (fr.m_ResourcesToDestroy.Full())
                 fr.m_ResourcesToDestroy.OffsetCapacity(8);
@@ -1484,8 +1507,34 @@ namespace dmGraphics
             DestroyOneTimeCommandList(&one_time_cmd_list);
             upload_heap->Release();
         }
+    }
 
+    static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
+    {
+        if (data_size == 0)
+        {
+            return;
+        }
+
+        bool use_new_buffer = device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0;
+        if (use_new_buffer)
+        {
+            CreateDeviceBuffer(context, device_buffer, data_size);
+        }
+
+        D3D12_RESOURCE_STATES state_before_copy = use_new_buffer ? D3D12_RESOURCE_STATE_COPY_DEST : DM_DX12_RESOURCE_STATE_BUFFER_READ;
+        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, data_size, data, state_before_copy);
         device_buffer->m_DataSize = data_size;
+    }
+
+    static void DeviceBufferUploadSubDataHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, const void* data)
+    {
+        if (data_size == 0)
+        {
+            return;
+        }
+
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_DataSize, data, DM_DX12_RESOURCE_STATE_BUFFER_READ);
     }
 
     static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
@@ -1575,6 +1624,7 @@ namespace dmGraphics
     {
         DX12Context* context        = (DX12Context*) _context;
         DX12VertexBuffer* vx_buffer = new DX12VertexBuffer();
+        memset(vx_buffer, 0, sizeof(DX12VertexBuffer));
 
         if (size > 0)
         {
@@ -1610,15 +1660,16 @@ namespace dmGraphics
 
     static void DX12SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        assert(0);
+        DM_PROFILE(__FUNCTION__);
+        assert(buffer != 0);
+
+        DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) buffer;
+        DeviceBufferUploadSubDataHelper(g_DX12Context, &vx_buffer->m_DeviceBuffer, offset, size, data);
     }
 
     static uint32_t DX12GetVertexBufferSize(HVertexBuffer buffer)
     {
-        if (!buffer)
-        {
-            return 0;
-        }
+        assert(buffer != 0);
         DX12VertexBuffer* buffer_ptr = (DX12VertexBuffer*) buffer;
         return buffer_ptr->m_DeviceBuffer.m_DataSize;
     }
@@ -1634,6 +1685,7 @@ namespace dmGraphics
     {
         DX12Context* context       = (DX12Context*) _context;
         DX12IndexBuffer* ix_buffer = new DX12IndexBuffer();
+        memset(ix_buffer, 0, sizeof(DX12IndexBuffer));
 
         if (size > 0)
         {
@@ -1671,7 +1723,10 @@ namespace dmGraphics
 
     static void DX12SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        assert(0);
+        DM_PROFILE(__FUNCTION__);
+        assert(buffer != 0);
+        DX12IndexBuffer* ix_buffer = (DX12IndexBuffer*) buffer;
+        DeviceBufferUploadSubDataHelper(g_DX12Context, &ix_buffer->m_DeviceBuffer, offset, size, data);
     }
 
     static uint32_t DX12GetIndexBufferSize(HIndexBuffer buffer)
@@ -2298,8 +2353,12 @@ namespace dmGraphics
         {
             if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
-                vx_buffer_views[num_vx_buffers].BufferLocation = context->m_CurrentVertexBuffer[i]->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
-                vx_buffer_views[num_vx_buffers].SizeInBytes    = context->m_CurrentVertexBuffer[i]->m_DeviceBuffer.m_DataSize;
+                DX12VertexBuffer* current_vb = context->m_CurrentVertexBuffer[i];
+                assert(current_vb->m_DeviceBuffer.m_Resource);
+                assert(current_vb->m_DeviceBuffer.m_DataSize > 0);
+
+                vx_buffer_views[num_vx_buffers].BufferLocation = current_vb->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+                vx_buffer_views[num_vx_buffers].SizeInBytes    = current_vb->m_DeviceBuffer.m_DataSize;
                 vx_buffer_views[num_vx_buffers].StrideInBytes  = context->m_CurrentVertexDeclaration[i]->m_Stride;
                 num_vx_buffers++;
             }
