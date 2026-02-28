@@ -637,6 +637,7 @@ void GamesysTest<T>::SetUp()
 
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
+    m_SpriteContext.m_Factory = m_Factory;
 
     m_CollectionProxyContext.m_Factory = m_Factory;
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;
