@@ -1516,13 +1516,13 @@ namespace dmGraphics
             return;
         }
 
-        bool use_new_buffer = device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0;
-        if (use_new_buffer)
+        D3D12_RESOURCE_STATES state_before_copy = DM_DX12_RESOURCE_STATE_BUFFER_READ;
+        if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
         {
             CreateDeviceBuffer(context, device_buffer, data_size);
+            state_before_copy = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
-        D3D12_RESOURCE_STATES state_before_copy = use_new_buffer ? D3D12_RESOURCE_STATE_COPY_DEST : DM_DX12_RESOURCE_STATE_BUFFER_READ;
         DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, data_size, data, state_before_copy);
         device_buffer->m_DataSize = data_size;
     }
@@ -1676,9 +1676,9 @@ namespace dmGraphics
 
     static uint32_t DX12GetMaxElementsVertices(HContext context)
     {
-        // D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP=32
-        const uint64_t v = (1ULL << D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP) - 1ULL;
-        return v > 0xFFFFFFFFULL ? 0xFFFFFFFFu : (uint32_t)v;
+        const uint32_t num_bits = D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP; // D3D12_REQ_DRAW_VERTEX_COUNT_2_TO_EXP=32
+        const uint64_t v = (1ULL << num_bits) - 1ULL; // The max value for a given number of bits. 32 bits -> 0xFFFFFFFF
+        return num_bits == 32 ? 0xFFFFFFFFu : (uint32_t)v;
     }
 
     static HIndexBuffer DX12NewIndexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1746,9 +1746,9 @@ namespace dmGraphics
 
     static uint32_t DX12GetMaxElementsIndices(HContext context)
     {
-        // D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP=32
-        const uint64_t v = (1ULL << D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP) - 1ULL;
-        return v > 0xFFFFFFFFULL ? 0xFFFFFFFFu : (uint32_t)v;
+        const uint32_t num_bits = D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP; // D3D12_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP=32
+        const uint64_t v = (1ULL << num_bits) - 1ULL; // The max value for a given number of bits. 32 bits -> 0xFFFFFFFF
+        return num_bits == 32 ? 0xFFFFFFFFu : (uint32_t)v;
     }
 
     static HVertexDeclaration DX12NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
@@ -3053,6 +3053,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        dmLogOnceError("%s: Not implemented", __FUNCTION__);
     }
 
     static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
