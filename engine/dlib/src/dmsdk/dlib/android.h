@@ -32,7 +32,7 @@
 namespace dmAndroid {
 
 /*#
- * Struct attaching the JNI environment. Detaches the
+ * Struct attaching the JNI environment.
  * @class
  * @name ThreadAttacher
  */
