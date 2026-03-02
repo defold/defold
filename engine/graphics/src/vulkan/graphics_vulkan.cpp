@@ -395,11 +395,18 @@ namespace dmGraphics
 
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
         current_rt->m_IsBound = 0;
+        context->m_RenderTargetBound = 0;
         return true;
     }
 
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
     {
+        // Lock-free fast path: avoid mutex when already bound to the same render target (common in heavy draw-call scenes)
+        if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
+        {
+            return;
+        }
+
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
         RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
@@ -454,6 +461,7 @@ namespace dmGraphics
         rt->m_Scissor.offset.y = 0;
 
         context->m_CurrentRenderTarget = render_target;
+        context->m_RenderTargetBound = 1;
 
         // We need to update the current frame stamp for all attachments and framebuffer, since they are part of the render pass
         TouchResource(context, rt);

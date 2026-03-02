@@ -32,7 +32,7 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 2; // In flight frames - number of concurrent frames being processed
+    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
     const static uint8_t MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
 
     enum VulkanResourceType
@@ -457,8 +457,9 @@ namespace dmGraphics
         uint32_t                        m_WindowHeight;
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
-        uint32_t                        m_CurrentFrameInFlight : 1;
+        uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;
+        uint32_t                        m_RenderTargetBound    : 1;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
