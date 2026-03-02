@@ -272,7 +272,7 @@
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
                                (into [] cat [(engine-profiler/routes)
-                                             (web-server/built-in-routes (workspace/project-directory workspace))
+                                             (web-server/built-in-routes project)
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)

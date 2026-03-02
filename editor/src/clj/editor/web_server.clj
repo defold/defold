@@ -13,11 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.web-server
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.lsp.async :as lsp.async]
             [editor.util :as util]
             [reitit.core :as reitit]
             [util.coll :as coll]
-            [util.http-server :as http-server]))
+            [util.http-server :as http-server])
+  (:import [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -40,25 +44,33 @@
             :version "1.0"}
      :paths (openapi-paths (:router request))}))
 
-(defn- index-response [project-path]
-  (http-server/response
-    200
-    {"content-type" "text/html; charset=utf-8"}
-    (str "<!doctype html>\n"
-         "<html>\n"
-         "  <head>\n"
-         "    <meta charset=\"utf-8\">\n"
-         "    <title>Defold Editor HTTP Server</title>\n"
-         "  </head>\n"
-         "  <body>\n"
-         "    <h1>Defold Editor HTTP Server</h1>\n"
-         "    <p><strong>Project:</strong> <code>" project-path "</code></p>\n"
-         "    <p><a href=\"/openapi.json\">OpenAPI spec</a></p>\n"
-         "  </body>\n"
-         "</html>\n")))
+(defn- index-response [project]
+  (lsp.async/with-auto-evaluation-context evaluation-context
+    (let [project-path (-> project
+                           (g/node-value :workspace evaluation-context)
+                           (g/node-value :root evaluation-context))
+          title (-> project
+                    (g/maybe-node-value :settings evaluation-context)
+                    (get ["project" "title"]))
+          project-title (or title (FilenameUtils/getName project-path))]
+      (http-server/response
+        200
+        {"content-type" "text/html; charset=utf-8"}
+        (str "<!doctype html>\n"
+             "<html>\n"
+             "  <head>\n"
+             "    <meta charset=\"utf-8\">\n"
+             "    <title>Defold Editor HTTP Server - " project-title "</title>\n"
+             "  </head>\n"
+             "  <body>\n"
+             "    <h1>Defold Editor HTTP Server - " project-title "</h1>\n"
+             "    <p><strong>Project:</strong> <code>" project-path "</code></p>\n"
+             "    <p><a href=\"/openapi.json\">OpenAPI spec</a></p>\n"
+             "  </body>\n"
+             "</html>\n")))))
 
-(defn built-in-routes [project-path]
-  {"/" {"GET" (constantly (index-response project-path))}
+(defn built-in-routes [project]
+  {"/" {"GET" (bound-fn [_] (index-response project))}
    "/openapi.json" {"GET" openapi-response}})
 
 (defn make-dynamic-handler

@@ -193,9 +193,10 @@
     {:summary "Execute an editor command"
      :description (str "Available commands:\n"
                        (coll/join-to-string
+                         "\n"
                          (coll/into-> command->help :eduction
                            (map (fn [[command help]]
-                                  (str "- `" command "`: " help "\n"))))))
+                                  (str "- `" command "`: " help))))))
      :parameters [{:name "command"
                    :in "path"
                    :required true

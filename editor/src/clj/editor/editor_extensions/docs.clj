@@ -482,6 +482,9 @@ editor.create_resources({
                        {:name "[as]"
                         :types ["string"]
                         :doc "Request body converter, either <code>\"string\"</code> or <code>\"json\"</code>; the body will be discarded if not specified"}
+                       {:name "[openapi]"
+                        :types ["table"]
+                        :doc "Optional OpenAPI Operation Object for this route method, exposed from <code>/openapi.json</code>. Must follow <code>https://spec.openapis.org/oas/v3.0.3.html#operation-object</code>."}
                        {:name "handler"
                         :types ["function"]
                         :doc (str "Request handler function, will receive request argument, a table with the following keys:"
