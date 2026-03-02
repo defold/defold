@@ -286,13 +286,7 @@ namespace dmGraphics
 
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
-    ContextParams::ContextParams()
-    {
-        memset(this, 0x0, sizeof(*this));
-        m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-        m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
-        m_SwapInterval            = 1;
-    }
+
 
     AttachmentToBufferType::AttachmentToBufferType()
     {
@@ -301,6 +295,20 @@ namespace dmGraphics
         m_AttachmentToBufferType[ATTACHMENT_DEPTH] = BUFFER_TYPE_DEPTH_BIT;
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }
+
+    ContextParams::ContextParams()
+    : m_Window(0)
+    , m_JobContext(0)
+    , m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+    , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
+    , m_Width(0)
+    , m_Height(0)
+    , m_GraphicsMemorySize(0)
+    , m_SwapInterval(1)
+    , m_VerifyGraphicsCalls(0)
+    , m_PrintDeviceInfo(0)
+    , m_UseValidationLayers(0)
+    {}
 
     HContext NewContext(const ContextParams& params)
     {
@@ -1940,6 +1948,28 @@ namespace dmGraphics
     void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         g_functions.m_SetSampler(context, location, unit);
+    }
+
+    HUniformLocation FindUniformLocation(HProgram program, dmhash_t name_hash)
+    {
+        uint32_t uniform_count = GetUniformCount(program);
+        for (uint32_t i = 0; i < uniform_count; ++i)
+        {
+            Uniform uniform;
+            GetUniform(program, i, &uniform);
+            if (uniform.m_NameHash == name_hash)
+            {
+                return uniform.m_Location;
+            }
+        }
+
+        return INVALID_UNIFORM_LOCATION;
+    }
+
+    HUniformLocation FindUniformLocation(HProgram program, const char* name)
+    {
+        dmhash_t name_hash = dmHashString64(name);
+        return FindUniformLocation(program, name_hash);
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

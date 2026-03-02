@@ -118,7 +118,6 @@ namespace dmGraphics
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_UseValidationLayers     = params.m_UseValidationLayers;
-        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
@@ -1154,7 +1153,7 @@ namespace dmGraphics
         void* device_pNext_chain = 0;
 
         uint16_t validation_layers_count;
-        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
+        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers);
 
         if (selected_device == NULL)
         {
@@ -1323,7 +1322,7 @@ bail:
             uint16_t extension_names_count;
             const char** extension_names = GetExtensionNames(&extension_names_count);
             uint16_t validation_layers_count;
-            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers, params.m_RenderDocSupport);
+            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers);
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 

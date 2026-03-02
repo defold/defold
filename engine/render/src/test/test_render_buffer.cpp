@@ -33,7 +33,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);

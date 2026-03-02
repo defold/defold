@@ -25,10 +25,13 @@
             [editor.protobuf :as protobuf]
             [internal.java :as java]
             [internal.util :as util]
+            [service.log :as log]
             [util.coll :as coll]
             [util.eduction :as e])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
+           [java.io IOException]
            [java.net URI]
+           [java.nio.charset MalformedInputException]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -84,8 +87,16 @@
   (make-completion-map
     (coll/into-> (fs/class-path-walker java/class-loader "doc") :eduction
       (mapcat
-        (fn [p]
-          (let [{:keys [info elements]} (protobuf/read-map-with-defaults ScriptDoc$Document p)]
+        (fn [path]
+          (when-let [{:keys [info elements]}
+                     (try
+                       (protobuf/read-map-with-defaults ScriptDoc$Document path)
+                       (catch MalformedInputException _
+                         (log/warn :message "Ignoring legacy-format documentation file." :path (str path))
+                         nil)
+                       (catch IOException e
+                         (log/error :message "Failed to read documentation file." :path (str path) :exception e)
+                         nil))]
             (when (= "Lua" (:language info))
               (coll/into-> elements :eduction
                 (remove #(= :typedef (:type %)))

@@ -304,9 +304,7 @@ PACKAGES_LINUX_ARM64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_ANDROID=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -321,9 +319,7 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -1215,9 +1211,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar",
-                                 "glfw_android.jar")
+                external_jars = ("glfw_android.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)

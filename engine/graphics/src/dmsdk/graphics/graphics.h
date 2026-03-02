@@ -17,6 +17,10 @@
 
 #include <stdint.h>
 
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/jobsystem.h>
+#include <dmsdk/platform/window.h>
+
 #include <graphics/graphics_ddf.h>
 
 /*# Graphics API documentation
@@ -102,11 +106,10 @@ namespace dmGraphics
     typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
-     * PipelineState handle
-     * @typedef
-     * @name HPipelineState
+     * Shader program description (from graphics_ddf.h)
+     * @struct
+     * @name ShaderDesc
      */
-    typedef struct PipelineState* HPipelineState;
 
     /*#
      * Invalid stream offset
@@ -114,6 +117,26 @@ namespace dmGraphics
      * @name INVALID_STREAM_OFFSET
      */
     const uint32_t INVALID_STREAM_OFFSET = 0xFFFFFFFF;
+
+    /*#
+     * Invalid program handle constant.
+     * 
+     * Used to represent an uninitialized or invalid program handle.
+     * Can be used to check if program creation or loading failed.
+     * @constant
+     * @name INVALID_PROGRAM_HANDLE
+     */
+    static const HProgram INVALID_PROGRAM_HANDLE = ~0u;
+
+    /*#
+     * Invalid uniform location constant.
+     * 
+     * Used to represent an uninitialized or invalid uniform location.
+     * Can be used to check if uniform location lookup failed.
+     * @constant
+     * @name INVALID_UNIFORM_LOCATION
+     */
+    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
 
     /*#
      * Max buffer color attachments
@@ -1527,6 +1550,302 @@ namespace dmGraphics
      */
     float GetDisplayScaleFactor(HContext context);
 
+    /*#
+     * Graphics context creation parameters.
+     * 
+     * Defines the configuration for creating a new graphics context.
+     * This structure is used when initializing the graphics system and
+     * specifies window association, job system context, texture filtering defaults,
+     * resolution, memory limits, and various debugging/validation options.
+     * @struct
+     * @name ContextParams
+     * @member m_Window [type:dmPlatform::HWindow] Platform window handle to associate with the graphics context
+     * @member m_JobContext [type:dmJobSystem::HJobContext] Job system context for asynchronous operations
+     * @member m_DefaultTextureMinFilter [type:dmGraphics::TextureFilter] Default minification filter for textures
+     * @member m_DefaultTextureMagFilter [type:dmGraphics::TextureFilter] Default magnification filter for textures
+     * @member m_Width [type:uint32_t] Initial width of the rendering surface
+     * @member m_Height [type:uint32_t] Initial height of the rendering surface
+     * @member m_GraphicsMemorySize [type:uint32_t] Maximum allowed graphics memory in bytes (0 for default/unlimited) (Switch)
+     * @member m_SwapInterval [type:uint32_t] Vertical synchronization interval (1 for 60Hz, 2 for 30Hz, etc.) (Default = 1)
+     * @member m_VerifyGraphicsCalls [type:bool] Enable API call verification for debugging
+     * @member m_PrintDeviceInfo [type:bool] Print graphics device information at startup
+     * @member m_UseValidationLayers [type:bool] Enable validation layers for debugging (Vulkan/DirectX 12 only)
+     */
+    struct ContextParams
+    {
+        ContextParams();
+
+        HWindow               m_Window;
+        HJobContext           m_JobContext;
+        TextureFilter         m_DefaultTextureMinFilter;
+        TextureFilter         m_DefaultTextureMagFilter;
+        uint32_t              m_Width;
+        uint32_t              m_Height;
+        uint32_t              m_GraphicsMemorySize;
+        uint32_t              m_SwapInterval;
+        uint8_t               m_VerifyGraphicsCalls : 1;
+        uint8_t               m_PrintDeviceInfo : 1;
+        uint8_t               m_UseValidationLayers : 1;
+        uint8_t               : 5;
+    };
+
+    /*#
+     * Creates a new graphics context.
+     * 
+     * Initializes the graphics system with the specified parameters.
+     * Only one graphics context can be active at a time.
+     * @name NewContext
+     * @param params [type:const dmGraphics::ContextParams&] Context creation parameters
+     * @return context [type:dmGraphics::HContext] New graphics context handle, or null on failure
+     */
+    HContext NewContext(const ContextParams& params);
+
+    /*#
+     * Destroys a graphics context.
+     * 
+     * Cleans up all resources associated with the graphics context.
+     * The context becomes invalid after this call.
+     * @name DeleteContext
+     * @param context [type:dmGraphics::HContext] Graphics context to destroy
+     */
+    void DeleteContext(HContext context);
+
+    /*#
+     * Installs a graphics adapter.
+     * 
+     * Initializes the specified graphics backend (OpenGL, Vulkan, etc.).
+     * This must be called before creating any graphics context.
+     * @name InstallAdapter
+     * @param family [type:dmGraphics::AdapterFamily] Graphics adapter family to install
+     * @return success [type:bool] True if the adapter was successfully installed, false otherwise
+     */
+    bool InstallAdapter(AdapterFamily family);
+
+    /*#
+     * Gets the adapter family from a string name.
+     * 
+     * Converts a string identifier to the corresponding AdapterFamily enum value.
+     * @name GetAdapterFamily
+     * @param adapter_name [type:const char*] String name of the adapter (e.g., "opengl", "vulkan")
+     * @return family [type:dmGraphics::AdapterFamily] Corresponding adapter family enum value
+     */
+    AdapterFamily GetAdapterFamily(const char* adapter_name);
+
+    /*#
+     * Begins frame rendering.
+     * 
+     * Prepares the graphics context for rendering a new frame.
+     * This should be called at the start of each frame.
+     * @name BeginFrame
+     * @param context [type:dmGraphics::HContext] Graphics context
+     */
+    void BeginFrame(HContext context);
+
+    /*#
+     * Flips screen buffers.
+     * 
+     * Presents the rendered frame to the display.
+     * This should be called at the end of each frame after all rendering is complete.
+     * @name Flip
+     * @param context [type:dmGraphics::HContext] Graphics context
+     */
+    void Flip(HContext context);
+
+    /*#
+     * Closes the window associated with the graphics context.
+     * 
+     * If a window is open, this will close it and clean up associated resources.
+     * @name CloseWindow
+     * @param context [type:dmGraphics::HContext] Graphics context
+     */
+    void CloseWindow(HContext context);
+
+    /*#
+     * Finalizes the graphics system.
+     * 
+     * Cleans up global graphics resources and shuts down the graphics system.
+     * This should be called when the application is exiting.
+     * @name Finalize
+     */
+    void Finalize();
+
+    /*#
+     * Sets the viewport for rendering.
+     * 
+     * Defines the affine transformation from normalized device coordinates to window coordinates.
+     * This affects all subsequent rendering operations.
+     * @name SetViewport
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param x [type:int32_t] X coordinate of the viewport's origin (in pixels)
+     * @param y [type:int32_t] Y coordinate of the viewport's origin (in pixels)
+     * @param width [type:int32_t] Width of the viewport (in pixels)
+     * @param height [type:int32_t] Height of the viewport (in pixels)
+     */
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+
+    /*#
+     * Activates a shader program for rendering.
+     * 
+     * Binds the specified program to the graphics pipeline, making it the active program
+     * for all subsequent rendering operations until another program is activated or disabled.
+     * @name EnableProgram
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param program [type:dmGraphics::HProgram] Program handle to activate
+     */
+    void EnableProgram(HContext context, HProgram program);
+
+    /*#
+     * Deactivates the currently bound shader program.
+     * 
+     * Unbinds any active program from the graphics pipeline, returning to the default state
+     * where no custom shader program is active.
+     * @name DisableProgram
+     * @param context [type:dmGraphics::HContext] Graphics context
+     */
+    void DisableProgram(HContext context);
+
+    /*#
+     * Binds a vertex declaration for rendering.
+     * 
+     * Associates a vertex declaration with a specific binding index in the graphics pipeline.
+     * The declaration defines how vertex data is interpreted and laid out in memory.
+     * @name EnableVertexDeclaration
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param vertex_declaration [type:dmGraphics::HVertexDeclaration] Vertex declaration handle
+     * @param binding_index [type:uint32_t] Binding index to associate with this declaration
+     * @param base_offset [type:uint32_t] Byte offset to add to all vertex attribute pointers
+     * @param program [type:dmGraphics::HProgram] Shader program to use with this declaration
+     */
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
+
+    /*#
+     * Unbinds a vertex declaration from the graphics pipeline.
+     * 
+     * Removes the association between a vertex declaration and its binding index,
+     * freeing up the binding slot for other declarations.
+     * @name DisableVertexDeclaration
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param vertex_declaration [type:dmGraphics::HVertexDeclaration] Vertex declaration handle to unbind
+     */
+    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+
+    /*#
+     * Binds a vertex buffer for rendering.
+     * 
+     * Associates a vertex buffer with a specific binding index in the graphics pipeline.
+     * The buffer provides the actual vertex data that will be processed according to
+     * the active vertex declaration for that binding index.
+     * @name EnableVertexBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param vertex_buffer [type:dmGraphics::HVertexBuffer] Vertex buffer handle
+     * @param binding_index [type:uint32_t] Binding index to associate with this buffer
+     */
+    void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+
+    /*#
+     * Unbinds a vertex buffer from the graphics pipeline.
+     * 
+     * Removes the association between a vertex buffer and its binding index,
+     * freeing up the binding slot for other buffers.
+     * @name DisableVertexBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param vertex_buffer [type:dmGraphics::HVertexBuffer] Vertex buffer handle to unbind
+     */
+    void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
+
+    /*#
+     * Draws non-indexed primitives.
+     * 
+     * Renders geometry using vertex data directly from the bound vertex buffers
+     * without index buffer indirection. The vertices are processed sequentially
+     * from the specified starting point.
+     * @name Draw
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param prim_type [type:dmGraphics::PrimitiveType] Type of primitives to draw
+     * @param first [type:uint32_t] Index of the first vertex to draw
+     * @param count [type:uint32_t] Number of vertices to draw
+     * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
+     */
+    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*#
+     * Binds a texture sampler to a texture unit.
+     * 
+     * Associates a texture with a specific sampler uniform in the shader,
+     * allowing the shader to access the texture data during rendering.
+     * @name SetSampler
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param location [type:dmGraphics::HUniformLocation] Uniform location of the sampler
+     * @param unit [type:int32_t] Texture unit index to bind to
+     */
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
+
+    /*#
+     * Creates a new shader program from a shader description.
+     * 
+     * Compiles and links shader sources defined in the ShaderDesc into a GPU program.
+     * Returns a program handle that can be used for rendering.
+     * @name NewProgram
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param ddf [type:dmGraphics::ShaderDesc*] Shader description containing source code and parameters
+     * @param error_buffer [type:char*] Buffer to receive error messages (can be null)
+     * @param error_buffer_size [type:uint32_t] Size of the error buffer
+     * @return program [type:dmGraphics::HProgram] New program handle, or INVALID_PROGRAM_HANDLE on failure
+     */
+    HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+
+    /*#
+     * Destroys a shader program and frees associated resources.
+     * 
+     * Cleans up GPU memory and resources associated with the program handle.
+     * The handle becomes invalid after this call.
+     * @name DeleteProgram
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param program [type:dmGraphics::HProgram] Program handle to destroy
+     */
+    void DeleteProgram(HContext context, HProgram program);
+
+    /*#
+     * Clears the render target buffers.
+     * 
+     * Fills the specified buffers with predefined values. Commonly used at the
+     * beginning of a frame to clear the screen to a specific color and depth.
+     * @name Clear
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param flags [type:uint32_t] Bitmask specifying which buffers to clear (BUFFER_TYPE_*)
+     * @param red [type:uint8_t] Red component value (0-255)
+     * @param green [type:uint8_t] Green component value (0-255)
+     * @param blue [type:uint8_t] Blue component value (0-255)
+     * @param alpha [type:uint8_t] Alpha component value (0-255)
+     * @param depth [type:float] Depth value to clear depth buffer to
+     * @param stencil [type:uint32_t] Stencil value to clear stencil buffer to
+     */
+    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
+
+    /*#
+     * Finds the location of a uniform variable in a shader program by name hash.
+     * 
+     * Returns the uniform location that can be used with other uniform-setting functions.
+     * This is the preferred method when the uniform name is known at compile time
+     * as it avoids runtime string hashing.
+     * @name FindUniformLocation
+     * @param program [type:dmGraphics::HProgram] Shader program handle
+     * @param name_hash [type:dmhash_t] Hash of the uniform variable name
+     * @return location [type:dmGraphics::HUniformLocation] Uniform location handle, or INVALID_UNIFORM_LOCATION if not found
+     */
+    HUniformLocation FindUniformLocation(HProgram program, dmhash_t name_hash);
+
+    /*#
+     * Finds the location of a uniform variable in a shader program by name string.
+     * 
+     * Returns the uniform location that can be used with other uniform-setting functions.
+     * This method is useful when the uniform name is only known at runtime.
+     * @name FindUniformLocation
+     * @param program [type:dmGraphics::HProgram] Shader program handle
+     * @param name [type:const char*] Name of the uniform variable
+     * @return location [type:dmGraphics::HUniformLocation] Uniform location handle, or INVALID_UNIFORM_LOCATION if not found
+     */
+    HUniformLocation FindUniformLocation(HProgram program, const char* name);
 }
 
 #endif // DMSDK_GRAPHICS_H
