@@ -213,7 +213,8 @@
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
-                                 [(engine-profiler/routes)
+                                 [(web-server/built-in-routes project-path)
+                                  (engine-profiler/routes)
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)

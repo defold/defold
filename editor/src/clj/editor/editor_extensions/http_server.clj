@@ -166,7 +166,7 @@
            :method method
            :handler (bound-fn ext-http-request-handler [request]
                       (let [request (-> request
-                                        (dissoc :path-params)
+                                        (dissoc :path-params :router)
                                         (coll/merge (:path-params request)))]
                         (try
                           (let [request (case as

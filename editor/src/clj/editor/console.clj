@@ -806,5 +806,15 @@
 (defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    {"/console" {"GET" (bound-fn [_]
-                         (g/node-value console-node :request-response))}}))
+    {"/console"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (g/node-value console-node :request-response))
+              {:openapi
+               {:summary "Read console output"
+                :responses
+                {"200"
+                 {:description "Console lines and regions"
+                  :content
+                  {"application/json"
+                   {:schema {:type "object"}}}}}}})}}))

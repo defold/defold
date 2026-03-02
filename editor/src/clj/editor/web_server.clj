@@ -13,9 +13,53 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.web-server
-  (:require [util.http-server :as http-server]))
+  (:require [clojure.string :as string]
+            [editor.util :as util]
+            [reitit.core :as reitit]
+            [util.coll :as coll]
+            [util.http-server :as http-server]))
 
 (set! *warn-on-reflection* true)
+
+(defn- openapi-paths [router]
+  (coll/into-> (reitit/routes router) {}
+    (keep
+      (fn [[path method->handler]]
+        (let [method->operation (coll/into-> method->handler {}
+                                  (keep (fn [[method handler]]
+                                          (when-let [operation (:openapi (meta handler))]
+                                            (coll/pair (util/lower-case* method) operation)))))]
+          (when-not (coll/empty? method->operation)
+            ;; Convert reitit rest-parameter syntax `{*param}` to OpenAPI `{param}`.
+            (coll/pair (string/replace path #"\{\*([^}]+)\}" "{$1}") method->operation)))))))
+
+(defn- openapi-response [request]
+  (http-server/json-response
+    {:openapi "3.0.3"
+     :info {:title "Defold Editor HTTP API"
+            :version "1.0"}
+     :paths (openapi-paths (:router request))}))
+
+(defn- index-response [project-path]
+  (http-server/response
+    200
+    {"content-type" "text/html; charset=utf-8"}
+    (str "<!doctype html>\n"
+         "<html>\n"
+         "  <head>\n"
+         "    <meta charset=\"utf-8\">\n"
+         "    <title>Defold Editor HTTP Server</title>\n"
+         "  </head>\n"
+         "  <body>\n"
+         "    <h1>Defold Editor HTTP Server</h1>\n"
+         "    <p><strong>Project:</strong> <code>" project-path "</code></p>\n"
+         "    <p><a href=\"/openapi.json\">OpenAPI spec</a></p>\n"
+         "  </body>\n"
+         "</html>\n")))
+
+(defn built-in-routes [project-path]
+  {"/" {"GET" (constantly (index-response project-path))}
+   "/openapi.json" {"GET" openapi-response}})
 
 (defn make-dynamic-handler
   "Create an HTTP request handler that supports setting dynamic routes
@@ -40,3 +84,20 @@
   (let [{::keys [built-in-routes state]} (meta web-handler)]
     (reset! state (http-server/router-handler (into built-in-routes dynamic-routes))))
   nil)
+
+(comment
+
+  (println
+    (editor.process/exec!
+      {:err :stdout}
+      "sh" "-lc"
+      (str "curl -sS " (http-server/local-url (dev/web-server)) "/openapi.json"
+           " | npx -y @redocly/cli lint /dev/stdin"
+           "   --skip-rule no-empty-servers"
+           "   --skip-rule security-defined"
+           "   --skip-rule info-license"
+           "   --skip-rule operation-operationId"
+           "   --skip-rule operation-4xx-response"
+           " || true")))
+
+  #__)

@@ -1232,8 +1232,7 @@ GET /test/resources/test.json as json => 200
     (with-open [server (http-server/start!
                          (web-server/make-dynamic-handler
                            ;; for testing conflicts with the built-in handlers
-                           {"/command" {"GET" (constantly http-server/not-found)}
-                            "/command/{command}" {"POST" (constantly http-server/not-found)}}))]
+                           {"/command/{command}" {"POST" (constantly http-server/not-found)}}))]
       (let [out (StringBuilder.)]
         (reload-editor-scripts! project
                                 :display-output! #(doto out (.append %2) (.append \newline))
