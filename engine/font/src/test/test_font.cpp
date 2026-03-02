@@ -41,17 +41,7 @@ protected:
 
     virtual void SetUp() override
     {
-        char buffer[512];
-        const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/vera_mo_bd.ttf");
-
-        m_Font = FontLoadFromPath(path);
-        ASSERT_NE((HFont)0, m_Font);
-
-        const char* font_path = FontGetPath(m_Font);
-        ASSERT_STREQ(path, font_path);
-
-        uint32_t path_hash = dmHashString32(path);
-        ASSERT_EQ(path_hash, FontGetPathHash(m_Font));
+        LoadFont("src/test/vera_mo_bd.ttf", &m_Font);
 
         m_FontCollection = FontCollectionCreate();
         FontResult r = FontCollectionAddFont(m_FontCollection, m_Font);
@@ -62,6 +52,23 @@ protected:
     {
         FontCollectionDestroy(m_FontCollection);
         FontDestroy(m_Font);
+    }
+
+    void LoadFont(const char* path, HFont* out)
+    {
+        char buffer[512];
+        const char* host_path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), path);
+        
+        HFont font = FontLoadFromPath(host_path);
+        ASSERT_NE((HFont)0, font);
+
+        const char* font_path = FontGetPath(font);
+        ASSERT_STREQ(path, font_path);
+
+        uint32_t path_hash = dmHashString32(path);
+        ASSERT_EQ(path_hash, FontGetPathHash(font));
+
+        *out = font;
     }
 };
 
@@ -180,6 +187,37 @@ TEST_F(FontTest, LayoutSingleLine)
     ASSERT_EQ(1u, layout->m_Lines.Size());
 
     TextLayoutFree(layout);
+}
+
+// See https://github.com/defold/defold/issues/11766
+TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
+{
+    HFont font;
+    LoadFont("src/test/vera_mo_bd_atoz.ttf", &font);
+    
+    HFontCollection fontCollection = FontCollectionCreate();
+    FontResult fr = FontCollectionAddFont(fontCollection, font);
+    ASSERT_EQ(FONT_RESULT_OK, fr);
+
+    dmArray<uint32_t> codepoints;
+
+    const char* original_text = "HELLO WORLD!";
+    TextToCodePoints(original_text, codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0;
+    settings.m_Size = 28.0f;
+
+    HTextLayout layout = 0;
+    TextResult tr = TestLayout(fontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, tr);
+    TextLine& line = layout->m_Lines[0];
+    ASSERT_NE(0.0, line.m_Width);
+
+    FontCollectionDestroy(fontCollection);
+    TextLayoutFree(layout);
+    FontDestroy(font);
 }
 
 TEST_F(FontTest, LayoutEmptyString)
@@ -372,7 +410,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
-    float line_height = layout->m_Height;
+    float layout_line_height = layout->m_Height;
     TextLayoutFree(layout);
 
     // Measure tracking impact as a width delta between two adjacent glyphs.
@@ -382,9 +420,6 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
     float width_no_tracking = layout->m_Width;
-#if !defined(FONT_USE_SKRIBIDI)
-    float first_advance = layout->m_Glyphs[0].m_Advance;
-#endif
     TextLayoutFree(layout);
 
     float tracking_value = 0.25f;
@@ -395,19 +430,17 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     float width_tracking = layout->m_Width;
     TextLayoutFree(layout);
 
-    // Legacy tracking scales by line height and is quantized to integer pixel steps.
-    // Skribidi scales by font size in pixels.
+    // Legacy tracking scales by line height. Skribidi scales by font size in pixels.
     float expected_tracking = 0.0f;
 #if defined(FONT_USE_SKRIBIDI)
     // Skribidi interprets tracking in pixels based on font size.
     expected_tracking = tracking_value * settings.m_Size;
 #else
-    // Legacy uses line height (font metrics scaled by size) for tracking.
     float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
-    float raw_tracking = tracking_value * line_height * scale;
-    uint32_t advance_px = (uint32_t)first_advance;
-    uint32_t advance_plus_tracking_px = (uint32_t)(first_advance + raw_tracking);
-    expected_tracking = (float)(advance_plus_tracking_px - advance_px);
+    uint32_t ascent = (uint32_t)FontGetAscent(m_Font, 1.0f);
+    uint32_t descent = (uint32_t)FontGetDescent(m_Font, 1.0f);
+    float tracking_line_height = (ascent + descent) * scale;
+    expected_tracking = tracking_value * tracking_line_height;
 #endif
 
     const float epsilon = 0.05f;
@@ -440,11 +473,132 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     TextLayoutFree(layout);
 
     // Leading should add one extra line height for the entire layout.
-    float expected_leading_delta = line_height;
+    float expected_leading_delta = layout_line_height;
     float height_leading_delta = height_leading_2 - height_leading_1;
     ASSERT_NEAR(expected_leading_delta, height_leading_delta, epsilon);
 }
 
+TEST_F(FontTest, FontTracking)
+{
+    const char text[] = "test with many characters";
+    const float spacing_epsilon = 0.01f;
+    const float width_epsilon = 0.02f;
+
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints(text, codepoints);
+    ASSERT_GT(codepoints.Size(), 1u);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0.0f;
+    settings.m_Size = 28.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+
+    HTextLayout layout = 0;
+
+    // Match the legacy tracking unit:
+    // tracking_px = tracking * ((uint32_t)ascent + (uint32_t)descent) * scale
+    float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    uint32_t ascent = (uint32_t)FontGetAscent(m_Font, 1.0f);
+    uint32_t descent = (uint32_t)FontGetDescent(m_Font, 1.0f);
+    const float line_height = (ascent + descent) * scale;
+    ASSERT_GT(line_height, 0.0f);
+
+    const uint32_t max_glyphs = 256;
+    ASSERT_LE(codepoints.Size(), max_glyphs);
+    const uint32_t tracking_steps = 11; // -0.05 .. 0.05 in 0.01 increments
+
+    float baseline_spacing[max_glyphs];
+    float baseline_prev_advance[max_glyphs];
+    uint32_t baseline_tracking_pair_count = 0;
+    for (uint32_t i = 0; i < max_glyphs; ++i)
+    {
+        baseline_spacing[i] = 0.0f;
+        baseline_prev_advance[i] = 0.0f;
+    }
+
+    float full_width_at_zero = 0.0f;
+    uint32_t baseline_glyph_count = 0;
+
+    // Baseline pass: capture spacing between consecutive glyph pen positions at tracking=0.
+    {
+        TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+        ASSERT_EQ(TEXT_RESULT_OK, r);
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_GT(layout->m_Glyphs.Size(), 1u);
+
+        baseline_glyph_count = layout->m_Glyphs.Size();
+        full_width_at_zero = layout->m_Width;
+
+        for (uint32_t i = 0; i < baseline_glyph_count; ++i)
+        {
+            TextGlyph& glyph = layout->m_Glyphs[i];
+
+            if (i > 0)
+            {
+                TextGlyph& prev_glyph = layout->m_Glyphs[i - 1];
+                baseline_spacing[i] = glyph.m_X - prev_glyph.m_X;
+                baseline_prev_advance[i] = prev_glyph.m_Advance;
+                if (baseline_prev_advance[i] > 0.0f)
+                    ++baseline_tracking_pair_count;
+            }
+        }
+
+        TextLayoutFree(layout);
+        layout = 0;
+    }
+
+    // Sweep tracking values and verify adjacent glyph spacing and total width progression.
+    for (uint32_t step = 0; step < tracking_steps; ++step)
+    {
+        if (step == 5) // tracking == 0.0f
+            continue;
+
+        const float tracking = -0.05f + step * 0.01f;
+        float tracking_pixels = 0.0f;
+#if defined(FONT_USE_SKRIBIDI)
+        tracking_pixels = tracking * settings.m_Size;
+#else
+        tracking_pixels = tracking * line_height;
+#endif
+        settings.m_Tracking = tracking;
+
+        TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+        ASSERT_EQ(TEXT_RESULT_OK, r);
+        ASSERT_NE((HTextLayout)0, layout);
+        ASSERT_EQ(baseline_glyph_count, layout->m_Glyphs.Size());
+
+        for (uint32_t i = 1; i < layout->m_Glyphs.Size(); ++i)
+        {
+            TextGlyph& prev_glyph = layout->m_Glyphs[i - 1];
+            TextGlyph& glyph = layout->m_Glyphs[i];
+
+            float actual_spacing = glyph.m_X - prev_glyph.m_X;
+            bool has_prev_advance = true;
+#if !defined(FONT_USE_SKRIBIDI)
+            has_prev_advance = baseline_prev_advance[i] > 0.0f;
+#endif
+            float expected_spacing = has_prev_advance ? (baseline_spacing[i] + tracking_pixels) : baseline_spacing[i];
+            ASSERT_NEAR(expected_spacing, actual_spacing, spacing_epsilon);
+        }
+
+        float expected_width = 0.0f;
+#if defined(FONT_USE_SKRIBIDI)
+        // Skribidi spacing applies to all glyphs in the run; for positive tracking
+        // the layout code compensates one slot in the final width.
+        expected_width = full_width_at_zero + baseline_glyph_count * tracking_pixels;
+        if (tracking > 0.0f)
+            expected_width -= tracking_pixels;
+#else
+        expected_width = full_width_at_zero + baseline_tracking_pair_count * tracking_pixels;
+#endif
+        ASSERT_NEAR(expected_width, layout->m_Width, width_epsilon);
+
+        TextLayoutFree(layout);
+        layout = 0;
+    }
+}
 
 #if !defined(FONT_USE_SKRIBIDI) && defined(FOO)
 static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_step, dmArray<uint32_t>& codepoints)
@@ -745,11 +899,12 @@ TEST_F(FontTest, Layout)
 #if defined(FONT_USE_SKRIBIDI)
 TEST_F(FontTest, TextArabic)
 {
-    char buffer[512];
-    const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/NotoSansArabic-Regular.ttf");
+    HFont font;
+    LoadFont("src/test/NotoSansArabic-Regular.ttf", &font);
 
-    HFont font = FontLoadFromPath(path);
-    ASSERT_NE((HFont)0, font);
+    HFontCollection fontCollection = FontCollectionCreate();
+    FontResult fr = FontCollectionAddFont(fontCollection, font);
+    ASSERT_EQ(FONT_RESULT_OK, fr);
 
     dmArray<uint32_t> codepoints;
     TextToCodePoints(g_TextArabic, codepoints);
@@ -761,8 +916,8 @@ TEST_F(FontTest, TextArabic)
 
     HTextLayout layout = 0;
 
-    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
-    ASSERT_EQ(TEXT_RESULT_OK, r);
+    TextResult tr = TestLayout(fontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, tr);
     ASSERT_NE((TextLayout*)0, layout);
     DebugPrintLayout(layout);
     ASSERT_EQ(1u, layout->m_Lines.Size());
@@ -781,6 +936,7 @@ TEST_F(FontTest, TextArabic)
 
     DebugPrintLayout(layout);
 
+    FontCollectionDestroy(fontCollection);
     TextLayoutFree(layout);
     FontDestroy(font);
 }

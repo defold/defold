@@ -73,6 +73,12 @@
             platform :formats
             sanitize-texture-profile-format))))))
 
+(def ^:private texture-format-not-supported-by-texture-compressor-message
+  (localization/message "error.texture-profiles.format-not-supported-by-texture-compressor"))
+
+(def ^:private texture-preset-not-supported-by-texture-compressor-message
+  (localization/message "error.texture-profiles.preset-not-supported-by-texture-compressor"))
+
 (defn- texture-profiles-errors-fn [node-id resource texture-profiles]
   (let [all-format-entries (->> (:profiles texture-profiles)
                                 (mapcat :platforms)
@@ -85,13 +91,14 @@
                                    (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
                   format-is-supported? (.supportsTextureFormat texture-compressor texture-format)
                   preset-is-supported? (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)]
-              [(when-not format-is-supported? (g/->error node-id :pb :fatal resource "Texture format is not supported by the texture compressor"))
-               (when-not preset-is-supported? (g/->error node-id :pb :fatal resource "Texture preset is not supported by the texture compressor"))]))
+              [(when-not format-is-supported? (g/->error node-id :pb :fatal resource texture-format-not-supported-by-texture-compressor-message))
+               (when-not preset-is-supported? (g/->error node-id :pb :fatal resource texture-preset-not-supported-by-texture-compressor-message))]))
           all-format-entries)))
 
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
                :icon-class :property
+               :category (localization/message "resource.category.project_settings")
                :pb-class Input$InputBinding
                :label (localization/message "resource.type.input-binding")
                :view-types [:cljfx-form-view :text]}
@@ -105,6 +112,7 @@
                :label (localization/message "resource.type.gamepads")
                :icon "icons/32/Icons_34-Gamepad.png"
                :icon-class :property
+               :category (localization/message "resource.category.project_settings")
                :pb-class Input$GamepadMaps
                :view-types [:cljfx-form-view :text]}
               {:ext "convexshape"
@@ -117,6 +125,7 @@
                :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
                :icon-class :property
+               :category (localization/message "resource.category.project_settings")
                :pb-class Graphics$TextureProfiles
                :pb-errors-fn texture-profiles-errors-fn
                :sanitize-fn sanitize-texture-profiles}])
@@ -174,6 +183,7 @@
         :load-fn (partial load-pb def)
         :icon (:icon def)
         :icon-class (:icon-class def)
+        :category (:category def)
         :view-types (:view-types def)
         :view-opts (:view-opts def)
         :sanitize-fn (:sanitize-fn def)

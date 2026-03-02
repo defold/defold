@@ -18,10 +18,10 @@
             [editor.geom :as geom]
             [editor.gl.vertex2 :as vtx]
             [editor.graphics.types :as graphics.types]
+            [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.types :as t]
-            [editor.util :as eutil]
             [editor.validation :as validation]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
@@ -182,10 +182,10 @@
     (when (not-every? (fn [^double val]
                         (<= min val max))
                       double-values)
-      (eutil/format* "'%s' attribute components must be between %.0f and %.0f"
-                     (:name attribute)
-                     min
-                     max))))
+      (localization/message "error.attribute-components-must-be-between"
+                            {"attribute" (:name attribute)
+                             "min" min
+                             "max" max}))))
 
 (defn validate-doubles [double-values attribute node-id prop-kw]
   (validation/prop-error :fatal node-id prop-kw doubles-outside-attribute-range-error-message double-values attribute))
@@ -407,8 +407,9 @@
      (catch IllegalArgumentException exception
        (let [{:keys [name semantic-type]} attribute
              default-bytes (default-attribute-bytes semantic-type data-type vector-type normalize)
-             exception-message (ex-message exception)
-             error-message (format "Vertex attribute '%s' - %s" name exception-message)]
+             error-message (localization/message "error.vertex-attribute"
+                                                 {"attribute" name
+                                                  "error" (ex-message exception)})]
          [default-bytes error-message])))))
 
 (defn attribute-info->build-target-attribute [attribute-info]
@@ -435,7 +436,7 @@
                     (graphics.types/attribute-info-with-reflection-info material-attribute-info shader-attribute-reflection-info)))
                 material-attribute-infos)]
 
-    (coll/transfer
+    (coll/into->
       [decorated-material-attribute-infos
        shader-attribute-reflection-infos]
       []

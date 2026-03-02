@@ -71,7 +71,7 @@ namespace dmGameSystem
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
-    extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
+    extern dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data);
 
     static dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
     static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
@@ -236,7 +236,9 @@ namespace dmGameSystem
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index         = options ? options->m_Index : 0;
+
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex((dmGameObject::HPropertyOptions) options, 0, &value_index);
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
@@ -306,7 +308,8 @@ namespace dmGameSystem
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index         = options ? options->m_Index : 0;
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex((dmGameObject::HPropertyOptions) options, 0, &value_index);
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
@@ -359,10 +362,11 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+        gui_world->m_ParticleAttributeInfos.m_Infos = new dmGraphics::VertexAttributeInfo[4];
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
 
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
@@ -376,6 +380,7 @@ namespace dmGameSystem
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
+        gui_world->m_ParticleAttributeInfos.m_StructSize   = sizeof(dmGraphics::VertexAttributeInfos);
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -473,6 +478,7 @@ namespace dmGameSystem
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
         delete[] gui_world->m_BoxVertexStreamDeclaration;
+        delete[] gui_world->m_ParticleAttributeInfos.m_Infos;
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -2655,7 +2661,7 @@ namespace dmGameSystem
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
-        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
+        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchResourcesCallback);
         const uint32_t count = gui_world->m_Components.Size();
         DM_PROPERTY_ADD_U32(rmtp_Gui, count);
         for (uint32_t i = 0; i < count; ++i)
@@ -2930,31 +2936,34 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIALS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
 
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_FONTS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_TEXTURES)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, key), out_value);
         }
 
         CompGuiPropertyGetterFn* getter_fn = g_CompGuiPropertyGetters.Get(set_property);
@@ -2975,7 +2984,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_FONTS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -2984,10 +2994,10 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font_resource);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font_resource, params.m_Value.m_Hash);
+                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, key, (void*)font_resource, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
+                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(key), gui_component->m_Resource->m_Path);
                     dmResource::Release(factory, font_resource);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
@@ -3000,7 +3010,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_TEXTURES)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -3009,12 +3020,12 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
                                                             texture_source->m_Texture->m_OriginalWidth,
                                                             texture_source->m_Texture->m_OriginalHeight);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
+                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(key),  r);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
                 if(gui_component->m_ResourcePropertyPointers.Full())
@@ -3027,7 +3038,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIALS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -3038,11 +3050,11 @@ namespace dmGameSystem
 
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, params.m_Options.m_Key, material_res);
+                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, key, material_res);
 
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key), r);
+                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(key), r);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
 

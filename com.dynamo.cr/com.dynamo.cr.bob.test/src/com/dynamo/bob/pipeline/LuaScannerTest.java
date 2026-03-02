@@ -190,6 +190,14 @@ public class LuaScannerTest {
     }
 
     @Test
+    public void testPropsFail() throws Exception {
+        List<Property> properties = getPropertiesFromFile("test_props_fail.lua");
+
+        assertEquals(1, properties.size());
+        assertEquals(properties.getFirst().status(), Status.INVALID_VALUE);
+    }
+
+    @Test
     public void testPropsHash() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_hash.lua");
 

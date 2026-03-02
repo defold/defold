@@ -69,7 +69,6 @@
                      [com.cognitect.aws/endpoints "1.1.12.478"]
                      [com.cognitect.aws/s3 "847.2.1387.0"]
 
-
                      [org.luaj/luaj-jse "3.0.1"]
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
@@ -159,6 +158,7 @@
                       ;; used in editor.scene$read_to_buffered_image
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
                       "--enable-native-access=ALL-UNNAMED"
+                      "--sun-misc-unsafe-memory-access=allow"
                       "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
 
@@ -170,7 +170,23 @@
 
   ;; Skip native extensions tests:
   ;; lein test :no-native-extensions
-  :test-selectors {:no-native-extensions (complement :native-extensions)}
+  ;;
+  ;; Skip specific tests or test namespaces:
+  ;; lein test :skip integration.lsp-test integration.library-test/fetch-libraries
+  :test-selectors {:no-native-extensions (complement :native-extensions)
+                   :skip [(fn [test-ns-symbol & symbol-args]
+                            ;; Returning false from this first predicate allows
+                            ;; the test runner to completely skip loading a
+                            ;; particular test namespace.
+                            (not-any? #(= test-ns-symbol %) symbol-args))
+                          (fn [test-var-metadata & symbol-args]
+                            ;; We've already skipped over entire namespaces by
+                            ;; this point, so all that remains is to skip any
+                            ;; specific tests that match the listed symbol args.
+                            (let [test-ns-name (-> test-var-metadata :ns ns-name name)
+                                  test-name (-> test-var-metadata :name name)
+                                  test-var-symbol (symbol test-ns-name test-name)]
+                              (not-any? #(= test-var-symbol %) symbol-args)))]}
 
   :prep-tasks [["with-profile" "antlr" "run" "-m" "org.antlr.v4.Tool"
                 "LSPSnippet.g4"
@@ -240,6 +256,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-ec-scopes {:jvm-opts ["-Ddefold.graph.strict-evaluation-context-scopes=log-once"]}
                       :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
@@ -293,11 +310,11 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.0.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.1.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.3.0.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.5.0.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.6.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

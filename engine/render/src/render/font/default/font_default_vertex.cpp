@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>                           // for sqrtf
 #include <stdint.h>                         // for uint32_t, int16_t
 #include <dlib/align.h>                     // for DM_ALIGNED
 #include <dlib/log.h>                       // for dmLog*
@@ -333,7 +332,7 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
 }
 
 
-uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
+uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
 {
     DM_PROFILE(__FUNCTION__);
     (void)backend;
@@ -348,19 +347,11 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
     const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
-    // No support for non-uniform scale with SDF so just peek at the first
-    // row to extract scale factor. The purpose of this scaling is to have
-    // world space distances in the computation, for good 'anti aliasing' no matter
-    // what scale is being rendered in.
-    const Vector4 r0 = te.m_Transform.getRow(0);
     const float sdf_edge_value = 0.75f;
-    float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
     float sdf_outline = font_map->m_SdfOutline;
     float sdf_shadow  = font_map->m_SdfShadow;
     // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
-
-    float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
-
+    float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
     // if it's generated at runtime, the glyph width is measured using the metrics from the glyphs in the font
     // and not generated from the visual bounds (see Fontc.java)
     bool is_metrics_ttf = font_map->m_IsDynamic;

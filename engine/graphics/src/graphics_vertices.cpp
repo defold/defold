@@ -12,9 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "graphics.h"
-
 #include <dlib/math.h>
+
+#include "graphics.h"
 
 namespace dmGraphics
 {
@@ -54,6 +54,12 @@ namespace dmGraphics
     {
         *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
+    }
+
+    void GetAttributeValues(const dmGraphics::VertexAttributeInfo& info, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        *data_ptr  = info.m_ValuePtr;
+        *data_size = info.m_ValuePtr ? (info.m_ElementCount * dmGraphics::DataTypeToByteWidth(info.m_DataType)) : 0;
     }
 
     uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type)
@@ -374,6 +380,8 @@ namespace dmGraphics
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NONE:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
                 data->m_ValuePtr     = info.m_ValuePtr;
                 data->m_VectorType   = info.m_ValueVectorType;
                 data->m_DataType     = info.m_DataType;

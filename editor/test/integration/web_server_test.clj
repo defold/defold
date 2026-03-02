@@ -37,7 +37,8 @@
             [util.coll :as coll]
             [util.eduction :as e]
             [util.http-client :as http]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
@@ -77,7 +78,7 @@
   ;; file->path
   (is (= {:status 200
           :headers {"content-type" "text/plain"}
-          :body (fs/path "project.clj")}
+          :body (path/of "project.clj")}
          (http-server/response 200 (io/file "project.clj"))))
   ;; resource: jar file url
   (is (= {:status 200
@@ -93,7 +94,7 @@
     ;; editor resources: file->path
     (is (= {:status 200
             :headers {"content-type" "text/plain"}
-            :body (fs/path (workspace/project-directory workspace) "game.project")}
+            :body (path/of (workspace/project-directory workspace) "game.project")}
            (http-server/response 200 (workspace/find-resource workspace "/game.project"))))
     ;; editor resources: zip as is
     (is (= {:status 200
@@ -113,7 +114,7 @@
 
 (deftest response-write-test
   ;; file
-  (let [project-clj-size (fs/path-size (fs/path "project.clj"))]
+  (let [project-clj-size (path/byte-size "project.clj")]
     (is (= {:status 200
             :headers {"content-length" (str project-clj-size)
                       "content-type" "text/plain"}
@@ -260,9 +261,9 @@
                               {:workspace workspace
                                :changes-view workspace}
                               (reify handler/SelectionProvider
-                                (selection [_])
-                                (succeeding-selection [_])
-                                (alt-selection [_]))))
+                                (selection [_this _evaluation-context])
+                                (succeeding-selection [_this _evaluation-context])
+                                (alt-selection [_this _evaluation-context]))))
           view-graph (g/node-id->graph-id app-view)
           console (g/make-node! view-graph console/ConsoleNode)
           console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
@@ -274,7 +275,7 @@
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
-                                             (command-requests/router root progress/null-render-progress!)])))]
+                                             (command-requests/router root test-util/localization progress/null-render-progress!)])))]
           (let [url (http-server/local-url server)]
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))

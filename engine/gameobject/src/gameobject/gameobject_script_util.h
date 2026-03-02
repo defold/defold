@@ -16,6 +16,7 @@
 #define DM_GAMEOBJECT_SCRIPT_UTIL_H
 
 #include <gameobject/gameobject.h>
+#include <gameobject/gameobject_props.h>
 
 namespace dmLuaDDF
 {
@@ -24,10 +25,17 @@ namespace dmLuaDDF
 
 namespace dmGameObject
 {
+    struct LuaToPropertyOptionsResult
+    {
+        dmGameObject::PropertyOptions m_Options;
+        uint8_t                       m_IndexRequested : 1;
+        uint8_t                       m_KeysRequested  : 1;
+    };
+
     bool   RegisterSubModules(dmResource::HFactory factory, dmScript::HContext script_context, dmLuaDDF::LuaModule* lua_module);
     Result LuaLoad(dmResource::HFactory factory, dmScript::HContext context, dmLuaDDF::LuaModule* module);
-    int    LuaToPropertyOptions(lua_State* L, int index, PropertyOptions* property_options, dmhash_t property_id, bool* index_requested);
-    int    CheckGetPropertyResult(lua_State* L, const char* module_name, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested);
+    int    LuaToPropertyOptions(lua_State* L, int index, LuaToPropertyOptionsResult* result);
+    int    CheckGetPropertyResult(lua_State* L, const char* module_name, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested, bool keys_requested);
     int    HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options);
 
     static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {

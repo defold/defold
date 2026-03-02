@@ -219,7 +219,7 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
-waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
+waflib.Task.task_factory('shaderbuilder', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -684,7 +684,7 @@ def render_script_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-waflib.Task.task_factory('atlas', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.AtlasBuilder ${SRC} ${TGT} ${CONTENT_ROOT}',
+waflib.Task.task_factory('atlas', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.AtlasBuilder ${SRC} ${TGT} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -704,7 +704,7 @@ def tileset_file(self, node):
 
     atlas.set_outputs([texture_set, texture])
 
-waflib.Task.task_factory('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
+waflib.Task.task_factory('tileset', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -721,7 +721,7 @@ def tileset_file(self, node):
     tileset.set_outputs(out)
 
 
-waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${SPC} ${TGT}',
+waflib.Task.task_factory('compute', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${SPC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',

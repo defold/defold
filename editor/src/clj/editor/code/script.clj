@@ -204,35 +204,40 @@
                    :label (localization/message "resource.type.script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label (localization/message "resource.type.render-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :tags #{:debuggable}}
                   {:ext "gui_script"
                    :label (localization/message "resource.type.gui-script")
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :tags #{:debuggable}}
                   {:ext "lua"
                    :label (localization/message "resource.type.lua")
                    :icon "icons/32/Icons_11-Script-general.png"
                    :icon-class :script
+                   :category (localization/message "resource.category.scripts")
                    :annotations true
                    :tags #{:debuggable}}])
 
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
-(g/defnk produce-script-property-entries [_this _node-id deleted? name resource-kind type value]
+(g/defnk produce-script-property-entries [^:unsafe _evaluation-context _this _node-id deleted? name resource-kind type value]
   (when-not deleted?
-    (let [project (project/get-project _node-id)
-          workspace (project/workspace project)
+    (let [basis (:basis _evaluation-context)
+          project (project/get-project basis _node-id)
+          workspace (project/workspace project _evaluation-context)
           prop-kw (properties/user-name->key name)
           prop-type (script-compilation/script-property-type->property-type type)
-          edit-type (script-compilation/script-property-edit-type workspace prop-type resource-kind type)
+          edit-type (script-compilation/script-property-edit-type workspace prop-type resource-kind type _evaluation-context)
           error (script-compilation/validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-compilation/script-property-type->go-prop-type type)
           overridden? (g/node-property-overridden? _this :value)
@@ -296,7 +301,7 @@
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project self)]
+                         project (project/get-project basis self)]
                      (concat
                        (g/disconnect-sources basis self :resource)
                        (g/disconnect-sources basis self :resource-build-targets)
@@ -400,15 +405,18 @@
               (update :properties into (map (partial lift-error _node-id)) script-property-entries)
               (update :display-order into (map prop->key) script-properties))))
 
-(g/defnk produce-build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
-  (script-compilation/build-targets
-    _node-id
-    resource
-    lines
-    lua-preprocessors
-    script-properties
-    original-resource-property-build-targets
-    (partial project/get-resource-node (project/get-project _node-id))))
+(g/defnk produce-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
+  (let [basis (:basis _evaluation-context)
+        project (project/get-project basis _node-id)]
+    (script-compilation/build-targets
+      _node-id
+      resource
+      lines
+      lua-preprocessors
+      script-properties
+      original-resource-property-build-targets
+      #(project/get-resource-node project % _evaluation-context)
+      _evaluation-context)))
 
 (defn region->breakpoint [resource region]
   (let [condition (:condition region)]
@@ -419,7 +427,7 @@
       (assoc :condition condition))))
 
 (g/defnk produce-breakpoints [resource regions]
-  (coll/transfer regions []
+  (coll/into-> regions []
     (filter data/breakpoint-region?)
     (map (partial region->breakpoint resource))))
 
@@ -445,7 +453,7 @@
                          lsp (lsp/get-node-lsp basis self)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
-                                    (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader))
+                                    (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader evaluation-context))
                          script-properties (script-compilation/lua-info->script-properties lua-info)]
                      (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (g/set-property self :script-properties script-properties)))))
@@ -455,7 +463,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project self)]
+                         project (project/get-project basis self)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)
                        (g/disconnect-sources basis self :original-resource-property-build-targets)

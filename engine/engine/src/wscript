@@ -39,6 +39,8 @@ def build(bld):
         source.append('nx64/main_nx64.cpp nx64/engine_nx64.cpp')
     elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         source.append('engine_ps4.cpp')
+    elif bld.env.PLATFORM in ('x86_64-xbone'):
+        source.append('engine_xbox.cpp')
 
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
@@ -80,7 +82,7 @@ def build(bld):
     # Add stb_vorbis and/or tremolo depending on platform
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web', 'wasm_pthread-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
-    elif bld.env['PLATFORM'] in ('x86_64-ps4','x86_64-ps5',):
+    elif bld.env['PLATFORM'] in ['x86_64-ps4','x86_64-ps5','x86_64-xbone']:
         pass # dont't add tremolo
     else:
         exported_symbols.append('AudioDecoderTremolo')
@@ -98,7 +100,7 @@ def build(bld):
         additional_libs.append('UNWIND')
         additional_libs.append('CPP_RUNTIME')
 
-    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+    if bld.env['PLATFORM'] in ['win32', 'x86_64-win32', 'arm64-nx64', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios', 'x86_64-xbone']:
         sound_lib  = 'SOUND'
     else:
         sound_lib = 'SOUND OPENAL'
@@ -128,11 +130,11 @@ def build(bld):
     profile_null_symbols = ['ProfilerExt'] # for dmProfiler::SetUpdateFrequency
     profile_symbols = ['ProfilerExt', 'ProfilerBasic']
     profile_lib = ['PROFILE', 'PROFILEREXT']
-    if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         profile_lib = ['PROFILE', 'PROFILEREXT']
 
     # remotery isn't supported on all platforms
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         profile_lib += ['PROFILER_REMOTERY']
         profile_symbols += ['ProfilerRemotery']
 
@@ -141,7 +143,7 @@ def build(bld):
         profile_symbols += ['ProfilerJS']
         web_libs += ['library_profile.js']
 
-    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
+    if bld.env['PLATFORM'] in ('x86_64-xbone', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')
 
     platform_lib = [waf_dynamo.platform_get_platform_lib(bld.env.PLATFORM)]
@@ -203,7 +205,7 @@ def build(bld):
     if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
-    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
+    if bld.env['PLATFORM'] in ('x86_64-xbone', 'x86_64-ps4', 'x86_64-ps5'):
         additional_libs.append('APP')
 
     additional_libs.extend(font_lib)

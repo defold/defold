@@ -268,7 +268,12 @@ public class Shaderc {
         public byte[] data;
         public String lastError;
         public HLSLResourceMapping[] hLSLResourceMappings;
+        public byte[] hLSLRootSignature;
         public byte hLSLNumWorkGroupsId = 0;
+    };
+    public static class HLSLRootSignature {
+        public String lastError;
+        public byte[] hLSLRootSignature;
     };
 }
 

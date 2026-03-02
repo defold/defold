@@ -38,6 +38,7 @@
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 #include "graphics_opengl_private.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_MACOS)
     // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -394,7 +395,7 @@ static void LogFrameBufferError(GLenum status)
         ChooseEAGLView() {
             // Let's us choose the CAEAGLLayer
             // Note: We don't need a valid window here (and we don't have access to one)
-            dmPlatform::SetiOSViewTypeOpenGL((dmPlatform::HWindow) 0);
+            dmPlatform::SetiOSViewTypeOpenGL((HWindow) 0);
         }
     } g_ChooseEAGLView;
     #endif
@@ -535,7 +536,7 @@ static void LogFrameBufferError(GLenum status)
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
-        m_JobThread               = params.m_JobThread;
+        m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -543,7 +544,7 @@ static void LogFrameBufferError(GLenum status)
         if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
             m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
 
         // Formats supported on all platforms
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
@@ -660,7 +661,7 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
-    static int WorkerAcquireContextRunner(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* _acquire_flag)
+    static int WorkerAcquireContextRunner(HJobContext, HJob job, void* _context, void* _acquire_flag)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
@@ -683,24 +684,24 @@ static void LogFrameBufferError(GLenum status)
     {
         if (!context->m_AsyncProcessingSupport)
             return;
-        if (!context->m_JobThread)
+        if (!context->m_JobContext)
             return;
 
         // TODO: If we have multiple workers, we need to either tag one of them as a graphics-only worker,
         //       or create multiple aux contexts and do an acquire for each of them.
         //       But since we only have one worker thread right now, we can leave that for when we have more.
-        assert(dmJobThread::GetWorkerCount(context->m_JobThread) == 1);
+        assert(JobSystemGetWorkerCount(context->m_JobContext) == 1);
 
         dmAtomicStore32(&context->m_AuxContextJobPending, 1);
 
-        dmJobThread::Job job = {0};
+        Job job = {0};
         job.m_Process = WorkerAcquireContextRunner;
         job.m_Callback = 0;
         job.m_Context = (void*) context;
         job.m_Data = (void*) (uintptr_t) acquire_flag;
 
-        dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-        dmJobThread::PushJob(context->m_JobThread, hjob);
+        HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+        JobSystemPushJob(context->m_JobContext, hjob);
 
         // Block until the job is done
         while(dmAtomicGet32(&context->m_AuxContextJobPending))
@@ -825,7 +826,7 @@ static void LogFrameBufferError(GLenum status)
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        dmPlatform::HWindow window = GetWindow(context);
+        HWindow window = GetWindow(context);
 
         /*
             Check in order
@@ -1371,7 +1372,7 @@ static void LogFrameBufferError(GLenum status)
                     if (isPagedASTCSupported)
                         context->m_ASTCArrayTextureSupport = 1;
                 }
-                else 
+                else
                 {
                     switch (pCompressedFormats[i])
                     {
@@ -1513,7 +1514,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLPrintDeviceInfo(context);
         }
 
-        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
+        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_AUX_CONTEXT);
         if (context->m_AsyncProcessingSupport)
         {
             AcquireAuxContextOnThread(context, true);
@@ -1523,7 +1524,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_GLHandlesData.m_Mutex = dmMutex::New();
             context->m_AssetHandleContainerMutex = dmMutex::New();
 
-            if (context->m_JobThread == 0x0)
+            if (context->m_JobContext == 0x0)
             {
                 dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
@@ -1556,7 +1557,7 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static dmPlatform::HWindow OpenGLGetWindow(HContext _context)
+    static HWindow OpenGLGetWindow(HContext _context)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1567,7 +1568,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             PostDeleteTextures(context, true);
 
@@ -1626,7 +1627,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             context->m_Width  = width;
             context->m_Height = height;
@@ -1638,7 +1639,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
@@ -1711,6 +1712,90 @@ static void LogFrameBufferError(GLenum status)
         };
 
         return buffer_usage_lut[buffer_usage];
+    }
+
+    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        if (!context->m_IsGles3Version)
+        {
+            dmLogWarning("Uniform buffers are not supported on this OpenGL version.");
+            return 0;
+        }
+
+        OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        GLuint buffer_handle = 0;
+        glGenBuffers(1, &buffer_handle);
+        ubo->m_Id = AddNewGLHandle(context, buffer_handle);
+        CHECK_GL_ERROR;
+
+        return (HUniformBuffer) ubo;
+    }
+
+    static void OpenGLSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+
+        GLuint handle = GetGLHandle(context, ubo->m_Id);
+
+        glBindBuffer(GL_UNIFORM_BUFFER, handle);
+        if (offset != 0)
+        {
+            glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+        }
+        glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
+    static void OpenGLDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
+
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        {
+            return;
+        }
+
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+        }
+
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+    }
+
+    static void OpenGLEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
+
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            OpenGLDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
+
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void OpenGLDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
+
+        OpenGLDisableUniformBuffer(_context, uniform_buffer);
+        delete ubo;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1890,8 +1975,10 @@ static void LogFrameBufferError(GLenum status)
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
         vd->m_Stride = 0;
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; i++)
+        for (uint32_t i = 0; i < stream_count; i++)
         {
             vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
             vd->m_Streams[i].m_Location  = -1;
@@ -1902,7 +1989,7 @@ static void LogFrameBufferError(GLenum status)
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        vd->m_StreamCount = stream_count;
         vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
@@ -2061,15 +2148,41 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLProgram* program = context->m_CurrentProgram;
 
-        if (context->m_IsGles3Version)
-        {
-            for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
-            {
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[i];
+        if (!context->m_IsGles3Version)
+            return;
 
+        for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
+            OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+
+            if (bound_ubo)
+            {
+                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+                UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+
+                if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                {
+                    dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                        bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                        pgm_res.m_Res->m_Name,
+                        pgm_layout->m_Hash);
+
+                    // Fallback to the scratch buffer uniform setup
+                    bound_ubo = 0;
+                }
+            }
+
+            if (bound_ubo)
+            {
+                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
+                CHECK_GL_ERROR;
+            }
+            else
+            {
                 if (ubo.m_ActiveUniforms > 0)
                 {
-                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, GetGLHandle(context, ubo.m_Id));
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
                     CHECK_GL_ERROR;
 
                     if (ubo.m_Dirty > 0)
@@ -2304,77 +2417,75 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
-    static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         uint32_t ubo_binding = 0;
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLUniformBuffer) * num_ubos);
+        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
-        for (uint32_t i = 0; i < num_shaders; ++i)
+        uint32_t num_uniform_buffers = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
+        for (uint32_t j = 0; j < num_uniform_buffers; ++j)
         {
-            for (uint32_t j = 0; j < program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
+            ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
+
+            GLuint program_handle = GetGLHandle(context, program->m_Id);
+            GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
+            CHECK_GL_ERROR;
+
+            if (blockIndex == GL_INVALID_INDEX)
             {
-                ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
-                GLuint program_handle = GetGLHandle(context, program->m_Id);
-
-                GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
-                CHECK_GL_ERROR;
-
-                if (blockIndex == GL_INVALID_INDEX)
-                {
-                    continue;
-                }
-
-                GLint binding;
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_BINDING, &binding);
-                CHECK_GL_ERROR;
-
-                GLint blockSize;
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
-                CHECK_GL_ERROR;
-
-                GLint activeUniforms;
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
-                CHECK_GL_ERROR;
-
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
-
-                ubo.m_Indices.SetCapacity(activeUniforms);
-                ubo.m_Indices.SetSize(activeUniforms);
-                ubo.m_Offsets.SetCapacity(activeUniforms);
-                ubo.m_Offsets.SetSize(activeUniforms);
-                ubo.m_Binding        = ubo_binding++; // binding;
-                ubo.m_BlockSize      = blockSize;
-                ubo.m_ActiveUniforms = activeUniforms;
-                ubo.m_BlockMemory    = new uint8_t[ubo.m_BlockSize];
-                memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
-
-                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
-                CHECK_GL_ERROR;
-                glGetActiveUniformsiv(program_handle, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
-                CHECK_GL_ERROR;
-
-                // Create a handle for the UBO and link it to the program
-                GLuint buffer_handle = 0;
-                glGenBuffers(1, &buffer_handle);
-                ubo.m_Id = AddNewGLHandle(context, buffer_handle);
-                CHECK_GL_ERROR;
-                glBindBuffer(GL_UNIFORM_BUFFER, buffer_handle);
-                CHECK_GL_ERROR;
-
-                glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
-                CHECK_GL_ERROR;
-
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, buffer_handle);
-                CHECK_GL_ERROR;
-                glUniformBlockBinding(program_handle, blockIndex, ubo.m_Binding);
-                CHECK_GL_ERROR;
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
-                CHECK_GL_ERROR;
+                continue;
             }
+
+            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
+
+            GLint blockSize;
+            glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+            CHECK_GL_ERROR;
+
+            GLint activeUniforms;
+            glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
+            CHECK_GL_ERROR;
+
+            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
+            ubo.m_Indices.SetCapacity(activeUniforms);
+            ubo.m_Indices.SetSize(activeUniforms);
+            ubo.m_Offsets.SetCapacity(activeUniforms);
+            ubo.m_Offsets.SetSize(activeUniforms);
+            ubo.m_Layout          = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+            ubo.m_BindPoint       = ubo_binding++;
+            ubo.m_BlockSize       = blockSize;
+            ubo.m_ActiveUniforms  = activeUniforms;
+            ubo.m_ResourceBinding = res.m_Binding;
+            ubo.m_ResourceSet     = res.m_Set;
+            ubo.m_BlockMemory     = new uint8_t[ubo.m_BlockSize];
+            memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
+
+            glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
+            CHECK_GL_ERROR;
+            glGetActiveUniformsiv(program_handle, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
+            CHECK_GL_ERROR;
+
+            // Create a handle for the UBO and link it to the program
+            GLuint buffer_handle = 0;
+            glGenBuffers(1, &buffer_handle);
+            ubo.m_Id = AddNewGLHandle(context, buffer_handle);
+            CHECK_GL_ERROR;
+            glBindBuffer(GL_UNIFORM_BUFFER, buffer_handle);
+            CHECK_GL_ERROR;
+
+            glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+            CHECK_GL_ERROR;
+
+            glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, buffer_handle);
+            CHECK_GL_ERROR;
+            glUniformBlockBinding(program_handle, blockIndex, ubo.m_BindPoint);
+            CHECK_GL_ERROR;
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+            CHECK_GL_ERROR;
         }
     }
 
@@ -2560,7 +2671,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (context->m_IsGles3Version)
         {
-            BuildUniformBuffers(context, program, shaders, num_shaders);
+            BuildUniformBuffers(context, program);
         }
 
         char uniform_name_buffer[256];
@@ -2617,7 +2728,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (uniform_block_index != -1)
             {
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[uniform_block_index];
+                OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[uniform_block_index];
                 uint32_t uniform_member_index = 0;
 
                 for (int j = 0; j < ubo.m_Indices.Size(); ++j)
@@ -3113,7 +3224,7 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
+            OpenGLScratchUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count);
@@ -3135,7 +3246,7 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
+            OpenGLScratchUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count * 4);
@@ -3802,7 +3913,7 @@ static void LogFrameBufferError(GLenum status)
         delete tex;
     }
 
-    static int AsyncDeleteTextureProcess(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
+    static int AsyncDeleteTextureProcess(HJobContext, HJob job, void* _context, void* data)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DoDeleteTexture(context, (HTexture) data);
@@ -3815,14 +3926,14 @@ static void LogFrameBufferError(GLenum status)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncDeleteTextureProcess;
             job.m_Callback = 0;
             job.m_Context = (void*) context;
             job.m_Data = (void*) (uintptr_t) texture;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-            dmJobThread::PushJob(context->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(context->m_JobContext, hjob);
         }
         else
         {
@@ -4002,7 +4113,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
+    static int AsyncProcessCallback(HJobContext, HJob job, void* _context, void* data)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4030,7 +4141,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(HJobContext, HJob job, JobSystemStatus status, void* _context, void* data, int result)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4054,14 +4165,14 @@ static void LogFrameBufferError(GLenum status)
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncProcessCallback;
             job.m_Callback = AsyncCompleteCallback;
             job.m_Context = (void*) context;
             job.m_Data = (void*) (uintptr_t) param_array_index;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-            dmJobThread::PushJob(g_Context->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(g_Context->m_JobContext, hjob);
         }
         else
         {

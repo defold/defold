@@ -17,7 +17,7 @@
 
 namespace dmMutex
 {
-    /*# SDK Mutex API documentation
+    /*# Mutex API documentation
      *
      * API for platform independent mutex synchronization primitive.
      *

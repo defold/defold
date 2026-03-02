@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
@@ -492,6 +493,13 @@ public class ShaderCompilePipeline {
         }
 
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);
+    }
+
+    public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) {
+        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
+        Shaderc.ShaderCompileResult[] shaders_array = shaders.toArray(new Shaderc.ShaderCompileResult[0]);
+        Shaderc.HLSLRootSignature result = ShadercJni.HLSLMergeRootSignatures(shaders_array);
+        return result;
     }
 
     public SPIRVReflector getReflectionData(ShaderDesc.ShaderType shaderStage) {

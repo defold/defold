@@ -15,7 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_IOS_H
 #define DM_PLATFORM_WINDOW_IOS_H
 
-#include "platform_window.h"
+#include "window.hpp"
 
 #include <objc/objc.h>
 
@@ -25,7 +25,7 @@ namespace dmPlatform
     id   GetiOSUIWindow();
     id   GetiOSUIView();
     id   GetiOSEAGLContext();
-    bool GetSafeAreaiOS(HWindow window, SafeArea* out);
+    bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out);
 }
 
 #endif // DM_PLATFORM_WINDOW_IOS_H

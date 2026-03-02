@@ -1,0 +1,10 @@
+#! /usr/bin/env python
+
+import waflib
+
+def build(bld):
+    bld.program(features = 'c cprogram cxx',
+                includes = '. ..',
+                use = 'DLIB PROFILE SPIRV_CROSS shaderc',
+                target = 'shaderc_standalone',
+                source = ['shaderc_standalone.cpp'])

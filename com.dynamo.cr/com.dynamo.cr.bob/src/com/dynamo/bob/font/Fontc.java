@@ -308,9 +308,11 @@ public class Fontc {
                     characters.add((int) c);
                 }
             }
+
+            // remove duplicates AND sort (TreeSet is sorted)
+            Set<Integer> deDup = new TreeSet<Integer>(characters);
+            characters = new ArrayList<Integer>(deDup);
         }
-        Set<Integer> deDup = new TreeSet<Integer>(characters);
-        characters = new ArrayList<Integer>(deDup);
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
             outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);

@@ -20,14 +20,13 @@
 typedef struct Font* HFont;
 typedef struct FontCollection* HFontCollection;
 
-/*# SDK Text Layout API documentation
+/*# API for laying out complex text into format ready for display
  *
  * API for laying out complex text into format ready for display
  *
  * @document
  * @name TextLayout
- * @path engine/font/src/dmsdk/font/text_layout.h
- * @language C++
+ * @language C
  */
 
 /*#

@@ -20,6 +20,7 @@
 #include <dlib/hashtable.h>         // for dmHashTable32
 #include <dlib/log.h>               // for dmLogError, dmLogOnceError, dmLog...
 #include <dlib/profile.h>           // for DM_PROFILE, DM_PROPERTY_*
+#include <dlib/math.h>              // for dmMath::Max
 #include <dlib/zlib.h>              // for InflateBuffer
 #include <dmsdk/dlib/intersection.h>// for dmIntersection
 
@@ -132,6 +133,57 @@ namespace dmRender
     }
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
+
+    static float CalcSdfScale(const Matrix4& view_proj, float half_w, float half_h, const Matrix4& world_transform)
+    {
+        DM_PROFILE(__FUNCTION__);
+        Matrix4 m = view_proj * world_transform;
+
+        Vector4 col0 = m.getCol(0);
+        Vector4 col1 = m.getCol(1);
+        Vector4 col3 = m.getCol(3);
+
+        Vector4 c0 = col3;
+        Vector4 cx = col0 + col3;
+        Vector4 cy = col1 + col3;
+
+        const float kMinW = 1e-6f;
+        if (fabsf(c0.getW()) < kMinW || fabsf(cx.getW()) < kMinW || fabsf(cy.getW()) < kMinW)
+        {
+            return 0.0f;
+        }
+
+        float inv_w0 = 1.0f / c0.getW();
+        float inv_wx = 1.0f / cx.getW();
+        float inv_wy = 1.0f / cy.getW();
+
+        float ndc0_x = c0.getX() * inv_w0;
+        float ndc0_y = c0.getY() * inv_w0;
+        float ndc_dx_x = cx.getX() * inv_wx - ndc0_x;
+        float ndc_dx_y = cx.getY() * inv_wx - ndc0_y;
+        float ndc_dy_x = cy.getX() * inv_wy - ndc0_x;
+        float ndc_dy_y = cy.getY() * inv_wy - ndc0_y;
+
+        float dx = ndc_dx_x * half_w;
+        float dy = ndc_dx_y * half_h;
+        float len_sq_x = dx * dx + dy * dy;
+        dx = ndc_dy_x * half_w;
+        dy = ndc_dy_y * half_h;
+        float len_sq_y = dx * dx + dy * dy;
+
+        const float min_sdf_screen_scale = 0.5f;
+        const float min_sdf_scale = 1e-6f;
+        float scale = sqrtf(dmMath::Max(len_sq_x, len_sq_y));
+        if (scale > 0.0f)
+        {
+            return dmMath::Max(scale, min_sdf_screen_scale);
+        }
+
+        // Fallback to local scale when screen scale is invalid.
+        const Vector4 r0 = world_transform.getRow(0);
+        float local_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
+        return dmMath::Max(local_scale, min_sdf_scale);
+    }
 
     static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
         float x_offset = OffsetX(te.m_Align, te.m_Width);
@@ -309,12 +361,44 @@ namespace dmRender
         // The cache size may have changed, and we need to update the font map glyph texture
         UpdateCacheTexture(font_map);
 
+        bool calc_sdf_scale = font_map->m_IsSdf;
+        Matrix4 sdf_view_proj;
+        float sdf_half_w = 0.0f;
+        float sdf_half_h = 0.0f;
+        if (calc_sdf_scale)
+        {
+            dmGraphics::HContext gc = GetGraphicsContext(render_context);
+            int32_t vp_x = 0;
+            int32_t vp_y = 0;
+            uint32_t vp_w = 0;
+            uint32_t vp_h = 0;
+            dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
+            (void)vp_x;
+            (void)vp_y;
+
+            if (vp_w == 0 || vp_h == 0)
+            {
+                calc_sdf_scale = false;
+            }
+            else
+            {
+                sdf_view_proj = render_context->m_ViewProj;
+                sdf_half_w = 0.5f * (float)vp_w;
+                sdf_half_h = 0.5f * (float)vp_h;
+            }
+        }
+
         for (uint32_t *i = begin;i != end; ++i)
         {
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            float sdf_scale = 0.0f;
+            if (calc_sdf_scale)
+            {
+                sdf_scale = CalcSdfScale(sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
+            }
+            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
             text_context.m_VertexIndex += num_vertices;
         }
 

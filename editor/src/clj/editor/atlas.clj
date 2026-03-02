@@ -202,8 +202,11 @@
                          :flip-vertical   false
                          :playback        :playback-none}))
 
+(def ^:private id-message (properties/label-message :id))
+(def ^:private image-message (properties/label-message :image))
+
 (defn- unique-id-error [node-id id id-counts]
-  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
+  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id id-message)
       (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
 
 (defn- validate-image-id [node-id id id-counts]
@@ -211,7 +214,7 @@
     (unique-id-error node-id id id-counts)))
 
 (defn- validate-image-resource [node-id image-resource]
-  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
+  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource image-message))
 
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
@@ -267,7 +270,7 @@
   (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource maybe-image-size]
                                              ;; Depending on maybe-image-size provides ErrorValues from the image/ImageNode,
                                              ;; but we also want to guard against a non-assigned Image here.
-                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource "Image")
+                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource image-message)
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
@@ -402,8 +405,10 @@
 (defn- validate-animation-id [node-id id id-counts]
   (unique-id-error node-id id id-counts))
 
+(def ^:private fps-message (properties/label-message :atlas.animation :fps))
+
 (defn- validate-animation-fps [node-id fps]
-  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "Fps"))
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
 
 (g/defnode AtlasAnimation
   (inherits core/Scope)
@@ -486,21 +491,31 @@
     :max-page-width (max-page-size 0)
     :max-page-height (max-page-size 1)))
 
+(def ^:private margin-message (properties/label-message :atlas :margin))
+(def ^:private inner-padding-message (properties/label-message :atlas :inner-padding))
+(def ^:private extrude-borders-message (properties/label-message :atlas :extrude-borders))
+(def ^:private max-page-width-message (properties/label-message :atlas :max-page-width))
+(def ^:private max-page-height-message (properties/label-message :atlas :max-page-height))
+
 (defn- validate-margin [node-id margin]
-  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
+  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin margin-message))
 
 (defn- validate-inner-padding [node-id inner-padding]
-  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding inner-padding-message))
 
 (defn- validate-extrude-borders [node-id extrude-borders]
-  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders extrude-borders-message))
 
 (defn- max-page-size-error-message [[x y]]
   (cond
-    (neg? x) "'Max Page Width' cannot be negative"
-    (neg? y) "'Max Page Height' cannot be negative"
-    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Width' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
-    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Height' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
+    (neg? x) (localization/message "error.property-cannot-be-negative" {"property" max-page-width-message})
+    (neg? y) (localization/message "error.property-cannot-be-negative" {"property" max-page-height-message})
+    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (localization/message "error.property-cannot-exceed"
+                                                                     {"property" max-page-width-message
+                                                                      "value" TextureSetLayout/MAX_ATLAS_DIMENSION})
+    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (localization/message "error.property-cannot-exceed"
+                                                                     {"property" max-page-height-message
+                                                                      "value" TextureSetLayout/MAX_ATLAS_DIMENSION})
     :else nil))
 
 (defn- validate-max-page-size [node-id page-size]
@@ -508,7 +523,7 @@
 
 (defn- texture-page-count-error-message [x]
   (when (> x 8)
-    (format "Atlas page count (%d) cannot exceed 8 pages per atlas" x)))
+    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" 8})))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
@@ -526,8 +541,7 @@
 
 (g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
-    (let [project           (project/get-project _node-id)
-          workspace         (project/workspace project)
+    (let [workspace         (resource/workspace resource)
           compress?         (:compress-textures? build-settings false)
           texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
           pb-msg            (assoc texture-set :texture (-> texture-target :resource :resource))
@@ -904,9 +918,9 @@
       (map (partial make-atlas-animation self)
            (:animations atlas)))))
 
-(defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
-(defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))
-(defn- selection->image [selection] (handler/adapt-single selection AtlasImage))
+(defn- selection->atlas [selection evaluation-context] (handler/adapt-single selection AtlasNode evaluation-context))
+(defn- selection->animation [selection evaluation-context] (handler/adapt-single selection AtlasAnimation evaluation-context))
+(defn- selection->image [selection evaluation-context] (handler/adapt-single selection AtlasImage evaluation-context))
 
 (def ^:private default-animation
   (protobuf/make-map-without-defaults AtlasProto$AtlasAnimation
@@ -932,8 +946,12 @@
 
 (handler/defhandler :edit.add-embedded-component :workbench
   :label (localization/message "command.edit.add-embedded-component.variant.atlas")
-  (active? [selection] (selection->atlas selection))
-  (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
+  (active? [selection evaluation-context] (selection->atlas selection evaluation-context))
+  (run [app-view selection]
+    (add-animation-group-handler
+      app-view
+      (g/with-auto-evaluation-context evaluation-context
+        (selection->atlas selection evaluation-context)))))
 
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
   (when-some [image-resources (seq (resource-dialog/make workspace project
@@ -963,15 +981,19 @@
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.atlas")
-  (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
+  (active? [selection evaluation-context]
+    (or (selection->atlas selection evaluation-context)
+        (selection->animation selection evaluation-context)))
   (run [app-view project selection]
-    (let [atlas (selection->atlas selection)]
-      (when-some [parent-node (or atlas (selection->animation selection))]
-        (let [workspace (project/workspace project)
-              accept-fn (if atlas
-                          (complement (set (g/node-value atlas :image-resources)))
-                          fn/constantly-true)]
-          (add-images-handler app-view workspace project parent-node accept-fn))))))
+    (g/let-ec [atlas (selection->atlas selection evaluation-context)
+               animation (selection->animation selection evaluation-context)
+               parent-node (or atlas animation)
+               workspace (project/workspace project evaluation-context)
+               accept-fn (if atlas
+                           (complement (set (g/node-value atlas :image-resources evaluation-context)))
+                           fn/constantly-true)]
+      (when (some? parent-node)
+        (add-images-handler app-view workspace project parent-node accept-fn)))))
 
 (defn- vec-move
   [v x offset]
@@ -999,29 +1021,40 @@
               [source target] connections]
           (g/connect child source parent target))))))
 
-(defn- move-active? [selection]
-  (some->> selection
-    selection->image
-    core/scope
-    (g/node-instance? AtlasAnimation)))
+(defn- move-active? [selection {:keys [basis] :as evaluation-context}]
+  (some->> (selection->image selection evaluation-context)
+           (core/scope basis)
+           (g/node-instance? basis AtlasAnimation)))
 
 (handler/defhandler :edit.reorder-up :workbench
-  (active? [selection] (move-active? selection))
-  (enabled? [selection] (let [node-id (selection->image selection)
-                              parent (core/scope node-id)
-                              ^List children (vec (g/node-value parent :nodes))
-                              node-child-index (.indexOf children node-id)]
-                          (pos? node-child-index)))
-  (run [selection] (move-node! (selection->image selection) -1)))
+  (active? [selection evaluation-context] (move-active? selection evaluation-context))
+  (enabled? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)
+          node-id (selection->image selection evaluation-context)
+          parent (core/scope basis node-id)
+          ^List children (vec (g/node-value parent :nodes evaluation-context))
+          node-child-index (.indexOf children node-id)]
+      (pos? node-child-index)))
+  (run [selection]
+    (move-node!
+      (g/with-auto-evaluation-context evaluation-context
+        (selection->image selection evaluation-context))
+      -1)))
 
 (handler/defhandler :edit.reorder-down :workbench
-  (active? [selection] (move-active? selection))
-  (enabled? [selection] (let [node-id (selection->image selection)
-                              parent (core/scope node-id)
-                              ^List children (vec (g/node-value parent :nodes))
-                              node-child-index (.indexOf children node-id)]
-                          (< node-child-index (dec (.size children)))))
-  (run [selection] (move-node! (selection->image selection) 1)))
+  (active? [selection evaluation-context] (move-active? selection evaluation-context))
+  (enabled? [selection evaluation-context]
+    (let [basis (:basis evaluation-context)
+          node-id (selection->image selection evaluation-context)
+          parent (core/scope basis node-id)
+          ^List children (vec (g/node-value parent :nodes evaluation-context))
+          node-child-index (.indexOf children node-id)]
+      (< node-child-index (dec (.size children)))))
+  (run [selection]
+    (move-node!
+      (g/with-auto-evaluation-context evaluation-context
+        (selection->image selection evaluation-context))
+      1)))
 
 (defn- snap-axis
   [^double threshold ^double v]
@@ -1116,9 +1149,9 @@
   (mapv (partial hash-map :image) image-resources))
 
 (defn- create-dropped-images
-  [parent image-resources]
-  (condp g/node-instance? parent
-    AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources))
+  [parent image-resources evaluation-context]
+  (condp (partial g/node-instance? (:basis evaluation-context)) parent
+    AtlasNode (let [existing-image-resources (set (g/node-value parent :image-resources evaluation-context))
                     new-image? (complement existing-image-resources)]
                 (->> (filter new-image? image-resources)
                      (image-resources->image-msgs)
@@ -1128,12 +1161,14 @@
 
 (defn- handle-drop
   [root-id selection _workspace _world-pos resources]
-  (let [parent (or (handler/adapt-single selection AtlasAnimation)
-                   (some #(core/scope-of-type % AtlasAnimation) selection)
-                   root-id)]
-    (->> resources
-         (e/filter image/image-resource?)
-         (create-dropped-images parent))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [basis (:basis evaluation-context)
+          parent (or (handler/adapt-single selection AtlasAnimation evaluation-context)
+                     (some #(core/scope-of-type basis % AtlasAnimation) selection)
+                     root-id)
+          image-resources (e/filter image/image-resource? resources)]
+      (g/eager-tx-data
+        (create-dropped-images parent image-resources evaluation-context)))))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
@@ -1219,6 +1254,7 @@
       :load-fn load-atlas
       :icon atlas-icon
       :icon-class :design
+      :category (localization/message "resource.category.resources")
       :view-types [:scene :text]
       :view-opts {:scene {:drop-fn handle-drop
                           :tool-controller AtlasToolController}})))

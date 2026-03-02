@@ -24,7 +24,7 @@
 #include "../hid.h"
 
 #include <graphics/graphics.h>
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 // From engine_private.h
 
@@ -119,7 +119,7 @@ static void AppDestroy(void* _ctx)
 
 struct EngineCtx
 {
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmHID::HContext m_HidContext;
     dmHID::GamepadPacket m_OldGamepadPackets[dmHID::MAX_GAMEPAD_COUNT];
     dmHID::KeyboardPacket m_OldKeyboardPackets[dmHID::MAX_KEYBOARD_COUNT];
@@ -142,11 +142,12 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_Window = dmPlatform::NewWindow();
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width            = 32;
     window_params.m_Height           = 32;
     window_params.m_Title            = "hid_test_app";
-    window_params.m_GraphicsApi      = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    window_params.m_GraphicsApi      = WINDOW_GRAPHICS_API_OPENGL;
     window_params.m_ContextAlphabits = 8;
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);

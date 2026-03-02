@@ -196,7 +196,6 @@ namespace dmGameSystem
 
     static const dmhash_t SPRITE_PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
-    static const dmhash_t SPRITE_PROP_ANIMATION     = dmHashString64("animation");
     static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashString64("frame_count");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
@@ -1343,7 +1342,7 @@ namespace dmGameSystem
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
 
-        dmGraphics::VertexAttributeInfos sprite_attribute_info = {};
+        dmGraphics::VertexAttributeInfos* scratch_attribute_infos = GetScratchVertexAttributeInfos(material_attribute_info->m_NumInfos);
         dmGraphics::WriteAttributeParams write_params = {};
 
         for (uint32_t* i = begin; i != end; ++i)
@@ -1356,9 +1355,8 @@ namespace dmGameSystem
             float sp_height = component->m_Size.getY();
             uint8_t textures_num = component->m_NumTextures;
             AnimationData* animations = GetOrCreateAnimationData(sprite_world, component);
-    
+
             // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
-            dmGraphics::VertexAttributeInfos* sprite_attribute_info_ptr = material_attribute_info;
             if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
             {
                 FillAttributeInfos(&sprite_world->m_DynamicVertexAttributePool,
@@ -1366,9 +1364,12 @@ namespace dmGameSystem
                     component->m_Resource->m_DDF->m_Attributes.m_Data,
                     component->m_Resource->m_DDF->m_Attributes.m_Count,
                     material_attribute_info,
-                    &sprite_attribute_info);
-
-                sprite_attribute_info_ptr = &sprite_attribute_info;
+                    scratch_attribute_infos,
+                    dmGraphics::COORDINATE_SPACE_WORLD);
+            }
+            else
+            {
+                CopyAttributeInfos(scratch_attribute_infos, material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
             }
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
@@ -1406,7 +1407,7 @@ namespace dmGameSystem
                 const float* world_position_channels[] = { (float*) sprite_world->m_ScratchPositionWorld.Begin() };
                 const float* local_position_channels[] = { (float*) sprite_world->m_ScratchPositionLocal.Begin() };
 
-                FillWriteVertexAttributeParams(&write_params, sprite_attribute_info_ptr,
+                FillWriteVertexAttributeParams(&write_params, scratch_attribute_infos,
                     world_matrix_channel,
                     world_position_channels,
                     local_position_channels,
@@ -1474,7 +1475,7 @@ namespace dmGameSystem
                         world_matrix, vertex_offset, vertex_stride,
                         animations, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs,
                         &sprite_world->m_ScratchPositionWorld, &sprite_world->m_ScratchPositionLocal,
-                        sprite_attribute_info_ptr);
+                        scratch_attribute_infos);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
                     vertices      += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
@@ -1522,7 +1523,7 @@ namespace dmGameSystem
                     const uint8_t pi_channels_count = textures_num != 0 ? textures_num : 1;
 
                     FillWriteVertexAttributeParams(&write_params,
-                        sprite_attribute_info_ptr,
+                        scratch_attribute_infos,
                         world_matrix_channel,
                         world_position_channels,
                         local_position_channels,
@@ -1596,7 +1597,7 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;
@@ -2293,10 +2294,11 @@ namespace dmGameSystem
         {
             TextureSetResource* texture_set = 0;
 
-            if (params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK)
             {
                 out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-                texture_set = GetTextureSetByHash(component, params.m_Options.m_Key);
+                texture_set = GetTextureSetByHash(component, key);
             }
             if (!texture_set)
             {
@@ -2315,7 +2317,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set->m_Texture, out_value);
         }
-        else if (get_property == SPRITE_PROP_ANIMATION)
+        else if (get_property == PROP_ANIMATION)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -2326,8 +2328,10 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
         dmRender::HMaterial material = GetComponentMaterial(component);
-        if (GetMaterialConstant(material, get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        if (GetMaterialConstant(material, get_property, value_index, out_value, false, CompSpriteGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
@@ -2391,7 +2395,9 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_IMAGE)
         {
-            dmhash_t sampler_name_hash = params.m_Options.m_HasKey ? params.m_Options.m_Key : 0;
+            dmhash_t sampler_name_hash = 0;
+            GetPropertyOptionsKey(params.m_Options, 0, &sampler_name_hash);
+
             dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
@@ -2442,18 +2448,21 @@ namespace dmGameSystem
             }
             return res;
         }
-        else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == SPRITE_PROP_ANIMATION))
+        else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == PROP_ANIMATION))
         {
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
 
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
+
         dmRender::HMaterial material = GetComponentMaterial(component);
-        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, value_index, CompSpriteSetConstantCallback, component);
 
         // Only check attributes if the constant property was not found
         if (res == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
         {
-            return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value, CompSpriteGetMaterialAttributeCallback, component);
+            return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value, CompSpriteGetMaterialAttributeCallback, component, 0);
         }
         return res;
     }

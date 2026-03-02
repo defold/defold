@@ -178,11 +178,12 @@
           [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
-          open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
+          open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
+                                                                         localization
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
                                                                              (app-view/select! app-view selected-node-ids))))
@@ -216,7 +217,7 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
-                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))
+                                  (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -402,8 +403,7 @@
           (if newly-created?
             (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
               (open-resource readme-resource))
-            (g/with-auto-evaluation-context evaluation-context
-              (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project evaluation-context)))
+            (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
 
           (breakpoints-view/restore-breakpoints! project prefs)
 

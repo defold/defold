@@ -16,14 +16,15 @@
 #define DMSDK_DSTRINGS_H
 
 #include <stdio.h>
+#include <string.h>
 
 /*# String functions.
  *
  * SDK Defold String Utils API documentation
  *
  * @document
- * @name DStrings
- * @language C++
+ * @name Strings
+ * @language C
  */
 
 /*# Size-bounded string formating.

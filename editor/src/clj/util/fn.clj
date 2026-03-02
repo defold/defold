@@ -46,37 +46,69 @@
                ::memoize-arity ~arity
                ::memoize-cache ~cache}))
 
-(defn- memoize-one [unary-fn]
-  (let [cache (atom {})
+(defn- single-limited-assoc [map key value]
+  (with-meta {key value}
+             (meta map)))
+
+(defn- memoize-details [{:keys [limit] :as opts}]
+  (cond
+    (nil? limit)
+    (pair {} assoc)
+
+    (= 1 limit)
+    (pair (array-map) single-limited-assoc)
+
+    (and* (integer? limit)
+          (<= 2 (long limit) 8)) ; Once you assoc the 9:th element into a PersistentArrayMap, it no longer maintains order.
+    (let [limit (long limit)]
+      (pair (array-map)
+            (fn limited-assoc [array-map key value]
+              (if (< (count array-map) limit)
+                (assoc array-map key value)
+                (-> array-map
+                    (coll/transform-> (drop 1))
+                    (assoc key value))))))
+
+    :else
+    (throw
+      (ex-info
+        (str "If specified, :limit must be an integer between 1 and 8. Got: " (pr-str limit))
+        {:opts opts}))))
+
+(defn- memoize-one [opts unary-fn]
+  (let [[storage encache-fn] (memoize-details opts)
+        cache (atom storage)
         memoized-fn (fn memoized-fn [arg]
                       (let [cached-result (@cache arg cache)]
                         (if (identical? cache cached-result)
                           (let [result (unary-fn arg)]
-                            (swap! cache assoc arg result)
+                            (swap! cache encache-fn arg result)
                             result)
                           cached-result)))]
     (with-memoize-info memoized-fn cache 1)))
 
-(defn- memoize-two [binary-fn]
-  (let [cache (atom {})
+(defn- memoize-two [opts binary-fn]
+  (let [[storage encache-fn] (memoize-details opts)
+        cache (atom storage)
         memoized-fn (fn memoized-fn [arg1 arg2]
                       (let [key (pair arg1 arg2)
                             cached-result (@cache key cache)]
                         (if (identical? cache cached-result)
                           (let [result (binary-fn arg1 arg2)]
-                            (swap! cache assoc key result)
+                            (swap! cache encache-fn key result)
                             result)
                           cached-result)))]
     (with-memoize-info memoized-fn cache 2)))
 
-(defn- memoize-any [any-fn ^long arity]
-  (let [cache (atom {})
+(defn- memoize-any [opts any-fn ^long arity]
+  (let [[storage encache-fn] (memoize-details opts)
+        cache (atom storage)
         memoized-fn (fn memoized-fn [& args]
                       (let [key (vec args)
                             cached-result (@cache key cache)]
                         (if (identical? cache cached-result)
                           (let [result (apply any-fn args)]
-                            (swap! cache assoc key result)
+                            (swap! cache encache-fn key result)
                             result)
                           cached-result)))]
     (with-memoize-info memoized-fn cache arity)))
@@ -91,7 +123,7 @@
                   nil)))
         (java/get-declared-methods ifn-class)))
 
-(def ^:private ifn-class-arities (memoize-one ifn-class-arities-raw))
+(def ^:private ifn-class-arities (memoize-one nil ifn-class-arities-raw))
 
 (defn- ifn-class-max-arity-raw
   ^long [^Class ifn-class]
@@ -103,7 +135,7 @@
           0
           (java/get-declared-methods ifn-class)))
 
-(def ^:private ifn-class-max-arity (memoize-one ifn-class-max-arity-raw))
+(def ^:private ifn-class-max-arity (memoize-one nil ifn-class-max-arity-raw))
 
 (defn max-arity
   "Returns the maximum number of arguments the supplied function can accept, or
@@ -138,15 +170,22 @@
 (defn memoize
   "Like core.memoize, but uses an optimized cache based on the number of
   arguments the original function accepts. Also enables you to evict entries
-  from the cache using the evict-memoized! and clear-memoized! functions."
-  [ifn]
-  (if (::memoize-cache (meta ifn))
-    ifn ; Already memoized.
-    (let [arity (max-arity ifn)]
-      (case arity
-        1 (memoize-one ifn)
-        2 (memoize-two ifn)
-        (memoize-any ifn arity)))))
+  from the cache using the evict-memoized! and clear-memoized! functions.
+
+  Supported opts:
+    :limit <integer>
+      The maximum number of unique argument lists to cache. After the limit is
+      reached, old cache entries will be evicted in FIFO order."
+  ([ifn]
+   (memoize nil ifn))
+  ([opts ifn]
+   (if (::memoize-cache (meta ifn))
+     ifn ; Already memoized.
+     (let [arity (max-arity ifn)]
+       (case arity
+         1 (memoize-one opts ifn)
+         2 (memoize-two opts ifn)
+         (memoize-any opts ifn arity))))))
 
 (defn clear-memoized!
   "Clear all previously cached results from the cache of a memoized function

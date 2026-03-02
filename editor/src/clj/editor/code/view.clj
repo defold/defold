@@ -65,6 +65,7 @@
             [schema.core :as s]
             [service.smoke-log :as slog]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.control ListView]
@@ -97,11 +98,11 @@
 
 (defonce ^:private default-font-size 12.0)
 
-(defprotocol GutterView
+(defonce/protocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
   (draw-gutter! [this gc gutter-rect layout hovered-ui-element font color-scheme lines regions visible-cursors hovered-row] "Draws the gutter into the specified Rect."))
 
-(defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
+(defonce/record CursorRangeDrawInfo [type fill stroke cursor-range])
 
 (defn- cursor-range-draw-info [type fill stroke cursor-range]
   {:pre [(case type (:range :squiggle :underline :word) true false)
@@ -163,7 +164,7 @@
             width)
           cached-width)))))
 
-(defrecord GlyphMetrics [char-width-cache ^double line-height ^double ascent]
+(defonce/record GlyphMetrics [char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
@@ -1387,15 +1388,12 @@
   (property rename-cursor-range g/Any (dynamic visible (g/constantly false)))
   (output rename-view g/Any :cached (g/fnk [_node-id rename-cursor-range canvas-repaint-info :as props]
                                       (assoc props :fx/type rename-popup-view)))
-  (input open-views g/Any) ;; open views from app-view
 
   (output completions-selected-index g/Any :cached produce-completions-selected-index) ;; either in completions index range or nil
   (output completions-selection g/Any produce-completions-selection)
   (output completions-combined g/Any :cached produce-completions-combined)
   (output completions-combined-ids g/Any :cached produce-completions-combined-ids)
-  (input project g/NodeID) ;; used for completions doc popup, e.g. for opening defold:// URIs
 
-  (input keymap g/Any)
   (output completions-shortcut-text g/Any :cached (g/fnk [keymap]
                                                     (keymap/display-text keymap :code.show-completions nil)))
 
@@ -1411,13 +1409,19 @@
   (property visible-minimap? g/Bool (default false))
   (property visible-whitespace VisibleWhitespace (default :none))
 
-  (input completions g/Any)
-  (input cursor-ranges r/CursorRanges)
-  (input indent-type r/IndentType)
-  (input invalidated-rows r/InvalidatedRows)
+  ;; Inputs from CodeEditorResourceNode.
+  (input completions g/Any :substitute {})
+  (input cursor-ranges r/CursorRanges :substitute nil) ; Fall back on fallback-cursor-ranges.
+  (input indent-type r/IndentType :substitute r/default-indent-type)
+  (input invalidated-rows r/InvalidatedRows :substitute [])
   (input lines types/Lines :substitute [""])
-  (input regions r/Regions)
+  (input regions r/Regions :substitute [])
+
+  ;; Inputs from elsewhere.
+  (input open-views g/Any) ;; open views from app-view
+  (input project g/NodeID) ;; used for completions doc popup, e.g. for opening defold:// URIs
   (input debugger-execution-locations g/Any)
+  (input keymap g/Any)
 
   (output completion-context g/Any :cached produce-completion-context)
   (output cursor-ranges r/CursorRanges (g/fnk [cursor-ranges fallback-cursor-ranges]
@@ -3113,7 +3117,8 @@
     (ui/bind-action! go-button :private/goto-entered-line)
     (ui/observe (.textProperty line-field)
                 (fn [_ _ line-field-text]
-                  (ui/refresh-bound-action-enabled! go-button)
+                  (g/let-ec [can-go (ui/bound-action-enabled? go-button evaluation-context)]
+                    (ui/enable! go-button can-go))
                   (let [maybe-row (try-parse-goto-line-text view-node line-field-text)
                         error-message (when-not (number? maybe-row) maybe-row)]
                     (assert (or (nil? error-message) (string? error-message)))
@@ -3531,31 +3536,25 @@
   (g/user-data! view-node :elapsed-time elapsed-time)
 
   ;; Perform necessary property updates in preparation for repaint.
-  (g/with-auto-evaluation-context evaluation-context
-    (let [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
-                                (g/node-value view-node :layout evaluation-context)
-                                (g/node-value view-node :gesture-start evaluation-context))
-          props (if-not cursor-visible
-                  tick-props
-                  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-                        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-                        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
-                    (cond-> tick-props
-                            (not= old-cursor-opacity new-cursor-opacity)
-                            (assoc :cursor-opacity new-cursor-opacity))))]
-      (set-properties! view-node nil props)))
+  (g/let-ec [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
+                                   (g/node-value view-node :layout evaluation-context)
+                                   (g/node-value view-node :gesture-start evaluation-context))
+             props (if-not cursor-visible
+                     tick-props
+                     (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+                           old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
+                           new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+                       (cond-> tick-props
+                               (not= old-cursor-opacity new-cursor-opacity)
+                               (assoc :cursor-opacity new-cursor-opacity))))]
+    (set-properties! view-node nil props))
 
   ;; Repaint the view.
-  (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
-        prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-
-        [resource-node
-         canvas-repaint-info
-         cursor-repaint-info]
-        (g/with-auto-evaluation-context evaluation-context
-          [(g/node-value view-node :resource-node evaluation-context)
-           (g/node-value view-node :canvas-repaint-info evaluation-context)
-           (g/node-value view-node :cursor-repaint-info evaluation-context)])]
+  (g/let-ec [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
+             prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
+             resource-node (g/node-value view-node :resource-node evaluation-context)
+             canvas-repaint-info (g/node-value view-node :canvas-repaint-info evaluation-context)
+             cursor-repaint-info (g/node-value view-node :cursor-repaint-info evaluation-context)]
 
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
@@ -3658,7 +3657,7 @@
       :ys (double-array [y1 y1 y0 y2 y4 y3 y3])
       :n  7})))
 
-(deftype CodeEditorGutterView []
+(defonce/type CodeEditorGutterView []
   GutterView
 
   (gutter-metrics [this lines regions glyph-metrics]
@@ -3704,7 +3703,7 @@
             source-line-count (count lines)
             indicator-offset 3.0
             indicator-diameter (- line-height indicator-offset indicator-offset)
-            breakpoint-row->condition (coll/transfer regions {}
+            breakpoint-row->condition (coll/into-> regions {}
                                         (filter data/breakpoint-region?)
                                         (map (juxt data/breakpoint-row
                                                    #(-> {:condition (:condition % true)
@@ -4271,13 +4270,14 @@
         (when (= :tool prefix)
           (handler/register-handler! handler-id command tool-context-definition fnks))))))
 
-(defn- focus-view! [view-node opts]
+(defn- focus-view! [view-node opts done-fn]
   (.requestFocus ^Node (g/node-value view-node :canvas))
   (when-some [cursor-range (:cursor-range opts)]
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            cursor-range))))
+                                            cursor-range)))
+  (done-fn))
 
 (defn register-view-types [workspace]
   (concat

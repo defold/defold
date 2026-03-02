@@ -141,7 +141,7 @@ def build(bld):
     soundlibs = ['SOUND', 'OPUS', 'decoder_wav', 'decoder_ogg', 'decoder_opus']
     exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
 
-    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
+    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']:
         exported_symbols.append("AudioDecoderTremolo")
         soundlibs.append('TREMOLO')
 

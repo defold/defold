@@ -19,7 +19,7 @@
 
 namespace dmGraphics
 {
-    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
         return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
     }

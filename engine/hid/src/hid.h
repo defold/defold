@@ -24,12 +24,7 @@
 #include <stdint.h>
 
 #include <dmsdk/hid/hid.h>
-
-namespace dmPlatform
-{
-    struct dmWindow;
-    typedef dmWindow* HWindow;
-};
+#include <dmsdk/platform/window.h>
 
 namespace dmHID
 {
@@ -123,9 +118,9 @@ namespace dmHID
      * Set the window handle.
      *
      * @param context context for which the window handle should be set
-     * @param window [type: dmPlatform::HWindow] the window handle
+     * @param window [type: HWindow] the window handle
      */
-    void SetWindow(HContext context, dmPlatform::HWindow window);
+    void SetWindow(HContext context, HWindow window);
 
     /**
      * Initializes a hid context.

@@ -17,11 +17,12 @@
 
 #include <dlib/atomic.h>
 #include <dlib/math.h>
+#include <dlib/jobsystem.h>
 #include <dlib/mutex.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
-#include <platform/platform_window.h>
+#include <platform/window.h>
 
 namespace dmGraphics
 {
@@ -104,26 +105,35 @@ namespace dmGraphics
 
     struct OpenGLUniformBuffer
     {
-        dmArray<GLint> m_Indices;
-        dmArray<GLint> m_Offsets;
-        uint8_t*       m_BlockMemory;
-        HOpenglID      m_Id;
-        GLint          m_Binding;
-        GLint          m_BlockSize;
-        GLint          m_ActiveUniforms;
-        uint8_t        m_Dirty : 1;
+        UniformBuffer m_BaseUniformBuffer;
+        HOpenglID     m_Id;
+    };
+
+    struct OpenGLScratchUniformBuffer
+    {
+        const UniformBufferLayout* m_Layout;
+        dmArray<GLint>             m_Indices;
+        dmArray<GLint>             m_Offsets;
+        uint8_t*                   m_BlockMemory;
+        HOpenglID                  m_Id;
+        GLint                      m_BindPoint;
+        GLint                      m_BlockSize;
+        GLint                      m_ActiveUniforms;
+        uint8_t                    m_ResourceBinding;
+        uint8_t                    m_ResourceSet : 7;
+        uint8_t                    m_Dirty       : 1;
     };
 
     struct OpenGLProgram
     {
-        Program                        m_BaseProgram;
-        OpenGLShader*                  m_VertexShader;
-        OpenGLShader*                  m_FragmentShader;
-        OpenGLShader*                  m_ComputeShader;
-        uint32_t                       m_Id;
-        ShaderDesc::Language           m_Language;
-        dmArray<OpenGLVertexAttribute> m_Attributes;
-        dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
+        Program                             m_BaseProgram;
+        OpenGLShader*                       m_VertexShader;
+        OpenGLShader*                       m_FragmentShader;
+        OpenGLShader*                       m_ComputeShader;
+        uint32_t                            m_Id;
+        ShaderDesc::Language                m_Language;
+        dmArray<OpenGLVertexAttribute>      m_Attributes;
+        dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
     };
 
     /*
@@ -144,8 +154,8 @@ namespace dmGraphics
         OpenGLContext(const ContextParams& params);
 
         SetTextureAsyncState    m_SetTextureAsyncState;
-        dmPlatform::HWindow     m_Window;
-        dmJobThread::HContext   m_JobThread;
+        HWindow                 m_Window;
+        HJobContext             m_JobContext;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
         void*                   m_AuxContext;
@@ -153,15 +163,14 @@ namespace dmGraphics
         int32_atomic_t          m_DeleteContextRequested;
 
         OpenGLProgram*          m_CurrentProgram;
+        OpenGLUniformBuffer*    m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
-        OpenGLHandlesData       m_GLHandlesData;
+        OpenGLHandlesData                  m_GLHandlesData;
 
         PipelineState           m_PipelineState;
-
         HOpenglID               m_GlobalVAO;
-
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_MaxTextureSize;

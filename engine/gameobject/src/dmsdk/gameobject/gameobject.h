@@ -95,6 +95,13 @@ namespace dmGameObject
     typedef struct PropertyContainer* HPropertyContainer;
 
     /*#
+     * Handle to a list of property options
+     * @typedef
+     * @name HPropertyOptions
+     */
+    typedef struct PropertyOptions* HPropertyOptions;
+
+    /*#
      * Opaque handle to component instance
      * @typedef
      * @name HComponent
@@ -318,29 +325,6 @@ namespace dmGameObject
     {
         PROP_VALUE_ARRAY = 0,
         PROP_VALUE_HASHTABLE = 1,
-    };
-
-    /*# Property Options
-     *
-     * Parameters variant that holds key or index for a propertys data structure.
-     *
-     * @struct
-     * @name PropertyOptions
-     * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
-     * @member m_Key [type:dmhash_t] The key of the property to set, only applicable if property is hashtable.
-     * @member m_HasKey [type:uint8_t] A flag if structure contain m_Key value (it can't contain both)
-     */
-    struct PropertyOptions
-    {
-        union
-        {
-            dmhash_t m_Key;
-            int32_t m_Index;
-        };
-
-        uint8_t m_HasKey : 1;
-
-        PropertyOptions();
     };
 
     /*# property variant
@@ -881,6 +865,210 @@ namespace dmGameObject
      * @param path_hash [type:dmhash_t] resource path hash
      */
     void AddDynamicResourceHash(HCollection collection, dmhash_t path_hash);
+
+    /*#
+     * Get the property count from a PropertyOptions container
+     * @name GetPropertyOptionsCount
+     * @param options [type:HPropertyOptions] Options handle
+     * @return count [type:uint32_t] The number of property options
+     */
+    uint32_t GetPropertyOptionsCount(HPropertyOptions options);
+
+    /*#
+     * Get the index value from a property option at a specific index
+     * @name GetPropertyOptionsIndex
+     * @param options [type:HPropertyOptions] Options handle
+     * @param options_index [type:int32_t] The options index into the property options container
+     * @param result [type:int32_t*] If the option at the index is valid, store the result. Pointer is untouched otherwise
+     * @return PROPERTY_RESULT_OK if the property option at the index is valid
+     */
+    PropertyResult GetPropertyOptionsIndex(HPropertyOptions options, uint32_t options_index, int32_t* result);
+
+    /*#
+     * Get the key value from a property option at a specific index
+     * @name GetPropertyOptionsKey
+     * @param options [type:HPropertyOptions] Options handle
+     * @param options_index [type:int32_t] The options index into the property options container
+     * @param result [type:dmhash_t*] If the option at the index is valid, store the result. Pointer is untouched otherwise
+     * @return PROPERTY_RESULT_OK if the property option at the index is valid
+     */
+    PropertyResult GetPropertyOptionsKey(HPropertyOptions options, uint32_t options_index, dmhash_t* result);
+
+    /*#
+     * Retrieve a hash property from a component.
+     * @name GetPropertyAsHash
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:dmhash_t*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value);
+
+    /*#
+     * Retrieve a float property from a component.
+     * @name GetPropertyAsFloat
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:float*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float* out_value);
+
+    /*#
+     * Retrieve a vector3 property from a component.
+     * @name GetPropertyAsVector3
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:dmVMath::Vector3*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value);
+
+    /*#
+     * Retrieve a vector4 property from a component.
+     * @name GetPropertyAsVector4
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:dmVMath::Vector4*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value);
+
+    /*#
+     * Retrieve a quaternion property from a component.
+     * @name GetPropertyAsQuat
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:dmVMath::Quat*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value);
+
+    /*#
+     * Retrieve a boolean property from a component.
+     * @name GetPropertyAsBool
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:bool*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool* out_value);
+
+    /*#
+     * Retrieve a url property from a component.
+     * @name GetPropertyAsURL
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:dmMessage::URL*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value);
+
+    /*#
+     * Retrieve a matrix4 property from a component.
+     * @name GetPropertyAsMatrix
+     * @param instance [type:HInstance] Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param out_value [type:dmGameObject::Matrix4*] The retrieved property value
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
+     */
+    PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value);
+
+    /*#
+     * Sets the value of a hash property on a component.
+     * @name SetPropertyFromHash
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:dmhash_t] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value);
+
+    /*#
+     * Sets the value of a float property on a component.
+     * @name SetPropertyFromHash
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:float] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float value);
+
+    /*#
+     * Sets the value of a vector3 property on a component.
+     * @name SetPropertyFromVector3
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:dmVMath::vector3] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value);
+
+    /*#
+     * Sets the value of a vector4 property on a component.
+     * @name SetPropertyFromVector4
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:dmVMath::Vector4] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value);
+
+    /*#
+     * Sets the value of a quaternion property on a component.
+     * @name SetPropertyFromQuat
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:dmVMath::Quat] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value);
+
+    /*#
+     * Sets the value of a boolean property on a component.
+     * @name SetPropertyFromBool
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:bool] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool value);
+
+    /*#
+     * Sets the value of a URL property on a component.
+     * @name SetPropertyFromURL
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:dmMessage::URL] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value);
+
+    /*#
+     * Sets the value of a matrix4 property on a component.
+     * @name SetPropertyFromMatrix4
+     * @param instance Instance of the game object
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param value [type:dmVMath::Matrix4] Value of the property
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value);
 
     // These functions are used for profiling functionality
 

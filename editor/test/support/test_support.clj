@@ -92,3 +92,40 @@
   `(fn ~(symbol (name fn-sym)) [& ~'args]
      (g/with-auto-evaluation-context ~'evaluation-context
        (apply ~fn-sym (conj (vec ~'args) ~'evaluation-context)))))
+
+(defn set-system-property!
+  ^String [^String property-name ^String value]
+  (if (nil? value)
+    (System/clearProperty property-name)
+    (System/setProperty property-name value)))
+
+(defmacro with-cleared-system-properties! [property-names & body-exprs]
+  {:pre [(vector? property-names)
+         (every? string? property-names)
+         (every? not-empty property-names)]}
+  (let [sym+property-name-pairs
+        (into []
+              (map (fn [^String property-name]
+                     [(gensym (.replace property-name "." "-"))
+                      property-name]))
+              property-names)]
+
+    (list*
+      'let
+      (into []
+            (mapcat (fn [[sym ^String property-name]]
+                      [sym `(System/getProperty ~property-name)]))
+            sym+property-name-pairs)
+      (concat
+        (map (fn [^String property-name]
+               `(System/clearProperty ~property-name))
+             property-names)
+        [(list*
+           'try
+           (concat
+             body-exprs
+             [(list*
+                'finally
+                (map (fn [[sym ^String property-name]]
+                       `(set-system-property! ~property-name ~sym))
+                     (rseq sym+property-name-pairs)))]))]))))
