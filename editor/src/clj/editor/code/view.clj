@@ -1419,6 +1419,10 @@
                            :desc {:fx/type fx.tree-item/lifecycle
                                   :children (document-symbol-items document-symbols)}}}}})
 
+(defn- has-visible-properties? [resource-properties]
+  (and (not (g/error-value? resource-properties))
+       (reduce-kv #(if (:visible %3 true) (reduced true) false) false (:properties resource-properties))))
+
 ;; endregion
 
 (g/defnode CodeEditorView
@@ -1502,13 +1506,13 @@
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
 
   (output sidebar-panes g/Any :cached
-          (g/fnk [_node-id document-symbols localization node-id+type+resource]
+          (g/fnk [_node-id document-symbols localization ^:try resource-properties]
             (cond-> [{:fx/type fxui/ext-dedupe-identical-desc
                       :desc {:fx/type structure-pane
                              :document-symbols document-symbols
                              :localization localization
                              :view-node _node-id}}]
-                    (and node-id+type+resource (resource/overridable? (node-id+type+resource 2)))
+                    (has-visible-properties? resource-properties)
                     (conj :properties-pane))))
 
   ;; the cursor position for which we show the hover.
@@ -1580,6 +1584,7 @@
   (input indent-type r/IndentType :substitute r/default-indent-type)
   (input invalidated-rows r/InvalidatedRows :substitute [])
   (input lines types/Lines :substitute [""])
+  (input resource-properties g/Any)
   (input regions r/Regions :substitute [])
 
   ;; Inputs from elsewhere.
@@ -3536,6 +3541,7 @@
            [:indent-type :indent-type]
            [:invalidated-rows :invalidated-rows]
            [:lines :lines]
+           [:_properties :resource-properties]
            [:regions :regions]])))
     (g/transact
       (g/with-auto-evaluation-context evaluation-context
