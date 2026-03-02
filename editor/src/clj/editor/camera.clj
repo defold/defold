@@ -911,25 +911,22 @@
 
 (defn- warp-mouse-around-edges [^ImageView image-view cursor-x cursor-y last-x last-y]
   (if (and cursor-x last-x)
-    ;; TODO: Get screen dimentions
     (let [screen-w (.getFitWidth image-view)
           screen-h (.getFitHeight image-view)
-          margin 2
-          padding 5
+          margin 1
+          padding 3
           [warp-x warp-y] (cond
-                            (< cursor-x margin)              [(- screen-w margin padding) cursor-y]
-                            (> cursor-x (- screen-w margin)) [(+ margin padding) cursor-y]
-                            (< cursor-y margin)              [cursor-x (- screen-h margin (- padding))]
-                            (> cursor-y (- screen-h margin)) [cursor-x (+ margin padding)]
+                            (< cursor-x margin)              [(- screen-w padding) cursor-y]
+                            (> cursor-x (- screen-w margin)) [padding cursor-y]
+                            (< cursor-y margin)              [cursor-x (- screen-h padding)]
+                            (> cursor-y (- screen-h margin)) [cursor-x padding]
                             :else nil)]
       (if warp-x
         (let [origin (.localToScreen image-view 0.0 0.0)
-              screen-abs-x (+ (.getX origin) warp-x)
-              screen-abs-y (+ (.getY origin) (- screen-h warp-y))]
-          (i/warp-cursor screen-abs-x screen-abs-y)
-          [(double warp-x) (double warp-y)
-           (+ last-x (- warp-x cursor-x))
-           (+ last-y (- warp-y cursor-y))])
+              ;; NOTE: make-gl-pane! flips the ImageView's Y axis, so we have to flip back for the localToScreen to work
+              screen-abs-pos (.localToScreen image-view warp-x (- screen-h warp-y))]
+          (i/warp-cursor (.getX screen-abs-pos) (.getY screen-abs-pos))
+          [(double warp-x) (double warp-y) (double warp-x) (double warp-y)])
         [cursor-x cursor-y last-x last-y]))))
 
 (defn- handle-update-tick [self input-state dt]
