@@ -661,12 +661,6 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
-    // Forward declarations for helper functions used before their definitions
-    static GLenum GetOpenGLTextureWrap(TextureWrap wrap);
-    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter);
-    static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter);
-    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind);
-
     static int WorkerAcquireContextRunner(HJobContext, HJob job, void* _context, void* _acquire_flag)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -2150,6 +2144,263 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static inline GLint GetDepthBufferFormat(OpenGLContext* context)
+    {
+         return context->m_DepthBufferBits == 16 ?
+            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 :
+            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
+    }
+
+    static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
+    {
+        #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
+
+    #ifdef __EMSCRIPTEN__
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+    #ifdef __ANDROID__
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+
+        switch (format)
+        {
+        case TEXTURE_FORMAT_LUMINANCE:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            break;
+        case TEXTURE_FORMAT_RGB:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_RGB_16BPP:
+            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA_16BPP:
+            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
+        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
+        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
+
+        case TEXTURE_FORMAT_RGBA_ASTC_4X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
+
+        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
+        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
+        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
+        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
+        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
+
+        // Float formats
+        case TEXTURE_FORMAT_RGB16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RGB32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            break;
+        case TEXTURE_FORMAT_RGBA16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RGBA32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            break;
+        case TEXTURE_FORMAT_R16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_R32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
+            break;
+        case TEXTURE_FORMAT_RG16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RG32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
+            break;
+        case TEXTURE_FORMAT_DEPTH:
+            gl_type            = GL_FLOAT;
+            gl_format          = GL_DEPTH_COMPONENT;
+            gl_internal_format = GetDepthBufferFormat(context);
+        #ifdef __EMSCRIPTEN__
+            gl_type            = GL_UNSIGNED_INT;
+            gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
+        #endif
+            break;
+
+        default:
+            assert(0);
+            dmLogError("Texture format %s is not a valid format.", GetTextureFormatLiteral(format));
+            break;
+        }
+
+    #undef ES2_ENUM_WORKAROUND
+    #undef EMSCRIPTEN_ES2_BACKWARDS_COMPAT
+    #undef ANDROID_ES2_BACKWARDS_COMPAT
+    }
+
+#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
+    {
+        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
+        uint32_t texture_unit = 0;
+        for (int i = 0; i < num_uniforms; ++i)
+        {
+            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
+            {
+                if (texture_unit == unit)
+                {
+                    *index = i;
+                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
+                    return true;
+                }
+                texture_unit++;
+            }
+        }
+        return false;
+    }
+#endif
+
+    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
+    {
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        if (!context->m_ComputeSupport)
+            return false;
+
+        int32_t uniform_index;
+        Type type;
+
+        if (GetTextureUniform(context, unit, &uniform_index, &type))
+        {
+            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
+            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
+            {
+                GLenum access            = DMGRAPHICS_READ_ONLY;
+                GLenum gl_format         = 0;
+                GLenum gl_type           = GL_UNSIGNED_BYTE;
+                GLint gl_internal_format = 0;
+                GLuint id                = 0;
+                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
+
+                // We need a valid texture regardless of bind/unbind
+                if (!do_unbind)
+                {
+                    id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
+                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
+                }
+                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
+                CHECK_GL_ERROR;
+
+                return true;
+            }
+        }
+    #endif
+        return false;
+    }
+
+    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter)
+    {
+        const GLenum texture_filter_lut[] = {
+            0,
+            GL_NEAREST,
+            GL_LINEAR,
+            GL_NEAREST_MIPMAP_NEAREST,
+            GL_NEAREST_MIPMAP_LINEAR,
+            GL_LINEAR_MIPMAP_NEAREST,
+            GL_LINEAR_MIPMAP_LINEAR,
+        };
+
+        return texture_filter_lut[texture_filter];
+    }
+
+    static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter)
+    {
+        switch (filter)
+        {
+            case GL_NEAREST:
+            case GL_NEAREST_MIPMAP_NEAREST:
+            case GL_NEAREST_MIPMAP_LINEAR:
+                return GL_NEAREST;
+            default:
+                return GL_LINEAR;
+        }
+    }
+
+    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
+    {
+        GLenum texture_wrap_lut[] = {
+        #ifndef GL_ARB_multitexture
+            0x812D,
+            0x812F,
+            0x8370,
+        #else
+            GL_CLAMP_TO_BORDER,
+            GL_CLAMP_TO_EDGE,
+            GL_MIRRORED_REPEAT,
+        #endif
+            GL_REPEAT,
+        };
+        return texture_wrap_lut[wrap];
+    }
+
     static void DrawSetup(OpenGLContext* context)
     {
         OpenGLProgram* program = context->m_CurrentProgram;
@@ -3366,13 +3617,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static inline GLint GetDepthBufferFormat(OpenGLContext* context)
-    {
-         return context->m_DepthBufferBits == 16 ?
-            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 :
-            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
-    }
-
 #if __EMSCRIPTEN__
     static bool WebGLValidateFramebufferAttachmentDimensions(OpenGLContext* context, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const RenderTargetCreationParams params)
     {
@@ -4169,52 +4413,6 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
-    {
-        GLenum texture_wrap_lut[] = {
-        #ifndef GL_ARB_multitexture
-            0x812D,
-            0x812F,
-            0x8370,
-        #else
-            GL_CLAMP_TO_BORDER,
-            GL_CLAMP_TO_EDGE,
-            GL_MIRRORED_REPEAT,
-        #endif
-            GL_REPEAT,
-        };
-        return texture_wrap_lut[wrap];
-    }
-
-    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter)
-    {
-        const GLenum texture_filter_lut[] = {
-            0,
-            GL_NEAREST,
-            GL_LINEAR,
-            GL_NEAREST_MIPMAP_NEAREST,
-            GL_NEAREST_MIPMAP_LINEAR,
-            GL_LINEAR_MIPMAP_NEAREST,
-            GL_LINEAR_MIPMAP_LINEAR,
-        };
-
-        return texture_filter_lut[texture_filter];
-    }
-
-    static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter)
-    {
-        switch (filter)
-        {
-            case GL_NEAREST:
-            case GL_NEAREST_MIPMAP_NEAREST:
-            case GL_NEAREST_MIPMAP_LINEAR:
-                return GL_NEAREST;
-            default:
-                return GL_LINEAR;
-        }
-    }
-
-
     static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -4350,152 +4548,6 @@ static void LogFrameBufferError(GLenum status)
         *out_handle = GetGLHandlePointer(g_Context, tex->m_TextureIds[0]);
 
         return HANDLE_RESULT_OK;
-    }
-
-    static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
-    {
-        #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
-
-    #ifdef __EMSCRIPTEN__
-        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
-    #else
-        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value)
-    #endif
-    #ifdef __ANDROID__
-        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
-    #else
-        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value)
-    #endif
-
-        switch (format)
-        {
-        case TEXTURE_FORMAT_LUMINANCE:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            break;
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            break;
-        case TEXTURE_FORMAT_RGB:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
-        case TEXTURE_FORMAT_RGB_16BPP:
-            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA_16BPP:
-            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
-
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
-        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
-        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
-        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
-
-        case TEXTURE_FORMAT_RGBA_ASTC_4X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_5X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_5X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_6X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_6X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8X8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_12X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_12X12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
-
-        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
-        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
-        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
-        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
-        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
-
-        // Float formats
-        case TEXTURE_FORMAT_RGB16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_RGB32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
-            break;
-        case TEXTURE_FORMAT_RGBA16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_RGBA32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
-            break;
-        case TEXTURE_FORMAT_R16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_R32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
-            break;
-        case TEXTURE_FORMAT_RG16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_RG32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
-            break;
-        case TEXTURE_FORMAT_DEPTH:
-            gl_type            = GL_FLOAT;
-            gl_format          = GL_DEPTH_COMPONENT;
-            gl_internal_format = GetDepthBufferFormat(context);
-        #ifdef __EMSCRIPTEN__
-            gl_type            = GL_UNSIGNED_INT;
-            gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
-        #endif
-            break;
-
-        default:
-            assert(0);
-            dmLogError("Texture format %s is not a valid format.", GetTextureFormatLiteral(format));
-            break;
-        }
-
-    #undef ES2_ENUM_WORKAROUND
-    #undef EMSCRIPTEN_ES2_BACKWARDS_COMPAT
-    #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
     static void OpenGLSetTexture(HContext _context, HTexture texture, const TextureParams& params)
@@ -4867,65 +4919,6 @@ static void LogFrameBufferError(GLenum status)
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         return tex ? tex->m_MipMapCount : 0;
-    }
-
-#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-    static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
-    {
-        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
-        uint32_t texture_unit = 0;
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
-            {
-                if (texture_unit == unit)
-                {
-                    *index = i;
-                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
-                    return true;
-                }
-                texture_unit++;
-            }
-        }
-        return false;
-    }
-#endif
-
-    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
-    {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        if (!context->m_ComputeSupport)
-            return false;
-
-        int32_t uniform_index;
-        Type type;
-
-        if (GetTextureUniform(context, unit, &uniform_index, &type))
-        {
-            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
-            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
-            {
-                GLenum access            = DMGRAPHICS_READ_ONLY;
-                GLenum gl_format         = 0;
-                GLenum gl_type           = GL_UNSIGNED_BYTE;
-                GLint gl_internal_format = 0;
-                GLuint id                = 0;
-                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
-
-                // We need a valid texture regardless of bind/unbind
-                if (!do_unbind)
-                {
-                    id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
-                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
-                }
-                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
-                CHECK_GL_ERROR;
-
-                return true;
-            }
-        }
-    #endif
-        return false;
     }
 
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
