@@ -817,4 +817,23 @@
                  {:description "Console lines and regions"
                   :content
                   {"application/json"
-                   {:schema {:type "object"}}}}}}})}}))
+                   {:schema
+                    {:type "object"
+                     :required ["lines" "regions"]
+                     :properties
+                     {:lines {:type "array"
+                              :items {:type "string"}}
+                      :regions {:type "array"
+                                :items {:type "object"
+                                        :required ["from" "to" "type"]
+                                        :properties
+                                        {:from {:type "object"
+                                                :required ["row" "col"]
+                                                :properties {:row {:type "integer"}
+                                                             :col {:type "integer"}}}
+                                         :to {:type "object"
+                                              :required ["row" "col"]
+                                              :properties {:row {:type "integer"}
+                                                           :col {:type "integer"}}}
+                                         :type {:type "string"
+                                                :description "Region type, e.g. extension-output, extension-error, resource-reference, repeat, eval-expression, eval-result, or eval-error."}}}}}}}}}}}})}}))
