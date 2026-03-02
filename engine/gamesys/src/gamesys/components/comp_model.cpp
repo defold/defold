@@ -104,6 +104,7 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration m_InstanceVertexDeclaration;
         dmRender::HMaterial            m_Material;        // Material this was set up for; re-setup when effective material changes
         uint16_t                       m_RenderItemIndex; // Index into ModelComponent::m_RenderItems this data belongs to
+        uint8_t                        m_LastUsedFrame;   // Last frame (ModelWorld::m_CurrentFrameTick) this entry was used
         bool                           m_Initialized;
     };
 
@@ -315,6 +316,7 @@ namespace dmGameSystem
         }
         rd->m_Material        = 0;
         rd->m_RenderItemIndex = 0;
+        rd->m_LastUsedFrame   = 0;
         rd->m_Initialized     = false;
     }
 
@@ -943,6 +945,7 @@ namespace dmGameSystem
             attribute_rd->m_Material == render_material &&
             attribute_rd->m_RenderItemIndex == render_item_index)
         {
+            attribute_rd->m_LastUsedFrame = world->m_CurrentFrameTick;
             return attribute_rd;
         }
 
@@ -954,6 +957,7 @@ namespace dmGameSystem
                 rd->m_Material == render_material &&
                 rd->m_RenderItemIndex == render_item_index)
             {
+                rd->m_LastUsedFrame = world->m_CurrentFrameTick;
                 return rd;
             }
         }
@@ -983,6 +987,8 @@ namespace dmGameSystem
             model_attributes,
             model_attribute_count,
             rd);
+
+        rd->m_LastUsedFrame = world->m_CurrentFrameTick;
 
         return rd;
     }
@@ -2356,6 +2362,22 @@ namespace dmGameSystem
                 if (dmRig::AcquirePoseMatrixCacheEntry(world->m_RigContext, component.m_RigInstance) == dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     dmLogWarning("Model requires bind pose cache, but was not able to acquire a cache index. Consider increasing the cache size (model.max_bone_matrix_texture_width and model.max_bone_matrix_texture_height).");
+                }
+            }
+
+            // Purge old mesh attribute data (~30 frames)
+            const uint8_t current_tick = world->m_CurrentFrameTick;
+            const uint8_t MAX_AGE_FRAMES = 30;
+            for (uint32_t j = 0; j < component.m_MeshAttributeRenderDatas.Size(); ++j)
+            {
+                MeshAttributeRenderData& rd = component.m_MeshAttributeRenderDatas[j];
+                if (!rd.m_Initialized)
+                    continue;
+
+                uint8_t age = (uint8_t)(current_tick - rd.m_LastUsedFrame);
+                if (age > MAX_AGE_FRAMES)
+                {
+                    ReleaseMeshAttributeRenderData(&rd);
                 }
             }
 

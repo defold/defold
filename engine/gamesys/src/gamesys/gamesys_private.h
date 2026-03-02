@@ -18,8 +18,6 @@
 #include <dlib/message.h>
 #include <dlib/object_pool.h>
 #include <dlib/buffer.h>
-#include <dlib/hash.h>
-#include <dlib/double_linked_list.h>
 
 #include <render/render.h>
 
