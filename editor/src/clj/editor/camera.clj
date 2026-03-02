@@ -239,8 +239,7 @@
     (.transform ^Matrix4d (geom/invert view-matrix) position)
     (assoc camera
       :position position
-      :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0)
-      :focus-distance (.distance position center))))
+      :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
 
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
@@ -614,7 +613,6 @@
     (assoc camera
       :type :perspective
       :position cam-pos
-      :focus-distance focus-distance
       :fov-x (* fov-y-deg aspect)
       :fov-y fov-y-deg)))
 
@@ -740,8 +738,6 @@
   ([camera-node start-camera end-camera animate?]
    (set-camera! camera-node start-camera end-camera animate? nil))
   ([camera-node start-camera end-camera animate? on-animation-end]
-   ;; TODO: Huh?
-   (assoc end-camera :focus-distance (.distance ^Point3d (:position end-camera) (camera-focus-point end-camera)))
    (if animate?
      (let [duration 0.5]
        (g/transact (g/set-property camera-node :animating true))
@@ -816,9 +812,11 @@
 
 (defn start-free-camera-mode! [camera-id]
   (let [current-camera (g/node-value camera-id :local-camera)
-        [pitch yaw _] (math/quat->euler (:rotation current-camera))]
+        [pitch yaw _] (math/quat->euler (:rotation current-camera))
+        focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))]
     (i/start-mouse-capture)
     (g/set-property! camera-id :free-camera-mode true)
+    (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
     (g/set-property! camera-id :cursor-type :none)
     (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
                                              :pitch pitch
