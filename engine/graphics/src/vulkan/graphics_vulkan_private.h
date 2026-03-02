@@ -274,6 +274,15 @@ namespace dmGraphics
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo;
     };
 
+    struct DescriptorSetCacheEntry
+    {
+        VkDescriptorSet m_DescriptorSets[MAX_SET_COUNT];
+        uint32_t        m_DescriptorSetCount;
+        uint64_t        m_BindingSignature;
+        uint32_t        m_AllocatorGeneration;
+        uint8_t         m_Valid;
+    };
+
     struct VulkanProgram
     {
         VulkanProgram()
@@ -305,6 +314,9 @@ namespace dmGraphics
         uint16_t       m_TextureSamplerCount;
         uint16_t       m_TotalResourcesCount;
         uint8_t        m_Destroyed : 1;
+
+        DescriptorSetCacheEntry m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorSetCacheEntry m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
 
         const VulkanResourceType GetType();
     };
@@ -421,6 +433,7 @@ namespace dmGraphics
         ResourcesToDestroyList*         m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
         ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
+        uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
         VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;

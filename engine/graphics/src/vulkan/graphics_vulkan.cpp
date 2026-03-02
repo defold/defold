@@ -1445,6 +1445,7 @@ bail:
 
         // Reset per-frame scratch buffer and descriptor pools
         ScratchBuffer* scratch = &context->m_MainScratchBuffers[frameInFlight];
+        context->m_DescriptorAllocatorGeneration[frameInFlight]++;
         ResetScratchBuffer(vk_device, scratch);
 
         res = scratch->m_DeviceBuffer.MapMemory(vk_device);
@@ -2314,7 +2315,7 @@ bail:
         vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
     }
 
-    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment)
+    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment, bool perform_vk_update)
     {
         const uint32_t max_write_descriptors = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
         VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
@@ -2436,7 +2437,79 @@ bail:
             uniform_to_write_index++;
         }
 
-        vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+        if (perform_vk_update)
+        {
+            vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+        }
+    }
+
+    static uint64_t GetDescriptorBindingSignature(VulkanContext* context, VulkanProgram* program, ScratchBuffer* scratch_buffer)
+    {
+        HashState64 hash_state;
+        dmHashInit64(&hash_state, false);
+
+        ProgramResourceBindingIterator it(&program->m_BaseProgram);
+        const ProgramResourceBinding* next;
+        while ((next = it.Next()))
+        {
+            ShaderResourceBinding* res = next->m_Res;
+
+            dmHashUpdateBuffer64(&hash_state, &res->m_Set, sizeof(res->m_Set));
+            dmHashUpdateBuffer64(&hash_state, &res->m_Binding, sizeof(res->m_Binding));
+            dmHashUpdateBuffer64(&hash_state, &res->m_BindingFamily, sizeof(res->m_BindingFamily));
+
+            switch (res->m_BindingFamily)
+            {
+                case BINDING_FAMILY_TEXTURE:
+                {
+                    HTexture texture = context->m_TextureUnits[next->m_TextureUnit];
+                    dmHashUpdateBuffer64(&hash_state, &texture, sizeof(texture));
+                } break;
+
+                case BINDING_FAMILY_STORAGE_BUFFER:
+                {
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
+                    VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
+                    dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
+                    dmHashUpdateBuffer64(&hash_state, &binding.m_BufferOffset, sizeof(binding.m_BufferOffset));
+                } break;
+
+                case BINDING_FAMILY_UNIFORM_BUFFER:
+                {
+                    VulkanUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
+                    VkBuffer vk_buffer = VK_NULL_HANDLE;
+                    uint32_t block_size = res->m_BindingInfo.m_BlockSize;
+
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash == pgm_layout->m_Hash)
+                        {
+                            vk_buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
+                        }
+                        else
+                        {
+                            // Fallback to scratch buffer representation
+                            bound_ubo = 0;
+                        }
+                    }
+
+                    if (!bound_ubo)
+                    {
+                        vk_buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
+                    }
+
+                    dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
+                    dmHashUpdateBuffer64(&hash_state, &block_size, sizeof(block_size));
+                } break;
+
+                default:
+                    break;
+            }
+        }
+
+        return dmHashFinal64(&hash_state);
     }
 
     static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
@@ -2451,14 +2524,72 @@ bail:
             return VK_SUCCESS;
         }
 
-        VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayouts, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, num_descriptors, &vk_descriptor_set_list);
-        if (res != VK_SUCCESS)
+        const uint8_t frame_index = (uint8_t) context->m_CurrentFrameInFlight;
+
+        DescriptorSetCacheEntry* cache_entry = 0x0;
+        if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS)
         {
-            return res;
+            cache_entry = &program_ptr->m_GraphicsDescriptorCache[frame_index];
+        }
+        else if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE)
+        {
+            cache_entry = &program_ptr->m_ComputeDescriptorCache[frame_index];
         }
 
-        UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
+        const uint32_t allocator_generation = context->m_DescriptorAllocatorGeneration[frame_index];
+        uint64_t binding_signature = 0;
+
+        VkDescriptorSet* vk_descriptor_set_list = 0x0;
+        VkResult res = VK_SUCCESS;
+
+        if (cache_entry)
+        {
+            binding_signature = GetDescriptorBindingSignature(context, program_ptr, scratch_buffer);
+
+            if (cache_entry->m_Valid &&
+                cache_entry->m_AllocatorGeneration == allocator_generation &&
+                cache_entry->m_BindingSignature == binding_signature &&
+                cache_entry->m_DescriptorSetCount == program_ptr->m_Handle.m_DescriptorSetLayoutsCount)
+            {
+                vk_descriptor_set_list = cache_entry->m_DescriptorSets;
+            }
+        }
+
+        const bool cache_hit = vk_descriptor_set_list != 0;
+
+        if (!cache_hit)
+        {
+            res = scratch_buffer->m_DescriptorAllocator->Allocate(
+                vk_device,
+                program_ptr->m_Handle.m_DescriptorSetLayouts,
+                program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+                num_descriptors,
+                &vk_descriptor_set_list);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
+            UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true);
+
+            if (cache_entry)
+            {
+                cache_entry->m_DescriptorSetCount    = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
+                cache_entry->m_BindingSignature      = binding_signature;
+                cache_entry->m_AllocatorGeneration   = allocator_generation;
+                cache_entry->m_Valid                 = 1;
+
+                for (uint8_t i = 0; i < program_ptr->m_Handle.m_DescriptorSetLayoutsCount; ++i)
+                {
+                    cache_entry->m_DescriptorSets[i] = vk_descriptor_set_list[i];
+                }
+            }
+        }
+        else
+        {
+            // Recompute dynamic offsets and scratch uniform data without touching descriptor bindings
+            UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, false);
+        }
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             bind_point,
