@@ -1636,6 +1636,7 @@
         (ui/event-handler e
           (let [action (i/action-from-jfx e)]
             (g/update-property! view-id :input-state i/update-input-state action)
+            (g/update-property view-id :input-action-queue conj action)
             (let [current-input (g/node-value view-id :input-state)]
               (when (contains? (:mouse-buttons current-input) :secondary)
                 (.consume e))))))
@@ -1646,6 +1647,7 @@
                   _ (g/update-property! view-id :input-state i/update-input-state action)
                   current-input (g/node-value view-id :input-state)
                   is-secondary (contains? (:mouse-buttons current-input) :secondary)]
+              (g/update-property! view-id :input-action-queue conj action)
               ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
               ;; would be consumed by the TabPane and will trigger next/prev tab selection.
               ;; Because of that, such key presses will not reach the workbench view and
