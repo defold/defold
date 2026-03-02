@@ -60,8 +60,6 @@ namespace dmGameSystem
     using namespace dmGameSystemDDF;
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED          = 0xffff;
-    static const uint16_t MESH_ATTRIBUTE_CACHE_EVICTION_FRAMES       = 600;   // ~10 seconds at 60 FPS
-    static const uint16_t MESH_ATTRIBUTE_CACHE_INITIAL_CAPACITY      = 128;
 
     const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
     const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
@@ -101,9 +99,6 @@ namespace dmGameSystem
 
     struct MeshAttributeRenderData
     {
-        dmDoubleLinkedList::ListNode   m_ListNode;
-        uint32_t                       m_LastAccessTick;
-        uint32_t                       m_CacheKey;
         dmGraphics::HVertexBuffer      m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         dmGraphics::HVertexDeclaration m_InstanceVertexDeclaration;
@@ -191,7 +186,6 @@ namespace dmGameSystem
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
         dmRig::HRigContext               m_RigContext;
         ModelSkinnedAnimationData        m_SkinnedAnimationData;
-        LRUCache<MeshAttributeRenderData> m_MeshAttributeCache;
 
         uint32_t                         m_MaxElementsVertices;
         uint32_t                         m_MaxBatchIndex;
@@ -279,8 +273,6 @@ namespace dmGameSystem
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
         dmGraphics::SetTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
-
-        LRUCacheInit(world->m_MeshAttributeCache, MESH_ATTRIBUTE_CACHE_INITIAL_CAPACITY);
         world->m_CurrentFrameTick           = 0;
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData           = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
@@ -302,6 +294,28 @@ namespace dmGameSystem
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
 
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    static void ReleaseMeshAttributeRenderData(MeshAttributeRenderData* rd)
+    {
+        if (rd->m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(rd->m_VertexBuffer);
+            rd->m_VertexBuffer = 0;
+        }
+        if (rd->m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(rd->m_VertexDeclaration);
+            rd->m_VertexDeclaration = 0;
+        }
+        if (rd->m_InstanceVertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(rd->m_InstanceVertexDeclaration);
+            rd->m_InstanceVertexDeclaration = 0;
+        }
+        rd->m_Material        = 0;
+        rd->m_RenderItemIndex = 0;
+        rd->m_Initialized     = false;
     }
 
     dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
@@ -339,9 +353,6 @@ namespace dmGameSystem
             dmGraphics::DeleteTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
 
         DestroyMaterialAttributeInfos(world->m_DynamicVertexAttributePool);
-
-        // Evict and release all cached mesh attribute data entries
-        LRUCacheEvictImmediately(world->m_MeshAttributeCache, ReleaseMeshAttributeRenderData);
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
@@ -874,30 +885,6 @@ namespace dmGameSystem
         SetMeshAttributeRenderData(world, component, render_context, &material_infos, attribute_infos, render_item, model_attributes, model_attribute_count, rd);
     }
 
-    static void ReleaseMeshAttributeRenderData(MeshAttributeRenderData* rd)
-    {
-        if (rd->m_VertexBuffer)
-        {
-            dmGraphics::DeleteVertexBuffer(rd->m_VertexBuffer);
-            rd->m_VertexBuffer = 0;
-        }
-        if (rd->m_VertexDeclaration)
-        {
-            dmGraphics::DeleteVertexDeclaration(rd->m_VertexDeclaration);
-            rd->m_VertexDeclaration = 0;
-        }
-        if (rd->m_InstanceVertexDeclaration)
-        {
-            dmGraphics::DeleteVertexDeclaration(rd->m_InstanceVertexDeclaration);
-            rd->m_InstanceVertexDeclaration = 0;
-        }
-        rd->m_Material        = 0;
-        rd->m_RenderItemIndex = 0;
-        rd->m_LastAccessTick  = 0;
-        rd->m_CacheKey        = 0;
-        rd->m_Initialized     = false;
-    }
-
     static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
         // assert(!rd->m_VertexBuffer);
@@ -948,36 +935,31 @@ namespace dmGameSystem
         uint32_t model_attribute_count,
         MeshAttributeRenderData* attribute_rd)
     {
-        // Build a cache key based on component, render item and material
-        HashState32 state;
-        dmHashInit32(&state, false);
-        dmHashUpdateBuffer32(&state, &component, sizeof(component));
-        dmHashUpdateBuffer32(&state, &render_item, sizeof(render_item));
-        dmHashUpdateBuffer32(&state, &render_material, sizeof(render_material));
-        uint32_t key = dmHashFinal32(&state);
+        uint32_t render_item_index = (uint32_t)(render_item - component->m_RenderItems.Begin());
 
-        // 1. Try to find an existing cached entry
-        MeshAttributeRenderData* cached = LRUCacheFind(world->m_MeshAttributeCache, key);
-        if (cached)
+        // Fast path: current entry already matches this render item and material
+        if (attribute_rd &&
+            attribute_rd->m_Initialized &&
+            attribute_rd->m_Material == render_material &&
+            attribute_rd->m_RenderItemIndex == render_item_index)
         {
-            // Ensure it's initialized for this material; if not, recreate it
-            if (!cached->m_Initialized || cached->m_Material != render_material)
-            {
-                SetupMeshAttributeRenderData(world, component,
-                    render_context,
-                    render_material,
-                    render_item,
-                    model_attributes,
-                    model_attribute_count,
-                    cached);
-            }
-            return cached;
+            return attribute_rd;
         }
 
-        // 2. Choose a backing storage slot
-        MeshAttributeRenderData* rd = 0x0;
+        // Look for an existing entry for this render item + material combination
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            MeshAttributeRenderData* rd = &component->m_MeshAttributeRenderDatas[i];
+            if (rd->m_Initialized &&
+                rd->m_Material == render_material &&
+                rd->m_RenderItemIndex == render_item_index)
+            {
+                return rd;
+            }
+        }
 
         // If we have an uninitialized primary slot for this render item, reuse it
+        MeshAttributeRenderData* rd = 0x0;
         if (attribute_rd && !attribute_rd->m_Initialized)
         {
             rd = attribute_rd;
@@ -993,7 +975,7 @@ namespace dmGameSystem
             memset(rd, 0, sizeof(MeshAttributeRenderData));
         }
 
-        // 3. Initialize the backing storage
+        // Initialize the backing storage
         SetupMeshAttributeRenderData(world, component,
             render_context,
             render_material,
@@ -1001,9 +983,6 @@ namespace dmGameSystem
             model_attributes,
             model_attribute_count,
             rd);
-
-        // 4. Insert into cache
-        LRUCacheInsert(world->m_MeshAttributeCache, key, rd);
 
         return rd;
     }
@@ -1196,43 +1175,12 @@ namespace dmGameSystem
         return (void*)world->m_Components.Get(params.m_UserData);
     }
 
-    static void RemoveMeshAttributeCacheEntriesForComponent(ModelWorld* world, ModelComponent* component)
-    {
-        dmDoubleLinkedList::List* list = &world->m_MeshAttributeCache.m_LRU;
-        dmDoubleLinkedList::ListNode* current = dmDoubleLinkedList::ListGetLast(list);
-
-        MeshAttributeRenderData* begin = component->m_MeshAttributeRenderDatas.Begin();
-        MeshAttributeRenderData* end   = begin + component->m_MeshAttributeRenderDatas.Size();
-
-        while (current != 0x0)
-        {
-            MeshAttributeRenderData* rd = (MeshAttributeRenderData*) current;
-            dmDoubleLinkedList::ListNode* prev = current->m_Prev;
-
-            if (rd >= begin && rd < end)
-            {
-                if (rd->m_CacheKey != 0)
-                {
-                    world->m_MeshAttributeCache.m_Cache.Erase(rd->m_CacheKey);
-                }
-                dmDoubleLinkedList::ListRemove(list, current);
-            }
-
-            if (prev == &list->m_Head)
-                break;
-            current = prev;
-        }
-    }
-
     static void DestroyComponent(ModelWorld* world, uint32_t index)
     {
         ModelComponent* component = world->m_Components.Get(index);
         dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
-
-        // Clean up custom vertex buffers and remove any cache entries pointing into this component
-        RemoveMeshAttributeCacheEntriesForComponent(world, component);
 
         for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
         {
@@ -2387,9 +2335,6 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
-        // Advance cache tick and evict old cached mesh attribute data
-        LRUCacheAdvanceTick(world->m_MeshAttributeCache);
-
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
@@ -2418,9 +2363,6 @@ namespace dmGameSystem
 
             DM_PROPERTY_ADD_U32(rmtp_Model, 1);
         }
-
-        // Purge old cached custom vertex attributes
-        LRUCacheEvict(world->m_MeshAttributeCache, MESH_ATTRIBUTE_CACHE_EVICTION_FRAMES, ReleaseMeshAttributeRenderData);
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 

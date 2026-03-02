@@ -111,7 +111,12 @@ namespace dmGameSystem
     DM_STATIC_ASSERT(offsetof(AnimationData, m_ListNode) == 0, "m_ListNode must be first in struct!");
 #endif
 
-    typedef LRUCache<AnimationData> AnimationDataCache;
+    struct AnimationDataCache
+    {
+        dmHashTable32<AnimationData*> m_Cache;
+        dmDoubleLinkedList::List      m_LRU;
+        uint32_t                      m_CurrentEngineTick;
+    };
 
     struct SpriteComponent
     {
@@ -245,7 +250,9 @@ namespace dmGameSystem
         sprite_world->m_Components.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetSize(comp_count);
-        LRUCacheInit(sprite_world->m_AnimationDataCache, MINIMUM_CACHE_CAPACITY);
+        sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
+        dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
+        sprite_world->m_AnimationDataCache.m_CurrentEngineTick = 0;
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
         sprite_world->m_VertexBuffer     = 0;
@@ -276,8 +283,13 @@ namespace dmGameSystem
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
         free(sprite_world->m_IndexBufferData);
 
-        // Evict and destroy all cached animation data entries
-        LRUCacheEvictImmediately(sprite_world->m_AnimationDataCache, DestroyAnimationData);
+        // Destroy all cached animation data entries
+        dmHashTable32<AnimationData*>::Iterator iter = sprite_world->m_AnimationDataCache.m_Cache.GetIterator();
+        while (iter.Next())
+        {
+            AnimationData* data = iter.GetValue();
+            free(data);
+        }
 
         delete sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -1324,12 +1336,20 @@ namespace dmGameSystem
 
     static AnimationData* GetOrCreateAnimationData(SpriteWorld* sprite_world, const SpriteComponent* component)
     {
-        // 1. Search in cache
+        // 1. Search in hastable
         uint32_t hash = component->m_AnimationDataHash;
-        AnimationData* found = LRUCacheFind(sprite_world->m_AnimationDataCache, hash);
-        if (found)
+        AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
+        if (found != 0x0)
         {
-            return found;
+            // updates only once per frame
+            if ((*found)->m_LastAccessTick != sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            {
+                dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)(*found);
+                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+            }
+            return *found;
         }
 
         // 2. Create if doesn't exist
@@ -1337,8 +1357,14 @@ namespace dmGameSystem
         AnimationData* anim_data = (AnimationData*)malloc(sizeof(AnimationData));
         memset(anim_data, 0, sizeof(AnimationData));
         ResolveAnimationData(component, anim_data);
-
-        LRUCacheInsert(sprite_world->m_AnimationDataCache, hash, anim_data);
+        anim_data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+        anim_data->m_CacheKey = hash;
+        if (sprite_world->m_AnimationDataCache.m_Cache.Full())
+        {
+            sprite_world->m_AnimationDataCache.m_Cache.OffsetCapacity(30);
+        }
+        sprite_world->m_AnimationDataCache.m_Cache.Put(hash, anim_data);
+        dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, (dmDoubleLinkedList::ListNode*)anim_data);
         return anim_data;
     }
 
@@ -1888,18 +1914,37 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void DestroyAnimationData(AnimationData* data)
-    {
-        free(data);
-    }
-
     static void UpdateAnimationDataCache(SpriteWorld* sprite_world)
     {
         DM_PROFILE("UpdateAnimationDataCache");
         // update current tick
-        LRUCacheAdvanceTick(sprite_world->m_AnimationDataCache);
-        // evict all cache entries which are older than CACHE_EVICTION_FRAMES ticks
-        LRUCacheEvict(sprite_world->m_AnimationDataCache, CACHE_EVICTION_FRAMES, DestroyAnimationData);
+        sprite_world->m_AnimationDataCache.m_CurrentEngineTick++;
+        // evict all cache entries which older than CACHE_EVICTION_FRAMES ticks
+        dmDoubleLinkedList::List* list = &sprite_world->m_AnimationDataCache.m_LRU;
+        dmDoubleLinkedList::ListNode* current = dmDoubleLinkedList::ListGetLast(list);
+        while (current != 0x0)
+        {
+            // list node is used as pointer to memory block where AnimationData structure is placed
+            // cast to AnimationData allows to work with memory block as structure
+            AnimationData* data = (AnimationData*)current;
+            uint32_t cache_eviction_frame = data->m_LastAccessTick + CACHE_EVICTION_FRAMES;
+            uint32_t underflow_tick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick - CACHE_EVICTION_FRAMES;
+
+            //in normal case we evict cache entry when CACHE_EVICTION_FRAMES passed
+            // but also in case if m_LastAccessTick tick or m_CurrentEngineTick is near overflow
+            if (cache_eviction_frame <= sprite_world->m_AnimationDataCache.m_CurrentEngineTick
+                && (data->m_LastAccessTick < cache_eviction_frame || underflow_tick > sprite_world->m_AnimationDataCache.m_CurrentEngineTick))
+            {
+                sprite_world->m_AnimationDataCache.m_Cache.Erase(data->m_CacheKey);
+                dmDoubleLinkedList::ListRemove(list, current);
+                free(data);
+            }
+            else
+            {
+                break;
+            }
+            current = dmDoubleLinkedList::ListGetLast(list);
+        }
     }
 
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
