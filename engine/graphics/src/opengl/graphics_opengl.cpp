@@ -4925,25 +4925,24 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
-
         assert(unit < DM_MAX_TEXTURE_UNITS);
+
+        // Note: We just store the binding here. Binding the actual gl handle is done before rendering!
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
-        binding.m_Texture         = texture;
+        binding.m_Texture = texture;
         binding.m_TextureIdIndex = id_index;
     }
 
     static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
     {
-#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
-        glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR;
-#endif
-
         OpenGLContext* context = (OpenGLContext*) _context;
-
         assert(unit < DM_MAX_TEXTURE_UNITS);
+
+        // Note: We don't really need to unbind the gl handle here. The only thing that can happen
+        //       is that if the render state is incorrectly set up from the engine, we might sample 
+        //       from the wrong texture (which all other adapters also do).
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
-        binding.m_Texture         = 0x0;
+        binding.m_Texture = 0x0;
         binding.m_TextureIdIndex = 0;
     }
 
