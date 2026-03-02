@@ -18,6 +18,8 @@
 #include <dlib/message.h>
 #include <dlib/object_pool.h>
 #include <dlib/buffer.h>
+#include <dlib/hash.h>
+#include <dlib/double_linked_list.h>
 
 #include <render/render.h>
 
@@ -206,6 +208,126 @@ namespace dmGameSystem
     void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer);
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
+
+    // Generic LRU cache used by multiple components (e.g. sprite animation data, model attribute data).
+    // The cached type T must:
+    // - Have dmDoubleLinkedList::ListNode as its first member
+    // - Contain uint32_t m_LastAccessTick and uint32_t m_CacheKey fields
+    template <typename T>
+    struct LRUCache
+    {
+        dmHashTable32<T*>        m_Cache;
+        dmDoubleLinkedList::List m_LRU;
+        uint32_t                 m_CurrentTick;
+    };
+
+    template <typename T>
+    inline void LRUCacheInit(LRUCache<T>& cache, uint32_t capacity)
+    {
+        cache.m_Cache.SetCapacity(capacity);
+        dmDoubleLinkedList::ListInit(&cache.m_LRU);
+        cache.m_CurrentTick = 0;
+    }
+
+    template <typename T>
+    inline void LRUCacheAdvanceTick(LRUCache<T>& cache)
+    {
+        cache.m_CurrentTick++;
+    }
+
+    // Find an entry by key and update its LRU position.
+    // Returns nullptr if not found.
+    template <typename T>
+    inline T* LRUCacheFind(LRUCache<T>& cache, uint32_t key)
+    {
+        T** found = cache.m_Cache.Get(key);
+        if (!found)
+            return 0x0;
+
+        T* value = *found;
+        if (value->m_LastAccessTick != cache.m_CurrentTick)
+        {
+            dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*) value;
+            dmDoubleLinkedList::ListRemove(&cache.m_LRU, node);
+            dmDoubleLinkedList::ListAdd(&cache.m_LRU, node);
+            value->m_LastAccessTick = cache.m_CurrentTick;
+        }
+        return value;
+    }
+
+    // Insert a new entry into the cache and LRU list.
+    template <typename T>
+    inline void LRUCacheInsert(LRUCache<T>& cache, uint32_t key, T* value, uint32_t grow_by = 30)
+    {
+        value->m_LastAccessTick = cache.m_CurrentTick;
+        value->m_CacheKey       = key;
+
+        if (cache.m_Cache.Full())
+        {
+            cache.m_Cache.OffsetCapacity(grow_by);
+        }
+
+        cache.m_Cache.Put(key, value);
+        dmDoubleLinkedList::ListAdd(&cache.m_LRU, (dmDoubleLinkedList::ListNode*) value);
+    }
+
+    static const uint32_t LRU_CACHE_FORCE_EVICT_ALL = 0xFFFFFFFF;
+
+    // Evict entries that have not been accessed within eviction_frames ticks.
+    // destroy_fn is responsible for cleaning up the cached value (e.g. free(), ReleaseMeshAttributeRenderData(), etc).
+    template <typename T>
+    inline void LRUCacheEvict(LRUCache<T>& cache, uint32_t eviction_frames, void (*destroy_fn)(T*))
+    {
+        if (eviction_frames == 0)
+            return;
+
+        dmDoubleLinkedList::List* list = &cache.m_LRU;
+        dmDoubleLinkedList::ListNode* current = dmDoubleLinkedList::ListGetLast(list);
+
+        // Special case: eviction_frames == UINT32_MAX means "evict all entries"
+        if (eviction_frames == LRU_CACHE_FORCE_EVICT_ALL)
+        {
+            while (current != 0x0)
+            {
+                T* data = (T*) current;
+                cache.m_Cache.Erase(data->m_CacheKey);
+                dmDoubleLinkedList::ListRemove(list, current);
+                destroy_fn(data);
+                current = dmDoubleLinkedList::ListGetLast(list);
+            }
+            return;
+        }
+
+        while (current != 0x0)
+        {
+            T* data = (T*) current;
+            uint32_t cache_eviction_frame = data->m_LastAccessTick + eviction_frames;
+            uint32_t underflow_tick = cache.m_CurrentTick - eviction_frames;
+
+            // In normal case we evict cache entry when eviction_frames have passed,
+            // but we also handle potential tick underflow.
+            if (cache_eviction_frame <= cache.m_CurrentTick
+                && (data->m_LastAccessTick < cache_eviction_frame || underflow_tick > cache.m_CurrentTick))
+            {
+                cache.m_Cache.Erase(data->m_CacheKey);
+                dmDoubleLinkedList::ListRemove(list, current);
+                destroy_fn(data);
+            }
+            else
+            {
+                break;
+            }
+
+            current = dmDoubleLinkedList::ListGetLast(list);
+        }
+    }
+
+    // Helper that can be used for shutdown
+    template <typename T>
+    inline void LRUCacheEvictImmediately(LRUCache<T>& cache, void (*destroy_fn)(T*))
+    {
+        LRUCacheEvict(cache, LRU_CACHE_FORCE_EVICT_ALL, destroy_fn);
+    }
 }
 
 #endif // DM_GAMESYS_PRIVER_H
