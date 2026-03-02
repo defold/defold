@@ -1545,7 +1545,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        if (&glGenVertexArrays)
+        if (glGenVertexArrays)
         {
             GLuint handle;
             glGenVertexArrays(1, &handle);
@@ -2083,7 +2083,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        if (&glBindVertexArray)
+        if (glBindVertexArray)
             glBindVertexArray(GetGLHandle(context, context->m_GlobalVAO));
 
         if (context->m_ModificationVersion != vertex_declaration->m_ModificationVersion || vertex_declaration->m_BoundForProgram != program)
@@ -2358,17 +2358,26 @@ static void LogFrameBufferError(GLenum status)
 
     static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter)
     {
-        const GLenum texture_filter_lut[] = {
-            0,
-            GL_NEAREST,
-            GL_LINEAR,
-            GL_NEAREST_MIPMAP_NEAREST,
-            GL_NEAREST_MIPMAP_LINEAR,
-            GL_LINEAR_MIPMAP_NEAREST,
-            GL_LINEAR_MIPMAP_LINEAR,
-        };
-
-        return texture_filter_lut[texture_filter];
+        switch(texture_filter)
+        {
+            case TEXTURE_FILTER_DEFAULT:
+                return 0;
+            case TEXTURE_FILTER_NEAREST:
+                return GL_NEAREST;
+            case TEXTURE_FILTER_LINEAR:
+                return GL_LINEAR;
+            case TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+                return GL_NEAREST_MIPMAP_NEAREST;
+            case TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+                return GL_NEAREST_MIPMAP_LINEAR;
+            case TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+                return GL_LINEAR_MIPMAP_NEAREST;
+            case TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+                return GL_LINEAR_MIPMAP_LINEAR;
+            default:
+                assert("Unsupported texture filter!");
+                return 0;
+        }
     }
 
     static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter)
@@ -2526,20 +2535,19 @@ static void LogFrameBufferError(GLenum status)
                     if (tex->m_Sampler.m_AddressModeU != tex->m_SamplerDirty.m_AddressModeU)
                     {
                         glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeU));
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                     }
 
                     if (tex->m_Sampler.m_AddressModeV != tex->m_SamplerDirty.m_AddressModeV)
                     {
                         glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeV));
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                     }
 
                     if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy)
                     {
-                        float max_anisotropy = tex->m_SamplerDirty.m_MaxAnisotropy;
-                        glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, context->m_MaxAnisotropy));
-                        CHECK_GL_ERROR
+                        glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, tex->m_SamplerDirty.m_MaxAnisotropy);
+                        CHECK_GL_ERROR;
                     }
 
                     tex->m_Sampler = tex->m_SamplerDirty;
@@ -4177,13 +4185,13 @@ static void LogFrameBufferError(GLenum status)
         return context->m_MaxTextureSize;
     }
 
-    static inline void SetSampler(OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, float max_anisotropy)
+    static inline void SetSampler(OpenGLContext* context, OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, float max_anisotropy)
     {
         sampler->m_MinFilter = min_filter;
         sampler->m_MagFilter = mag_Filter;
         sampler->m_AddressModeU = wrap_u;
         sampler->m_AddressModeV = wrap_v;
-        sampler->m_MaxAnisotropy = max_anisotropy;
+        sampler->m_MaxAnisotropy = dmMath::Min(max_anisotropy, context->m_MaxAnisotropy);
     }
 
     static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture)
@@ -4301,7 +4309,7 @@ static void LogFrameBufferError(GLenum status)
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
 
-        SetSampler(&tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+        SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         tex->m_SamplerDirty = tex->m_Sampler;
 
         ApplySamplerState(context, tex);
@@ -4424,7 +4432,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
 
-        SetSampler(&tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
     static uint8_t OpenGLGetNumTextureHandles(HContext _context, HTexture texture)
