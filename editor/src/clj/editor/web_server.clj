@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.web-server
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.lsp.async :as lsp.async]
             [editor.util :as util]
