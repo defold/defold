@@ -44,15 +44,23 @@
             :version "1.0"}
      :paths (openapi-paths (:router request))}))
 
+(defn- html-escape [s]
+  (string/escape s {\& "&amp;"
+                    \< "&lt;"
+                    \> "&gt;"
+                    \" "&quot;"
+                    \' "&#39;"}))
+
 (defn- index-response [project]
   (lsp.async/with-auto-evaluation-context evaluation-context
     (let [project-path (-> project
                            (g/node-value :workspace evaluation-context)
                            (g/node-value :root evaluation-context))
-          title (-> project
-                    (g/maybe-node-value :settings evaluation-context)
-                    (get ["project" "title"]))
-          project-title (or title (FilenameUtils/getName project-path))]
+          project-title-html (html-escape
+                               (or (-> project
+                                       (g/maybe-node-value :settings evaluation-context)
+                                       (get ["project" "title"]))
+                                   (FilenameUtils/getName project-path)))]
       (http-server/response
         200
         {"content-type" "text/html; charset=utf-8"}
@@ -60,11 +68,11 @@
              "<html>\n"
              "  <head>\n"
              "    <meta charset=\"utf-8\">\n"
-             "    <title>Defold Editor HTTP Server - " project-title "</title>\n"
+             "    <title>Defold Editor HTTP Server - " project-title-html "</title>\n"
              "  </head>\n"
              "  <body>\n"
-             "    <h1>Defold Editor HTTP Server - " project-title "</h1>\n"
-             "    <p><strong>Project:</strong> <code>" project-path "</code></p>\n"
+             "    <h1>Defold Editor HTTP Server - " project-title-html "</h1>\n"
+             "    <p><strong>Project:</strong> <code>" (html-escape project-path) "</code></p>\n"
              "    <p><a href=\"/openapi.json\">OpenAPI spec</a></p>\n"
              "  </body>\n"
              "</html>\n")))))
