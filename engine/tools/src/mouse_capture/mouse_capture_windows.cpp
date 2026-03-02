@@ -67,6 +67,11 @@ namespace dmMouseCapture
         return ctx;
     }
 
+    void WarpCursor(int x, int y)
+    {
+        SetCursorPos(x, y);
+    }
+
     bool StartCapture(HContext context, WindowHandle window)
     {
         if (!context || context->m_Capturing)

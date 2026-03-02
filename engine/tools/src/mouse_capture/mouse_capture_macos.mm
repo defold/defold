@@ -28,6 +28,11 @@ namespace dmMouseCapture
         return ctx;
     }
 
+    void WarpCursor(int x, int y)
+    {
+        CGWarpMouseCursorPosition(CGPointMake(x, y));
+    }
+
     bool StartCapture(HContext context, unsigned long window)
     {
         if (!context || context->m_Capturing)
