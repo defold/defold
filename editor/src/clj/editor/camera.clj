@@ -925,7 +925,8 @@
               screen-abs-pos (.localToScreen image-view warp-x (- screen-h warp-y))]
           (i/warp-cursor (.getX screen-abs-pos) (.getY screen-abs-pos))
           [(double warp-x) (double warp-y) (double warp-x) (double warp-y)])
-        [cursor-x cursor-y last-x last-y]))))
+        [cursor-x cursor-y last-x last-y]))
+    [cursor-x cursor-y last-x last-y]))
 
 (defn- handle-update-tick [self input-state dt]
   (if (g/node-value self :free-camera-mode)
@@ -1007,8 +1008,9 @@
                    (and (not (zero? scroll-delta-y))
                         (contains? movements-enabled :dolly))
                    (cond->
-                       :always
+                     :always
                      (dolly (* -0.002 scroll-delta-y))
+
                      (or (and is-mode-2d (not alt))
                          (and (not is-mode-2d) alt))
                      (pan-at-pointer-position camera viewport [mouse-x mouse-y]))
