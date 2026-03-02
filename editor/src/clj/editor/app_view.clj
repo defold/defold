@@ -1834,6 +1834,10 @@
 (handler/defhandler :help.open-logs :global
   (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
 
+(handler/defhandler :help.open-editor-server :global
+  (run [web-server]
+    (ui/open-url (http-server/local-url web-server))))
+
 (handler/defhandler :help.open-donations :global
   (run [] (ui/open-url "https://www.defold.com/donate")))
 
@@ -1960,6 +1964,8 @@
                 :command :help.open-documentation}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
+               {:label (localization/message "command.help.open-editor-server")
+                :command :help.open-editor-server}
                {:label (localization/message "command.help.open-asset-portal")
                 :command :help.open-asset-portal}
                menu-items/separator

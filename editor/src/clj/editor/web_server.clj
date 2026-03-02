@@ -99,6 +99,8 @@
 
 (comment
 
+  ;; If you are adding built-in OpenAPI routes, this is a handy validator tool
+  ;; to run against a running server:
   (println
     (editor.process/exec!
       {:err :stdout}
