@@ -1408,6 +1408,11 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
+        // TODO(DYNAMIC_RENDERING): When m_UseDynamicRendering is enabled on the context,
+        // this should be switched to a dynamic rendering pipeline using VkPipelineRenderingCreateInfo
+        // and renderPass should be set to VK_NULL_HANDLE. We currently always use the classic
+        // render pass based path.
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
