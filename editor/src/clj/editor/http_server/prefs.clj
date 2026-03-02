@@ -157,5 +157,30 @@
         (throw e)))))
 
 (defn routes [prefs]
-  {"/prefs/{*path}" {"GET" (partial #'handle-get-prefs prefs)
-                     "POST" (partial #'handle-post-prefs prefs)}})
+  (let [prefs-path-openapi-parameters
+        [{:name "path"
+          :in "path"
+          :required true
+          :description "Slash-delimited preference path. You can target either a preference group (for example `code/font`) or a leaf value (for example `code/font/size`)."
+          :schema {:type "string"}
+          :examples {"code-font" {:summary "Preference group"
+                                  :value "code/font"}
+                     "code-font-size" {:summary "Leaf value in preference group"
+                                       :value "code/font/size"}}}]]
+    {"/prefs/{*path}" {"GET" (with-meta
+                               (partial #'handle-get-prefs prefs)
+                               {:openapi
+                                {:summary "Read a preference value"
+                                 :parameters prefs-path-openapi-parameters
+                                 :responses {"200" {:description "Preference value"
+                                                    :content {"application/json" {}}}
+                                             "400" {:description "Invalid path"}}}})
+                       "POST" (with-meta
+                                (partial #'handle-post-prefs prefs)
+                                {:openapi
+                                 {:summary "Write a preference value"
+                                  :parameters prefs-path-openapi-parameters
+                                  :requestBody {:required true
+                                                :content {"application/json" {}}}
+                                  :responses {"200" {:description "Preference updated"}
+                                              "400" {:description "Invalid path or value"}}}})}}))

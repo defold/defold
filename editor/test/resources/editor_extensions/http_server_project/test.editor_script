@@ -41,6 +41,17 @@ function M.get_http_server_routes()
                 return attrs.is_directory and 400 or 404
             end
         end),
+        http.server.route("/test/openapi/{id}", "POST", "json", {
+            summary = "OpenAPI route from script",
+            parameters = {
+                {name = "id", ["in"] = "path", required = true, schema = {type = "string"}}
+            },
+            responses = {
+                ["200"] = {description = "OK"}
+            }
+        }, function(request)
+            return "ok:" .. request.id
+        end),
         http.server.route("/test/conflict/same-path-and-method", "GET", ok_handler),
         http.server.route("/test/conflict/same-path-and-method", "GET", ok_handler),
         http.server.route("/test/conflict/no-param", ok_handler),
@@ -95,6 +106,12 @@ function M.get_commands()
             test("/test/resources/not-found.txt", {method = "GET", as = "string"})
             test("/test/resources/test.txt", {method = "GET", as = "string"})
             test("/test/resources/test.json", {method = "GET", as = "json"})
+            test("/test/openapi/foo", {method = "POST", body = "{}", as = "string"})
+            local response = http.request(http.server.url .. "/openapi.json", {as = "json"})
+            print(("GET /openapi.json as json => %s"):format(response.status))
+            local operation = response.body.paths["/test/openapi/{id}"].post
+            print("openapi route summary => " .. operation.summary)
+            print("openapi route has 200 => " .. tostring(operation.responses["200"] ~= nil))
         end
     }}
 end
