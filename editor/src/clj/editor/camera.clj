@@ -766,7 +766,7 @@
                                (recur (.getParent current)))))]
     (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
-(defn look-delta [camera-node current-camera free-camera dx dy look-sensitivity invert-y? dt]
+(defn look-delta [camera-node current-camera free-camera dx dy look-sensitivity dt]
   (let [{:keys [pitch yaw smoothed-look-delta]} free-camera
         [prev-dx prev-dy] smoothed-look-delta
         look-smoothing (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :mouse-smoothing])
@@ -774,8 +774,7 @@
         smooth-dx (+ prev-dx (* alpha (- dx prev-dx)))
         smooth-dy (+ prev-dy (* alpha (- dy prev-dy)))]
     (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
-      (let [smooth-dy (* smooth-dy (if invert-y? -1 1))
-            new-yaw (+ yaw (* smooth-dx look-sensitivity))
+      (let [new-yaw (+ yaw (* smooth-dx look-sensitivity))
             new-pitch (max -86.0 (min 86.0 (+ pitch (* smooth-dy look-sensitivity))))
             new-rotation (math/euler->quat [new-pitch new-yaw 0.0])
             focus-distance (:focus-distance current-camera)
@@ -1026,7 +1025,6 @@
     (let [current-camera (g/node-value self :local-camera)
           prefs (g/node-value self :prefs)
           {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
-          mouse-delta (i/poll-mouse-delta)
           is-secondary-button (or (contains? mouse-buttons :secondary)
                                   (g/node-value self :free-camera-mode))
           shift (contains? modifiers :shift)
@@ -1044,17 +1042,16 @@
           up (if walking-mode
                (Vector3d. 0.0 1.0 0.0)
                (camera-up-vector current-camera))
-          [camera-after-look free-camera] (if is-secondary-button
-                                            (let [{:keys [dx dy]} (or mouse-delta {:dx 0.0 :dy 0.0})]
-                                              (look-delta self
-                                                            current-camera
-                                                            free-camera
-                                                            (- (double dx))
-                                                            (- (double dy))
-                                                            (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
-                                                            (prefs/get prefs [:scene :perspective-camera :invert-y])
-                                                            dt))
-                                            [current-camera free-camera])
+          [camera-after-look free-camera]
+          (if is-secondary-button
+            (let [invert-y? (prefs/get prefs [:scene :perspective-camera :invert-y])
+                  look-sensitivity (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
+                  mouse-delta (i/poll-mouse-delta)
+                  dx (- (if mouse-delta (.dx mouse-delta) 0.0))
+                  dy (if mouse-delta (.dy mouse-delta) 0.0)
+                  dy (if invert-y? dy (- dy))] ;; It's already inverted
+              (look-delta self current-camera free-camera dx dy look-sensitivity dt))
+            [current-camera free-camera])
           key-for-command (fn [cmd] (some-> ^KeyCodeCombination (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                             (.getCode)))
           w-key (key-for-command :scene.camera-move-forward)

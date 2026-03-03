@@ -111,12 +111,13 @@
     (reset! mouse-capture-context nil)
     true))
 
-(defn poll-mouse-delta []
+(def ^:private cached-delta (atom (MouseCapture$MouseDelta.)))
+
+(defn ^MouseCapture$MouseDelta poll-mouse-delta []
   (when-let [context @mouse-capture-context]
-    (let [delta (MouseCapture$MouseDelta.)]
+    (let [delta @cached-delta]
       (when (MouseCapture/MouseCapture_PollDelta context delta)
-        {:dx (.dx delta)
-         :dy (.dy delta)}))))
+        @cached-delta))))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
