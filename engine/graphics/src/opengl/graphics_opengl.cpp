@@ -2544,7 +2544,7 @@ static void LogFrameBufferError(GLenum status)
                         CHECK_GL_ERROR;
                     }
 
-                    if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy)
+                    if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy && tex->m_SamplerDirty.m_MaxAnisotropy > 1.0)
                     {
                         glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, tex->m_SamplerDirty.m_MaxAnisotropy);
                         CHECK_GL_ERROR;
