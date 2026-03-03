@@ -133,7 +133,7 @@ message MappedPrimitive {
 }
 
 message MappedMessage {
-    map<string, DefaultValue> string_to_message = 1;
+    map<string, SubMsg> string_to_message = 1;
 }
 
 // -----------------------------------------------------------------------------

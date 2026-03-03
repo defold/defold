@@ -780,10 +780,10 @@ Macros currently mean no foreseeable performance gain, however."
                       (java/get-declared-methods builder-class))
         field-descs (.getFields desc)
         setters (into {}
-                      (map (fn [^Descriptors$FieldDescriptor fd]
-                             (let [java-name (->CamelCase (.getName fd))
-                                   is-map-field (.isMapField fd)
-                                   is-repeated-field (.isRepeated fd)
+                      (map (fn [^Descriptors$FieldDescriptor field-desc]
+                             (let [java-name (->CamelCase (.getName field-desc))
+                                   is-map-field (.isMapField field-desc)
+                                   is-repeated-field (.isRepeated field-desc)
 
                                    ^Method field-set-method
                                    (get methods
@@ -792,21 +792,23 @@ Macros currently mean no foreseeable performance gain, however."
                                           is-repeated-field (str "addAll" java-name)
                                           :else (str "set" java-name)))
 
-                                   field-builder
-                                   (if (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType fd))
-                                     (let [^Method field-get-method
-                                           (get methods
-                                                (if is-map-field
-                                                  (str "get" java-name "OrThrow")
-                                                  (str "get" java-name)))]
-                                       (pb-builder (.getReturnType field-get-method)))
-                                     (primitive-builder fd))
+                                   value-builder
+                                   (let [value-field-desc
+                                         (if is-map-field
+                                           (-> (.getMessageType field-desc)
+                                               (.findFieldByName "value"))
+                                           field-desc)]
+                                     (if (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType value-field-desc))
+                                       (let [value-desc (.getMessageType value-field-desc)
+                                             value-class (desc->pb-class value-desc)]
+                                         (pb-builder value-class))
+                                       (primitive-builder value-field-desc)))
 
-                                   field-key (field->key fd)
+                                   field-key (field->key field-desc)
                                    value-fn (cond
-                                              is-map-field #(coll/map-vals field-builder %)
-                                              is-repeated-field #(mapv field-builder %)
-                                              :else field-builder)
+                                              is-map-field #(coll/map-vals value-builder %)
+                                              is-repeated-field #(mapv value-builder %)
+                                              :else value-builder)
                                    value-fn (if-not decorate-protobuf-exceptions
                                               value-fn
                                               (fn decorated-value-fn [clj-value]
@@ -817,7 +819,7 @@ Macros currently mean no foreseeable performance gain, however."
                                                       (ex-info
                                                         (format "Failed to assign protobuf field %s ('%s') from value: %s"
                                                                 field-key
-                                                                (.getFullName fd)
+                                                                (.getFullName field-desc)
                                                                 clj-value)
                                                         {:pb-class class
                                                          :pb-field field-key

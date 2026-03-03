@@ -120,10 +120,17 @@
     (is (= m new-m))))
 
 (deftest map-msgs
-  (let [m {:simples {"a" {:image "/path/1.png"}
-                     "b" {:image "/path/2.png"}}}
-        new-m (round-trip TestDdf$ResourceSimpleMapNested m)]
-    (is (= m new-m))))
+  (testing "Primitive values."
+    (let [m {:string-to-number {"a" 1.0
+                                "b" 2.0}}
+          new-m (round-trip TestDdf$MappedPrimitive m)]
+      (is (= m new-m))))
+
+  (testing "Message values."
+    (let [m {:string-to-message {"a" {:uint-value 1}
+                                 "b" {:uint-value 2}}}
+          new-m (round-trip TestDdf$MappedMessage m)]
+      (is (= m new-m)))))
 
 (deftest repeated-uints
   (let [m {:uint-values (into [] (range 10))}
@@ -2052,7 +2059,9 @@ object {
     (is (false? (#'editor.protobuf/clear-defaults-from-builder!
                   (.putStringToMessage (TestDdf$MappedMessage/newBuilder)
                                        ""
-                                       (TestDdf$DefaultValue/getDefaultInstance)))))))
+                                       (-> (TestDdf$SubMsg/newBuilder)
+                                           (.setUintValue 0)
+                                           (.build))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; self-referencing-types
