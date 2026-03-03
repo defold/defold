@@ -252,7 +252,6 @@ namespace dmGameSystem
         sprite_world->m_BoundingVolumes.SetSize(comp_count);
         sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
-        sprite_world->m_AnimationDataCache.m_CurrentEngineTick = 0;
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
         sprite_world->m_VertexBuffer     = 0;
@@ -283,9 +282,8 @@ namespace dmGameSystem
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
         free(sprite_world->m_IndexBufferData);
 
-        // Destroy all cached animation data entries
         dmHashTable32<AnimationData*>::Iterator iter = sprite_world->m_AnimationDataCache.m_Cache.GetIterator();
-        while (iter.Next())
+        while(iter.Next())
         {
             AnimationData* data = iter.GetValue();
             free(data);
@@ -1357,6 +1355,7 @@ namespace dmGameSystem
         AnimationData* anim_data = (AnimationData*)malloc(sizeof(AnimationData));
         memset(anim_data, 0, sizeof(AnimationData));
         ResolveAnimationData(component, anim_data);
+
         anim_data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
         anim_data->m_CacheKey = hash;
         if (sprite_world->m_AnimationDataCache.m_Cache.Full())

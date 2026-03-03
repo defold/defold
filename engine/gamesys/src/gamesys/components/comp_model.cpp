@@ -59,7 +59,8 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
-    static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED          = 0xffff;
+    static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED   = 0xffff;
+    static const uint8_t ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS = 30;
 
     const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
     const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
@@ -102,10 +103,10 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer      m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         dmGraphics::HVertexDeclaration m_InstanceVertexDeclaration;
-        dmRender::HMaterial            m_Material;        // Material this was set up for; re-setup when effective material changes
-        uint16_t                       m_RenderItemIndex; // Index into ModelComponent::m_RenderItems this data belongs to
-        uint8_t                        m_LastUsedFrame;   // Last frame (ModelWorld::m_CurrentFrameTick) this entry was used
-        bool                           m_Initialized;
+        dmRender::HMaterial            m_Material;          // Material this was set up for; re-setup when effective material changes
+        uint16_t                       m_RenderItemIndex;   // Index into ModelComponent::m_RenderItems this data belongs to
+        uint8_t                        m_LastUsedFrame : 7; // Last frame (ModelWorld::m_CurrentFrameTick) this entry was used
+        uint8_t                        m_Initialized   : 1;
     };
 
     struct MeshRenderItem
@@ -274,6 +275,7 @@ namespace dmGameSystem
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
         dmGraphics::SetTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
+
         world->m_CurrentFrameTick           = 0;
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData           = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
@@ -889,9 +891,6 @@ namespace dmGameSystem
 
     static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
-        // assert(!rd->m_VertexBuffer);
-        // assert(!rd->m_VertexDeclaration);
-
         dmGraphics::HContext graphics_context       = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
         dmGraphics::HVertexDeclaration vx_decl_inst = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
@@ -940,8 +939,7 @@ namespace dmGameSystem
         uint32_t render_item_index = (uint32_t)(render_item - component->m_RenderItems.Begin());
 
         // Fast path: current entry already matches this render item and material
-        if (attribute_rd &&
-            attribute_rd->m_Initialized &&
+        if (attribute_rd && attribute_rd->m_Initialized &&
             attribute_rd->m_Material == render_material &&
             attribute_rd->m_RenderItemIndex == render_item_index)
         {
@@ -2365,17 +2363,17 @@ namespace dmGameSystem
                 }
             }
 
-            // Purge old mesh attribute data (~30 frames)
+            // Purge old mesh attribute data
             const uint8_t current_tick = world->m_CurrentFrameTick;
-            const uint8_t MAX_AGE_FRAMES = 30;
-            for (uint32_t j = 0; j < component.m_MeshAttributeRenderDatas.Size(); ++j)
+            const uint32_t num_render_datas = component.m_MeshAttributeRenderDatas.Size();
+            for (uint32_t j = 0; j < num_render_datas; ++j)
             {
                 MeshAttributeRenderData& rd = component.m_MeshAttributeRenderDatas[j];
                 if (!rd.m_Initialized)
+                {
                     continue;
-
-                uint8_t age = (uint8_t)(current_tick - rd.m_LastUsedFrame);
-                if (age > MAX_AGE_FRAMES)
+                }
+                if ((current_tick - rd.m_LastUsedFrame) > ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS)
                 {
                     ReleaseMeshAttributeRenderData(&rd);
                 }
