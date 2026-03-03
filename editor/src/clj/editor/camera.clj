@@ -991,6 +991,10 @@
           (toggle-free-cam-css image-view true)
           (start-free-camera-mode! self)))
 
+      ;; NOTE: Don't let other handlers receive input if we're in free camera mode
+      free-camera-mode
+      nil
+
       action)))
 
 (def ^:private camera-speed 5.0)
@@ -1001,13 +1005,12 @@
   (if (and cursor-x last-x)
     (let [screen-w (.getFitWidth image-view)
           screen-h (.getFitHeight image-view)
-          margin 1
-          padding 3
+          padding 1
           [warp-x warp-y] (cond
-                            (< cursor-x margin)              [(- screen-w padding) cursor-y]
-                            (> cursor-x (- screen-w margin)) [padding cursor-y]
-                            (< cursor-y margin)              [cursor-x (- screen-h padding)]
-                            (> cursor-y (- screen-h margin)) [cursor-x padding]
+                            (< cursor-x 0)        [(- screen-w padding) cursor-y]
+                            (> cursor-x screen-w) [padding cursor-y]
+                            (< cursor-y 0)        [cursor-x (- screen-h padding)]
+                            (> cursor-y screen-h) [cursor-x padding]
                             :else nil)]
       (if warp-x
         (let [origin (.localToScreen image-view 0.0 0.0)
@@ -1118,9 +1121,7 @@
                    filter-fn
                    filter-fn)
           camera (apply-dolly-easing self camera dt)]
-      ;; Update camera state
       (g/set-property! self :local-camera camera)
-      ;; Update ui-state with latest mouse position and dragging status
       (when has-mouse-moved
         (g/user-data-swap! self ::ui-state assoc
                            :last-x mouse-x
@@ -1133,6 +1134,7 @@
                              :pan
                              :none)))))))
 
+;; TODO: Merge this back in or use an fnk thingie?
 (defn- handle-input-fnk [self input-state action user-data]
   (handle-input self input-state action user-data))
 
