@@ -1225,6 +1225,13 @@ GET /test/resources/test.json as json => 200
 { --[[0x2]]
   test = true
 }
+POST /test/openapi/foo '{}' as string => 200
+< content-length: 6
+< content-type: text/plain; charset=utf-8
+\"ok:foo\"
+GET /openapi.json as json => 200
+openapi route summary => OpenAPI route from script
+openapi route has 200 => true
 ")
 
 (deftest http-server-test
@@ -1232,8 +1239,8 @@ GET /test/resources/test.json as json => 200
     (with-open [server (http-server/start!
                          (web-server/make-dynamic-handler
                            ;; for testing conflicts with the built-in handlers
-                           {"/command" {"GET" (constantly http-server/not-found)}
-                            "/command/{command}" {"POST" (constantly http-server/not-found)}}))]
+                           (merge (web-server/built-in-routes project)
+                                  {"/command/{command}" {"POST" (constantly http-server/not-found)}})))]
       (let [out (StringBuilder.)]
         (reload-editor-scripts! project
                                 :display-output! #(doto out (.append %2) (.append \newline))

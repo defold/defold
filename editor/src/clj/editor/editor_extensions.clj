@@ -733,7 +733,7 @@
            (fn [acc [path method :as path+method] routes]
              (if (= 1 (count routes))
                (let [{:keys [handler proj-path]} (routes 0)]
-                 (assoc-in acc path+method (with-meta handler {:proj-path proj-path})))
+                 (assoc-in acc path+method (vary-meta handler assoc :proj-path proj-path)))
                (do
                  (display-output! :err (str "Omitting conflicting routes for '"
                                             method " " path "' defined in "

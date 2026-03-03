@@ -234,6 +234,9 @@
 (defn localization []
   (some #(-> % :env :localization) (ui/contexts (ui/main-scene) true)))
 
+(defn web-server []
+  (some #(-> % :env :web-server) (ui/contexts (ui/main-scene) true)))
+
 (declare ^:private exclude-keys-deep-helper)
 
 (defn- exclude-keys-deep-value-helper [excluded-map-entry? value]
