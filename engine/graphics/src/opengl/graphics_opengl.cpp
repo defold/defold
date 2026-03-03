@@ -2414,50 +2414,51 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLProgram* program = context->m_CurrentProgram;
 
-        if (!context->m_IsGles3Version)
-            return;
-
-        for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        // Uniform buffers only supported on ES3
+        if (context->m_IsGles3Version)
         {
-            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
-            OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
-
-            if (bound_ubo)
+            for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
             {
-                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
-                UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+                OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
+                OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
 
-                if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                if (bound_ubo)
                 {
-                    dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                        bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
-                        pgm_res.m_Res->m_Name,
-                        pgm_layout->m_Hash);
+                    ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+                    UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
 
-                    // Fallback to the scratch buffer uniform setup
-                    bound_ubo = 0;
-                }
-            }
-
-            if (bound_ubo)
-            {
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
-                CHECK_GL_ERROR;
-            }
-            else
-            {
-                if (ubo.m_ActiveUniforms > 0)
-                {
-                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
-                    CHECK_GL_ERROR;
-
-                    if (ubo.m_Dirty > 0)
+                    if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
                     {
-                        glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo.m_Id));
+                        dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                            pgm_res.m_Res->m_Name,
+                            pgm_layout->m_Hash);
+
+                        // Fallback to the scratch buffer uniform setup
+                        bound_ubo = 0;
+                    }
+                }
+
+                if (bound_ubo)
+                {
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
+                    CHECK_GL_ERROR;
+                }
+                else
+                {
+                    if (ubo.m_ActiveUniforms > 0)
+                    {
+                        glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
                         CHECK_GL_ERROR;
-                        glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
-                        CHECK_GL_ERROR;
-                        ubo.m_Dirty = false;
+
+                        if (ubo.m_Dirty > 0)
+                        {
+                            glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo.m_Id));
+                            CHECK_GL_ERROR;
+                            glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                            CHECK_GL_ERROR;
+                            ubo.m_Dirty = false;
+                        }
                     }
                 }
             }
