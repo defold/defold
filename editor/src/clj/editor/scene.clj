@@ -1044,6 +1044,7 @@
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
+;; TODO: We have an evaluation-context provided usually when we call this, maybe change the behavior
 (defn- view->camera
   ([view]
    (view->camera (g/now) view))
@@ -1204,69 +1205,6 @@
                        (selection-framing-info view-node-id evaluation-context))]
     (apply-framing-info! framing-info animate?)))
 
-(defn set-camera-type! [view projection-type]
-  (let [camera-controller (view->camera view)
-        old-camera (g/node-value camera-controller :local-camera)
-        current-type (:type old-camera)]
-    (when (not= current-type projection-type)
-      (let [new-camera (case projection-type
-                         :orthographic (c/camera-perspective->orthographic old-camera)
-                         :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
-        (c/set-camera! camera-controller old-camera new-camera false)))))
-
-(defn- sync-camera-position
-  [^Camera camera-a ^Camera camera-b viewport]
-  (let [focus ^Vector4d (:focus-point camera-b)
-        point (c/camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
-        delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
-    (.sub delta world)
-    (cond-> camera-a
-      :always
-      (-> (c/camera-ensure-orthographic)
-          (c/camera-move (.x delta) (.y delta) (.z delta))
-          (assoc :fov-x (:fov-x camera-b)
-                 :fov-y (:fov-y camera-b)))
-
-      (= (:type camera-a) :perspective)
-      (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
-
-(defn- camera-2d?
-  [view evaluation-context]
-  (some-> (view->camera (:basis evaluation-context) view)
-          (g/node-value :local-camera evaluation-context)
-          (c/mode-2d?)))
-
-(defmulti realign-camera
-  (fn [view _animate?]
-    (g/with-auto-evaluation-context evaluation-context
-      (if (camera-2d? view evaluation-context) :2d :3d))))
-
-(defmethod realign-camera :2d
-  [view animate?]
-  (let [camera-node (view->camera view)
-        local-cam (g/node-value camera-node :local-camera)
-        viewport (g/node-value view :viewport)
-        camera-3d (-> (or (g/node-value camera-node :cached-3d-camera)
-                          (c/tumble (g/node-value camera-node :local-camera) 200.0 -100.0))
-                      (sync-camera-position local-cam viewport))
-        local-cam (cond-> local-cam
-                    (= (:type camera-3d) :perspective)
-                    (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-    (c/set-camera! camera-node local-cam camera-3d animate?)))
-
-(defmethod realign-camera :3d
-  [view animate?]
-  (let [camera-node (view->camera view)
-        local-cam (g/node-value camera-node :local-camera)
-        is-perspective (= (:type local-cam) :perspective)]
-    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
-    (let [end-camera (cond-> local-cam
-                       is-perspective c/camera-perspective->orthographic
-                       :always c/camera-orthographic-realign
-                       is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-      (c/set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
-
 (handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
@@ -1288,7 +1226,8 @@
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
   (run [app-view] (some-> (active-scene-view app-view)
-                          (realign-camera true))))
+                          (view->camera)
+                          (c/realign-camera true))))
 
 (handler/defhandler :scene.set-camera-type :global
   (label [user-data]
@@ -1302,7 +1241,7 @@
            (active-scene-view app-view evaluation-context))
   (run [app-view user-data]
        (when-some [view (active-scene-view app-view)]
-         (set-camera-type! view (:camera-type user-data))))
+         (c/set-camera-type! (view->camera view) (:camera-type user-data))))
   (options [user-data]
     (when-not user-data
       [{:label (localization/message "command.scene.set-camera-type.option.orthographic")
@@ -1318,28 +1257,29 @@
 
 (handler/defhandler :scene.toggle-interaction-mode :workbench
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
-  (run [app-view] (some-> (active-scene-view app-view)
-                          (realign-camera true)))
+  (run [app-view]
+    (some-> (active-scene-view app-view)
+            (view->camera)
+            (c/realign-camera true)))
   (state [app-view evaluation-context]
-         (camera-2d? (active-scene-view app-view evaluation-context)
-                     evaluation-context)))
+    (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context)) evaluation-context)))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :scene.toggle-camera-type :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
-            (and (not (camera-2d? (active-scene-view app-view evaluation-context)
+            (and (not (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context))
                                   evaluation-context))
                  (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
-         (set-camera-type! view
-                           (case (g/node-value view :camera-type)
-                             :orthographic :perspective
-                             :perspective :orthographic))))
+         (c/set-camera-type! (view->camera view)
+                             (case (g/node-value view :camera-type)
+                               :orthographic :perspective
+                               :perspective :orthographic))))
   (state [app-view evaluation-context]
          (some-> (active-scene-view app-view evaluation-context)
                  (g/node-value :camera-type evaluation-context)

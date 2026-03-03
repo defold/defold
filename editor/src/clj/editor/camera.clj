@@ -810,10 +810,71 @@
           (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
         camera))))
 
+(defn set-camera-type! [camera-controller projection-type]
+  (let [old-camera (g/node-value camera-controller :local-camera)
+        current-type (:type old-camera)]
+    (when (not= current-type projection-type)
+      (let [new-camera (case projection-type
+                         :orthographic (camera-perspective->orthographic old-camera)
+                         :perspective (camera-orthographic->perspective old-camera fov-y-35mm-full-frame))]
+        (set-camera! camera-controller old-camera new-camera false)))))
+
+(defn camera-2d?
+  [camera-node evaluation-context]
+  (mode-2d? (g/node-value camera-node :local-camera evaluation-context)))
+
+(defn- sync-camera-position
+  [^Camera camera-a ^Camera camera-b viewport]
+  (let [focus ^Vector4d (:focus-point camera-b)
+        point (camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (camera-unproject camera-a viewport (.x point) (.y point) (.z point))
+        delta (camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
+    (.sub delta world)
+    (cond-> camera-a
+      :always
+      (-> (camera-ensure-orthographic)
+          (camera-move (.x delta) (.y delta) (.z delta))
+          (assoc :fov-x (:fov-x camera-b)
+                 :fov-y (:fov-y camera-b)))
+
+      (= (:type camera-a) :perspective)
+      (camera-orthographic->perspective fov-y-35mm-full-frame))))
+
+(defmulti realign-camera
+  (fn [camera-node _animate?]
+    (g/with-auto-evaluation-context evaluation-context
+      (if (camera-2d? camera-node evaluation-context) :2d :3d))))
+
+(defmethod realign-camera :2d
+  [camera-node animate?]
+  (let [local-cam (g/node-value camera-node :local-camera)
+        viewport (g/node-value camera-node :viewport)
+        camera-3d (-> (or (g/node-value camera-node :cached-3d-camera)
+                          (tumble (g/node-value camera-node :local-camera) 200.0 -100.0))
+                      (sync-camera-position local-cam viewport))
+        local-cam (cond-> local-cam
+                    (= (:type camera-3d) :perspective)
+                    (camera-orthographic->perspective fov-y-35mm-full-frame))]
+    (set-camera! camera-node local-cam camera-3d animate?)))
+
+(defmethod realign-camera :3d
+  [camera-node animate?]
+  (let [local-cam (g/node-value camera-node :local-camera)
+        is-perspective (= (:type local-cam) :perspective)]
+    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
+    (let [end-camera (cond-> local-cam
+                       is-perspective camera-perspective->orthographic
+                       :always camera-orthographic-realign
+                       is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
+      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
+
 (defn start-free-camera-mode! [camera-id]
   (let [current-camera (g/node-value camera-id :local-camera)
         [pitch yaw _] (math/quat->euler (:rotation current-camera))
-        focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))]
+        focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
+        current-camera (if (= (:type current-camera) :orthographic)
+                         (camera-orthographic->perspective current-camera fov-y-35mm-full-frame)
+                         current-camera)]
     (i/start-mouse-capture)
     (g/set-property! camera-id :free-camera-mode true)
     (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
@@ -842,8 +903,9 @@
         ui-state (or (g/user-data self ::ui-state) {:movement :idle})
         {:keys [initial-x initial-y]} ui-state
         {:keys [x y type button key-code]} action
+        local-cam (g/node-value self :local-camera)
         is-secondary (= button :secondary)
-        is-perspective? (= :perspective (:type (g/node-value self :local-camera)))
+        is-perspective? (= :perspective (:type local-cam))
         movement (if (= type :mouse-pressed)
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement ui-state))
@@ -871,7 +933,7 @@
           action))
 
       :drag-detected
-      (if (and is-secondary is-perspective?)
+      (if (and is-secondary)
         (do
           (toggle-free-cam-css image-view true)
           (start-free-camera-mode! self)
