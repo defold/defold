@@ -654,8 +654,8 @@
         (recur (next corners)
                (min distance near)
                (max distance far)))
-      [(max 1.0 (- near 0.001))
-       (max 10.0 (+ far 0.001))])))
+      [(max 0.01 (- near 0.001))
+       (max 100.0 (+ far 0.001))])))
 
 (g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
   (let [filter-fn (or (:filter-fn local-camera) identity)
@@ -667,7 +667,7 @@
         fov-y (:fov-y local-camera)
         fov-x (* aspect fov-y)
         [z-near z-far] (if (nil? scene-aabb)
-                         [1.0 10000.0]
+                         [0.01 100.0]
                          (find-z-extents (types/position local-camera)
                                          (camera-forward-vector local-camera)
                                          scene-aabb))]
@@ -751,8 +751,7 @@
                    (g/transact
                      [(g/set-property camera-node :local-camera end-camera)
                       (g/set-property camera-node :animating false)])
-                   ;; TODO: This doesn't belong here
-                   (ui/user-data! (ui/main-scene) :editor.scene/ui/refresh-requested? true)
+                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                    (when on-animation-end (on-animation-end)))))
      (g/transact
        (g/set-property camera-node :local-camera end-camera)))
@@ -1131,13 +1130,6 @@
                              :pan
                              :none)))))))
 
-;; TODO: Merge this back in or use an fnk thingie?
-(defn- handle-input-fnk [self input-state action user-data]
-  (handle-input self input-state action user-data))
-
-(defn- handle-update-tick-fnk [self input-state dt]
-  (handle-update-tick self input-state dt))
-
 (g/defnode CameraController
   (property prefs g/Any)
   (property image-view ImageView)
@@ -1160,8 +1152,8 @@
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
 
-  (output input-handler Runnable :cached (g/constantly handle-input-fnk))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
