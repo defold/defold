@@ -428,6 +428,7 @@ public class Project {
     static String[][] extensionMapping = new String[][] {
         {".camera", ".camerac"},
         {".buffer", ".bufferc"},
+        {".data", ".datac"},
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
         {".collisionobject", ".collisionobjectc"},
