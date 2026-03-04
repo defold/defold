@@ -56,6 +56,7 @@
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
 #include "resources/res_glyph_bank.h"
+#include "resources/res_data.h"
 
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
@@ -139,6 +140,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);
         // fontc: res_font.cpp
         REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate);
+        REGISTER_RESOURCE_TYPE("datac", 0, ResDataPreload, ResDataCreate, 0, ResDataDestroy, ResDataRecreate);
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);

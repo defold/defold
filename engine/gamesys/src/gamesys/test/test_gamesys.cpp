@@ -29,6 +29,7 @@
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_textureset.h"
+#include "gamesys/resources/res_data.h"
 
 #include <stdio.h>
 
@@ -3772,6 +3773,34 @@ ResourceFailParams invalid_dp_resources[] =
     {"/display_profiles/valid.display_profilesc", "/display_profiles/missing.display_profilesc"},
 };
 INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceFailTest, jc_test_values_in(invalid_dp_resources));
+
+/* Data */
+
+const char* valid_data_resources[] = {"/data/valid.datac"};
+INSTANTIATE_TEST_CASE_P(Data, ResourceTest, jc_test_values_in(valid_data_resources));
+
+ResourceFailParams invalid_data_resources[] =
+{
+    {"/data/valid.datac", "/data/missing.datac"},
+};
+INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_resources));
+
+TEST_F(ResourceTest, DataResourceContents)
+{
+    dmGameSystem::DataResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/data/valid.datac", (void**)&resource));
+    ASSERT_NE((void*)0, resource);
+    ASSERT_NE((void*)0, resource->m_DDF);
+
+    dmGameSystemDDF::Data* ddf = resource->m_DDF;
+    ASSERT_EQ(2u, ddf->m_Tags.m_Count);
+    EXPECT_STREQ("tag-one", ddf->m_Tags[0]);
+    EXPECT_STREQ("tag-two", ddf->m_Tags[1]);
+
+    EXPECT_STREQ("hello", ddf->m_Data.m_Kind.m_String);
+
+    dmResource::Release(m_Factory, (void*)resource);
+}
 
 /* Script */
 

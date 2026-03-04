@@ -14,6 +14,7 @@ def build(bld):
     dirs = ['animationset/*',
             'atlas/*',
             'buffer/*',
+            'data/*',
             'camera/*',
             'collection_factory/*',
             'collection_proxy/*',

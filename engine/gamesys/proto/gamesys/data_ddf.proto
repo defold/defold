@@ -1,0 +1,14 @@
+syntax = "proto2";
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_struct.proto";
+
+option java_package = "com.dynamo.gamesys.proto";
+option java_outer_classname = "DataProto";
+
+message Data
+{
+    repeated string            tags = 1;
+    optional dmStructDDF.Value data = 2;
+}
