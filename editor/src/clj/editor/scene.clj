@@ -1071,16 +1071,13 @@
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
         node (g/node-by-id-at basis node-id)
-        image-view (g/raw-property-value* basis node :image-view)
-        camera (view->camera node-id)
-        free-camera-mode (and camera
-                              (g/node-value camera :free-camera-mode))]
+        image-view (g/raw-property-value* basis node :image-view)]
     (when-not (ui/inside-hidden-tab? image-view)
       (let [drawable (g/raw-property-value* basis node :drawable)
             async-copy-state-atom (g/raw-property-value* basis node :async-copy-state)]
         (when (and (some? drawable)
                    (some? async-copy-state-atom))
-          (update-image-view! image-view drawable async-copy-state-atom free-camera-mode dt)
+          (update-image-view! image-view drawable async-copy-state-atom dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
@@ -1291,16 +1288,8 @@
           camera (view->camera scene-view)]
       (= :perspective (:type (g/node-value camera :local-camera)))))
   (run [app-view]
-    (let [scene-view (active-scene-view app-view)]
-      (when-let [tab-content (loop [current (.getParent ^Node (g/node-value scene-view :image-view))]
-                               (when current
-                                 (if (.contains (.getStyleClass current) "tab-content-area")
-                                   current
-                                   (recur (.getParent current)))))]
-        (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") true))
-      (some-> scene-view
-              (view->camera)
-              (c/start-free-camera-mode!)))))
+    (when-let [scene-view (active-scene-view app-view)]
+      (c/start-free-camera-mode! (g/node-value scene-view :image-view) (view->camera scene-view)))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
@@ -1408,7 +1397,7 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom free-camera-mode dt]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
           (g/with-auto-evaluation-context evaluation-context
@@ -1418,8 +1407,6 @@
              (g/node-value view-id :play-mode evaluation-context)
              (g/node-value view-id :active-updatables evaluation-context)
              (g/node-value view-id :updatable-states evaluation-context)])
-          tool-user-data (cond-> tool-user-data
-                           free-camera-mode (assoc :free-camera-mode free-camera-mode))
           has-active-updatables (not (coll/empty? active-updatables))
           new-updatable-states (if has-active-updatables
                                  (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))

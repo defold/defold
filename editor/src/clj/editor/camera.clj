@@ -866,13 +866,14 @@
                        is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
 
-(defn start-free-camera-mode! [camera-id]
+(defn start-free-camera-mode! [image-view camera-id]
   (let [current-camera (g/node-value camera-id :local-camera)
         [pitch yaw _] (math/quat->euler (:rotation current-camera))
         focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
         current-camera (if (= (:type current-camera) :orthographic)
                          (camera-orthographic->perspective current-camera fov-y-35mm-full-frame)
                          current-camera)]
+    (toggle-free-cam-css image-view true)
     (i/start-mouse-capture)
     (g/set-property! camera-id :free-camera-mode true)
     (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
@@ -881,6 +882,23 @@
                                              :pitch pitch
                                              :yaw yaw
                                              :smoothed-look-delta [0.0 0.0]})))
+
+(defn stop-free-camera-mode! [image-view camera-id]
+  (let [current-camera (g/node-value camera-id :local-camera)
+        [pitch yaw _] (math/quat->euler (:rotation current-camera))
+        focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
+        current-camera (if (= (:type current-camera) :orthographic)
+                         (camera-orthographic->perspective current-camera fov-y-35mm-full-frame)
+                         current-camera)]
+    (toggle-free-cam-css image-view false)
+    (g/set-property! camera-id :free-camera-mode false)
+    (g/set-property! camera-id :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
+                                             :pitch 0.0
+                                             :yaw 0.0
+                                             :smoothed-look-delta [0.0 0.0]})
+    (i/stop-mouse-capture)
+    (g/set-property! camera-id :cursor-type :default)))
+
 (defn- free-camera-movement-keys [prefs]
   (let [key-for-command (fn [cmd]
                           (some-> ^KeyCodeCombination
@@ -931,11 +949,8 @@
           action))
 
       :drag-detected
-      (if (and is-secondary)
-        (do
-          (toggle-free-cam-css image-view true)
-          (start-free-camera-mode! self)
-          nil)
+      (if is-secondary
+        (start-free-camera-mode! image-view self)
         action)
 
       :mouse-released
@@ -950,15 +965,7 @@
         (g/set-property! self :cursor-type :default)
         (cond
           free-camera-mode
-          (do
-            (g/set-property! self :free-camera-mode false)
-            (g/set-property! self :free-camera {:velocity (Vector3d. 0.0 0.0 0.0)
-                                                :pitch 0.0
-                                                :yaw 0.0
-                                                :smoothed-look-delta [0.0 0.0]})
-            (i/stop-mouse-capture)
-            (g/set-property! self :cursor-type :default)
-            (toggle-free-cam-css image-view false))
+          (stop-free-camera-mode! image-view self)
 
           ;; Allow right click for context menu
           (or (= movement :idle)
@@ -975,19 +982,14 @@
         (and (= key-code KeyCode/ESCAPE)
              (not (contains? (:mouse-buttons input-state) :secondary))
              free-camera-mode)
-        ;; TODO: We probably want a counterpart to start-free-camera-mode! to call this
-        (do
-          (g/set-property! self :free-camera-mode false)
-          (g/set-property! self :cursor-type :default)
-          (i/stop-mouse-capture)
-          nil)
+        (stop-free-camera-mode! image-view self)
 
         (and (contains? (:mouse-buttons input-state) :secondary)
              (not free-camera-mode)
              (contains? (free-camera-movement-keys (g/node-value self :prefs)) key-code))
-        (do
-          (toggle-free-cam-css image-view true)
-          (start-free-camera-mode! self)))
+        ;; TODO JOE: There's a bug here where if we start immediately, the proper
+        ;; focus-point + focus-distance hasn't been calculated yet
+        (start-free-camera-mode! image-view self))
 
       ;; NOTE: Don't let other handlers receive input if we're in free camera mode
       free-camera-mode

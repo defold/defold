@@ -136,6 +136,7 @@
              (first (cp emitter :particle-key-alpha 2))))
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
 
+;; TODO JOE: Fix the failing test
 ;; (deftest add-delete-control-point
 ;;   (test-util/with-loaded-project
 ;;     (let [curve-view (make-curve-view! app-view 800 400)
