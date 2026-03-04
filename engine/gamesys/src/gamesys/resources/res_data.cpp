@@ -20,6 +20,11 @@ namespace dmGameSystem
         dmGameSystemDDF::Data* m_DDF;
     };
 
+    const dmGameSystemDDF::Data* GetDDFData(DataResource* res)
+    {
+        return res->m_DDF;
+    }
+
     dmResource::Result ResDataPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGameSystemDDF::Data* ddf = 0;

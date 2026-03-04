@@ -3790,9 +3790,10 @@ TEST_F(ResourceTest, DataResourceContents)
     dmGameSystem::DataResource* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/data/valid.datac", (void**)&resource));
     ASSERT_NE((void*)0, resource);
-    ASSERT_NE((void*)0, resource->m_DDF);
 
-    dmGameSystemDDF::Data* ddf = resource->m_DDF;
+    const dmGameSystemDDF::Data* ddf = dmGameSystem::GetDDFData(resource);
+    ASSERT_NE((void*)0, ddf);
+
     ASSERT_EQ(2u, ddf->m_Tags.m_Count);
     EXPECT_STREQ("tag-one", ddf->m_Tags[0]);
     EXPECT_STREQ("tag-two", ddf->m_Tags[1]);

@@ -19,6 +19,9 @@
 
 namespace dmGameSystem
 {
+    struct DataResource;
+    const dmGameSystemDDF::Data* GetDDFData(DataResource* res);
+
     dmResource::Result ResDataPreload(const dmResource::ResourcePreloadParams* params);
     dmResource::Result ResDataCreate(const dmResource::ResourceCreateParams* params);
     dmResource::Result ResDataDestroy(const dmResource::ResourceDestroyParams* params);
