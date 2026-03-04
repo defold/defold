@@ -4387,6 +4387,18 @@ namespace dmGui
     {
         Matrix4 parent_m;
 
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_DISABLED)
+        {
+            if (parent_node == 0x0)
+            {
+                return screen_position;
+            }
+
+            CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
+            Vector4 local_position = inverse(parent_m) * Vector4(screen_position, 1.0f);
+            return local_position.getXYZ();
+        }
+
         Vector4 reference_scale;
         Vector4 adjust_scale;
         Vector4 offset(0.0f);
