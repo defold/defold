@@ -437,7 +437,7 @@
 
 (declare get-registered-node-type-cls)
 
-(def ^:private default-node-desc-pb-field-values (protobuf/default-value Gui$NodeDesc))
+(def ^:private default-node-desc-pb-field-values (protobuf/optional-field-defaults Gui$NodeDesc))
 
 (def ^:private default-pb-node-type (protobuf/default Gui$NodeDesc :type)) ; E.g. :type-box.
 

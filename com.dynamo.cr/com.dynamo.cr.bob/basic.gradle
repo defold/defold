@@ -8,6 +8,7 @@ ext {
     protoFiles = [
             [dir: "../../engine/ddf/src", file: "ddf/ddf_extensions.proto"],
             [dir: "../../engine/ddf/src", file: "ddf/ddf_math.proto"],
+            [dir: "../../engine/ddf/src", file: "ddf/ddf_struct.proto"],
             [dir: "../../engine/engine/proto", file: "engine/engine_ddf.proto"],
             [dir: "../../engine/graphics/proto", file: "graphics/graphics_ddf.proto"],
             [dir: "../../engine/gameobject/proto", file: "gameobject/properties_ddf.proto"],

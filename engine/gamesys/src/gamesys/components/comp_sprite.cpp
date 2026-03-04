@@ -1761,9 +1761,9 @@ namespace dmGameSystem
 
     static void UpdateTransform(SpriteComponent* component, bool sub_pixels)
     {
-        Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
+        dmTransform::Transform transform = dmTransform::Transform(component->m_Position, component->m_Rotation, component->m_Scale);
+        Matrix4 local = dmTransform::ToMatrix4(transform);
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        // World matrix is position + rotation only; size is applied when producing world-space positions
         Matrix4 w = world * local;
         if (!sub_pixels)
         {
@@ -2034,8 +2034,8 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
             UpdateTransform(component, sub_pixels);
-            // Bounding radius: world matrix has no scale, so incorporate size
-            Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
+            // Bounding radius: world matrix already contains component scale; incorporate only sprite size
+            Vector3 size = component->m_Size;
             Vector3 half_diagonal = (component->m_World.getCol(0).getXYZ() * size.getX() + component->m_World.getCol(1).getXYZ() * size.getY()) * 0.5f;
             float radius_sq = dmVMath::LengthSqr(half_diagonal);
             world->m_BoundingVolumes[i] = radius_sq;
@@ -2063,7 +2063,7 @@ namespace dmGameSystem
             const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
             float pivot_x = 0.f, pivot_y = 0.f;
             GetPivot(anim_data, &pivot_x, &pivot_y);
-            Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
+            Vector3 size = component->m_Size;
             Point3 pivot_scaled(-pivot_x * size.getX(), -pivot_y * size.getY(), 0.f);
             Vector3 world_pos = (component->m_World * pivot_scaled).getXYZ();
 
@@ -2667,5 +2667,11 @@ namespace dmGameSystem
     void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out)
     {
         *pool_out = &((SpriteWorld*) sprite_world)->m_DynamicVertexAttributePool;
+    }
+
+    void GetSpriteComponentScale(void* sprite_component, dmVMath::Vector3* scale_out)
+    {
+        SpriteComponent* comp = (SpriteComponent*) sprite_component;
+        *scale_out = comp->m_Scale;
     }
 }
