@@ -168,6 +168,7 @@
           ;; FileNotFoundException being thrown by the read attempt. Instead, we
           ;; explicitly check that the file exists, which will follow symlinks.
           (when (and (resource/stateful-resource-type? resource-type)
+                     (resource/symlink? resource)
                      (not (resource/exists? resource)))
             (make-file-not-found-error node-id resource)))
 
