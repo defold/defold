@@ -708,8 +708,8 @@
      (->> properties
           category-property-edit-types
           (e/mapcat
-            (fn [[category-title properties]]
-              (when-not (coll/empty? properties)
+            (fn [[category-title category-properties]]
+              (when-not (coll/empty? category-properties)
                 (-> []
                     (cond->
                       category-title
@@ -718,13 +718,14 @@
                              :style-class "property-category"}))
                     (conj
                       {:fx/type fxui/grid
+                       :fx/key (:original-node-ids properties)
                        :on-key-pressed handle-grid-key-pressed
                        :column-constraints [{:fx/type fx.column-constraints/lifecycle}
                                             {:fx/type fx.column-constraints/lifecycle
                                              :hgrow :always}]
                        :spacing :small
                        :children
-                       (coll/into-> properties []
+                       (coll/into-> category-properties []
                          (coll/mapcat-indexed
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]
