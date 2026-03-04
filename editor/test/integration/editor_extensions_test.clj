@@ -1269,6 +1269,16 @@ openapi route has 200 => true
                        (when-not (properties/read-only? p)
                          (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
 
+(deftest textual-resource-text-property-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (g/with-auto-evaluation-context ec
+      (let [resource-node-id (project/get-resource-node project "/input/game.input_binding" ec)
+            text-property-getter (graph/ext-value-getter resource-node-id "text" project ec)
+            text (text-property-getter)]
+        (is (some #{"text"} (graph/ext-readable-properties resource-node-id project ec)))
+        (is (string/includes? text "mouse_trigger"))
+        (is (string/includes? text "action: \"touch\""))))))
+
 (def ^:private expected-tilemap-test-output
   "new => {
 }
@@ -2229,6 +2239,11 @@ test.tilesource targeted checks:
   contains animation nodes = ok
   animation has id = ok
   animation is readable = ok
+test.input_binding targeted checks:
+  sorted_and_unique = ok
+  contains path = ok
+  contains text = ok
+  all listed are readable = ok
 test.editor_script targeted checks:
   sorted_and_unique = ok
   contains path = ok

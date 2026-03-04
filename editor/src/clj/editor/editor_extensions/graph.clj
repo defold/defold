@@ -328,23 +328,24 @@
    (ext-property-getter node-type-kw getter-fn)
    (when lister-fn (ext-property-lister node-type-kw lister-fn))))
 
-(register-property-getter!
-  :editor.code.resource/CodeEditorResourceNode
-  (fn CodeEditorResourceNode-getter [node-id property evaluation-context]
-    (case property
-      "text" #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context))
-      nil))
-  (fn CodeEditorResourceNode-lister [_ _]
-    ["text"]))
+(defn- textual-resource-node? [node-id evaluation-context]
+  (let [resource (g/node-value node-id :resource evaluation-context)]
+    (and (some? resource)
+         (-> evaluation-context
+             :basis
+             (resource/lookup-resource-type (resource/workspace resource) resource)
+             :textual?))))
 
 (register-property-getter!
   :editor.resource/ResourceNode
   (fn ResourceNode-getter [node-id property evaluation-context]
     (case property
+      "text" (when (textual-resource-node? node-id evaluation-context)
+               #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context)))
       "path" #(resource/resource->proj-path (g/node-value node-id :resource evaluation-context))
       nil))
-  (fn ResourceNode-lister [_ _]
-    ["path"]))
+  (fn ResourceNode-lister [node-id evaluation-context]
+    (cond-> ["path"] (textual-resource-node? node-id evaluation-context) (conj "text"))))
 
 (register-property-getter!
   :editor.tile-source/TileSourceNode
