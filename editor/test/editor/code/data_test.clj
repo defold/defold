@@ -1352,6 +1352,47 @@
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])))))))
 
+(deftest duplicate-selection-test
+  (let [duplicate-selection (fn [lines cursor-ranges]
+                              (select-keys (data/duplicate-selection lines cursor-ranges nil (layout-info lines))
+                                           [:lines :cursor-ranges]))]
+    (testing "Duplicates selected lines when all cursors are empty"
+      (is (= {:lines ["abcdef"
+                      "abcdef"]
+              :cursor-ranges [(c 1 1)
+                              (c 1 4)]}
+             (duplicate-selection ["abcdef"]
+                                  [(c 0 1)
+                                   (c 0 4)])))
+      (is (= {:lines ["a"
+                      "a"
+                      "b"
+                      "c"
+                      "c"]
+              :cursor-ranges [(c 1 1)
+                              (c 4 0)]}
+             (duplicate-selection ["a"
+                                   "b"
+                                   "c"]
+                                  [(c 0 1)
+                                   (c 2 0)]))))
+    (testing "Duplicates selected ranges when there are non-empty ranges"
+      (is (= {:lines ["abcbcdef"]
+              :cursor-ranges [(c 0 0)
+                              (cr [0 3] [0 5])]}
+             (duplicate-selection ["abcdef"]
+                                  [(c 0 0)
+                                   (cr [0 1] [0 3])]))))
+    (testing "Does not persist synthetic duplicate ranges as regions"
+      (is (= {:lines ["abcbcdef"]
+              :cursor-ranges [(cr [0 3] [0 5])]
+              :regions [(assoc (cr [0 6] [0 7]) :type :foo)]}
+             (select-keys (data/duplicate-selection ["abcdef"]
+                                                    [(cr [0 1] [0 3])]
+                                                    [(assoc (cr [0 4] [0 5]) :type :foo)]
+                                                    (layout-info ["abcdef"]))
+                          [:lines :cursor-ranges :regions]))))))
+
 (deftest find-matching-braces-test
   (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 0))))
   (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 1))))
