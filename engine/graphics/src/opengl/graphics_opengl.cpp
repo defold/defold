@@ -627,6 +627,18 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static inline GLenum GetOpenGLFaceWinding(FaceWinding winding)
+    {
+        switch (winding)
+        {
+            case FACE_WINDING_CCW: return GL_CCW;
+            case FACE_WINDING_CW:  return GL_CW;
+            default:
+                assert(0 && "Unsupported face winding");
+                return GL_CCW;
+        }
+    }
+
     static inline GLenum GetOpenGLStencilOp(StencilOp op)
     {
         switch (op)
@@ -1973,7 +1985,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
+    static inline GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
     {
         switch (buffer_usage)
         {
@@ -2680,7 +2692,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
+    static inline GLenum GetOpenGLTextureWrap(TextureWrap wrap)
     {
         switch (wrap)
         {
