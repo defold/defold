@@ -15,14 +15,43 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import org.junit.Test;
+
+import com.dynamo.bob.fs.ResourceUtil;
 
 public class BuilderUtilTest {
 
     @Test
     public void testReplaceExtCompatibilityShim() {
-        assertEquals("/foo/bar.materialc", BuilderUtil.replaceExt("/foo/bar.material", ".material", ".materialc"));
-        assertEquals("/foo/bar.material", BuilderUtil.replaceExt("/foo/bar.material", ".font", ".fontc"));
+        boolean oldMinification = ResourceUtil.isMinificationEnabled();
+        try {
+            ResourceUtil.enableMinification(false);
+            assertEquals("/foo/bar.materialc", BuilderUtil.replaceExt("/foo/bar.material", ".material", ".materialc"));
+            assertEquals("/foo/bar.material", BuilderUtil.replaceExt("/foo/bar.material", ".font", ".fontc"));
+        } finally {
+            ResourceUtil.enableMinification(oldMinification);
+        }
+    }
+
+    @Test
+    public void testReplaceExtCompatibilityShimWithMinification() {
+        final String inExt = ".compat_material_tmp";
+        final String outExt = ".compat_materialc_tmp";
+        boolean oldMinification = ResourceUtil.isMinificationEnabled();
+        try {
+            ResourceUtil.registerMapping(inExt, outExt);
+            ResourceUtil.enableMinification(true);
+
+            String expectedMinified = ResourceUtil.minifyPath("/foo/bar.compat_materialc_tmp");
+            String replaced = BuilderUtil.replaceExt("/foo/bar.compat_material_tmp", inExt, outExt);
+
+            assertNotEquals("/foo/bar.compat_materialc_tmp", replaced);
+            assertEquals(expectedMinified, replaced);
+        } finally {
+            ResourceUtil.enableMinification(oldMinification);
+            ResourceUtil.disableMinify(outExt);
+        }
     }
 }

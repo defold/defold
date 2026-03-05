@@ -33,7 +33,7 @@ public class BuilderUtil {
      */
     @Deprecated
     public static String replaceExt(String path, String from, String to) {
-        return ResourceUtil.replaceExt(path, from, to);
+        return ResourceUtil.minifyPathAndReplaceExt(path, from, to);
     }
 
     public static IResource checkResource(Project project, IResource owner, String field, String path) throws CompileExceptionError {

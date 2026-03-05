@@ -83,7 +83,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
         IResource shaderResourceOut = getShaderProgram(computeBuilder);
 
-        computeBuilder.setComputeProgram(ResourceUtil.changeExt(shaderResourceOut.getPath(), ".spc"));
+        computeBuilder.setComputeProgram(ResourceUtil.minifyPathAndChangeExt(shaderResourceOut.getPath(), ".spc"));
 
         buildSamplers(computeBuilder);
 

@@ -96,9 +96,9 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
-        rigBuilder.setMeshSet(ResourceUtil.changeExt(modelDescBuilder.getMesh(), ".meshsetc"));
+        rigBuilder.setMeshSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getMesh(), ".meshsetc"));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            rigBuilder.setSkeleton(ResourceUtil.changeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
+            rigBuilder.setSkeleton(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
 
         if (modelDescBuilder.getAnimations().equals("")) {
@@ -106,13 +106,13 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
         else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
             // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
-            rigBuilder.setAnimationSet(ResourceUtil.changeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
+            rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
         else if(!modelDescBuilder.getAnimations().isEmpty()) {
             // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
             // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this collada file
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
-            rigBuilder.setAnimationSet(ResourceUtil.changeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
+            rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
             throw new CompileExceptionError(task.firstInput(), -1, "No animation set in model!");
         }
