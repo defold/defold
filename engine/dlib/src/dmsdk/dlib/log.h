@@ -249,10 +249,7 @@ typedef void (*FLogListener)(LogSeverity severity, const char* domain, const cha
  */
 typedef struct LogParams
 {
-#if !defined(__cplusplus)
-    uint8_t _padding; // to avoid empty C struct
-#endif
-
+    uint8_t m_Reserved; // keep non-empty and C/C++ ABI-compatible
 } LogParams;
 
 /*# initialize the logging system.
