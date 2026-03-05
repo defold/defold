@@ -470,6 +470,22 @@
 (defn mtime [^File f]
   (.lastModified f))
 
+(deftest build-data
+  (testing "Building data component"
+    (test-util/with-temp-project-content
+      {"/main.data"
+       ["tags: \"foo\""]}
+
+      (let [data-node (test-util/resource-node project "/main.data")]
+        (with-open [_ (test-util/build! data-node)]
+          (let [workspace (project/workspace project)
+                path->info (test-util/make-build-output-infos-by-path workspace "/main.datac")
+                info (get path->info "/main.datac")]
+            (is (some? info))
+            (is (pos? (alength (:bytes info))))
+            (let [pb-map (:pb-map info)]
+              (is (= ["foo"] (:tags pb-map))))))))))
+
 (deftest build-atlas
   (testing "Building atlas"
     (with-build-results "/background/background.atlas"
