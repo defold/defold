@@ -1289,7 +1289,7 @@
       (= :perspective (:type (g/node-value camera :local-camera)))))
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
-      (c/start-free-camera-mode! (g/node-value scene-view :image-view) (view->camera scene-view)))))
+      (c/start-free-cam-mode! (g/node-value scene-view :image-view) (view->camera scene-view)))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))

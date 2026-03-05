@@ -91,8 +91,8 @@
       (.contains os-name "Mac")   (get-macos-window)
       :else                       (get-windows-window))))
 
-;; NOTE: JavaFX provides Robot for this sort of thing, however, it requires Accessibility Permissions on macos,
-;; so we need to make a native call to ...
+;; NOTE: JavaFX provides Robot for this sort of thing, however, it requires Accessibility Permissions
+;; on macos, so we need to make native calls
 (defn warp-cursor [x y]
   (MouseCapture/MouseCapture_WarpCursor x y))
 
