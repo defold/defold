@@ -13,6 +13,8 @@
 
 #include "res_data.h"
 
+#include <dmsdk/resource/resource.h>
+
 namespace dmGameSystem
 {
     struct DataResource
