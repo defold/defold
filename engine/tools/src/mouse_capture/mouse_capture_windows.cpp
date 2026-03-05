@@ -64,8 +64,8 @@ namespace dmMouseCapture
         ctx->m_Capturing = false;
         ctx->m_AccumulatedDelta.dx = 0.0;
         ctx->m_AccumulatedDelta.dy = 0.0;
-        context->m_SavedCursorX = save_cursor_x;
-        context->m_SavedCursorY = save_cursor_y;
+        ctx->m_SavedCursorX = save_cursor_x;
+        ctx->m_SavedCursorY = save_cursor_y;
         return ctx;
     }
 
