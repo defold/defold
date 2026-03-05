@@ -1389,13 +1389,16 @@ def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     config.set("server", "socket", port)
 
     if config_name is None:
-        config_name = tempfile.mktemp(".cfg", "unittest_")
-    configfilepath = os.path.basename(config_name)
-    with open(configfilepath, 'w') as f:
-        config.write(f)
-        print("Wrote test config file: %s" % configfilepath)
-        return configfilepath
-    return None
+        with tempfile.NamedTemporaryFile(mode='w', suffix=".cfg", prefix="unittest_", dir=".", delete=False) as f:
+            configfilepath = os.path.basename(f.name)
+            config.write(f)
+    else:
+        configfilepath = os.path.basename(config_name)
+        with open(configfilepath, 'w') as f:
+            config.write(f)
+
+    print("Wrote test config file: %s" % configfilepath)
+    return configfilepath
 
 def _should_run_test_taskgen(ctx, taskgen):
     if not 'test' in taskgen.features:
