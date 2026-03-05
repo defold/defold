@@ -20,10 +20,7 @@ namespace dmGameSystem
 {
     /*# Data resource access
      *
-     * Helper types and accessors for the data resource type (`.datac`), which
-     * is the compiled form of the `dmGameSystemDDF::Data` message (from
-     * `data_ddf.proto`). This resource type is used together with the
-     * `game.data` API in scripts.
+     * Helper types and accessors for the data resource type (`.datac`).
      *
      * @document
      * @namespace dmGameSystem
@@ -59,4 +56,3 @@ namespace dmGameSystem
 }
 
 #endif // DMSDK_GAMESYS_RES_DATA_H
-
