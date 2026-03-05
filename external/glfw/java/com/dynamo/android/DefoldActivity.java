@@ -89,6 +89,7 @@ public class DefoldActivity extends NativeActivity {
 
     private void updateFullscreenMode() {
         final Window window = getWindow();
+        View decorView = window.getDecorView();
         if (mImmersiveMode) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false);
@@ -101,8 +102,6 @@ public class DefoldActivity extends NativeActivity {
                     );
                 }
             } else {
-                @SuppressWarnings("deprecation")
-                View decorView = window.getDecorView();
                 @SuppressWarnings("deprecation")
                 int flags =
                         View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -128,6 +127,9 @@ public class DefoldActivity extends NativeActivity {
                 getWindow().setAttributes(layoutParams);
             }
         }
+
+        // Re-dispatch insets after fullscreen/cutout changes to keep safe area in sync.
+        decorView.requestApplyInsets();
     }
 
     public boolean isAppInstalled(String appPackageName) {
@@ -288,17 +290,15 @@ public class DefoldActivity extends NativeActivity {
 
         nativeOnCreate(this);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-            View decorView = getWindow().getDecorView();
-            decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-                @Override
-                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                    glfwSetPendingResizeBecauseOfInsets();
-                    return v.onApplyWindowInsets(insets);
-                }
-            });
-            decorView.requestApplyInsets();
-        }
+        View decorView = getWindow().getDecorView();
+        decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                glfwSetPendingResizeBecauseOfInsets();
+                return v.onApplyWindowInsets(insets);
+            }
+        });
+        decorView.requestApplyInsets();
     }
 
     @Override
