@@ -59,6 +59,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [com.defold.control DefoldStringConverter]
@@ -623,6 +624,14 @@
         (cond-> (contains? edit :state)
                 (assoc :state (:state edit))))))
 
+(defn- display-value-text [{:keys [type] :as field} value]
+  (case type
+    :resource (resource/resource->proj-path value)
+    :choicebox (or (->> field :options (coll/some #(when (= (first %) value) (second %))))
+                   ((:to-string field str) value))
+    :vec4 (->> value (e/map field-expression/format-number) (coll/join-to-string "  "))
+    (str value)))
+
 (defn- list-cell-factory [element edit-index [i v]]
   (let [edited (= edit-index i)
         ref {:fx/type fx/ext-get-ref :ref [::edit edit-index]}]
@@ -637,10 +646,7 @@
          :graphic ref}
 
         {:graphic ref})
-      {:text (case (:type element)
-               :choicebox (get (into {} (:options element)) v)
-               :resource (resource/resource->proj-path v)
-               (str v))})))
+      {:text (display-value-text element v)})))
 
 (def ^:private add-message (localization/message "form.context-menu.add"))
 
@@ -1031,10 +1037,7 @@
       (case type
         (:integer :number) {:text (field-expression/format-number x)
                             :alignment :center-right}
-        :resource {:text (resource/resource->proj-path x)}
-        :choicebox {:text (get (into {} (:options column)) x)}
-        :vec4 {:text (->> x (mapv field-expression/format-number) (string/join "  "))}
-        {:text (str x)}))))
+        {:text (display-value-text column x)}))))
 
 (defn- get-label-text [localization-state {:keys [localization-key label title]}]
   (let [fallback (or label title)]
