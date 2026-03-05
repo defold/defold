@@ -117,8 +117,8 @@
   (Vector3d. (.x rect) (.y rect) 0.0))
 
 (defn Rect->Point3d
-  ^Vector3d [^Rect rect]
-  (Vector3d. (.x rect) (.y rect) 0.0))
+  ^Point3d [^Rect rect]
+  (Point3d. (.x rect) (.y rect) 0.0))
 
 (def ^:private aabb-unique-axes
   [(Vector3d. 1.0 0.0 0.0)
