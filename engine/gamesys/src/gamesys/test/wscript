@@ -67,6 +67,7 @@ def build(bld):
                         'ResourceTypeAnim',
                         'ResourceTypeAnimationSet',
                         'ResourceTypeCollection',
+                        'ResourceTypeData',
                         'ResourceTypeGameObject',
                         'ResourceTypeGui',
                         'ResourceTypeGuiScript',
