@@ -565,6 +565,13 @@ static void LogFrameBufferError(GLenum status)
         m_ScissorRect[3] = (int32_t) m_Height;
         memcpy(m_ScissorRectDirty, m_ScissorRect, sizeof(m_ScissorRect));
 
+        // Default viewport to cover the entire window
+        m_ViewportRect[0] = 0;
+        m_ViewportRect[1] = 0;
+        m_ViewportRect[2] = (int32_t) m_Width;
+        m_ViewportRect[3] = (int32_t) m_Height;
+        memcpy(m_ViewportRectDirty, m_ViewportRect, sizeof(m_ViewportRect));
+
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
@@ -858,6 +865,29 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
 
             memcpy(context->m_ScissorRect, context->m_ScissorRectDirty, sizeof(context->m_ScissorRect));
+        }
+
+        // Viewport
+        if (memcmp(context->m_ViewportRect, context->m_ViewportRectDirty, sizeof(context->m_ViewportRect)) != 0)
+        {
+            glViewport((GLint) context->m_ViewportRectDirty[0],
+                       (GLint) context->m_ViewportRectDirty[1],
+                       (GLsizei) context->m_ViewportRectDirty[2],
+                       (GLsizei) context->m_ViewportRectDirty[3]);
+            CHECK_GL_ERROR;
+
+            memcpy(context->m_ViewportRect, context->m_ViewportRectDirty, sizeof(context->m_ViewportRect));
+        }
+
+        // Polygon offset (factor/units not in PipelineState)
+        if (context->m_PolygonOffsetFactor != context->m_PolygonOffsetFactorApplied ||
+            context->m_PolygonOffsetUnits != context->m_PolygonOffsetUnitsApplied)
+        {
+            glPolygonOffset(context->m_PolygonOffsetFactor, context->m_PolygonOffsetUnits);
+            CHECK_GL_ERROR;
+
+            context->m_PolygonOffsetFactorApplied = context->m_PolygonOffsetFactor;
+            context->m_PolygonOffsetUnitsApplied  = context->m_PolygonOffsetUnits;
         }
 
         ps_applied = ps_dirty;
@@ -1210,14 +1240,17 @@ static void LogFrameBufferError(GLenum status)
                 glReadPixels(0, 0, tcp.m_Width, tcp.m_Height, GL_RGBA, GL_UNSIGNED_BYTE, gpu_data);
                 glViewport(vp[0], vp[1], vp[2], vp[3]);
                 CHECK_GL_ERROR;
+                context->m_ViewportRect[0] = vp[0];
+                context->m_ViewportRect[1] = vp[1];
+                context->m_ViewportRect[2] = vp[2];
+                context->m_ViewportRect[3] = vp[3];
+                memcpy(context->m_ViewportRectDirty, context->m_ViewportRect, sizeof(context->m_ViewportRect));
             }
             else
             {
                 dmLogDebug("ValidateAsyncJobProcessing glCheckFramebufferStatus failed (%d)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
             }
 
-            glBindTexture(GL_TEXTURE_2D, 0);
-            CHECK_GL_ERROR;
             glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
             CHECK_GL_ERROR;
             glDeleteFramebuffers(1, &osfb);
@@ -1950,14 +1983,30 @@ static void LogFrameBufferError(GLenum status)
         float g = ((float)green)/255.0f;
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
-        glClearColor(r, g, b, a);
-        CHECK_GL_ERROR;
 
-        glClearDepth(depth);
-        CHECK_GL_ERROR;
+        if (context->m_ClearColor[0] != r || context->m_ClearColor[1] != g || context->m_ClearColor[2] != b || context->m_ClearColor[3] != a)
+        {
+            glClearColor(r, g, b, a);
+            CHECK_GL_ERROR;
+            context->m_ClearColor[0] = r;
+            context->m_ClearColor[1] = g;
+            context->m_ClearColor[2] = b;
+            context->m_ClearColor[3] = a;
+        }
 
-        glClearStencil(stencil);
-        CHECK_GL_ERROR;
+        if (context->m_ClearDepth != depth)
+        {
+            glClearDepth(depth);
+            CHECK_GL_ERROR;
+            context->m_ClearDepth = depth;
+        }
+
+        if (context->m_ClearStencil != stencil)
+        {
+            glClearStencil(stencil);
+            CHECK_GL_ERROR;
+            context->m_ClearStencil = stencil;
+        }
 
         GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR0_BIT)  ? GL_COLOR_BUFFER_BIT   : 0;
         gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT   : 0;
@@ -2050,7 +2099,6 @@ static void LogFrameBufferError(GLenum status)
             glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
         }
         glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
     static void OpenGLDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -2138,8 +2186,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR;
+        g_Context->m_BoundArrayBufferGL = GetGLHandle(g_Context, vertex_buffer->m_Id);
     }
 
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -2154,8 +2201,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR;
+        g_Context->m_BoundArrayBufferGL = GetGLHandle(g_Context, vertex_buffer->m_Id);
     }
 
     static uint32_t OpenGLGetVertexBufferSize(HVertexBuffer buffer)
@@ -2190,8 +2236,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        g_Context->m_BoundElementArrayBufferGL = GetGLHandle(g_Context, index_buffer->m_Id);
     }
 
     static HIndexBuffer OpenGLNewIndexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2234,8 +2279,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR;
+        g_Context->m_BoundElementArrayBufferGL = GetGLHandle(g_Context, index_buffer->m_Id);
     }
 
     static uint32_t OpenGLGetIndexBufferSize(HIndexBuffer buffer)
@@ -2332,8 +2376,13 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
         OpenGLContext* context = (OpenGLContext*) _context;
-        glBindBufferARB(GL_ARRAY_BUFFER, GetGLHandle(context, vertex_buffer->m_Id));
-        CHECK_GL_ERROR;
+        uint32_t handle = GetGLHandle(context, vertex_buffer->m_Id);
+        if (context->m_BoundArrayBufferGL != handle)
+        {
+            glBindBufferARB(GL_ARRAY_BUFFER, handle);
+            CHECK_GL_ERROR;
+            context->m_BoundArrayBufferGL = handle;
+        }
     }
 
     static void OpenGLDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
@@ -2435,12 +2484,6 @@ static void LogFrameBufferError(GLenum status)
                 }
             }
         }
-
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR;
-
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR;
     }
 
     static inline GLint GetDepthBufferFormat(OpenGLContext* context)
@@ -2882,8 +2925,13 @@ static void LogFrameBufferError(GLenum status)
 
         DrawSetup(context);
 
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, GetGLHandle(context, index_buffer->m_Id));
-        CHECK_GL_ERROR;
+        uint32_t handle = GetGLHandle(context, index_buffer->m_Id);
+        if (context->m_BoundElementArrayBufferGL != handle)
+        {
+            glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, handle);
+            CHECK_GL_ERROR;
+            context->m_BoundElementArrayBufferGL = handle;
+        }
 
         if (context->m_InstancingSupport)
         {
@@ -3156,8 +3204,6 @@ static void LogFrameBufferError(GLenum status)
             glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, buffer_handle);
             CHECK_GL_ERROR;
             glUniformBlockBinding(program_handle, blockIndex, ubo.m_BindPoint);
-            CHECK_GL_ERROR;
-            glBindBuffer(GL_UNIFORM_BUFFER, 0);
             CHECK_GL_ERROR;
         }
     }
@@ -3822,16 +3868,25 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = (OpenGLProgram*) _program;
         context->m_CurrentProgram = program;
-        glUseProgram(GetGLHandle(context, program->m_Id));
-        CHECK_GL_ERROR;
+        uint32_t program_gl = GetGLHandle(context, program->m_Id);
+        if (context->m_CurrentProgramGL != program_gl)
+        {
+            glUseProgram(program_gl);
+            CHECK_GL_ERROR;
+            context->m_CurrentProgramGL = program_gl;
+        }
     }
 
     static void OpenGLDisableProgram(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         context->m_CurrentProgram = 0;
-        glUseProgram(0);
-        CHECK_GL_ERROR;
+        if (context->m_CurrentProgramGL != 0)
+        {
+            glUseProgram(0);
+            CHECK_GL_ERROR;
+            context->m_CurrentProgramGL = 0;
+        }
     }
 
     static uint32_t OpenGLGetAttributeCount(HProgram prog)
@@ -3884,8 +3939,10 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
 
-        glViewport(x, y, width, height);
-        CHECK_GL_ERROR;
+        context->m_ViewportRectDirty[0] = x;
+        context->m_ViewportRectDirty[1] = y;
+        context->m_ViewportRectDirty[2] = width;
+        context->m_ViewportRectDirty[3] = height;
     }
 
     static void OpenGLSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -4090,7 +4147,6 @@ static void LogFrameBufferError(GLenum status)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
     #endif
-                glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
@@ -4109,7 +4165,6 @@ static void LogFrameBufferError(GLenum status)
                     0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
                 CHECK_GL_ERROR;
 
-                glBindTexture(GL_TEXTURE_2D, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
@@ -4133,8 +4188,6 @@ static void LogFrameBufferError(GLenum status)
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
-
-                glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
@@ -4152,8 +4205,6 @@ static void LogFrameBufferError(GLenum status)
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
-
-                glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
@@ -5155,9 +5206,6 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        glBindTexture(type, 0);
-        CHECK_GL_ERROR;
-
         if (unpackAlignment != 4)
         {
             // Restore to default
@@ -5448,8 +5496,8 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glPolygonOffset(factor, units);
-        CHECK_GL_ERROR;
+        context->m_PolygonOffsetFactor = factor;
+        context->m_PolygonOffsetUnits  = units;
     }
 
     static bool OpenGLIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
@@ -5493,9 +5541,10 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLint vp[4];
-        glGetIntegerv(GL_VIEWPORT, vp);
-        *x = vp[0], *y = vp[1], *width = vp[2], *height = vp[3];
+        *x      = context->m_ViewportRectDirty[0];
+        *y      = context->m_ViewportRectDirty[1];
+        *width  = (uint32_t) context->m_ViewportRectDirty[2];
+        *height = (uint32_t) context->m_ViewportRectDirty[3];
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

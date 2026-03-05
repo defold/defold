@@ -192,6 +192,18 @@ namespace dmGraphics
         PipelineState           m_PipelineStateDirty; // Current dirty state
         int32_t                 m_ScissorRect[4];
         int32_t                 m_ScissorRectDirty[4];
+        int32_t                 m_ViewportRect[4];
+        int32_t                 m_ViewportRectDirty[4];
+        float                   m_ClearColor[4];
+        float                   m_ClearDepth;
+        uint32_t                m_ClearStencil;
+        uint32_t                m_BoundArrayBufferGL;
+        uint32_t                m_BoundElementArrayBufferGL;
+        uint32_t                m_CurrentProgramGL;
+        float                   m_PolygonOffsetFactor;
+        float                   m_PolygonOffsetUnits;
+        float                   m_PolygonOffsetFactorApplied;
+        float                   m_PolygonOffsetUnitsApplied;
         HOpenglID               m_GlobalVAO;
         uint32_t                m_Width;
         uint32_t                m_Height;
