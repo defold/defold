@@ -1650,6 +1650,8 @@ form.label.project.html5.retry_time = Retry Time
 form.help.project.html5.retry_time = Pause in seconds before retrying file downloads after an error
 form.label.project.html5.transparent_graphics_context = Transparent Context
 form.help.project.html5.transparent_graphics_context = Make the graphics context backdrop transparent
+form.label.project.html5.performance_timeline_enabled = Performance API
+form.help.project.html5.performance_timeline_enabled = Enable profiling capabilities in Chrome Developer Tools
 
 form.label.project.ios = iOS
 form.help.project.ios = iOS related settings
