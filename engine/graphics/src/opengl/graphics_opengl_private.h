@@ -188,7 +188,10 @@ namespace dmGraphics
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         OpenGLHandlesData                  m_GLHandlesData;
 
-        PipelineState           m_PipelineState;
+        PipelineState           m_PipelineState;      // Last applied pipeline state
+        PipelineState           m_PipelineStateDirty; // Current dirty state
+        int32_t                 m_ScissorRect[4];
+        int32_t                 m_ScissorRectDirty[4];
         HOpenglID               m_GlobalVAO;
         uint32_t                m_Width;
         uint32_t                m_Height;
