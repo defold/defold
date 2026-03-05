@@ -568,7 +568,7 @@ static void LogFrameBufferError(GLenum status)
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
-    static GLenum GetOpenGLCompareFunc(CompareFunc func)
+    static inline GLenum GetOpenGLCompareFunc(CompareFunc func)
     {
         switch (func)
         {
@@ -586,7 +586,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLState(State state)
+    static inline GLenum GetOpenGLState(State state)
     {
         switch (state)
         {
@@ -614,7 +614,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
+    static inline GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
     {
         switch (face_type)
         {
@@ -627,7 +627,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLStencilOp(StencilOp op)
+    static inline GLenum GetOpenGLStencilOp(StencilOp op)
     {
         switch (op)
         {
@@ -645,7 +645,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLBlendFactor(BlendFactor factor)
+    static inline GLenum GetOpenGLBlendFactor(BlendFactor factor)
     {
         switch (factor)
         {
@@ -832,12 +832,8 @@ static void LogFrameBufferError(GLenum status)
         // Face winding
         if (HAS_CHANGED(m_FaceWinding))
         {
-            static const GLenum face_winding_lut[] = {
-                GL_CCW,
-                GL_CW,
-            };
-
-            glFrontFace(face_winding_lut[ps_dirty.m_FaceWinding]);
+            glFrontFace(GetOpenGLFaceWinding((FaceWinding) ps_dirty.m_FaceWinding));
+            CHECK_GL_ERROR;
         }
 
         // Scissor rectangle
@@ -857,7 +853,7 @@ static void LogFrameBufferError(GLenum status)
         #undef HAS_CHANGED
     }
 
-    static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
+    static inline GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
     {
         switch (prim_type)
         {
@@ -870,7 +866,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLType(Type type)
+    static inline GLenum GetOpenGLType(Type type)
     {
         switch (type)
         {
