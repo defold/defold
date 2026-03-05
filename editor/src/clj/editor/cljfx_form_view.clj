@@ -19,7 +19,6 @@
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
@@ -38,7 +37,6 @@
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
-            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
@@ -46,6 +44,7 @@
             [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
@@ -65,7 +64,7 @@
            [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
+           [javafx.scene.control Cell ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util Callback]))
 
@@ -457,36 +456,26 @@
 
 ;; region choicebox input
 
-(defmethod form-input-view :choicebox [{:keys [value
-                                               on-value-changed
-                                               options
-                                               from-string
-                                               to-string]
-                                        :or {to-string str}}]
-  (let [value->label (into {} options)
-        label->value (set/map-invert value->label)]
-    {:fx/type fx.combo-box/lifecycle
-     :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
-     :min-width normal-field-width
+(fxui/defc form-choicebox-combo-box-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}]}
+  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler]
+    :or {to-string str}}]
+  (let [value->label (into {} options)]
+    {:fx/type fxui.combo-box/view
+     :pref-width normal-field-width
      :value value
-     :on-value-changed on-value-changed
-     :converter (DefoldStringConverter.
-                  #(get value->label % (to-string %))
-                  #(or (label->value %) (and from-string (from-string %))))
-     :editable (some? from-string)
-     :button-cell (fn [x]
-                    {:text (value->label x)})
-     :cell-factory (fn [x]
-                     {:text (value->label x)})
+     :show-on-focus show-on-focus
+     :on-value-changed #(map-event-handler (assoc on-value-changed :fx/event %))
+     :to-string #(or (value->label %) (to-string %))
      :items (mapv first options)}))
 
-(defn- show-combo-box! [^ComboBox combo-box]
-  (.show combo-box))
+(defmethod form-input-view :choicebox [field]
+  (assoc field :fx/type form-choicebox-combo-box-view))
 
 (defmethod cell-input-view :choicebox [field]
-  {:fx/type fx/ext-on-instance-lifecycle
-   :on-created show-combo-box!
-   :desc (default-cell-input-view field)})
+  {:fx/type fxui/vertical
+   :children [{:fx/type fxui/ext-focused-by-default
+               :desc (default-cell-input-view (assoc field :show-on-focus true))}]})
 
 ;; endregion
 
