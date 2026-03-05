@@ -2,8 +2,8 @@
 #include "mouse_capture.h"
 
 extern "C" {
-    DM_DLLEXPORT void* MouseCapture_CreateContext() {
-        return dmMouseCapture::CreateContext();
+    DM_DLLEXPORT void* MouseCapture_CreateContext(int save_cursor_x, int save_cursor_y) {
+        return dmMouseCapture::CreateContext(save_cursor_x, save_cursor_y);
     }
 
     DM_DLLEXPORT void MouseCapture_DestroyContext(void* context) {

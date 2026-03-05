@@ -96,9 +96,9 @@
 (defn warp-cursor [x y]
   (MouseCapture/MouseCapture_WarpCursor x y))
 
-(defn start-mouse-capture []
+(defn start-mouse-capture [view-center-x view-center-y]
   (when-let [window (editor.ui/run-now (get-native-window))]
-    (let [context (MouseCapture/MouseCapture_CreateContext)]
+    (let [context (MouseCapture/MouseCapture_CreateContext view-center-x view-center-y)]
       (when-not (nil? context)
         (when-let [ret-val (MouseCapture/MouseCapture_StartCapture context (long window))]
           (reset! mouse-capture-context context)

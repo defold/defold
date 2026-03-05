@@ -37,7 +37,7 @@ public class MouseCapture {
         }
     }
 
-    public static native Pointer MouseCapture_CreateContext();
+    public static native Pointer MouseCapture_CreateContext(int saveCursorX, int saveCursorY);
 
     public static native void MouseCapture_WarpCursor(int x, int y);
 

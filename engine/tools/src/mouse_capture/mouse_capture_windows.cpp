@@ -57,13 +57,15 @@ namespace dmMouseCapture
         return registered;
     }
 
-    HContext CreateContext()
+    HContext CreateContext(int save_cursor_x, int save_cursor_y)
     {
         Context* ctx = new Context();
         ctx->m_MessageWindow = NULL;
         ctx->m_Capturing = false;
         ctx->m_AccumulatedDelta.dx = 0.0;
         ctx->m_AccumulatedDelta.dy = 0.0;
+        context->m_SavedCursorX = save_cursor_x;
+        context->m_SavedCursorY = save_cursor_y;
         return ctx;
     }
 
@@ -82,8 +84,6 @@ namespace dmMouseCapture
 
         POINT pt;
         GetCursorPos(&pt);
-        context->m_SavedCursorX = pt.x;
-        context->m_SavedCursorY = pt.y;
 
         context->m_MessageWindow = CreateWindowEx(
             0, TEXT("dmMouseCaptureRawInput"), NULL,
@@ -133,7 +133,6 @@ namespace dmMouseCapture
             context->m_MessageWindow = NULL;
         }
 
-        SetCursorPos(context->m_SavedCursorX, context->m_SavedCursorY);
         context->m_Capturing = false;
     }
 

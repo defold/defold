@@ -15,7 +15,7 @@ namespace dmMouseCapture
         int m_SavedCursorY;
     };
 
-    HContext CreateContext()
+    HContext CreateContext(int save_cursor_x, int save_cursor_y)
     {
         Display* display = XOpenDisplay(NULL);
         if (!display)
@@ -42,6 +42,8 @@ namespace dmMouseCapture
         ctx->m_Capturing = false;
         ctx->m_AccumulatedDelta.dx = 0.0;
         ctx->m_AccumulatedDelta.dy = 0.0;
+        ctx->m_SavedCursorX = save_cursor_x;
+        ctx->m_SavedCursorY = save_cursor_y;
 
         return ctx;
     }
@@ -68,8 +70,6 @@ namespace dmMouseCapture
         int root_x, root_y, dummy_int;
         unsigned int dummy_uint;
         XQueryPointer(context->m_Display, root, &dummy, &dummy, &root_x, &root_y, &dummy_int, &dummy_int, &dummy_uint);
-        context->m_SavedCursorX = root_x;
-        context->m_SavedCursorY = root_y;
 
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
@@ -98,7 +98,6 @@ namespace dmMouseCapture
         Window root = DefaultRootWindow(context->m_Display);
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
-        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0, context->m_SavedCursorX, context->m_SavedCursorY);
 
         XIEventMask evmask;
         evmask.deviceid = XIAllMasterDevices;
@@ -153,6 +152,11 @@ namespace dmMouseCapture
         }
 
         *out_delta = context->m_AccumulatedDelta;
+
+        Window root = DefaultRootWindow(context->m_Display);
+        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0,
+                     context->m_SavedCursorX, context->m_SavedCursorY);
+        XFlush(context->m_Display);
 
         return (context->m_AccumulatedDelta.dx != 0.0 ||
                 context->m_AccumulatedDelta.dy != 0.0);

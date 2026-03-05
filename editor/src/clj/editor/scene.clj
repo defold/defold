@@ -1289,7 +1289,10 @@
       (= :perspective (:type (g/node-value camera :local-camera)))))
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
-      (c/start-free-cam-mode! (g/node-value scene-view :image-view) (view->camera scene-view)))))
+      (let [input-state (g/node-value scene-view :input-state)
+            camera (view->camera scene-view)
+            image-view (g/node-value scene-view :image-view)]
+        (c/start-free-cam-mode! image-view camera (:cursor-pos input-state))))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
@@ -1528,6 +1531,8 @@
         event-handler (ui/event-handler e
                         (when @process-events?
                           (try
+                            ;; TODO JOE: We have to filter out mouse-mouse events
+                            ;; during free-cam-mode-active, to be more efficient
                             (profiler/profile "input-event" -1
                               (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                                     pos [x y 0.0]

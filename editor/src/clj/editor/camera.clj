@@ -867,30 +867,42 @@
                        is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
 
-(defn start-free-cam-mode! [image-view camera-id]
+(defn start-free-cam-mode! [^ImageView image-view camera-id current-cursor-pos]
   (let [current-camera (g/node-value camera-id :local-camera)
         [pitch yaw _] (math/quat->euler (:rotation current-camera))
         focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
         current-camera (if (= (:type current-camera) :orthographic)
                          (camera-orthographic->perspective current-camera fov-y-35mm-full-frame)
-                         current-camera)]
+                         current-camera)
+        ;; TODO JOE: do we get this from somewhere else?
+        bounds (.localToScreen image-view (.getBoundsInLocal image-view))
+        center-x (int (+ (.getMinX bounds) (/ (.getWidth bounds) 2.0)))
+        center-y (int (+ (.getMinY bounds) (/ (.getHeight bounds) 2.0)))]
+    ;; (i/warp-cursor center-x center-y)
     (toggle-free-cam-css image-view true)
-    (i/start-mouse-capture)
+    (ui/run-now (ui/set-cursor image-view Cursor/DISAPPEAR))
+    (ui/run-later (ui/run-later (i/start-mouse-capture center-x center-y)))
     (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
     (g/set-property! camera-id :cursor-type :none)
     (g/user-data-swap! camera-id ::camera-state merge
       {:free-cam-mode true
-      :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
-      :free-cam-pitch pitch
-      :free-cam-yaw yaw
-      :free-cam-smoothed-look-delta [0.0 0.0]})))
+       :free-cam-cursor-start-pos current-cursor-pos
+       :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
+       :free-cam-pitch pitch
+       :free-cam-yaw yaw
+       :free-cam-smoothed-look-delta [0.0 0.0]})))
 
 (defn stop-free-cam-mode! [image-view camera-id]
+  (ui/set-cursor image-view Cursor/DEFAULT)
   (toggle-free-cam-css image-view false)
   (i/stop-mouse-capture)
+  (let [[x y] (:free-cam-cursor-start-pos (g/user-data camera-id ::camera-state))]
+    (when (and x y)
+      (i/warp-cursor x y)))
   (g/set-property! camera-id :cursor-type :default)
   (g/user-data-swap! camera-id ::camera-state merge
     {:free-cam-mode false
+     :free-cam-cursor-start-pos nil
      :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
      :free-cam-pitch 0.0
      :free-cam-yaw 0.0
@@ -947,7 +959,7 @@
 
       :drag-detected
       (if is-secondary
-        (start-free-cam-mode! image-view self)
+        (start-free-cam-mode! image-view self (:cursor-pos input-state))
         action)
 
       :mouse-released
@@ -986,7 +998,7 @@
              (contains? (free-cam-movement-keys (g/node-value self :prefs)) key-code))
         ;; TODO JOE: There's a bug here where if we start immediately, the proper
         ;; focus-point + focus-distance hasn't been calculated yet
-        (start-free-cam-mode! image-view self))
+        (start-free-cam-mode! image-view self (:cursor-pos input-state)))
 
       ;; NOTE: Don't let other handlers receive input if we're in free camera mode
       free-cam-mode
@@ -1044,15 +1056,13 @@
                  (Vector3d. 0.0 1.0 0.0)
                  (camera-up-vector current-camera))
             camera-after-look
-            (if is-secondary
-              (let [invert-y? (prefs/get prefs [:scene :perspective-camera :invert-y])
-                    look-sensitivity (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
-                    mouse-delta (i/poll-mouse-delta)
-                    dx (- (if mouse-delta (.dx mouse-delta) 0.0))
-                    dy (if mouse-delta (.dy mouse-delta) 0.0)
-                    dy (if invert-y? dy (- dy))] ;; It's already inverted
-                (look-delta! self current-camera dx dy look-sensitivity dt))
-              current-camera)
+            (let [invert-y? (prefs/get prefs [:scene :perspective-camera :invert-y])
+                  look-sensitivity (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
+                  mouse-delta (i/poll-mouse-delta)
+                  dx (- (if mouse-delta (.dx mouse-delta) 0.0))
+                  dy (if mouse-delta (.dy mouse-delta) 0.0)
+                  dy (if invert-y? dy (- dy))] ;; It's already inverted
+              (look-delta! self current-camera dx dy look-sensitivity dt))
             key-for-command (fn [cmd] (some-> ^KeyCodeCombination (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                               (.getCode)))
             w-key (key-for-command :scene.camera-move-forward)

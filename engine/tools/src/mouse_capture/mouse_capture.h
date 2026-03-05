@@ -23,7 +23,7 @@ namespace dmMouseCapture
 
     typedef struct Context* HContext;
 
-    HContext CreateContext();
+    HContext CreateContext(int save_cursor_x, int save_cursor_y);
     void WarpCursor(int x, int y);
     bool StartCapture(HContext context, WindowHandle window);
     void StopCapture(HContext context);

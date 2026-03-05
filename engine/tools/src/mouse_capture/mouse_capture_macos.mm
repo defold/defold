@@ -18,7 +18,8 @@ namespace dmMouseCapture
         NSEventMaskRightMouseDragged |
         NSEventMaskOtherMouseDragged;
 
-    HContext CreateContext()
+    // We don't need to save the cursor positions because the cursor never moves
+    HContext CreateContext(int save_cursor_x, int save_cursor_y)
     {
         Context* ctx = new Context();
         ctx->m_Capturing = false;
