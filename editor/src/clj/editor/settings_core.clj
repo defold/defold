@@ -18,7 +18,6 @@
             [editor.url :as url]
             [util.coll :as coll]
             [util.eduction :as e]
-            [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [clojure.lang MultiFn]))
 
@@ -188,32 +187,9 @@
                                 (type-defaults type)))))
                   settings))))
 
-(declare render-raw-setting-value)
-
-(defn- add-to-from-string [meta-info]
-  (update meta-info :settings
-          (fn [settings]
-            (mapv (fn [meta-setting]
-                    (if (contains? meta-setting :options)
-                      (assoc meta-setting
-                        :from-string (fn/partial parse-setting-value meta-setting)
-                        :to-string (fn/partial render-raw-setting-value meta-setting))
-                      meta-setting))
-                  settings))))
-
-(defn remove-to-from-string [meta-info]
-  (update meta-info :settings
-          (fn [settings]
-            (mapv (fn [meta-setting]
-                    (if (contains? meta-setting :options)
-                      (dissoc meta-setting :from-string :to-string)
-                      meta-setting))
-                  settings))))
-
 (defn finalize-meta-info [meta-info]
   (-> meta-info
-      ensure-type-defaults
-      add-to-from-string))
+      ensure-type-defaults))
 
 (defn label [key]
   (->> (string/split (name key) #"(_|\s+)")
