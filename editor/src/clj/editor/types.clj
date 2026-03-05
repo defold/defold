@@ -14,7 +14,8 @@
 
 (ns editor.types
   (:require [dynamo.graph :as g]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.defonce :as defonce])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
@@ -281,14 +282,17 @@
   (dimensions [this])
   (empty-space? [this]))
 
-(s/defrecord Region
-  [left   :- s/Num
-   right  :- s/Num
-   top    :- s/Num
-   bottom :- s/Num]
+(defonce/record Region [^double left ^double right ^double top ^double bottom])
+
+(extend-type Region
   Area
-  (dimensions [this] [(- right left) (- bottom top)])
-  (empty-space? [this] (or (= 0 (- right left)) (= 0 (- bottom top)))))
+  (dimensions [this]
+    [(- (.right this) (.left this))
+     (- (.bottom this) (.top this))])
+  (empty-space? [this]
+    (or (<= (.right this) (.left this))
+        (<= (.bottom this) (.top this)))))
+
 
 (s/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)
