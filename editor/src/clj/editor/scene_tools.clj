@@ -18,6 +18,7 @@
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
+            [editor.graph-util :as gu]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
@@ -571,7 +572,6 @@
           [start-pos pos] (map #(action->manip-pos % lead-transform manip manip-rotation proj-fn) [start-action action])]
       (into {}
             (comp
-              cat
               (keep identity)
               (map (juxt :node-id identity)))
             (preview-fn start-pos pos)))))
@@ -615,34 +615,45 @@
                               (g/set-property self :op-seq (gensym)))))
                        nil)
                      action)
-    :mouse-released (if (g/node-value self :start-action)
+    :mouse-released (if-let [start-action (g/node-value self :start-action)]
                       (do
-                        (g/transact
-                          (concat
-                            (g/set-property self :start-action nil)
-                            (g/set-property self :prev-action nil)
-                            (g/set-property self :original-values nil)
-                            (g/set-property self :preview-overrides nil)
-                            (g/set-property self :drag-active false)))
+                        (let [prev-action (g/node-value self :prev-action)
+                              active-tool (g/node-value self :active-tool)
+                              original-values (g/node-value self :original-values)
+                              manip (g/node-value self :active-manip)
+                              manip-opts (g/node-value self :manip-opts)
+                              manip-space (g/node-value self :manip-space)
+                              op-seq (g/node-value self :op-seq)
+                              camera (g/node-value self :camera)
+                              viewport (g/node-value self :viewport)
+                              evaluation-context @(g/node-value self :initial-evaluation-context)
+                              commit-tx-data (apply-manipulator manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport)]
+                          (when (not (empty? commit-tx-data))
+                            (g/transact
+                              (concat
+                                (g/operation-label (get-in transform-tools [active-tool :label]))
+                                (g/operation-sequence op-seq)
+                                commit-tx-data)))
+                          (g/transact
+                            (concat
+                              (g/set-property self :start-action nil)
+                              (g/set-property self :prev-action nil)
+                              (g/set-property self :original-values nil)
+                              (g/set-property self :preview-overrides nil)
+                              (g/set-property self :drag-active false)
+                              (g/set-property self :op-seq nil))))
                         nil)
                       action)
     :mouse-moved (if-let [start-action (g/node-value self :start-action)]
                    (let [prev-action     (g/node-value self :prev-action)
-                         active-tool     (g/node-value self :active-tool)
                          original-values (g/node-value self :original-values)
                          manip           (g/node-value self :active-manip)
                          manip-opts      (g/node-value self :manip-opts)
                          manip-space     (g/node-value self :manip-space)
-                         op-seq          (g/node-value self :op-seq)
                          camera          (g/node-value self :camera)
                          viewport        (g/node-value self :viewport)
                          evaluation-context @(g/node-value self :initial-evaluation-context)
                          preview-overrides (preview-manipulator manip-opts evaluation-context original-values manip manip-space start-action action camera viewport)]
-                     (g/transact
-                       (concat
-                         (g/operation-label (get-in transform-tools [active-tool :label]))
-                         (g/operation-sequence op-seq)
-                         (apply-manipulator manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport)))
                      (g/transact
                        (concat
                          (g/set-property self :prev-action action)
@@ -698,5 +709,7 @@
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/constantly nil))
+  (output preview-overrides g/Any (gu/passthrough preview-overrides))
+  (output drag-active g/Bool (gu/passthrough drag-active))
   (output manip-opts g/Any produce-manip-opts)
   (output manip-space g/Keyword produce-manip-space))

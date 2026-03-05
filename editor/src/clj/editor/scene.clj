@@ -372,6 +372,7 @@
 (defn- flatten-scene-renderables! [pass-renderables
                                    parent-shows-children
                                    scene
+                                   preview-overrides
                                    selection-set
                                    hidden-renderable-tags
                                    hidden-node-outline-key-paths
@@ -382,15 +383,24 @@
                                    ^Vector3d parent-world-scale
                                    ^Matrix4d parent-world-transform
                                    alloc-picking-id!]
-  (let [renderable (:renderable scene)
+  (let [node-id (peek node-id-path)
+        renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
+        local-transform ^Matrix4d (if-let [preview-override (get preview-overrides node-id)]
+                                    (let [position (Vector3d.)
+                                          rotation (Quat4d.)
+                                          scale (Vector3d.)]
+                                      (math/split-mat4 local-transform position rotation scale)
+                                      (math/clj->mat4 (or (:position preview-override) (math/vecmath->clj position))
+                                                      (or (:rotation preview-override) (math/vecmath->clj rotation))
+                                                      (or (:scale preview-override) (math/vecmath->clj scale))))
+                                    local-transform)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
         local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
         world-translation (math/transform parent-world-transform (math/translation local-transform))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
-        node-id (peek node-id-path)
         picking-node-id (or (:picking-node-id scene) node-id)
         selection-state (cond
                           (contains? selection-set node-id) :self-selected ; This node is selected.
@@ -452,6 +462,7 @@
                 (flatten-scene-renderables! pass-renderables
                                             (and parent-shows-children (:visible-children? renderable true))
                                             child-scene
+                                            preview-overrides
                                             selection-set
                                             hidden-renderable-tags
                                             hidden-node-outline-key-paths
@@ -489,7 +500,7 @@
                     (assoc node-id->picking-id node-id picking-id))))
          node-id)))
 
-(defn- flatten-scene [scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj]
+(defn- flatten-scene [scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj]
   (let [node-id->picking-id-atom (atom {})
         alloc-picking-id! (partial alloc-picking-id! node-id->picking-id-atom)
         node-id-path []
@@ -500,6 +511,7 @@
     (-> (make-pass-renderables)
         (flatten-scene-renderables! true
                                     scene
+                                    preview-overrides
                                     selection-set
                                     hidden-renderable-tags
                                     hidden-node-outline-key-paths
@@ -526,14 +538,14 @@
                              renderables))))
         renderables-by-pass))
 
-(g/defnk produce-scene-render-data [scene selection hidden-renderable-tags hidden-node-outline-key-paths camera]
+(g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths camera]
   (if-let [error (:error scene)]
     {:error error
      :renderables {}
      :selected-renderables []}
     (let [selection-set (set selection)
           view-proj (c/camera-view-proj-matrix camera)
-          scene-renderables-by-pass (flatten-scene scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj)
+          scene-renderables-by-pass (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj)
           selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
           selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
       {:renderables scene-renderables-by-pass
@@ -627,6 +639,8 @@
 
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
+  (input preview-overrides g/Any)
+  (input drag-active g/Bool)
   (input selection g/Any)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
@@ -1006,6 +1020,7 @@
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
+  (output drag-active g/Bool (gu/passthrough drag-active))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
                                                  (into [] (keep updatables) active-updatable-ids)))
 
@@ -1459,14 +1474,17 @@
 
 (defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
-    (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
+    (let [[action-queue render-mode drag-active play-mode active-updatables updatable-states]
           (g/with-auto-evaluation-context evaluation-context
             [(g/node-value view-id :input-action-queue evaluation-context)
              (g/node-value view-id :render-mode evaluation-context)
-             (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
+             (g/node-value view-id :drag-active evaluation-context)
              (g/node-value view-id :play-mode evaluation-context)
              (g/node-value view-id :active-updatables evaluation-context)
              (g/node-value view-id :updatable-states evaluation-context)])
+          tool-user-data (if drag-active
+                           nil
+                           (g/node-value view-id :selected-tool-renderables))
 
           has-active-updatables (not (coll/empty? active-updatables))
           new-updatable-states (if has-active-updatables
@@ -1817,6 +1835,8 @@
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                   (g/connect tool-controller :renderables                   view-id         :tool-renderables)
+                  (g/connect tool-controller :preview-overrides             view-id         :preview-overrides)
+                  (g/connect tool-controller :drag-active                   view-id         :drag-active)
                   (g/connect view-id         :active-tool                   tool-controller :active-tool)
                   (g/connect view-id         :manip-space                   tool-controller :manip-space)
                   (g/connect view-id         :viewport                      tool-controller :viewport)
