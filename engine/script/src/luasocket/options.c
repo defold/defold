@@ -37,8 +37,8 @@ int opt_meth_setoption(lua_State *L, p_opt opt, p_socket ps)
     while (opt->name && strcmp(name, opt->name))
         opt++;
     if (!opt->func) {
-        char msg[45];
-        sprintf(msg, "unsupported option `%.35s'", name);
+        char msg[64];
+        snprintf(msg, sizeof(msg), "unsupported option `%.35s'", name);
         luaL_argerror(L, 2, msg);
     }
     return opt->func(L, ps);
@@ -50,8 +50,8 @@ int opt_meth_getoption(lua_State *L, p_opt opt, p_socket ps)
     while (opt->name && strcmp(name, opt->name))
         opt++;
     if (!opt->func) {
-        char msg[45];
-        sprintf(msg, "unsupported option `%.35s'", name);
+        char msg[64];
+        snprintf(msg, sizeof(msg), "unsupported option `%.35s'", name);
         luaL_argerror(L, 2, msg);
     }
     return opt->func(L, ps);
