@@ -107,15 +107,18 @@
 
 (def Registry {s/Any s/Any})
 
-(s/defrecord Rect
-  [path     :- s/Any
-   x        :- Int32
-   y        :- Int32
-   width    :- Int32
-   height   :- Int32]
+(defonce/record Rect [path ^long x ^long y ^long width ^long height]
   N2Extent
   (width [this] width)
   (height [this] height))
+
+(defn Rect->Vector3d
+  ^Vector3d [^Rect rect]
+  (Vector3d. (.x rect) (.y rect) 0.0))
+
+(defn Rect->Point3d
+  ^Vector3d [^Rect rect]
+  (Vector3d. (.x rect) (.y rect) 0.0))
 
 (def ^:private aabb-unique-axes
   [(Vector3d. 1.0 0.0 0.0)
@@ -282,9 +285,7 @@
   (dimensions [this])
   (empty-space? [this]))
 
-(defonce/record Region [^double left ^double right ^double top ^double bottom])
-
-(extend-type Region
+(defonce/record Region [^double left ^double right ^double top ^double bottom]
   Area
   (dimensions [this]
     [(- (.right this) (.left this))
@@ -293,18 +294,17 @@
     (or (<= (.right this) (.left this))
         (<= (.bottom this) (.top this)))))
 
-
-(s/defrecord Camera
-  [type           :- (s/enum :perspective :orthographic)
-   position       :- Point3d
-   rotation       :- Quat4d
-   ^double z-near :- s/Num
-   ^double z-far  :- s/Num
-   ^double fov-x  :- s/Num
-   ^double fov-y  :- s/Num
-   focus-point    :- Vector4d
-   focus-distance :- s/Num
-   filter-fn      :- Runnable]
+(defrecord Camera
+  [type ;; :perspective or :orthographic
+   ^Point3d position
+   ^Quat4d rotation
+   ^double z-near
+   ^double z-far
+   ^double fov-x
+   ^double fov-y
+   ^Vector4d focus-point
+   ^double focus-distance
+   filter-fn]
   Position
   (position [this] position)
   Rotation

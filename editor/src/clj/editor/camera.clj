@@ -241,10 +241,10 @@
       :position position
       :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
 
-(s/defn camera-project :- Point3d
+(defn camera-project
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
-  [camera :- Camera viewport :- Region point :- Tuple3d]
+  ^Point3d [camera ^Region viewport ^Tuple3d point]
   (let [proj  (camera-projection-matrix camera)
         model (camera-view-matrix camera)
         in    (Vector4d. (.x point) (.y point) (.z point) 1.0)
@@ -283,16 +283,16 @@
     * https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/gluPickMatrix.xml"
   ^Matrix4d [^Region viewport ^Rect pick-rect]
   (let [sx (/ (.right viewport)
-              (.width pick-rect))
+              (double (.width pick-rect)))
         sy (/ (.bottom viewport)
-              (.height pick-rect))
+              (double (.height pick-rect)))
         tx (/ (+ (.right viewport)
                  (* 2.0 (- (.left viewport)
-                           (.x pick-rect))))
-              (.width pick-rect))
+                           (double (.x pick-rect)))))
+              (double (.width pick-rect)))
         ty (/ (+ (.bottom viewport)
-                 (* 2.0 (- (.top viewport) (- (.bottom viewport) (.y pick-rect)))))
-              (.height pick-rect))]
+                 (* 2.0 (- (.top viewport) (- (.bottom viewport) (double (.y pick-rect))))))
+              (double (.height pick-rect)))]
   (doto (Matrix4d.)
     (.set (double-array [sx  0.0 0.0 tx
                          0.0 sy  0.0 ty
@@ -311,12 +311,12 @@
                 (/ (.z ~v) (.w ~v))
                 1.0)))
 
-(s/defn camera-unproject :- Vector4d
-  [camera :- Camera viewport :- Region win-x :- s/Num win-y :- s/Num win-z :- s/Num]
-  (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
-        in       (Vector4d. (normalize-to-bipolar win-x (.left viewport) (.right viewport))
+(defn camera-unproject
+  ^Vector4d [^Camera camera ^Region viewport ^Tuple3d win-coords]
+  (let [win-y    (- (.bottom viewport) (.top viewport) (.y win-coords) 1.0)
+        in       (Vector4d. (normalize-to-bipolar (.x win-coords) (.left viewport) (.right viewport))
                             (normalize-to-bipolar win-y (.top viewport) (.bottom viewport))
-                            (- (* 2 win-z) 1.0)
+                            (- (* 2 (.z win-coords)) 1.0)
                             1.0)
         proj     (camera-projection-matrix camera)
         model    (camera-view-matrix camera)
@@ -354,15 +354,17 @@
         world (perspective-divide undivided)]
     (Point3d. (.x world) (.y world) (.z world))))
 
-(s/defn screen-rect-frustum :- Frustum
-  [camera :- Camera viewport :- Region rect :- Rect]
+(defn screen-rect-frustum
+  ^Frustum [camera ^Region viewport ^Rect rect]
   (let [inv-view-proj (doto (camera-projection-matrix camera)
                         (.mul (camera-view-matrix camera))
                         (.invert))
+        w (double (.width rect))
+        h (double (.height rect))
         clip-tl (screen->clip viewport (.x rect) (.y rect))
-        clip-tr (screen->clip viewport (+ (.x rect) (.width rect)) (.y rect))
-        clip-bl (screen->clip viewport (.x rect) (+ (.y rect) (.height rect)))
-        clip-br (screen->clip viewport (+ (.x rect) (.width rect)) (+ (.y rect) (.height rect)))
+        clip-tr (screen->clip viewport (+ (.x rect) w) (.y rect))
+        clip-bl (screen->clip viewport (.x rect) (+ (.y rect) h))
+        clip-br (screen->clip viewport (+ (.x rect) w) (+ (.y rect) h))
         near-tl (clip->world inv-view-proj clip-tl -1.0)
         near-tr (clip->world inv-view-proj clip-tr -1.0)
         near-bl (clip->world inv-view-proj clip-bl -1.0)
@@ -373,17 +375,17 @@
         far-br (clip->world inv-view-proj clip-br 1.0)]
     (geom/corners->frustum near-tl near-tr near-bl near-br far-tl far-tr far-bl far-br)))
 
-(defn- dolly-orthographic [camera delta]
-  (let [dolly-fn (fn [fov]
+(defn- dolly-orthographic [camera ^double delta]
+  (let [dolly-fn (fn [^double fov]
                    (min 1000000.0
-                        (max 0.01 (+ (or fov 0)
-                                     (* (or fov 1)
+                        (max 0.01 (+ (or fov 0.0)
+                                     (* (or fov 1.0)
                                         delta)))))]
     (-> camera
         (update :fov-x dolly-fn)
         (update :fov-y dolly-fn))))
 
-(defn- dolly-perspective [camera delta]
+(defn- dolly-perspective [camera ^double delta]
   (let [forward (camera-forward-vector camera)
         position (types/position camera)
         focus ^Vector4d (:focus-point camera)
@@ -405,20 +407,20 @@
 
 (def ^:private dolly-smooth-speed 10.0)
 
-(defn- apply-dolly-easing [self camera dt]
-  (let [remaining (or (:dolly-target (g/user-data self ::camera-state)) 0.0)]
-    (if (< (Math/abs (double remaining)) 0.01)
+(defn- apply-dolly-easing [self camera ^double dt]
+  (let [remaining (double (or (:dolly-target (g/user-data self ::camera-state)) 0.0))]
+    (if (< (Math/abs remaining) 0.01)
       (do
         (g/user-data-swap! self ::camera-state assoc :dolly-target 0.0)
         camera)
-      (let [step (* (Math/signum (double remaining))
-                    (min (Math/abs (double remaining))
-                         (* dolly-smooth-speed (Math/abs (double remaining)) (double dt))))]
+      (let [step (* (Math/signum remaining)
+                    (min (Math/abs remaining)
+                         (* ^double dolly-smooth-speed (Math/abs remaining) dt)))]
         (g/user-data-swap! self ::camera-state assoc :dolly-target (- remaining step))
         (dolly camera step)))))
 
-(defn- add-dolly-impulse! [self delta]
-  (g/user-data-swap! self ::camera-state update :dolly-target + (* delta dolly-sensitivity)))
+(defn- add-dolly-impulse! [self ^double delta]
+  (g/user-data-swap! self ::camera-state update :dolly-target + (* delta ^double dolly-sensitivity)))
 
 (defn mode-2d? [camera]
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
@@ -428,8 +430,8 @@
   (let [focus ^Vector4d (:focus-point camera)
         point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
         screen-z (.z point)
-        world (camera-unproject camera viewport evt-x evt-y screen-z)
-        delta (camera-unproject camera viewport last-x last-y screen-z)]
+        world ^Vector4d (camera-unproject camera viewport (Point3d. evt-x evt-y screen-z))
+        delta ^Vector4d (camera-unproject camera viewport (Point3d. last-x last-y screen-z))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
@@ -441,13 +443,13 @@
         focus-point-3d (Point3d. (.x focus) (.y focus) (.z focus))
         point (camera-project camera viewport focus-point-3d)
         prev-point (camera-project prev-camera viewport focus-point-3d)
-        world (camera-unproject camera viewport x y (.z point))
-        delta (camera-unproject prev-camera viewport x y (.z prev-point))]
+        world (camera-unproject camera viewport (Point3d. x y (.z point)))
+        delta (camera-unproject prev-camera viewport (Point3d. x y (.z prev-point)))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
 
-(defn tumble [^Camera camera dx dy]
+(defn tumble [^Camera camera ^double dx ^double dy]
   (let [rate 0.005
         focus ^Vector4d (:focus-point camera)
         delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
@@ -517,8 +519,9 @@
               h (- (.bottom viewport) (.top viewport))
               factor-x    (/ proj-width w)
               factor-y    (/ proj-height h)
-              fov-x-prim  (* factor-x (:fov-x camera))
-              fov-y-prim  (* factor-y (:fov-y camera))]
+              ;; TODO JOE: This might be a good candidate for changing the camera to a normal record
+              fov-x-prim  (* factor-x (double (:fov-x camera)))
+              fov-y-prim  (* factor-y (double (:fov-y camera)))]
           [(* 1.1 fov-x-prim) (* 1.1 fov-y-prim)])))))
 
 (s/defn camera-orthographic-frame-aabb :- Camera
@@ -655,14 +658,14 @@
       [(max 0.01 (- near 0.001))
        (max 100.0 (+ far 0.001))])))
 
-(g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
+(g/defnk produce-camera [_node-id local-camera scene-aabb ^Region viewport]
   (let [filter-fn (or (:filter-fn local-camera) identity)
-        w (- (:right viewport) (:left viewport))
-        h (- (:bottom viewport) (:top viewport))
+        w (- (.right viewport) (.left viewport))
+        h (- (.bottom viewport) (.top viewport))
         aspect (if (and (pos? w) (pos? h))
                  (/ (double w) h)
                  1.0)
-        fov-y (:fov-y local-camera)
+        fov-y (double (:fov-y local-camera))
         fov-x (* aspect fov-y)
         [z-near z-far] (if (nil? scene-aabb)
                          [0.01 100.0]
@@ -674,13 +677,11 @@
         filter-fn)))
 
 (defn significant-drag?
-  [current-position previous-position]
-  (let [threshold 2]
-    (->> (map (comp abs -) current-position previous-position)
-         (apply max)
-         (< threshold))))
+  [[^double cx ^double cy] [^double px ^double py]]
+  (< 2.0 (max (Math/abs (- cx px))
+               (Math/abs (- cy py)))))
 
-(defn- lerp [a b t]
+(defn- lerp [^double a ^double b ^double t]
   (let [d (- b a)]
     (+ a (* t d))))
 
@@ -790,16 +791,16 @@
     (.normalize target-dir))
 
   (let [focus-distance (:focus-distance camera)
-        final-speed (* speed focus-distance 0.1)]
+        final-speed (* ^double speed ^double focus-distance 0.1)]
     (.scale target-dir final-speed)
 
     (let [vel ^Vector3d (:free-cam-velocity (g/user-data camera-node ::camera-state))
           diff (doto (Vector3d. target-dir) (.sub vel))
-          damping (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :move-damping])]
-      (.scale diff (* damping dt))
+          damping (double (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :move-damping]))]
+      (.scale diff (* damping ^double dt))
       (.add vel diff)
       (when (= (.length target-dir) 0.0)
-        (.scale vel (Math/exp (* (- damping) dt))))
+        (.scale vel (Math/exp (* (- damping) ^double dt))))
 
       (if (> (.length vel) 0.001)
         (let [offset (doto (Vector3d. vel) (.scale dt))
@@ -825,8 +826,8 @@
   [^Camera camera-a ^Camera camera-b viewport]
   (let [focus ^Vector4d (:focus-point camera-b)
         point (camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        world (camera-unproject camera-a viewport (.x point) (.y point) (.z point))
-        delta (camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
+        world (camera-unproject camera-a viewport point)
+        delta (camera-unproject camera-b viewport point)]
     (.sub delta world)
     (cond-> camera-a
       :always
@@ -929,7 +930,7 @@
     (case type
       :scroll (if (contains? movements-enabled :dolly)
                 (do
-                  (add-dolly-impulse! self (* -0.002 (:delta-y action)))
+                  (add-dolly-impulse! self (* -0.002 (double (:delta-y action))))
                   nil)
                 action)
       :mouse-pressed
@@ -997,17 +998,19 @@
 (def ^:private camera-speed-boost 3.0)
 (def ^:private camera-speed-precision 0.35)
 
-(defn- warp-mouse-around-edges [^ImageView image-view cursor-x cursor-y last-x last-y]
+(defn- warp-mouse-around-edges
+  [^ImageView image-view [^double cursor-x ^double cursor-y] [last-x last-y]]
   (if (and cursor-x last-x)
     (let [screen-w (.getFitWidth image-view)
           screen-h (.getFitHeight image-view)
           padding 1
-          [warp-x warp-y] (cond
-                            (< cursor-x 0)        [(- screen-w padding) cursor-y]
-                            (> cursor-x screen-w) [padding cursor-y]
-                            (< cursor-y 0)        [cursor-x (- screen-h padding)]
-                            (> cursor-y screen-h) [cursor-x padding]
-                            :else nil)]
+          [warp-x ^double warp-y]
+          (cond
+            (< cursor-x 0)        [(- screen-w padding) cursor-y]
+            (> cursor-x screen-w) [padding cursor-y]
+            (< cursor-y 0)        [cursor-x (- screen-h padding)]
+            (> cursor-y screen-h) [cursor-x padding]
+            :else nil)]
       (if warp-x
         (let [origin (.localToScreen image-view 0.0 0.0)
               ;; NOTE: make-gl-pane! flips the ImageView's Y axis, so we have to flip back for the localToScreen to work
@@ -1026,9 +1029,11 @@
             is-secondary (contains? mouse-buttons :secondary)
             shift (contains? modifiers :shift)
             alt (contains? modifiers :alt)
-            speed (* camera-speed
-                     (cond shift camera-speed-boost alt camera-speed-precision :else 1.0)
-                     (prefs/get prefs [:scene :perspective-camera :speed]))
+            speed (* ^double camera-speed
+                     (double (cond shift camera-speed-boost
+                                   alt camera-speed-precision
+                                   :else 1.0))
+                     (double (prefs/get prefs [:scene :perspective-camera :speed])))
             walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
             forward (let [f (camera-forward-vector current-camera)]
                       (if walking-mode
@@ -1069,20 +1074,21 @@
         (when (not= final-camera current-camera)
           (set-camera! self current-camera final-camera false)))
       (let [viewport (g/node-value self :viewport)
-            {:keys [last-x last-y initial-x initial-y movement]} camera-state
+            {:keys [^double last-x ^double last-y ^double initial-x ^double initial-y movement]} camera-state
             camera (g/node-value self :local-camera)
             is-mode-2d (mode-2d? camera)
             filter-fn (:filter-fn camera)
             {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
             [cursor-x cursor-y] cursor-pos
             is-primary (contains? mouse-buttons :primary)
-            scroll-delta-y (second (:scroll-delta input-state [0.0 0.0]))
+            scroll-delta-y (double (second (:scroll-delta input-state [0.0 0.0])))
             [mouse-x mouse-y] (:view-pos input-state)
             movements-enabled (g/node-value self :movements-enabled)
             alt (contains? (:modifiers input-state) :alt)
             has-mouse-moved (and mouse-x mouse-y last-x last-y (not= :idle movement))
             image-view (g/node-value self :image-view)
-            [mouse-x mouse-y last-x last-y] (warp-mouse-around-edges image-view mouse-x mouse-y last-x last-y)
+            [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
+            (warp-mouse-around-edges image-view [mouse-x mouse-y] [last-x last-y])
             is-significant-drag (and initial-x
                                      initial-y
                                      mouse-x

@@ -404,25 +404,26 @@
           visible-curves)))
 
 (defn- pick-closest-curve [visible-curves ^Rect picking-rect camera viewport]
-  (let [p (let [p (camera/camera-unproject camera viewport (.x picking-rect) (.y picking-rect) 0.0)]
+  (let [picking-rect-point ^Point3d (types/Rect->Point3d picking-rect)
+        p (let [p (camera/camera-unproject camera viewport picking-rect-point)]
             (Point3d. (.x p) (.y p) 0.0))
         min-distance Double/MAX_VALUE
         curve (second
-                (reduce (fn [[min-dist closest-curve] {:keys [node-id property curve]}]
+                (reduce (fn [[^double min-dist closest-curve] {:keys [node-id property curve]}]
                           (let [s (-> (mapv second curve)
                                       (properties/->spline))
                                 cp (properties/spline-cp s (.x p))
                                 [x y] cp
                                 closest (Point3d. x y 0.0)
-                                dist (.distanceSquared p closest)]
+                                dist ^double (.distanceSquared p closest)]
                             (if (< dist min-dist)
                               [dist [node-id property closest]]
                               [min-dist closest-curve])))
                         [min-distance nil] visible-curves))
         [_ _ ^Point3d closest] curve
-        screen-p (and closest (camera/camera-project camera viewport closest))]
-    (when (and screen-p (< (.distanceSquared screen-p (Point3d. (.x picking-rect) (.y picking-rect) 0.0))
-                           (* selection/min-pick-size selection/min-pick-size)))
+        screen-p ^Point3d (and closest (camera/camera-project camera viewport closest))]
+    (when (and screen-p (< (.distanceSquared screen-p picking-rect-point)
+                           (* ^long selection/min-pick-size ^long selection/min-pick-size)))
       curve)))
 
 (g/defnk produce-picking-selection [visible-curves picking-rect camera viewport]

@@ -1041,7 +1041,7 @@
 
 (defn- screen->world
   ^Vector3d [camera viewport ^Vector3d screen-pos]
-  (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
+  (let [w4 (c/camera-unproject camera viewport screen-pos)]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
 ;; TODO: We have an evaluation-context provided usually when we call this, maybe change the behavior
