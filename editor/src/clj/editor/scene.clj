@@ -1968,6 +1968,11 @@
 (defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
   (manip-move-scene-node evaluation-context node-id delta))
 
+(defmethod scene-tools/manip-move-preview ::SceneNode [_evaluation-context node-id delta original-position]
+  (when original-position
+    {:node-id node-id
+     :position (apply-move-delta original-position delta)}))
+
 (defn apply-rotate-delta [old-clj-rotation vecmath-delta]
   ;; Note! The rotation is not rounded here like we do for apply-move-delta and
   ;; apply-scale-delta. As the user-facing property is the euler angles, they
@@ -1985,6 +1990,11 @@
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
   (manip-rotate-scene-node evaluation-context node-id delta))
 
+(defmethod scene-tools/manip-rotate-preview ::SceneNode [_evaluation-context node-id delta original-rotation]
+  (when original-rotation
+    {:node-id node-id
+     :rotation (apply-rotate-delta original-rotation delta)}))
+
 (defn apply-scale-delta [old-scale vecmath-delta]
   (properties/scale-and-round-vec old-scale vecmath-delta))
 
@@ -1992,3 +2002,8 @@
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))
+
+(defmethod scene-tools/manip-scale-preview ::SceneNode [_evaluation-context node-id delta original-scale]
+  (when original-scale
+    {:node-id node-id
+     :scale (apply-scale-delta original-scale delta)}))
