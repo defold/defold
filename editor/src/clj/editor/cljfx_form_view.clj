@@ -1696,54 +1696,51 @@
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
-      :opts (cond->
-              {:fx.opt/map-event-handler
-               (-> handle-event
-                   (fx/wrap-co-effects
-                     {:ui-state #(g/node-value view-id :ui-state)
-                      :form-data #(g/node-value view-id :form-data)
-                      :workspace (constantly workspace)
-                      :project (constantly project)
-                      :parent (constantly parent)
-                      :localization (constantly localization)})
-                   (fx/wrap-effects
-                     {:dispatch fx/dispatch-effect
-                      :set (fn [[path value] _]
+      :opts {:fx.opt/map-event-handler
+             (-> handle-event
+                 (fx/wrap-co-effects
+                   {:ui-state #(g/node-value view-id :ui-state)
+                    :form-data #(g/node-value view-id :form-data)
+                    :workspace (constantly workspace)
+                    :project (constantly project)
+                    :parent (constantly parent)
+                    :localization (constantly localization)})
+                 (fx/wrap-effects
+                   {:dispatch fx/dispatch-effect
+                    :set (fn [[path value] _]
+                           (let [ops (:form-ops (g/node-value view-id :form-data))]
+                             (g/transact (form/set-value ops path value))))
+                    :clear (fn [path _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (g/transact (form/set-value ops path value))))
-                      :clear (fn [path _]
-                               (let [ops (:form-ops (g/node-value view-id :form-data))]
-                                 (when (form/can-clear? ops)
-                                   (g/transact (form/clear-value ops path)))))
-                      :set-ui-state (fn [ui-state _]
-                                      (g/set-property! view-id :ui-state ui-state))
-                      :cancel-edit (fn [x _]
-                                     (cond
-                                       (instance? Cell x)
-                                       (fx/run-later (.cancelEdit ^Cell x))
+                               (when (form/can-clear? ops)
+                                 (g/transact (form/clear-value ops path)))))
+                    :set-ui-state (fn [ui-state _]
+                                    (g/set-property! view-id :ui-state ui-state))
+                    :cancel-edit (fn [x _]
+                                   (cond
+                                     (instance? Cell x)
+                                     (fx/run-later (.cancelEdit ^Cell x))
 
-                                       (instance? ListView x)
-                                       (.edit ^ListView x -1)))
-                      :open-resource (fn [[node value] _]
-                                       (ui/run-command node :file.open value))
-                      :show-dialog (fn [dialog-type _]
-                                     (case dialog-type
-                                       :directory-not-in-project
-                                       (dialogs/make-info-dialog
-                                         localization
-                                         {:title (localization/message "dialog.form-view.directory-not-in-project.title")
-                                          :icon :icon/triangle-error
-                                          :header (localization/message "dialog.form-view.directory-not-in-project.header")})
+                                     (instance? ListView x)
+                                     (.edit ^ListView x -1)))
+                    :open-resource (fn [[node value] _]
+                                     (ui/run-command node :file.open value))
+                    :show-dialog (fn [dialog-type _]
+                                   (case dialog-type
+                                     :directory-not-in-project
+                                     (dialogs/make-info-dialog
+                                       localization
+                                       {:title (localization/message "dialog.form-view.directory-not-in-project.title")
+                                        :icon :icon/triangle-error
+                                        :header (localization/message "dialog.form-view.directory-not-in-project.header")})
 
-                                       :file-not-in-project
-                                       (dialogs/make-info-dialog
-                                         localization
-                                         {:title (localization/message "dialog.form-view.file-not-in-project.title")
-                                          :icon :icon/triangle-error
-                                          :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
-                   (wrap-force-refresh view-id))}
-              (system/defold-dev?)
-              (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))
+                                     :file-not-in-project
+                                     (dialogs/make-info-dialog
+                                       localization
+                                       {:title (localization/message "dialog.form-view.file-not-in-project.title")
+                                        :icon :icon/triangle-error
+                                        :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
+                 (wrap-force-refresh view-id))}
 
       :middleware (comp
                     fxui/wrap-dedupe-desc
