@@ -474,7 +474,15 @@
   (testing "Building data component"
     (test-util/with-temp-project-content
       {"/main.data"
-       ["tags: \"foo\""]}
+       ["tags: \"foo\""
+        "data {"
+        "  struct {"
+        "    fields {"
+        "      key: \"level\""
+        "      value { number: 3 }"
+        "    }"
+        "  }"
+        "}"]}
 
       (let [data-node (test-util/resource-node project "/main.data")]
         (with-open [_ (test-util/build! data-node)]
@@ -483,8 +491,16 @@
                 info (get path->info "/main.datac")]
             (is (some? info))
             (is (pos? (alength (:bytes info))))
-            (let [pb-map (:pb-map info)]
-              (is (= ["foo"] (:tags pb-map))))))))))
+            (let [pb-map (:pb-map info)
+                  data-map (:data pb-map)
+                  struct   (:struct data-map)
+                  fields   (:fields struct)
+                  level-val (get fields "level")]
+              (is (= ["foo"] (:tags pb-map)))
+              (is (map? data-map))
+              (is (map? struct))
+              (is (map? fields))
+              (is (= 3.0 (:number level-val))))))))))
 
 (deftest build-atlas
   (testing "Building atlas"

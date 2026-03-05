@@ -341,6 +341,24 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     dmResource::Release(m_Factory, (void**) render_prototype);
 }
 
+TEST_F(ResourceTest, DataResourceContents)
+{
+    dmGameSystem::DataResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/data/valid.datac", (void**)&resource));
+    ASSERT_NE((void*)0, resource);
+
+    const dmGameSystemDDF::Data* ddf = dmGameSystem::GetDDFData(resource);
+    ASSERT_NE((void*)0, ddf);
+
+    ASSERT_EQ(2u, ddf->m_Tags.m_Count);
+    EXPECT_STREQ("tag-one", ddf->m_Tags[0]);
+    EXPECT_STREQ("tag-two", ddf->m_Tags[1]);
+
+    EXPECT_STREQ("hello", ddf->m_Data.m_Kind.m_String);
+
+    dmResource::Release(m_Factory, (void*)resource);
+}
+
 static bool UpdateAndWaitUntilDone(
     dmGameSystem::ScriptLibContext&    scriptlibcontext,
     dmGameObject::HCollection          collection,
@@ -3784,24 +3802,6 @@ ResourceFailParams invalid_data_resources[] =
     {"/data/valid.datac", "/data/missing.datac"},
 };
 INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_resources));
-
-TEST_F(ResourceTest, DataResourceContents)
-{
-    dmGameSystem::DataResource* resource = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/data/valid.datac", (void**)&resource));
-    ASSERT_NE((void*)0, resource);
-
-    const dmGameSystemDDF::Data* ddf = dmGameSystem::GetDDFData(resource);
-    ASSERT_NE((void*)0, ddf);
-
-    ASSERT_EQ(2u, ddf->m_Tags.m_Count);
-    EXPECT_STREQ("tag-one", ddf->m_Tags[0]);
-    EXPECT_STREQ("tag-two", ddf->m_Tags[1]);
-
-    EXPECT_STREQ("hello", ddf->m_Data.m_Kind.m_String);
-
-    dmResource::Release(m_Factory, (void*)resource);
-}
 
 /* Script */
 

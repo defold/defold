@@ -25,7 +25,7 @@ namespace dmGameSystem
         return res->m_DDF;
     }
 
-    dmResource::Result ResDataPreload(const dmResource::ResourcePreloadParams* params)
+    static dmResource::Result ResDataPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGameSystemDDF::Data* ddf = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmGameSystemDDF::Data>(params->m_Buffer, params->m_BufferSize, &ddf);
@@ -38,7 +38,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDataCreate(const dmResource::ResourceCreateParams* params)
+    static dmResource::Result ResDataCreate(const dmResource::ResourceCreateParams* params)
     {
         DataResource* resource = new DataResource();
         resource->m_DDF = (dmGameSystemDDF::Data*)params->m_PreloadData;
@@ -49,7 +49,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDataDestroy(const dmResource::ResourceDestroyParams* params)
+    static dmResource::Result ResDataDestroy(const dmResource::ResourceDestroyParams* params)
     {
         DataResource* resource = (DataResource*)dmResource::GetResource(params->m_Resource);
         if (resource == 0x0)
@@ -67,7 +67,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDataRecreate(const dmResource::ResourceRecreateParams* params)
+    static dmResource::Result ResDataRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmGameSystemDDF::Data* ddf = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmGameSystemDDF::Data>(params->m_Buffer, params->m_BufferSize, &ddf);
@@ -86,5 +86,24 @@ namespace dmGameSystem
         dmResource::SetResourceSize(params->m_Resource, params->m_BufferSize);
         return dmResource::RESULT_OK;
     }
+
+    static ResourceResult RegisterResourceType_Data(HResourceTypeContext ctx, HResourceType type)
+    {
+        return (ResourceResult) dmResource::SetupType(ctx,
+                                                      type,
+                                                      0, // no shared context
+                                                      ResDataPreload,
+                                                      ResDataCreate,
+                                                      0, // post create
+                                                      ResDataDestroy,
+                                                      ResDataRecreate);
+    }
+
+    static ResourceResult DeregisterResourceType_Data(HResourceTypeContext ctx, HResourceType type)
+    {
+        return RESOURCE_RESULT_OK;
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeData, "datac", dmGameSystem::RegisterResourceType_Data, dmGameSystem::DeregisterResourceType_Data);
 

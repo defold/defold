@@ -14,19 +14,6 @@
 #ifndef DM_GAMESYS_RES_DATA_H
 #define DM_GAMESYS_RES_DATA_H
 
-#include <dmsdk/resource/resource.h>
-#include <gamesys/data_ddf.h>
-
-namespace dmGameSystem
-{
-    struct DataResource;
-    const dmGameSystemDDF::Data* GetDDFData(DataResource* res);
-
-    dmResource::Result ResDataPreload(const dmResource::ResourcePreloadParams* params);
-    dmResource::Result ResDataCreate(const dmResource::ResourceCreateParams* params);
-    dmResource::Result ResDataDestroy(const dmResource::ResourceDestroyParams* params);
-    dmResource::Result ResDataRecreate(const dmResource::ResourceRecreateParams* params);
-}
+#include <dmsdk/gamesys/resources/res_data.h>
 
 #endif // DM_GAMESYS_RES_DATA_H
-
