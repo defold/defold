@@ -31,6 +31,8 @@ namespace dmMouseCapture
     void WarpCursor(int x, int y)
     {
         CGWarpMouseCursorPosition(CGPointMake(x, y));
+        // CGWarpMouseCursorPosition causes a short delay, calling this prevents it
+        CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
     bool StartCapture(HContext context, unsigned long window)
@@ -38,8 +40,7 @@ namespace dmMouseCapture
         if (!context || context->m_Capturing)
             return false;
 
-        // Dissociate mouse movement from cursor position
-        CGAssociateMouseAndMouseCursorPosition(false);
+        CGAssociateMouseAndMouseCursorPosition(NO);
 
         Context* ctx = context;
 
@@ -55,7 +56,7 @@ namespace dmMouseCapture
 
         if (!ctx->m_LocalMonitor)
         {
-            CGAssociateMouseAndMouseCursorPosition(true);
+            CGAssociateMouseAndMouseCursorPosition(YES);
             return false;
         }
 
@@ -74,8 +75,7 @@ namespace dmMouseCapture
             context->m_LocalMonitor = nil;
         }
 
-        // Re-associate mouse and cursor
-        CGAssociateMouseAndMouseCursorPosition(true);
+        CGAssociateMouseAndMouseCursorPosition(YES);
 
         context->m_Capturing = false;
     }
