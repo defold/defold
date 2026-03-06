@@ -46,19 +46,20 @@
             [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
-            [editor.system :as system]
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [com.defold.control DefoldStringConverter]
@@ -457,23 +458,36 @@
 
 ;; region choicebox input
 
-(defmethod form-input-view :choicebox [{:keys [value
-                                               on-value-changed
-                                               options
-                                               from-string
-                                               to-string]
-                                        :or {to-string str}}]
+(fxui/defc form-choicebox-combo-box-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}]}
+  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler]
+    :or {to-string str}}]
+  (let [value->label (into {} options)]
+    {:fx/type fxui.combo-box/view
+     :pref-width normal-field-width
+     :value value
+     :show-on-focus show-on-focus
+     :on-value-changed #(map-event-handler (assoc on-value-changed :fx/event %))
+     :to-string #(or (value->label %) (to-string %))
+     :items (mapv first options)}))
+
+(defn- form-editable-choicebox-view [{:keys [value
+                                             on-value-changed
+                                             options
+                                             from-string
+                                             to-string]
+                                      :or {to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
-     :min-width normal-field-width
+     :pref-width normal-field-width
      :value value
      :on-value-changed on-value-changed
      :converter (DefoldStringConverter.
                   #(get value->label % (to-string %))
-                  #(or (label->value %) (and from-string (from-string %))))
-     :editable (some? from-string)
+                  #(or (label->value %) (from-string %)))
+     :editable true
      :button-cell (fn [x]
                     {:text (value->label x)})
      :cell-factory (fn [x]
@@ -483,10 +497,19 @@
 (defn- show-combo-box! [^ComboBox combo-box]
   (.show combo-box))
 
-(defmethod cell-input-view :choicebox [field]
-  {:fx/type fx/ext-on-instance-lifecycle
-   :on-created show-combo-box!
-   :desc (default-cell-input-view field)})
+(defmethod form-input-view :choicebox [{:keys [from-string] :as field}]
+  (if (some? from-string)
+    (form-editable-choicebox-view field)
+    (assoc field :fx/type form-choicebox-combo-box-view)))
+
+(defmethod cell-input-view :choicebox [{:keys [from-string] :as field}]
+  (if (some? from-string)
+    {:fx/type fx/ext-on-instance-lifecycle
+     :on-created show-combo-box!
+     :desc (default-cell-input-view field)}
+    {:fx/type fxui/vertical
+     :children [{:fx/type fxui/ext-focused-by-default
+                 :desc (default-cell-input-view (assoc field :show-on-focus true))}]}))
 
 ;; endregion
 
@@ -601,6 +624,14 @@
         (cond-> (contains? edit :state)
                 (assoc :state (:state edit))))))
 
+(defn- display-value-text [{:keys [type] :as field} value]
+  (case type
+    :resource (resource/resource->proj-path value)
+    :choicebox (or (->> field :options (coll/some #(when (= (first %) value) (second %))))
+                   ((:to-string field str) value))
+    :vec4 (->> value (e/map field-expression/format-number) (coll/join-to-string "  "))
+    (str value)))
+
 (defn- list-cell-factory [element edit-index [i v]]
   (let [edited (= edit-index i)
         ref {:fx/type fx/ext-get-ref :ref [::edit edit-index]}]
@@ -615,10 +646,7 @@
          :graphic ref}
 
         {:graphic ref})
-      {:text (case (:type element)
-               :choicebox (get (into {} (:options element)) v)
-               :resource (resource/resource->proj-path v)
-               (str v))})))
+      {:text (display-value-text element v)})))
 
 (def ^:private add-message (localization/message "form.context-menu.add"))
 
@@ -1009,10 +1037,7 @@
       (case type
         (:integer :number) {:text (field-expression/format-number x)
                             :alignment :center-right}
-        :resource {:text (resource/resource->proj-path x)}
-        :choicebox {:text (get (into {} (:options column)) x)}
-        :vec4 {:text (->> x (mapv field-expression/format-number) (string/join "  "))}
-        {:text (str x)}))))
+        {:text (display-value-text column x)}))))
 
 (defn- get-label-text [localization-state {:keys [localization-key label title]}]
   (let [fallback (or label title)]
@@ -1707,54 +1732,51 @@
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
-      :opts (cond->
-              {:fx.opt/map-event-handler
-               (-> handle-event
-                   (fx/wrap-co-effects
-                     {:ui-state #(g/node-value view-id :ui-state)
-                      :form-data #(g/node-value view-id :form-data)
-                      :workspace (constantly workspace)
-                      :project (constantly project)
-                      :parent (constantly parent)
-                      :localization (constantly localization)})
-                   (fx/wrap-effects
-                     {:dispatch fx/dispatch-effect
-                      :set (fn [[path value] _]
+      :opts {:fx.opt/map-event-handler
+             (-> handle-event
+                 (fx/wrap-co-effects
+                   {:ui-state #(g/node-value view-id :ui-state)
+                    :form-data #(g/node-value view-id :form-data)
+                    :workspace (constantly workspace)
+                    :project (constantly project)
+                    :parent (constantly parent)
+                    :localization (constantly localization)})
+                 (fx/wrap-effects
+                   {:dispatch fx/dispatch-effect
+                    :set (fn [[path value] _]
+                           (let [ops (:form-ops (g/node-value view-id :form-data))]
+                             (g/transact (form/set-value ops path value))))
+                    :clear (fn [path _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (g/transact (form/set-value ops path value))))
-                      :clear (fn [path _]
-                               (let [ops (:form-ops (g/node-value view-id :form-data))]
-                                 (when (form/can-clear? ops)
-                                   (g/transact (form/clear-value ops path)))))
-                      :set-ui-state (fn [ui-state _]
-                                      (g/set-property! view-id :ui-state ui-state))
-                      :cancel-edit (fn [x _]
-                                     (cond
-                                       (instance? Cell x)
-                                       (fx/run-later (.cancelEdit ^Cell x))
+                               (when (form/can-clear? ops)
+                                 (g/transact (form/clear-value ops path)))))
+                    :set-ui-state (fn [ui-state _]
+                                    (g/set-property! view-id :ui-state ui-state))
+                    :cancel-edit (fn [x _]
+                                   (cond
+                                     (instance? Cell x)
+                                     (fx/run-later (.cancelEdit ^Cell x))
 
-                                       (instance? ListView x)
-                                       (.edit ^ListView x -1)))
-                      :open-resource (fn [[node value] _]
-                                       (ui/run-command node :file.open value))
-                      :show-dialog (fn [dialog-type _]
-                                     (case dialog-type
-                                       :directory-not-in-project
-                                       (dialogs/make-info-dialog
-                                         localization
-                                         {:title (localization/message "dialog.form-view.directory-not-in-project.title")
-                                          :icon :icon/triangle-error
-                                          :header (localization/message "dialog.form-view.directory-not-in-project.header")})
+                                     (instance? ListView x)
+                                     (.edit ^ListView x -1)))
+                    :open-resource (fn [[node value] _]
+                                     (ui/run-command node :file.open value))
+                    :show-dialog (fn [dialog-type _]
+                                   (case dialog-type
+                                     :directory-not-in-project
+                                     (dialogs/make-info-dialog
+                                       localization
+                                       {:title (localization/message "dialog.form-view.directory-not-in-project.title")
+                                        :icon :icon/triangle-error
+                                        :header (localization/message "dialog.form-view.directory-not-in-project.header")})
 
-                                       :file-not-in-project
-                                       (dialogs/make-info-dialog
-                                         localization
-                                         {:title (localization/message "dialog.form-view.file-not-in-project.title")
-                                          :icon :icon/triangle-error
-                                          :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
-                   (wrap-force-refresh view-id))}
-              (system/defold-dev?)
-              (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))
+                                     :file-not-in-project
+                                     (dialogs/make-info-dialog
+                                       localization
+                                       {:title (localization/message "dialog.form-view.file-not-in-project.title")
+                                        :icon :icon/triangle-error
+                                        :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
+                 (wrap-force-refresh view-id))}
 
       :middleware (comp
                     fxui/wrap-dedupe-desc
