@@ -917,7 +917,6 @@ command.code.sort-lines.case-sensitive = Сортировать строки (с
 command.code.sort-lines.option.case-insensitive = Без учета регистра
 command.code.sort-lines.option.case-sensitive = С учетом регистра
 command.code.select-next-occurrence = Выбрать следующее вхождение
-command.code.duplicate-selection = Дублировать выделение
 command.code.split-selection-into-lines = Разделить выделение на строки
 command.code.goto-definition = Перейти к определению
 command.code.goto-line = Перейти к строке…
