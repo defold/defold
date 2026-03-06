@@ -296,6 +296,8 @@ namespace dmRender
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
+        float                       m_Time;
+        float                       m_Dt;
         dmGraphics::HContext        m_GraphicsContext;
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
