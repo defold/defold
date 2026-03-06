@@ -844,7 +844,7 @@
 (defn- empty-subsequence? [subsequence]
   (and (empty? (:first-line subsequence))
        (empty? (:middle-lines subsequence))
-       (empty? (:last-line subsequence))))
+       (nil? (:last-line subsequence))))
 
 (defn lines->subsequence
   ^Subsequence [lines]

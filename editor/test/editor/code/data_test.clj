@@ -504,7 +504,13 @@
            (splice-lines ["one"
                           "two"]
                          [[(cr [0 0] [0 1]) ["bo"]]
-                          [(cr [1 1] [1 2]) ["omat"]]])))))
+                          [(cr [1 1] [1 2]) ["omat"]]])))
+    (is (= ["a"
+            "a"
+            ""]
+           (splice-lines ["a"
+                          ""]
+                         [[(c 0 1) ["" "a"]]])))))
 
 (defn- splice-cursor-ranges [ascending-cursor-ranges ascending-cursor-ranges-and-replacements]
   (#'data/splice-cursor-ranges ascending-cursor-ranges ascending-cursor-ranges-and-replacements))
@@ -1375,7 +1381,14 @@
                                    "b"
                                    "c"]
                                   [(c 0 1)
-                                   (c 2 0)]))))
+                                   (c 2 0)])))
+      (is (= {:lines ["a"
+                      "a"
+                      ""]
+              :cursor-ranges [(c 1 1)]}
+             (duplicate-selection ["a"
+                                   ""]
+                                  [(c 0 1)]))))
     (testing "Duplicates selected ranges when there are non-empty ranges"
       (is (= {:lines ["abcbcdef"]
               :cursor-ranges [(c 0 0)
