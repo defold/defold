@@ -878,10 +878,8 @@
         bounds (.localToScreen image-view (.getBoundsInLocal image-view))
         center-x (int (+ (.getMinX bounds) (/ (.getWidth bounds) 2.0)))
         center-y (int (+ (.getMinY bounds) (/ (.getHeight bounds) 2.0)))]
-    ;; (i/warp-cursor center-x center-y)
     (toggle-free-cam-css image-view true)
-    (ui/run-now (ui/set-cursor image-view Cursor/DISAPPEAR))
-    (ui/run-later (ui/run-later (i/start-mouse-capture center-x center-y)))
+    (i/start-mouse-capture center-x center-y)
     (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
     (g/set-property! camera-id :cursor-type :none)
     (g/user-data-swap! camera-id ::camera-state merge

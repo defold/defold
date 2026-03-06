@@ -1,6 +1,7 @@
 #include "mouse_capture.h"
 #include <string.h>
 #include <X11/extensions/XInput2.h>
+#include <X11/extensions/Xfixes.h>
 
 namespace dmMouseCapture
 {
@@ -81,6 +82,8 @@ namespace dmMouseCapture
         XISetMask(mask_bytes, XI_RawMotion);
         XISelectEvents(context->m_Display, root, &evmask, 1);
 
+        XFixesHideCursor(context->m_Display, context->m_Window);
+
         XFlush(context->m_Display);
 
         context->m_Capturing = true;
@@ -105,6 +108,7 @@ namespace dmMouseCapture
         evmask.mask = mask_bytes;
         XISelectEvents(context->m_Display, root, &evmask, 1);
 
+        XFixesShowCursor(context->m_Display, context->m_Window);
         XFlush(context->m_Display);
 
         context->m_Window = None;
