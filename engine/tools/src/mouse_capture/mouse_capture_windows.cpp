@@ -24,7 +24,6 @@ namespace dmMouseCapture
                 if (size > 0)
                 {
                     RAWINPUT raw;
-                    UINT size = sizeof(RAWINPUT);
                     if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) != (UINT)-1)
                     {
                         if (raw.header.dwType == RIM_TYPEMOUSE &&
@@ -109,6 +108,14 @@ namespace dmMouseCapture
             return false;
         }
 
+        while (ShowCursor(FALSE) >= 0) {}
+        RECT clipRect;
+        clipRect.left = context->m_SavedCursorX;
+        clipRect.right = context->m_SavedCursorX + 1;
+        clipRect.top = context->m_SavedCursorY;
+        clipRect.bottom = context->m_SavedCursorY + 1;
+        ClipCursor(&clipRect);
+
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;
@@ -132,6 +139,9 @@ namespace dmMouseCapture
             DestroyWindow(context->m_MessageWindow);
             context->m_MessageWindow = NULL;
         }
+
+        ClipCursor(NULL);
+        while (ShowCursor(TRUE) < 0) {}
 
         context->m_Capturing = false;
     }
