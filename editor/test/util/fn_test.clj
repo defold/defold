@@ -15,7 +15,8 @@
 (ns util.fn-test
   (:require [clojure.test :refer :all]
             [util.fn :as fn])
-  (:import [clojure.lang ArityException]))
+  (:import [clojure.lang ArityException ExceptionInfo]
+           [java.util.concurrent ExecutionException]))
 
 (defn- arity-void-test-fn
   ([]))
@@ -430,6 +431,69 @@
       (is (= "2, 3, 4, 5, 6" (memoized-fn 2 3 4 5 6)))
       (is (= 3 @call-count-atom))
       (is (nil? (fn/evict-memoized! memoized-fn 1 2 3 4 5 6 7 8 9))))))
+
+;; region memoize-late-bound
+
+(declare ^:private memoize-late-bound-memoized-fn)
+
+(defn- memoize-late-bound-memoized-fn-raw [arg]
+  (case arg
+    :outer (let [inner-fn (memoize-late-bound-memoized-fn :inner)]
+             (fn outer-fn [^long depth]
+               (case depth
+                 0 (inner-fn 1)
+                 2 "outer -> inner -> outer")))
+    :inner (let [outer-fn (memoize-late-bound-memoized-fn :outer)]
+             (fn inner-fn [^long depth]
+               (case depth
+                 1 (outer-fn 2))))))
+
+;; Calling the resulting function would cause a StackOverflowError
+;; if we were using the basic memoize function.
+(def ^:private memoize-late-bound-memoized-fn (fn/memoize-late-bound {:timeout-ms 0} memoize-late-bound-memoized-fn-raw))
+
+(deftest memoize-late-bound-allows-memoized-fn-to-call-itself
+  (try
+    (let [outer (memoize-late-bound-memoized-fn :outer)]
+      (is (= "outer -> inner -> outer" (outer 0))))
+    (finally
+      (ns-unmap *ns* 'memoize-late-bound-memoized-fn))))
+
+(deftest memoize-late-bound-retries-if-higher-order-fn-throws-test
+  (let [attempt-count-atom (atom 0)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          {:timeout-ms 0}
+          (fn higher-order-fn [arg]
+            (if (= 1 (swap! attempt-count-atom inc))
+              (throw (ex-info "Thrown from higher-order-fn." {:arg arg}))
+              (fn lower-order-fn []
+                arg))))]
+
+    (is (thrown-with-msg? ExceptionInfo #"Thrown from higher-order-fn." (memoized-fn :arg)))
+    (let [lower-order-fn (memoized-fn :arg)]
+      (is (= :arg (lower-order-fn))))
+    (is (= 2 @attempt-count-atom))))
+
+(deftest memoize-late-bound-delivers-throwing-lower-order-fn-if-higher-order-fn-throws-test
+  (let [memoized-fn
+        (fn/memoize-late-bound
+          {:timeout-ms 100}
+          (fn higher-order-fn [arg]
+            (Thread/sleep 20)
+            (throw (ex-info "Thrown from higher-order-fn." {:arg arg}))))
+
+        concurrent-future
+        (future
+          (Thread/sleep 10)
+          (let [lower-order-fn (memoized-fn :arg)]
+            (lower-order-fn)))]
+
+    (is (thrown-with-msg? ExceptionInfo #"Thrown from higher-order-fn." (memoized-fn :arg)))
+    (is (thrown-with-msg? ExecutionException #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn." (deref concurrent-future)))))
+
+;; endregion
 
 (def ^:private defined-constant :default)
 (defn- defined-function [_arg])

@@ -50,7 +50,7 @@
 
 (def ^:private editable-attribute-optional-field-defaults
   (-> Graphics$VertexAttribute
-      (protobuf/default-message #{:optional})
+      (protobuf/optional-field-defaults)
       (dissoc :binary-values :double-values :long-values :name-hash)))
 
 (defn- attribute->editable-attribute [attribute]
@@ -164,6 +164,7 @@
                                     (.setElement 1 0 y)
                                     (.setElement 2 0 z)
                                     (.setElement 3 0 w)))
+    :constant-type-time (Vector4d. 0.0 0.0 0.0 0.0)
     :constant-type-viewproj :view-proj
     :constant-type-world :world
     :constant-type-texture :texture

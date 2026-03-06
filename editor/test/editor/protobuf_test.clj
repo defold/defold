@@ -13,9 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.protobuf-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$JsonArray TestDdf$JsonNull TestDdf$JsonObject TestDdf$JsonValue TestDdf$MappedPrimitive TestDdf$MappedMessage TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceOneofDefaulted TestDdf$ResourceOneofDefaultedNested TestDdf$ResourceOneofRepeatedNested TestDdf$ResourceOneofSimple TestDdf$ResourceOneofSimpleNested TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSelfReferencingDefaulted TestDdf$ResourceSelfReferencingRepeated TestDdf$ResourceSelfReferencingSimple TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
@@ -117,6 +118,19 @@
                      {:image "/path/2.png"}]}
         new-m (round-trip TestDdf$ResourceSimpleRepeatedlyNested m)]
     (is (= m new-m))))
+
+(deftest map-msgs
+  (testing "Primitive values."
+    (let [m {:string-to-number {"a" 1.0
+                                "b" 2.0}}
+          new-m (round-trip TestDdf$MappedPrimitive m)]
+      (is (= m new-m))))
+
+  (testing "Message values."
+    (let [m {:string-to-message {"a" {:uint-value 1}
+                                 "b" {:uint-value 2}}}
+          new-m (round-trip TestDdf$MappedMessage m)]
+      (is (= m new-m)))))
 
 (deftest repeated-uints
   (let [m {:uint-values (into [] (range 10))}
@@ -285,158 +299,445 @@
                                          :m20 zero :m21 zero :m22 one :m23 zero
                                          :m30 zero :m31 zero :m32 zero :m33 one}))))))
 
-(deftest resource-field-path-specs-test
-  (is (= [[:image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimple)))
-  (is (= [[{:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaulted)))
-  (is (= [[[:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeated)))
-  (is (= [[:simple :image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimpleNested)))
-  (is (= [[:defaulted {:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaultedNested)))
-  (is (= [[:repeated [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedNested)))
-  (is (= [[[:simples] :image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimpleRepeatedlyNested)))
-  (is (= [[[:defaulteds] {:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaultedRepeatedlyNested)))
-  (is (= [[[:repeateds] [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedRepeatedlyNested))))
+(deftest resource-field-value-paths-test
+  (testing "Matches only resource fields"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$DefaultValue
+             {:uint-value 1234
+              :string-value "/image.png"
+              :quat-value [0.1 0.2 0.3 1.4]
+              :enum-value :enum-val0
+              :bool-value false}))))
 
-(deftest get-field-value-paths-fn-test
   (testing "Simple"
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[:image]])
-            {})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimple
+             {})))
     (is (= [[[:image] nil]]
-           ((protobuf/get-field-value-paths-fn [[:image]])
-            {:image nil})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimple
+             {:image nil})))
     (is (= [[[:image] "/image.png"]]
-           ((protobuf/get-field-value-paths-fn [[:image]])
-            {:image "/image.png"}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimple
+             {:image "/image.png"}))))
 
   (testing "Defaulted"
     (is (= [[[:image] "/default.png"]]
-           ((protobuf/get-field-value-paths-fn [[{:image "/default.png"}]])
-            {})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaulted
+             {})))
     (is (= [[[:image] "/default.png"]]
-           ((protobuf/get-field-value-paths-fn [[{:image "/default.png"}]])
-            {:image nil})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaulted
+             {:image nil})))
     (is (= [[[:image] "/image.png"]]
-           ((protobuf/get-field-value-paths-fn [[{:image "/default.png"}]])
-            {:image "/image.png"}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaulted
+             {:image "/image.png"}))))
 
   (testing "Repeated"
     (is (= [[[:images 0] nil]
             [[:images 1] nil]]
-           ((protobuf/get-field-value-paths-fn [[[:images]]])
-            {:images [nil
-                      nil]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeated
+             {:images [nil
+                       nil]})))
     (is (= [[[:images 0] "/image0.png"]
             [[:images 1] "/image1.png"]]
-           ((protobuf/get-field-value-paths-fn [[[:images]]])
-            {:images ["/image0.png"
-                      "/image1.png"]}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeated
+             {:images ["/image0.png"
+                       "/image1.png"]}))))
 
   (testing "Simple nested"
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[:simple :image]])
-            {:simple {}})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleNested
+             {:simple {}})))
     (is (= [[[:simple :image] nil]]
-           ((protobuf/get-field-value-paths-fn [[:simple :image]])
-            {:simple {:image nil}})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleNested
+             {:simple {:image nil}})))
     (is (= [[[:simple :image] "/image.png"]]
-           ((protobuf/get-field-value-paths-fn [[:simple :image]])
-            {:simple {:image "/image.png"}}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleNested
+             {:simple {:image "/image.png"}}))))
 
   (testing "Defaulted nested"
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
-            {})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedNested
+             {})))
     (is (= [[[:defaulted :image] "/default.png"]]
-           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
-            {:defaulted {}})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedNested
+             {:defaulted {}})))
     (is (= [[[:defaulted :image] "/default.png"]]
-           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
-            {:defaulted {:image nil}})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedNested
+             {:defaulted {:image nil}})))
     (is (= [[[:defaulted :image] "/image.png"]]
-           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
-            {:defaulted {:image "/image.png"}}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedNested
+             {:defaulted {:image "/image.png"}}))))
 
   (testing "Repeated nested"
     (is (= [[[:repeated :images 0] nil]
             [[:repeated :images 1] nil]]
-           ((protobuf/get-field-value-paths-fn [[:repeated [:images]]])
-            {:repeated {:images [nil
-                                 nil]}})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedNested
+             {:repeated {:images [nil
+                                  nil]}})))
     (is (= [[[:repeated :images 0] "/image0.png"]
             [[:repeated :images 1] "/image1.png"]]
-           ((protobuf/get-field-value-paths-fn [[:repeated [:images]]])
-            {:repeated {:images ["/image0.png"
-                                 "/image1.png"]}}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedNested
+             {:repeated {:images ["/image0.png"
+                                  "/image1.png"]}}))))
 
   (testing "Simple repeatedly nested"
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[[:simples] :image]])
-            {:simples [{}
-                       {}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleRepeatedlyNested
+             {:simples [{}
+                        {}]})))
     (is (= [[[:simples 0 :image] nil]
             [[:simples 1 :image] nil]]
-           ((protobuf/get-field-value-paths-fn [[[:simples] :image]])
-            {:simples [{:image nil}
-                       {:image nil}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleRepeatedlyNested
+             {:simples [{:image nil}
+                        {:image nil}]})))
     (is (= [[[:simples 0 :image] "/image0.png"]
             [[:simples 1 :image] "/image1.png"]]
-           ((protobuf/get-field-value-paths-fn [[[:simples] :image]])
-            {:simples [{:image "/image0.png"}
-                       {:image "/image1.png"}]}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleRepeatedlyNested
+             {:simples [{:image "/image0.png"}
+                        {:image "/image1.png"}]}))))
 
   (testing "Defaulted repeatedly nested"
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
-            {:defaulteds []})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedRepeatedlyNested
+             {:defaulteds []})))
     (is (= [[[:defaulteds 0 :image] "/default.png"]
             [[:defaulteds 1 :image] "/default.png"]]
-           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
-            {:defaulteds [{}
-                          {}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedRepeatedlyNested
+             {:defaulteds [{}
+                           {}]})))
     (is (= [[[:defaulteds 0 :image] "/default.png"]
             [[:defaulteds 1 :image] "/default.png"]]
-           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
-            {:defaulteds [{:image nil}
-                          {:image nil}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedRepeatedlyNested
+             {:defaulteds [{:image nil}
+                           {:image nil}]})))
     (is (= [[[:defaulteds 0 :image] "/image0.png"]
             [[:defaulteds 1 :image] "/image1.png"]]
-           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
-            {:defaulteds [{:image "/image0.png"}
-                          {:image "/image1.png"}]}))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedRepeatedlyNested
+             {:defaulteds [{:image "/image0.png"}
+                           {:image "/image1.png"}]}))))
 
   (testing "Repeated repeatedly nested"
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
-            {})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedRepeatedlyNested
+             {})))
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
-            {:repeateds []})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedRepeatedlyNested
+             {:repeateds []})))
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
-            {:repeateds [{}
-                         {}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedRepeatedlyNested
+             {:repeateds [{}
+                          {}]})))
     (is (= []
-           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
-            {:repeateds [{:images []}
-                         {:images []}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedRepeatedlyNested
+             {:repeateds [{:images []}
+                          {:images []}]})))
     (is (= [[[:repeateds 0 :images 0] nil]
             [[:repeateds 0 :images 1] nil]
             [[:repeateds 1 :images 0] nil]
             [[:repeateds 1 :images 1] nil]]
-           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
-            {:repeateds [{:images [nil
-                                   nil]}
-                         {:images [nil
-                                   nil]}]})))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedRepeatedlyNested
+             {:repeateds [{:images [nil
+                                    nil]}
+                          {:images [nil
+                                    nil]}]})))
     (is (= [[[:repeateds 0 :images 0] "/image00.png"]
             [[:repeateds 0 :images 1] "/image01.png"]
             [[:repeateds 1 :images 0] "/image10.png"]
             [[:repeateds 1 :images 1] "/image11.png"]]
-           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
-            {:repeateds [{:images ["/image00.png"
-                                   "/image01.png"]}
-                         {:images ["/image10.png"
-                                   "/image11.png"]}]})))))
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedRepeatedlyNested
+             {:repeateds [{:images ["/image00.png"
+                                    "/image01.png"]}
+                          {:images ["/image10.png"
+                                    "/image11.png"]}]}))))
+
+  (testing "Simple map nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleMapNested
+             {})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleMapNested
+             {:simples {}})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleMapNested
+             {:simples {"a" {}
+                        "b" {}}})))
+    (is (= [[[:simples "a" :image] nil]
+            [[:simples "b" :image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleMapNested
+             {:simples {"a" {:image nil}
+                        "b" {:image nil}}})))
+    (is (= [[[:simples "a" :image] "/image0.png"]
+            [[:simples "b" :image] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSimpleMapNested
+             {:simples {"a" {:image "/image0.png"}
+                        "b" {:image "/image1.png"}}}))))
+
+  (testing "Defaulted map nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedMapNested
+             {})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedMapNested
+             {:defaulteds {}})))
+    (is (= [[[:defaulteds "a" :image] "/default.png"]
+            [[:defaulteds "b" :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedMapNested
+             {:defaulteds {"a" {}
+                           "b" {}}})))
+    (is (= [[[:defaulteds "a" :image] "/default.png"]
+            [[:defaulteds "b" :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedMapNested
+             {:defaulteds {"a" {:image nil}
+                           "b" {:image nil}}})))
+    (is (= [[[:defaulteds "a" :image] "/image0.png"]
+            [[:defaulteds "b" :image] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceDefaultedMapNested
+             {:defaulteds {"a" {:image "/image0.png"}
+                           "b" {:image "/image1.png"}}}))))
+
+  (testing "Repeated map nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedMapNested
+             {})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedMapNested
+             {:repeateds {}})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedMapNested
+             {:repeateds {"a" {}
+                          "b" {}}})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedMapNested
+             {:repeateds {"a" {:images []}
+                          "b" {:images []}}})))
+    (is (= [[[:repeateds "a" :images 0] nil]
+            [[:repeateds "a" :images 1] nil]
+            [[:repeateds "b" :images 0] nil]
+            [[:repeateds "b" :images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedMapNested
+             {:repeateds {"a" {:images [nil
+                                        nil]}
+                          "b" {:images [nil
+                                        nil]}}})))
+    (is (= [[[:repeateds "a" :images 0] "/image00.png"]
+            [[:repeateds "a" :images 1] "/image01.png"]
+            [[:repeateds "b" :images 0] "/image10.png"]
+            [[:repeateds "b" :images 1] "/image11.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceRepeatedMapNested
+             {:repeateds {"a" {:images ["/image00.png"
+                                        "/image01.png"]}
+                          "b" {:images ["/image10.png"
+                                        "/image11.png"]}}}))))
+
+  (testing "Self-referencing simple"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {})))
+    (is (= [[[:image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:image "/image.png"})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:next {}})))
+    (is (= [[[:next :image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:next {:image nil}})))
+    (is (= [[[:next :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingSimple
+             {:next {:image "/image.png"}}))))
+
+  (testing "Self-referencing defaulted"
+    (is (= [[[:image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {})))
+    (is (= [[[:image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:image "/image.png"})))
+    (is (= [[[:image] "/default.png"]
+            [[:next :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:next {}})))
+    (is (= [[[:image] "/default.png"]
+            [[:next :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:next {:image nil}})))
+    (is (= [[[:image] "/default.png"]
+            [[:next :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingDefaulted
+             {:next {:image "/image.png"}}))))
+
+  (testing "Self-referencing repeated"
+    (is (= [[[:images 0] nil]
+            [[:images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:images [nil
+                       nil]})))
+    (is (= [[[:images 0] "/image0.png"]
+            [[:images 1] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:images ["/image0.png"
+                       "/image1.png"]})))
+    (is (= [[[:next :images 0] nil]
+            [[:next :images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:next {:images [nil
+                              nil]}})))
+    (is (= [[[:next :images 0] "/image0.png"]
+            [[:next :images 1] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceSelfReferencingRepeated
+             {:next {:images ["/image0.png"
+                              "/image1.png"]}}))))
+
+  (testing "Oneof simple"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimple
+             {})))
+    (is (= [[[:image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimple
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimple
+             {:image "/image.png"}))))
+
+  (testing "Oneof defaulted"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaulted
+             {})))
+    (is (= [[[:image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaulted
+             {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaulted
+             {:image "/image.png"}))))
+
+  (testing "Oneof simple nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {})))
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {:simple {}})))
+    (is (= [[[:simple :image] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {:simple {:image nil}})))
+    (is (= [[[:simple :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofSimpleNested
+             {:simple {:image "/image.png"}}))))
+
+  (testing "Oneof defaulted nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {})))
+    (is (= [[[:defaulted :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {:defaulted {}})))
+    (is (= [[[:defaulted :image] "/default.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {:defaulted {:image nil}})))
+    (is (= [[[:defaulted :image] "/image.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofDefaultedNested
+             {:defaulted {:image "/image.png"}}))))
+
+  (testing "Oneof repeated nested"
+    (is (= []
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofRepeatedNested
+             {})))
+    (is (= [[[:repeated :images 0] nil]
+            [[:repeated :images 1] nil]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofRepeatedNested
+             {:repeated {:images [nil
+                                  nil]}})))
+    (is (= [[[:repeated :images 0] "/image0.png"]
+            [[:repeated :images 1] "/image1.png"]]
+           (protobuf/resource-field-value-paths
+             TestDdf$ResourceOneofRepeatedNested
+             {:repeated {:images ["/image0.png"
+                                  "/image1.png"]}})))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-with-defaults
@@ -475,8 +776,20 @@
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
            :required-string "overridden required_string"
            :optional-with-default "overridden with_default"
@@ -494,8 +807,17 @@
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
                                 :optional-bool false)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "overridden optional_string"
+                                  :optional-int 11
+                                  :optional-quat [1.0 2.0 3.0 4.0]
+                                  :optional-enum :enum-val0
+                                  :optional-bool false)}
            :repeated-int [0
-                          1])))
+                          1]
+           :mapped-int {"a" 0
+                        "b" 1})))
   (is (= {:required-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -505,7 +827,11 @@
           :repeated-message [{}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (protobuf/make-map-with-defaults TestDdf$NestedRequireds
            :required-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string "overridden required_string"
@@ -519,7 +845,12 @@
                               (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string "overridden required_string"
                                 :required-quat [1.0 2.0 3.0 4.0]
-                                :required-enum :enum-val1)])))
+                                :required-enum :enum-val1)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string "overridden required_string"
+                                  :required-quat [1.0 2.0 3.0 4.0]
+                                  :required-enum :enum-val1)})))
   (is (= {:optional-resource "/overridden optional_resource"}
          (protobuf/make-map-with-defaults TestDdf$ResourceFields
            :optional-resource "/overridden optional_resource"))))
@@ -542,7 +873,17 @@
                               :optional-int 11
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
-                              :optional-bool false}]}
+                              :optional-bool false}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
            :required-string ""
            :optional-with-default "overridden with_default"
@@ -559,7 +900,14 @@
                                 :optional-int 11
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
-                                :optional-bool false)])))
+                                :optional-bool false)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "overridden optional_string"
+                                  :optional-int 11
+                                  :optional-quat [1.0 2.0 3.0 4.0]
+                                  :optional-enum :enum-val0
+                                  :optional-bool false)})))
   (is (= {:required-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -569,7 +917,11 @@
           :repeated-message [{}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (protobuf/make-map-with-defaults TestDdf$NestedRequireds
            :required-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string ""
@@ -583,7 +935,12 @@
                               (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string ""
                                 :required-quat [0.0 0.0 0.0 1.0]
-                                :required-enum :enum-val0)])))
+                                :required-enum :enum-val0)]
+           :mapped-message {"a" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string ""
+                                  :required-quat [0.0 0.0 0.0 1.0]
+                                  :required-enum :enum-val0)})))
   (is (= {:optional-resource "/default"}
          (protobuf/make-map-with-defaults TestDdf$ResourceFields
            :optional-resource "/default"))))
@@ -656,8 +1013,20 @@ required_message {
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (read-map-with-defaults TestDdf$NestedDefaults "
 required_string: 'overridden required_string'
 optional_with_default: 'overridden with_default'
@@ -688,8 +1057,36 @@ repeated_message {
   optional_enum: ENUM_VAL0
   optional_bool: false
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'overridden optional_string'
+    optional_int: 11
+    optional_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    optional_enum: ENUM_VAL0
+    optional_bool: false
+  }
+}
 repeated_int: 0
-repeated_int: 1")))
+repeated_int: 1
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 1
+}")))
   (is (= {:optional-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -701,7 +1098,13 @@ repeated_int: 1")))
                               :required-enum :enum-val1}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (read-map-with-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: 'overridden required_string'
@@ -742,6 +1145,32 @@ repeated_message {
     w: 4.0
   }
   required_enum: ENUM_VAL1
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
 }")))
   (is (= {:optional-resource "/overridden optional_resource"}
          (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/overridden optional_resource'"))))
@@ -765,8 +1194,20 @@ repeated_message {
                               :optional-quat [0.0 0.0 0.0 1.0]
                               :optional-enum :enum-val1
                               :optional-bool true}]
+          :mapped-message {"a" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}
+                           "b" {:optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true}}
           :repeated-int [0
-                         0]}
+                         0]
+          :mapped-int {"a" 0
+                       "b" 0}}
          (read-map-with-defaults TestDdf$NestedDefaults "
 required_string: ''
 optional_with_default: 'default'
@@ -797,8 +1238,36 @@ repeated_message {
   optional_enum: ENUM_VAL1
   optional_bool: true
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'default'
+    optional_int: 10
+    optional_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    optional_enum: ENUM_VAL1
+    optional_bool: true
+  }
+}
 repeated_int: 0
-repeated_int: 0")))
+repeated_int: 0
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 0
+}")))
   (is (= {:optional-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -810,7 +1279,13 @@ repeated_int: 0")))
                               :required-enum :enum-val0}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (read-map-with-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: ''
@@ -851,6 +1326,32 @@ repeated_message {
     w: 1.0
   }
   required_enum: ENUM_VAL0
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
 }")))
   (is (= {:optional-resource "/default"}
          (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
@@ -895,8 +1396,16 @@ repeated_message {
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
            :required-string "overridden required_string"
            :optional-with-default "overridden with_default"
@@ -914,8 +1423,17 @@ repeated_message {
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
                                 :optional-bool false)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "overridden optional_string"
+                                  :optional-int 11
+                                  :optional-quat [1.0 2.0 3.0 4.0]
+                                  :optional-enum :enum-val0
+                                  :optional-bool false)}
            :repeated-int [0
-                          1])))
+                          1]
+           :mapped-int {"a" 0
+                        "b" 1})))
   (is (= {:optional-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -925,7 +1443,11 @@ repeated_message {
           :repeated-message [{}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (protobuf/make-map-without-defaults TestDdf$NestedRequireds
            :optional-message (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string "overridden required_string"
@@ -939,7 +1461,12 @@ repeated_message {
                               (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string "overridden required_string"
                                 :required-quat [1.0 2.0 3.0 4.0]
-                                :required-enum :enum-val1)])))
+                                :required-enum :enum-val1)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string "overridden required_string"
+                                  :required-quat [1.0 2.0 3.0 4.0]
+                                  :required-enum :enum-val1)})))
   (is (= {:optional-resource "/overridden optional_resource"}
          (protobuf/make-map-without-defaults TestDdf$ResourceFields
            :optional-resource "/overridden optional_resource"))))
@@ -948,8 +1475,12 @@ repeated_message {
   (is (= {:required-string ""
           :repeated-message [{}
                              {}]
+          :mapped-message {"a" {}
+                           "b" {}}
           :repeated-int [0
-                         0]}
+                         0]
+          :mapped-int {"a" 0
+                       "b" 0}}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
            :required-string ""
            :optional-with-default "default"
@@ -967,8 +1498,17 @@ repeated_message {
                                 :optional-quat [0.0 0.0 0.0 1.0]
                                 :optional-enum :enum-val1
                                 :optional-bool true)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                                  :optional-string "default"
+                                  :optional-int 10
+                                  :optional-quat [0.0 0.0 0.0 1.0]
+                                  :optional-enum :enum-val1
+                                  :optional-bool true)}
            :repeated-int [0
-                          0])))
+                          0]
+           :mapped-int {"a" 0
+                        "b" 0})))
   (is (= {:optional-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -978,7 +1518,11 @@ repeated_message {
           :repeated-message [{}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (protobuf/make-map-without-defaults TestDdf$NestedRequireds
            :optional-message (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                :required-string ""
@@ -992,7 +1536,12 @@ repeated_message {
                               (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string ""
                                 :required-quat [0.0 0.0 0.0 1.0]
-                                :required-enum :enum-val0)])))
+                                :required-enum :enum-val0)]
+           :mapped-message {"a" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg)
+                            "b" (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
+                                  :required-string ""
+                                  :required-quat [0.0 0.0 0.0 1.0]
+                                  :required-enum :enum-val0)})))
   (is (= {:optional-resource "/default"}
          (protobuf/make-map-without-defaults TestDdf$ResourceFields
            :optional-resource "/default"))))
@@ -1051,8 +1600,16 @@ required_message {
                               :optional-quat [1.0 2.0 3.0 4.0]
                               :optional-enum :enum-val0
                               :optional-bool false}]
+          :mapped-message {"a" {}
+                           "b" {:optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false}}
           :repeated-int [0
-                         1]}
+                         1]
+          :mapped-int {"a" 0
+                       "b" 1}}
          (read-map-without-defaults TestDdf$NestedDefaults "
 required_string: 'overridden required_string'
 optional_with_default: 'overridden with_default'
@@ -1083,8 +1640,36 @@ repeated_message {
   optional_enum: ENUM_VAL0
   optional_bool: false
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'overridden optional_string'
+    optional_int: 11
+    optional_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    optional_enum: ENUM_VAL0
+    optional_bool: false
+  }
+}
 repeated_int: 0
-repeated_int: 1")))
+repeated_int: 1
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 1
+}")))
   (is (= {:optional-message {:required-string "overridden required_string"
                              :required-quat [1.0 2.0 3.0 4.0]
                              :required-enum :enum-val1}
@@ -1096,7 +1681,13 @@ repeated_int: 1")))
                               :required-enum :enum-val1}
                              {:required-string "overridden required_string"
                               :required-quat [1.0 2.0 3.0 4.0]
-                              :required-enum :enum-val1}]}
+                              :required-enum :enum-val1}]
+          :mapped-message {"a" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}
+                           "b" {:required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1}}}
          (read-map-without-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: 'overridden required_string'
@@ -1137,6 +1728,32 @@ repeated_message {
     w: 4.0
   }
   required_enum: ENUM_VAL1
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: 'overridden required_string'
+    required_quat {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+      w: 4.0
+    }
+    required_enum: ENUM_VAL1
+  }
 }")))
   (is (= {:optional-resource "/overridden optional_resource"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/overridden optional_resource'"))))
@@ -1145,8 +1762,12 @@ repeated_message {
   (is (= {:required-string ""
           :repeated-message [{}
                              {}]
+          :mapped-message {"a" {}
+                           "b" {}}
           :repeated-int [0
-                         0]}
+                         0]
+          :mapped-int {"a" 0
+                       "b" 0}}
          (read-map-without-defaults TestDdf$NestedDefaults "
 required_string: ''
 optional_with_default: 'default'
@@ -1177,8 +1798,36 @@ repeated_message {
   optional_enum: ENUM_VAL1
   optional_bool: true
 }
+mapped_message {
+  key: 'a'
+  value {
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    optional_string: 'default'
+    optional_int: 10
+    optional_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    optional_enum: ENUM_VAL1
+    optional_bool: true
+  }
+}
 repeated_int: 0
-repeated_int: 0")))
+repeated_int: 0
+mapped_int {
+  key: 'a'
+  value: 0
+}
+mapped_int {
+  key: 'b'
+  value: 0
+}")))
   (is (= {:required-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}
@@ -1187,7 +1836,13 @@ repeated_int: 0")))
                               :required-enum :enum-val0}
                              {:required-string ""
                               :required-quat [0.0 0.0 0.0 1.0]
-                              :required-enum :enum-val0}]}
+                              :required-enum :enum-val0}]
+          :mapped-message {"a" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}
+                           "b" {:required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0}}}
          (read-map-without-defaults TestDdf$NestedRequireds "
 required_message {
   required_string: ''
@@ -1228,6 +1883,32 @@ repeated_message {
     w: 1.0
   }
   required_enum: ENUM_VAL0
+}
+mapped_message {
+  key: 'a'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
+}
+mapped_message {
+  key: 'b'
+  value {
+    required_string: ''
+    required_quat {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    required_enum: ENUM_VAL0
+  }
 }")))
   (is (= {:optional-resource "/default"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
@@ -1244,3 +1925,222 @@ repeated_message {
   (is (= {:optional-resource "/default"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))
       "Keep non-empty paths even if equal to the default."))
+
+;; -----------------------------------------------------------------------------
+;; oneof-fields
+;; -----------------------------------------------------------------------------
+
+(deftest oneof-field-is-initially-default-test
+  (testing "Reports as already default when cleared from initial state."
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (.toBuilder (TestDdf$JsonValue/getDefaultInstance)))))
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (TestDdf$JsonValue/newBuilder)))))
+
+  (testing "Reports as previously non-default when clearing set primitive fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setNull (TestDdf$JsonValue/newBuilder) TestDdf$JsonNull/NULL))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setBool (TestDdf$JsonValue/newBuilder) false))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setNumber (TestDdf$JsonValue/newBuilder) 0.0))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setString (TestDdf$JsonValue/newBuilder) "")))))
+
+  (testing "Reports as previously non-default when clearing set message fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setArray (TestDdf$JsonValue/newBuilder)
+                             (TestDdf$JsonArray/getDefaultInstance)))))
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.setObject (TestDdf$JsonValue/newBuilder)
+                              (TestDdf$JsonObject/getDefaultInstance)))))))
+
+(deftest oneof-field-map-without-defaults-test
+  (testing "Returns map with a single field of the selected type."
+    (is (= {:null :null}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "null: NULL")))
+    (is (= {:bool true}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "bool: true")))
+    (is (= {:number 1.0}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "number: 1.0")))
+    (is (= {:string "a"}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "string: 'a'")))
+    (is (= {:array {:elements [{:bool true}]}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "
+array {
+  elements {
+    bool: true
+  }
+}")))
+    (is (= {:object {:members {"intensity" {:number 1.0}}}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "
+object {
+  members {
+    key: 'intensity'
+    value {
+      number: 1.0
+    }
+  }
+}"))))
+  (testing "Protobuf oneof fields retain default-valued fields to preserve type."
+    (is (= {:null :null}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "null: NULL")))
+    (is (= {:bool false}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "bool: false")))
+    (is (= {:number 0.0}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "number: 0.0")))
+    (is (= {:string ""}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "string: ''")))
+    (is (= {:array {}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "array {}")))
+    (is (= {:object {}}
+           (protobuf/str->map-without-defaults TestDdf$JsonValue "object {}")))))
+
+(deftest oneof-field-map-with-defaults-test
+  (testing "Returns map with a single field of the selected type."
+    (is (= {:null :null}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "null: NULL")))
+    (is (= {:bool false}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "bool: false")))
+    (is (= {:bool true}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "bool: true")))
+    (is (= {:number 0.0}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "number: 0.0")))
+    (is (= {:number 1.0}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "number: 1.0")))
+    (is (= {:string ""}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "string: ''")))
+    (is (= {:string "a"}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "string: 'a'")))
+    (is (= {:array {}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "array {}")))
+    (is (= {:array {:elements [{:bool true}]}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "
+array {
+  elements {
+    bool: true
+  }
+}")))
+    (is (= {:object {}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "object {}")))
+    (is (= {:object {:members {"intensity" {:number 1.0}}}}
+           (protobuf/str->map-with-defaults TestDdf$JsonValue "
+object {
+  members {
+    key: 'intensity'
+    value {
+      number: 1.0
+    }
+  }
+}")))))
+
+;; -----------------------------------------------------------------------------
+;; map fields
+;; -----------------------------------------------------------------------------
+
+(deftest map-field-is-initially-default-test
+  (testing "Reports as already default when clearing primitive field from initial state."
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (.toBuilder (TestDdf$MappedPrimitive/getDefaultInstance)))))
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (TestDdf$MappedPrimitive/newBuilder)))))
+
+  (testing "Reports as already default when clearing message field from initial state."
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (.toBuilder (TestDdf$MappedMessage/getDefaultInstance)))))
+    (is (true? (#'editor.protobuf/clear-defaults-from-builder!
+                 (TestDdf$MappedMessage/newBuilder)))))
+
+  (testing "Reports as previously non-default when clearing set primitive fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.putStringToNumber (TestDdf$MappedPrimitive/newBuilder) "" 0.0)))))
+
+  (testing "Reports as previously non-default when clearing set message fields."
+    (is (false? (#'editor.protobuf/clear-defaults-from-builder!
+                  (.putStringToMessage (TestDdf$MappedMessage/newBuilder)
+                                       ""
+                                       (-> (TestDdf$SubMsg/newBuilder)
+                                           (.setUintValue 0)
+                                           (.build))))))))
+
+;; -----------------------------------------------------------------------------
+;; self-referencing-types
+;; -----------------------------------------------------------------------------
+
+(deftest self-referencing-type-test
+  (let [expected-map
+        {:members {"null" {:null :null}
+                   "bool" {:bool false}
+                   "number" {:number 0.0}
+                   "string" {:string ""}
+                   "array" {:array {:elements [{:number 0.0}
+                                               {:string ""}]}}
+                   "object" {:object {:members {"number" {:number 0.0}
+                                                "string" {:string ""}}}}}}
+
+        expected-str
+        (string/triml "
+members {
+  key: \"array\"
+  value {
+    array {
+      elements {
+        number: 0.0
+      }
+      elements {
+        string: \"\"
+      }
+    }
+  }
+}
+members {
+  key: \"bool\"
+  value {
+    bool: false
+  }
+}
+members {
+  key: \"null\"
+  value {
+    null: NULL
+  }
+}
+members {
+  key: \"number\"
+  value {
+    number: 0.0
+  }
+}
+members {
+  key: \"object\"
+  value {
+    object {
+      members {
+        key: \"number\"
+        value {
+          number: 0.0
+        }
+      }
+      members {
+        key: \"string\"
+        value {
+          string: \"\"
+        }
+      }
+    }
+  }
+}
+members {
+  key: \"string\"
+  value {
+    string: \"\"
+  }
+}
+")]
+    (testing "Protobuf text format to Clojure map conversion."
+      (is (= expected-map
+             (protobuf/str->map-without-defaults TestDdf$JsonObject expected-str))))
+
+    (testing "Clojure map to Protobuf text format conversion."
+      (is (= expected-str
+             (protobuf/map->str TestDdf$JsonObject expected-map))))))

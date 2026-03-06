@@ -66,7 +66,7 @@
                              :deps-by-source field-value->fused-path}))
             (coll/assoc-in-ex pb-map field-path fused-path))))
       pb-map
-      (protobuf/get-field-value-paths pb-map pb-class))))
+      (protobuf/resource-field-value-paths pb-class pb-map))))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
