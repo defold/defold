@@ -19,8 +19,7 @@
             [editor.code.resource :as r]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
-            [editor.workspace :as workspace]
-            [util.digest :as digest])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto DataProto$Data]
            [com.google.protobuf Message]))
 
@@ -28,30 +27,27 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- build-data [build-resource _dep-resources user-data]
-  (let [{:keys [source-text]} user-data
-        ^String text source-text]
+  (let [{:keys [lines]} user-data
+        ^String text (data/lines->string lines)]
     (try
-      (let [^Message pb (protobuf/str->pb DataProto$Data text)
+      (let [pb (protobuf/str->pb DataProto$Data text)
             content (protobuf/pb->bytes pb)]
         {:resource build-resource
          :content content})
       (catch Throwable e
         (throw (ex-info (str "Failed to compile .data file: " (.getMessage e))
-                        {:cause e}
+                        {:build-resource build-resource}
                         e))))))
 
 (g/defnk produce-build-targets [_node-id resource lines]
   (if (g/error? lines)
     (g/error-aggregate [lines] :_node-id _node-id :_label :build-targets)
-    (let [source-text (data/lines->string lines)
-          source-hash (digest/string->sha256-hex source-text)
-          build-resource (workspace/make-build-resource resource)]
+    (let [build-resource (workspace/make-build-resource resource)]
       [(bt/with-content-hash
          {:node-id _node-id
           :resource build-resource
           :build-fn build-data
-          :user-data {:source-text source-text
-                      :source-hash source-hash}})])))
+          :user-data {:lines lines}})])))
 
 (g/defnode DataFileNode
   (inherits r/CodeEditorResourceNode)
