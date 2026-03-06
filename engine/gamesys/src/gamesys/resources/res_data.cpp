@@ -11,9 +11,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_data.h"
-
 #include <dmsdk/resource/resource.h>
+#include <dmsdk/gamesys/resources/res_data.h>
 
 namespace dmGameSystem
 {

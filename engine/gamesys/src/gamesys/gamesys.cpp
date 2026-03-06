@@ -56,7 +56,6 @@
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
 #include "resources/res_glyph_bank.h"
-#include "resources/res_data.h"
 
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
@@ -87,7 +86,6 @@ namespace dmGameSystem
     DEFINE_EXT_CONSTANTS(COLLISION_OBJECT,     "collisionobjectc")
     DEFINE_EXT_CONSTANTS(FACTORY,              "factoryc")
     DEFINE_EXT_CONSTANTS(FONT,                 "fontc")
-    DEFINE_EXT_CONSTANTS(DATA,                 "datac")
     DEFINE_EXT_CONSTANTS(MATERIAL,             "materialc")
     DEFINE_EXT_CONSTANTS(BUFFER,               "bufferc")
     DEFINE_EXT_CONSTANTS(MODEL,                "modelc")

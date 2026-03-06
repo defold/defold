@@ -29,7 +29,6 @@
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_textureset.h"
-#include "gamesys/resources/res_data.h"
 
 #include <stdio.h>
 
@@ -59,6 +58,7 @@
 
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/components/comp_gui.h>
+#include <dmsdk/gamesys/resources/res_data.h>
 
 #include <sound/sound.h>
 
