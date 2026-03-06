@@ -164,6 +164,7 @@
                                     (.setElement 1 0 y)
                                     (.setElement 2 0 z)
                                     (.setElement 3 0 w)))
+    :constant-type-time (Vector4d. 0.0 0.0 0.0 0.0)
     :constant-type-viewproj :view-proj
     :constant-type-world :world
     :constant-type-texture :texture

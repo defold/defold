@@ -99,6 +99,7 @@
     :constant-type-normal false
     :constant-type-worldview false
     :constant-type-worldviewproj false
+    :constant-type-time false
     :constant-type-user-matrix4 true))
 
 (defn sanitize-constant [constant]
