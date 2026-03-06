@@ -792,13 +792,13 @@
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
   (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
-                                     (when (not exclude-gles-sm100)
-                                       (let [page-count (calculate-texture-page-count layout-data max-page-size)]
-                                         (or (validation/prop-error :fatal _node-id
+                                     (let [page-count (calculate-texture-page-count layout-data max-page-size)]
+                                       (or (when (not exclude-gles-sm100)
+                                             (validation/prop-error :fatal _node-id
                                                                     :validate-texture-page-count
                                                                     texture-page-count-error-message
-                                                                    page-count)
-                                             page-count)))))
+                                                                    page-count))
+                                           page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
