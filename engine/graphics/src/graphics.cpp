@@ -943,6 +943,7 @@ namespace dmGraphics
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
         ps.m_StencilEnabled           = 0;
+        ps.m_ScissorTestEnabled       = 0;
         ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpDepthFail  = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpPass       = STENCIL_OP_KEEP;
@@ -1051,6 +1052,9 @@ namespace dmGraphics
         {
             case STATE_DEPTH_TEST:
                 pipeline_state.m_DepthTestEnabled = value;
+            break;
+            case STATE_SCISSOR_TEST:
+                pipeline_state.m_ScissorTestEnabled = value;
             break;
             case STATE_STENCIL_TEST:
                 pipeline_state.m_StencilEnabled = value;

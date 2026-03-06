@@ -706,6 +706,8 @@ namespace dmGraphics
         uint64_t m_DepthTestFunc            : 3;
         // Stencil Test
         uint64_t m_StencilEnabled           : 1;
+        // Scissor Test
+        uint64_t m_ScissorTestEnabled       : 1;
 
         // Front
         uint64_t m_StencilFrontOpFail       : 3;
