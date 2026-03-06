@@ -1528,30 +1528,31 @@
 
 (defn register-event-handler! [^Parent parent image-view view-id]
   (let [process-events? (atom true)
-        event-handler (ui/event-handler e
-                        (when @process-events?
-                          (try
-                            ;; TODO JOE: We have to filter out mouse-mouse events
-                            ;; during free-cam-mode-active, to be more efficient
-                            (profiler/profile "input-event" -1
-                              (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
-                                    pos [x y 0.0]
-                                    picking-rect (selection/calc-picking-rect pos pos)]
-                                (g/update-property! view-id :input-state i/update-input-state action)
-                                (when (= :mouse-pressed (:type action))
-                                  (.requestFocus parent)
-                                  (.consume e))
-                                (g/transact
-                                  (concat
-                                    (when screen-x
-                                      (g/set-property view-id :cursor-pos [screen-x screen-y]))
-                                    (g/set-property view-id :tool-picking-rect picking-rect)
-                                    (g/update-property view-id :input-action-queue conj action)))))
-                            (catch Throwable error
-                              (reset! process-events? false)
-                              (error-reporting/report-exception! error)))))]
+        event-handler
+        (ui/event-handler e
+          (when @process-events?
+            (try
+              (profiler/profile "input-event" -1
+                (if (some-> (view->camera view-id) (g/user-data ::camera-state) :free-cam-mode)
+                  (g/update-property! view-id :input-state i/update-input-state (i/action-from-jfx e))
+                  (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
+                        pos [x y 0.0]
+                        picking-rect (selection/calc-picking-rect pos pos)]
+                    (when (= :mouse-pressed (:type action))
+                      (.requestFocus parent)
+                      (.consume e))
+                    (g/transact
+                      (concat
+                        (when screen-x
+                          (g/set-property view-id :cursor-pos [screen-x screen-y]))
+                        (g/update-property view-id :input-state i/update-input-state action)
+                        (g/set-property view-id :tool-picking-rect picking-rect)
+                        (g/update-property view-id :input-action-queue conj action))))))
+              (catch Throwable error
+                (reset! process-events? false)
+                (error-reporting/report-exception! error)))))]
     (doto parent
-    ;; TODO: Why did we add this this? This fixed something...
+      ;; TODO: Why did we add this this? This fixed something...
       (ui/on-mouse! (fn [type e]
                       (cond (= type :exit)
                             (g/set-property! view-id :cursor-pos [0.0 0.0]))))
