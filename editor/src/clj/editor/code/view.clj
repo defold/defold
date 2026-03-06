@@ -2639,6 +2639,7 @@
   [{:command :edit.cut :label (localization/message "command.edit.cut")}
    {:command :edit.copy :label (localization/message "command.edit.copy")}
    {:command :edit.paste :label (localization/message "command.edit.paste")}
+   {:command :code.duplicate-selection :label (localization/message "command.code.duplicate-selection")}
    {:command :code.select-all :label (localization/message "command.code.select-all")}
    (menu-items/separator-with-id :editor.app-view/edit-end)])
 
@@ -2856,6 +2857,15 @@
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
 
+(defn duplicate-selection! [view-node]
+  (hide-hover! view-node)
+  (hide-suggestions! view-node)
+  (set-properties! view-node nil
+                   (data/duplicate-selection (get-property view-node :lines)
+                                             (get-property view-node :cursor-ranges)
+                                             (get-property view-node :regions)
+                                             (get-property view-node :layout))))
+
 (handler/defhandler :edit.cut :code-view
   (active? [editable] editable)
   (enabled? [view-node evaluation-context]
@@ -2867,6 +2877,10 @@
   (enabled? [view-node clipboard evaluation-context]
             (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
+
+(handler/defhandler :code.duplicate-selection :code-view
+  (active? [editable] editable)
+  (run [view-node] (duplicate-selection! view-node)))
 
 (handler/defhandler :code.delete-next-char :code-view
   (active? [editable] editable)
@@ -3495,6 +3509,7 @@
    {:command :code.sort-lines :user-data :case-sensitive}
    {:label :separator}
    {:command :code.select-next-occurrence :label (localization/message "command.code.select-next-occurrence")}
+   {:command :code.duplicate-selection :label (localization/message "command.code.duplicate-selection")}
    {:command :code.split-selection-into-lines :label (localization/message "command.code.split-selection-into-lines")}
    {:label :separator}
    {:command :edit.rename :label (localization/message "command.edit.rename")}
