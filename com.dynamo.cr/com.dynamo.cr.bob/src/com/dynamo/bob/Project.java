@@ -61,6 +61,7 @@ import com.dynamo.bob.fs.FileSystemMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BuildInputDataCollector;
@@ -96,6 +97,7 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
@@ -126,7 +128,6 @@ public class Project {
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
-    private Map<String, String> inextToOutext = new HashMap<>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private HashMap<String, Task> tasks;
@@ -378,7 +379,7 @@ public class Project {
                 if (builderParams != null) {
                     for (String inExt : builderParams.inExts()) {
                         extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                        inextToOutext.put(inExt, builderParams.outExt());
+                        ResourceUtil.registerMapping(inExt, builderParams.outExt());
                     }
                     Builder.addParamsDigest(klass, this.getOptions(), builderParams);
                     ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -425,30 +426,6 @@ public class Project {
         TimeProfiler.stop(); // Final stop after plugin registration
     }
 
-    static String[][] extensionMapping = new String[][] {
-        {".camera", ".camerac"},
-        {".buffer", ".bufferc"},
-        {".data", ".datac"},
-        {".mesh", ".meshc"},
-        {".collectionproxy", ".collectionproxyc"},
-        {".collisionobject", ".collisionobjectc"},
-        {".particlefx", ".particlefxc"},
-        {".gui", ".guic"},
-        {".model", ".modelc"},
-        {".script", ".scriptc"},
-        {".sound", ".soundc"},
-        {".wav", ".soundc"},
-        {".ogg", ".soundc"},
-        {".opus", ".soundc"},
-        {".collectionfactory", ".collectionfactoryc"},
-        {".factory", ".factoryc"},
-        {".light", ".lightc"},
-        {".label", ".labelc"},
-        {".sprite", ".spritec"},
-        {".tilegrid", ".tilemapc"},
-        {".tilemap", ".tilemapc"},
-    };
-
     private String generateCircularDependencyErrorMessage(String dependency) {
         StringBuilder errorMessage = new StringBuilder("\nCircular dependency detected:\n");
 
@@ -462,19 +439,6 @@ public class Project {
         errorMessage.append("-> ").append(dependency).append(" (Circular Point)");
 
         return errorMessage.toString();
-    }
-
-    public String replaceExt(String inExt) {
-        for (int i = 0; i < extensionMapping.length; i++) {
-            if (extensionMapping[i][0].equals(inExt))
-            {
-                return extensionMapping[i][1];
-            }
-        }
-        String outExt = inextToOutext.get(inExt); // Get the output ext, or use the inExt as default
-        if (outExt != null)
-            return outExt;
-        return inExt;
     }
 
     private Class<? extends Builder> getBuilderFromExtension(String input) {
@@ -918,6 +882,8 @@ public class Project {
         bundler.bundleApplication(this, platform, bundleDir, monitor);
         String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
         BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
+        if (ResourceUtil.isMinificationEnabled())
+            MinifyPathCollector.saveAsJson(bundleDir);
         m.worked(1);
         m.done();
     }
@@ -1783,6 +1749,16 @@ public class Project {
         {
             registerTextureCompressors();
         }
+
+        boolean experimental_path_minification = hasOption("experimental-path-minification");
+
+        ResourceUtil.enableMinification(experimental_path_minification);
+        ResourceUtil.setBuildDirectory(buildDirectory);
+        ResourceUtil.disableMinify(".luac");
+        ResourceUtil.disableMinify(".scriptc");
+        ResourceUtil.disableMinify(".render_scriptc");
+        ResourceUtil.disableMinify(".gui_scriptc");
+        ResourceUtil.disableMinify(".collectionc");
 
         loop:
         for (String command : commands) {

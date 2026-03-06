@@ -76,7 +76,7 @@ def build(bld):
     if platform == 'win32':
         platform = 'x86-win32'
 
-    bob_flags = []
+    bob_flags = ['--variant=debug']
     bob_flags.append("--platform=%s" % platform)
     if Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")

@@ -128,6 +128,8 @@ namespace dmRender
         context->m_View = Matrix4::identity();
         context->m_Projection = Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
+        context->m_Time = 0.0f;
+        context->m_Dt = 0.0f;
 
         context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
@@ -345,6 +347,12 @@ namespace dmRender
     {
         render_context->m_Projection = projection;
         render_context->m_ViewProj = projection * render_context->m_View;
+    }
+
+    void SetFrameTime(HRenderContext render_context, float time, float dt)
+    {
+        render_context->m_Time = time;
+        render_context->m_Dt = dt;
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)

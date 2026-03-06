@@ -558,62 +558,347 @@ static void LogFrameBufferError(GLenum status)
         m_GLHandlesData.m_AllGLHandles.SetCapacity(1024);
         m_GLHandlesData.m_FreeIndexes.SetCapacity(256);
 
+        // Default scissor to cover the entire viewport
+        m_ScissorRect[0] = 0;
+        m_ScissorRect[1] = 0;
+        m_ScissorRect[2] = (int32_t) m_Width;
+        m_ScissorRect[3] = (int32_t) m_Height;
+        memcpy(m_ScissorRectDirty, m_ScissorRect, sizeof(m_ScissorRect));
+
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
-    static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
+    static inline GLenum GetOpenGLCompareFunc(CompareFunc func)
     {
-        const GLenum primitive_type_lut[] = {
-            GL_LINES,
-            GL_TRIANGLES,
-            GL_TRIANGLE_STRIP
-        };
-        return primitive_type_lut[prim_type];
+        switch (func)
+        {
+            case COMPARE_FUNC_NEVER:    return GL_NEVER;
+            case COMPARE_FUNC_LESS:     return GL_LESS;
+            case COMPARE_FUNC_LEQUAL:   return GL_LEQUAL;
+            case COMPARE_FUNC_GREATER:  return GL_GREATER;
+            case COMPARE_FUNC_GEQUAL:   return GL_GEQUAL;
+            case COMPARE_FUNC_EQUAL:    return GL_EQUAL;
+            case COMPARE_FUNC_NOTEQUAL: return GL_NOTEQUAL;
+            case COMPARE_FUNC_ALWAYS:   return GL_ALWAYS;
+            default:
+                assert(0 && "Unsupported compare func");
+                return GL_ALWAYS;
+        }
     }
 
-    static GLenum GetOpenGLState(State state)
+    static inline GLenum GetOpenGLState(State state)
     {
-        GLenum state_lut[] = {
-            GL_DEPTH_TEST,
-            GL_SCISSOR_TEST,
-            GL_STENCIL_TEST,
-        #if !defined(GL_ES_VERSION_2_0)
-            GL_ALPHA_TEST,
-        #else
-            0x0BC0,
-        #endif
-            GL_BLEND,
-            GL_CULL_FACE,
-            GL_POLYGON_OFFSET_FILL,
-            // Alpha test enabled
-        #if !defined(GL_ES_VERSION_2_0)
-            1,
-        #else
-            0,
-        #endif
-        };
-
-        return state_lut[state];
+        switch (state)
+        {
+            case STATE_DEPTH_TEST:   return GL_DEPTH_TEST;
+            case STATE_SCISSOR_TEST: return GL_SCISSOR_TEST;
+            case STATE_STENCIL_TEST: return GL_STENCIL_TEST;
+            case STATE_ALPHA_TEST:
+            #if !defined(GL_ES_VERSION_2_0)
+                return GL_ALPHA_TEST;
+            #else
+                return 0x0BC0;
+            #endif
+            case STATE_BLEND:               return GL_BLEND;
+            case STATE_CULL_FACE:           return GL_CULL_FACE;
+            case STATE_POLYGON_OFFSET_FILL: return GL_POLYGON_OFFSET_FILL;
+            case STATE_ALPHA_TEST_SUPPORTED:
+            #if !defined(GL_ES_VERSION_2_0)
+                return 1;
+            #else
+                return 0;
+            #endif
+            default:
+                assert(0 && "Unsupported GL state");
+                return 0;
+        }
     }
 
-    static GLenum GetOpenGLType(Type type)
+    static inline GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
     {
-        const GLenum type_lut[] = {
-            GL_BYTE,
-            GL_UNSIGNED_BYTE,
-            GL_SHORT,
-            GL_UNSIGNED_SHORT,
-            GL_INT,
-            GL_UNSIGNED_INT,
-            GL_FLOAT,
-            GL_FLOAT_VEC4,
-            GL_FLOAT_MAT4,
-            GL_SAMPLER_2D,
-            GL_SAMPLER_CUBE,
-            DMGRAPHICS_SAMPLER_2D_ARRAY,
-            DMGRAPHICS_IMAGE_2D,
-        };
-        return type_lut[type];
+        switch (face_type)
+        {
+            case FACE_TYPE_FRONT:          return GL_FRONT;
+            case FACE_TYPE_BACK:           return GL_BACK;
+            case FACE_TYPE_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
+            default:
+                assert(0 && "Unsupported face type");
+                return GL_FRONT;
+        }
+    }
+
+    static inline GLenum GetOpenGLFaceWinding(FaceWinding winding)
+    {
+        switch (winding)
+        {
+            case FACE_WINDING_CCW: return GL_CCW;
+            case FACE_WINDING_CW:  return GL_CW;
+            default:
+                assert(0 && "Unsupported face winding");
+                return GL_CCW;
+        }
+    }
+
+    static inline GLenum GetOpenGLStencilOp(StencilOp op)
+    {
+        switch (op)
+        {
+            case STENCIL_OP_KEEP:      return GL_KEEP;
+            case STENCIL_OP_ZERO:      return GL_ZERO;
+            case STENCIL_OP_REPLACE:   return GL_REPLACE;
+            case STENCIL_OP_INCR:      return GL_INCR;
+            case STENCIL_OP_INCR_WRAP: return GL_INCR_WRAP;
+            case STENCIL_OP_DECR:      return GL_DECR;
+            case STENCIL_OP_DECR_WRAP: return GL_DECR_WRAP;
+            case STENCIL_OP_INVERT:    return GL_INVERT;
+            default:
+                assert(0 && "Unsupported stencil op");
+                return GL_KEEP;
+        }
+    }
+
+    static inline GLenum GetOpenGLBlendFactor(BlendFactor factor)
+    {
+        switch (factor)
+        {
+            case BLEND_FACTOR_ZERO:                     return GL_ZERO;
+            case BLEND_FACTOR_ONE:                      return GL_ONE;
+            case BLEND_FACTOR_SRC_COLOR:                return GL_SRC_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_SRC_COLOR:      return GL_ONE_MINUS_SRC_COLOR;
+            case BLEND_FACTOR_DST_COLOR:                return GL_DST_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_DST_COLOR:      return GL_ONE_MINUS_DST_COLOR;
+            case BLEND_FACTOR_SRC_ALPHA:                return GL_SRC_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:      return GL_ONE_MINUS_SRC_ALPHA;
+            case BLEND_FACTOR_DST_ALPHA:                return GL_DST_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_DST_ALPHA:      return GL_ONE_MINUS_DST_ALPHA;
+            case BLEND_FACTOR_SRC_ALPHA_SATURATE:       return GL_SRC_ALPHA_SATURATE;
+        #if !defined (GL_ARB_imaging)
+            case BLEND_FACTOR_CONSTANT_COLOR:           return 0x8001;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return 0x8002;
+            case BLEND_FACTOR_CONSTANT_ALPHA:           return 0x8003;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: return 0x8004;
+        #else
+            case BLEND_FACTOR_CONSTANT_COLOR:           return GL_CONSTANT_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return GL_ONE_MINUS_CONSTANT_COLOR;
+            case BLEND_FACTOR_CONSTANT_ALPHA:           return GL_CONSTANT_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: return GL_ONE_MINUS_CONSTANT_ALPHA;
+        #endif
+            default:
+                assert(0 && "Unsupported blend factor");
+                return GL_ONE;
+        }
+    }
+
+    static void ApplyPipelineState(OpenGLContext* context)
+    {
+        PipelineState& ps_applied = context->m_PipelineState;
+        PipelineState& ps_dirty   = context->m_PipelineStateDirty;
+
+        #define HAS_CHANGED(name) (ps_applied.name != ps_dirty.name)
+
+        // Enable/disable fixed pipeline states that are tracked in PipelineState
+        if (HAS_CHANGED(m_DepthTestEnabled))
+        {
+            if (ps_dirty.m_DepthTestEnabled)
+                glEnable(GetOpenGLState(STATE_DEPTH_TEST));
+            else
+                glDisable(GetOpenGLState(STATE_DEPTH_TEST));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_ScissorTestEnabled))
+        {
+            if (ps_dirty.m_ScissorTestEnabled)
+                glEnable(GetOpenGLState(STATE_SCISSOR_TEST));
+            else
+                glDisable(GetOpenGLState(STATE_SCISSOR_TEST));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_StencilEnabled))
+        {
+            if (ps_dirty.m_StencilEnabled)
+                glEnable(GetOpenGLState(STATE_STENCIL_TEST));
+            else
+                glDisable(GetOpenGLState(STATE_STENCIL_TEST));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_BlendEnabled))
+        {
+            if (ps_dirty.m_BlendEnabled)
+                glEnable(GetOpenGLState(STATE_BLEND));
+            else
+                glDisable(GetOpenGLState(STATE_BLEND));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_CullFaceEnabled))
+        {
+            if (ps_dirty.m_CullFaceEnabled)
+                glEnable(GetOpenGLState(STATE_CULL_FACE));
+            else
+                glDisable(GetOpenGLState(STATE_CULL_FACE));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_PolygonOffsetFillEnabled))
+        {
+            if (ps_dirty.m_PolygonOffsetFillEnabled)
+                glEnable(GetOpenGLState(STATE_POLYGON_OFFSET_FILL));
+            else
+                glDisable(GetOpenGLState(STATE_POLYGON_OFFSET_FILL));
+            CHECK_GL_ERROR;
+        }
+
+        // Color write mask
+        if (HAS_CHANGED(m_WriteColorMask))
+        {
+            GLboolean red   = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_R) != 0;
+            GLboolean green = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_G) != 0;
+            GLboolean blue  = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_B) != 0;
+            GLboolean alpha = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_A) != 0;
+
+            glColorMask(red, green, blue, alpha);
+            CHECK_GL_ERROR;
+        }
+
+        // Depth write mask
+        if (HAS_CHANGED(m_WriteDepth))
+        {
+            glDepthMask(ps_dirty.m_WriteDepth ? GL_TRUE : GL_FALSE);
+            CHECK_GL_ERROR;
+        }
+
+        // Depth test function
+        if (HAS_CHANGED(m_DepthTestFunc))
+        {
+            glDepthFunc(GetOpenGLCompareFunc((CompareFunc) ps_dirty.m_DepthTestFunc));
+            CHECK_GL_ERROR;
+        }
+
+        // Blend factors
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        {
+            glBlendFunc(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
+                        GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor));
+            CHECK_GL_ERROR;
+        }
+
+        // Stencil write mask
+        if (HAS_CHANGED(m_StencilWriteMask))
+        {
+            glStencilMask((GLuint) ps_dirty.m_StencilWriteMask);
+            CHECK_GL_ERROR;
+        }
+
+        // Stencil funcs (front/back share reference and compare mask)
+        if (HAS_CHANGED(m_StencilFrontTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            glStencilFuncSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_FRONT),
+                                  GetOpenGLCompareFunc((CompareFunc) ps_dirty.m_StencilFrontTestFunc),
+                                  ps_dirty.m_StencilReference,
+                                  ps_dirty.m_StencilCompareMask);
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_StencilBackTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            glStencilFuncSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_BACK),
+                                  GetOpenGLCompareFunc((CompareFunc) ps_dirty.m_StencilBackTestFunc),
+                                  ps_dirty.m_StencilReference,
+                                  ps_dirty.m_StencilCompareMask);
+            CHECK_GL_ERROR;
+        }
+
+        // Stencil ops
+        if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass)
+            || HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
+        {
+            if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass))
+            {
+                glStencilOpSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_FRONT),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilFrontOpFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilFrontOpDepthFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilFrontOpPass));
+                CHECK_GL_ERROR;
+            }
+
+            if (HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
+            {
+                glStencilOpSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_BACK),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilBackOpFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilBackOpDepthFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilBackOpPass));
+                CHECK_GL_ERROR;
+            }
+        }
+
+        // Cull face type
+        if (HAS_CHANGED(m_CullFaceType))
+        {
+            glCullFace(GetOpenGLFaceTypeFunc((FaceType) ps_dirty.m_CullFaceType));
+            CHECK_GL_ERROR;
+        }
+
+        // Face winding
+        if (HAS_CHANGED(m_FaceWinding))
+        {
+            glFrontFace(GetOpenGLFaceWinding((FaceWinding) ps_dirty.m_FaceWinding));
+            CHECK_GL_ERROR;
+        }
+
+        // Scissor rectangle
+        if (memcmp(context->m_ScissorRect, context->m_ScissorRectDirty, sizeof(context->m_ScissorRect)) != 0)
+        {
+            glScissor((GLint) context->m_ScissorRectDirty[0],
+                      (GLint) context->m_ScissorRectDirty[1],
+                      (GLint) context->m_ScissorRectDirty[2],
+                      (GLint) context->m_ScissorRectDirty[3]);
+            CHECK_GL_ERROR;
+
+            memcpy(context->m_ScissorRect, context->m_ScissorRectDirty, sizeof(context->m_ScissorRect));
+        }
+
+        ps_applied = ps_dirty;
+
+        #undef HAS_CHANGED
+    }
+
+    static inline GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
+    {
+        switch (prim_type)
+        {
+            case PRIMITIVE_LINES:          return GL_LINES;
+            case PRIMITIVE_TRIANGLES:      return GL_TRIANGLES;
+            case PRIMITIVE_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+            default:
+                assert(0 && "Unsupported primitive type");
+                return GL_TRIANGLES;
+        }
+    }
+
+    static inline GLenum GetOpenGLType(Type type)
+    {
+        switch (type)
+        {
+            case TYPE_BYTE:             return GL_BYTE;
+            case TYPE_UNSIGNED_BYTE:    return GL_UNSIGNED_BYTE;
+            case TYPE_SHORT:            return GL_SHORT;
+            case TYPE_UNSIGNED_SHORT:   return GL_UNSIGNED_SHORT;
+            case TYPE_INT:              return GL_INT;
+            case TYPE_UNSIGNED_INT:     return GL_UNSIGNED_INT;
+            case TYPE_FLOAT:            return GL_FLOAT;
+            case TYPE_FLOAT_VEC4:       return GL_FLOAT_VEC4;
+            case TYPE_FLOAT_MAT4:       return GL_FLOAT_MAT4;
+            case TYPE_SAMPLER_2D:       return GL_SAMPLER_2D;
+            case TYPE_SAMPLER_CUBE:     return GL_SAMPLER_CUBE;
+            case TYPE_SAMPLER_2D_ARRAY: return DMGRAPHICS_SAMPLER_2D_ARRAY;
+            case TYPE_IMAGE_2D:         return DMGRAPHICS_IMAGE_2D;
+            default:
+                assert(0 && "Unsupported graphics type");
+                return 0;
+        }
     }
 
     static Type GetGraphicsType(GLenum type)
@@ -1079,8 +1364,9 @@ static void LogFrameBufferError(GLenum status)
     #undef GET_PROC_ADDRESS
 #endif
 
-        context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
-        context->m_PipelineState  = GetDefaultPipelineState();
+        context->m_IsGles3Version   = 1; // 0 == gles 2, 1 == gles 3
+        context->m_PipelineState    = GetDefaultPipelineState();
+        context->m_PipelineStateDirty = context->m_PipelineState;
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES)
         context->m_IsShaderLanguageGles = 1;
@@ -1599,7 +1885,7 @@ static void LogFrameBufferError(GLenum status)
     static PipelineState OpenGLGetPipelineState(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        return context->m_PipelineState;
+        return context->m_PipelineStateDirty;
     }
 
     static uint32_t OpenGLGetDisplayDpi(HContext _context)
@@ -1658,6 +1944,8 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         DM_PROFILE(__FUNCTION__);
 
+        ApplyPipelineState(context);
+
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
         float b = ((float)blue)/255.0f;
@@ -1697,21 +1985,32 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
+    static inline GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
     {
-        const GLenum buffer_usage_lut[] = {
-        #if !defined (GL_ARB_vertex_buffer_object)
-            0x88E0,
-            0x88E4,
-            0x88E8,
-        #else
-            GL_STREAM_DRAW,
-            GL_STATIC_DRAW,
-            GL_DYNAMIC_DRAW,
-        #endif
-        };
-
-        return buffer_usage_lut[buffer_usage];
+        switch (buffer_usage)
+        {
+            case BUFFER_USAGE_STREAM_DRAW:
+            #if !defined (GL_ARB_vertex_buffer_object)
+                return 0x88E0;
+            #else
+                return GL_STREAM_DRAW;
+            #endif
+            case BUFFER_USAGE_DYNAMIC_DRAW:
+            #if !defined (GL_ARB_vertex_buffer_object)
+                return 0x88E4;
+            #else
+                return GL_DYNAMIC_DRAW;
+            #endif
+            case BUFFER_USAGE_STATIC_DRAW:
+            #if !defined (GL_ARB_vertex_buffer_object)
+                return 0x88E8;
+            #else
+                return GL_STATIC_DRAW;
+            #endif
+            default:
+                assert(0 && "Unsupported buffer usage");
+                return 0;
+        }
     }
 
     static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
@@ -2393,25 +2692,40 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
+    static inline GLenum GetOpenGLTextureWrap(TextureWrap wrap)
     {
-        GLenum texture_wrap_lut[] = {
-        #ifndef GL_ARB_multitexture
-            0x812D,
-            0x812F,
-            0x8370,
-        #else
-            GL_CLAMP_TO_BORDER,
-            GL_CLAMP_TO_EDGE,
-            GL_MIRRORED_REPEAT,
-        #endif
-            GL_REPEAT,
-        };
-        return texture_wrap_lut[wrap];
+        switch (wrap)
+        {
+            case TEXTURE_WRAP_CLAMP_TO_BORDER:
+            #ifndef GL_ARB_multitexture
+                return 0x812D;
+            #else
+                return GL_CLAMP_TO_BORDER;
+            #endif
+            case TEXTURE_WRAP_CLAMP_TO_EDGE:
+            #ifndef GL_ARB_multitexture
+                return 0x812F;
+            #else
+                return GL_CLAMP_TO_EDGE;
+            #endif
+            case TEXTURE_WRAP_MIRRORED_REPEAT:
+            #ifndef GL_ARB_multitexture
+                return 0x8370;
+            #else
+                return GL_MIRRORED_REPEAT;
+            #endif
+            case TEXTURE_WRAP_REPEAT:
+                return GL_REPEAT;
+            default:
+                assert(0 && "Unsupported texture wrap");
+                return GL_REPEAT;
+        }
     }
 
     static void DrawSetup(OpenGLContext* context)
     {
+        ApplyPipelineState(context);
+
         OpenGLProgram* program = context->m_CurrentProgram;
 
         // Uniform buffers only supported on ES3
@@ -4991,10 +5305,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
     #endif
-        glEnable(GetOpenGLState(state));
-        CHECK_GL_ERROR
-
-        SetPipelineStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(context->m_PipelineStateDirty, state, 1);
     }
 
     static void OpenGLDisableState(HContext _context, State state)
@@ -5008,214 +5319,114 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
     #endif
-        glDisable(GetOpenGLState(state));
-        CHECK_GL_ERROR
-
-        SetPipelineStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(context->m_PipelineStateDirty, state, 0);
     }
 
     static void OpenGLSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(_context);
-        GLenum blend_factor_lut[] = {
-            GL_ZERO,
-            GL_ONE,
-            GL_SRC_COLOR,
-            GL_ONE_MINUS_SRC_COLOR,
-            GL_DST_COLOR,
-            GL_ONE_MINUS_DST_COLOR,
-            GL_SRC_ALPHA,
-            GL_ONE_MINUS_SRC_ALPHA,
-            GL_DST_ALPHA,
-            GL_ONE_MINUS_DST_ALPHA,
-            GL_SRC_ALPHA_SATURATE,
-        #if !defined (GL_ARB_imaging)
-            0x8001,
-            0x8002,
-            0x8003,
-            0x8004,
-        #else
-            GL_CONSTANT_COLOR,
-            GL_ONE_MINUS_CONSTANT_COLOR,
-            GL_CONSTANT_ALPHA,
-            GL_ONE_MINUS_CONSTANT_ALPHA,
-        #endif
-        };
-
-        glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
-        CHECK_GL_ERROR
-
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactor = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactor = destinaton_factor;
     }
 
     static void OpenGLSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
     {
-        assert(_context);
-        glColorMask(red, green, blue, alpha);
-        CHECK_GL_ERROR;
-
         OpenGLContext* context = (OpenGLContext*) _context;
+        assert(context);
 
         uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
         write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
         write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
         write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
-        context->m_PipelineState.m_WriteColorMask = write_mask;
+        context->m_PipelineStateDirty.m_WriteColorMask = write_mask;
     }
 
     static void OpenGLSetDepthMask(HContext _context, bool enable_mask)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glDepthMask(enable_mask);
-        CHECK_GL_ERROR;
-
-        context->m_PipelineState.m_WriteDepth = enable_mask;
-    }
-
-    static GLenum GetOpenGLCompareFunc(CompareFunc func)
-    {
-        GLenum func_lut[] = {
-            GL_NEVER,
-            GL_LESS,
-            GL_LEQUAL,
-            GL_GREATER,
-            GL_GEQUAL,
-            GL_EQUAL,
-            GL_NOTEQUAL,
-            GL_ALWAYS,
-        };
-
-        return func_lut[func];
-    }
-
-    static GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
-    {
-        const GLenum face_type_lut[] = {
-            GL_FRONT,
-            GL_BACK,
-            GL_FRONT_AND_BACK,
-        };
-
-        return face_type_lut[face_type];
+        context->m_PipelineStateDirty.m_WriteDepth = enable_mask;
     }
 
     static void OpenGLSetDepthFunc(HContext _context, CompareFunc func)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glDepthFunc(GetOpenGLCompareFunc(func));
-        CHECK_GL_ERROR
-        context->m_PipelineState.m_DepthTestFunc = func;
+        context->m_PipelineStateDirty.m_DepthTestFunc = func;
     }
 
     static void OpenGLSetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glScissor((GLint)x, (GLint)y, (GLint)width, (GLint)height);
-        CHECK_GL_ERROR;
+        context->m_ScissorRectDirty[0] = x;
+        context->m_ScissorRectDirty[1] = y;
+        context->m_ScissorRectDirty[2] = width;
+        context->m_ScissorRectDirty[3] = height;
     }
 
     static void OpenGLSetStencilMask(HContext _context, uint32_t mask)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glStencilMask(mask);
-        CHECK_GL_ERROR;
-        context->m_PipelineState.m_StencilWriteMask = mask;
+        context->m_PipelineStateDirty.m_StencilWriteMask = mask;
     }
 
     static void OpenGLSetStencilFunc(HContext _context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(_context);
-        glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
-        CHECK_GL_ERROR
-
         OpenGLContext* context = (OpenGLContext*) _context;
-        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
-        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
+        context->m_PipelineStateDirty.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineStateDirty.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineStateDirty.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineStateDirty.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilFuncSeparate(HContext _context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(_context);
-        glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
-        CHECK_GL_ERROR
-
         OpenGLContext* context = (OpenGLContext*) _context;
         if (face_type == FACE_TYPE_BACK)
         {
-            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+            context->m_PipelineStateDirty.m_StencilBackTestFunc = (uint8_t) func;
         }
         else
         {
-            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+            context->m_PipelineStateDirty.m_StencilFrontTestFunc = (uint8_t) func;
         }
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        context->m_PipelineStateDirty.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineStateDirty.m_StencilCompareMask = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilOp(HContext _context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(_context);
-        const GLenum stencil_op_lut[] = {
-            GL_KEEP,
-            GL_ZERO,
-            GL_REPLACE,
-            GL_INCR,
-            GL_INCR_WRAP,
-            GL_DECR,
-            GL_DECR_WRAP,
-            GL_INVERT,
-        };
-
-        glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
-        CHECK_GL_ERROR;
-
         OpenGLContext* context = (OpenGLContext*) _context;
-        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
-        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
-        context->m_PipelineState.m_StencilBackOpFail       = sfail;
-        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
-        context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        context->m_PipelineStateDirty.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineStateDirty.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineStateDirty.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineStateDirty.m_StencilBackOpFail       = sfail;
+        context->m_PipelineStateDirty.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineStateDirty.m_StencilBackOpPass       = dppass;
     }
 
     static void OpenGLSetStencilOpSeparate(HContext _context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(_context);
-        const GLenum stencil_op_lut[] = {
-            GL_KEEP,
-            GL_ZERO,
-            GL_REPLACE,
-            GL_INCR,
-            GL_INCR_WRAP,
-            GL_DECR,
-            GL_DECR_WRAP,
-            GL_INVERT,
-        };
-
-        glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
-        CHECK_GL_ERROR;
-
         OpenGLContext* context = (OpenGLContext*) _context;
         if (face_type == FACE_TYPE_BACK)
         {
-            context->m_PipelineState.m_StencilBackOpFail       = sfail;
-            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
-            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+            context->m_PipelineStateDirty.m_StencilBackOpFail       = sfail;
+            context->m_PipelineStateDirty.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineStateDirty.m_StencilBackOpPass       = dppass;
         }
         else
         {
-            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
-            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+            context->m_PipelineStateDirty.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineStateDirty.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineStateDirty.m_StencilFrontOpPass      = dppass;
         }
     }
 
@@ -5223,25 +5434,14 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glCullFace(GetOpenGLFaceTypeFunc(face_type));
-        CHECK_GL_ERROR
-
-        context->m_PipelineState.m_CullFaceType = face_type;
+        context->m_PipelineStateDirty.m_CullFaceType = face_type;
     }
 
     static void OpenGLSetFaceWinding(HContext _context, FaceWinding face_winding)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-
-        const GLenum face_winding_lut[] = {
-            GL_CCW,
-            GL_CW,
-        };
-
-        glFrontFace(face_winding_lut[face_winding]);
-
-        context->m_PipelineState.m_FaceWinding = face_winding;
+        context->m_PipelineStateDirty.m_FaceWinding = face_winding;
     }
 
     static void OpenGLSetPolygonOffset(HContext _context, float factor, float units)

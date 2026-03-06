@@ -917,6 +917,7 @@ command.code.sort-lines.case-sensitive = Sort Lines (Case Sensitive)
 command.code.sort-lines.option.case-insensitive = Case Insensitive
 command.code.sort-lines.option.case-sensitive = Case Sensitive
 command.code.select-next-occurrence = Select Next Occurrence
+command.code.duplicate-selection = Duplicate Selection
 command.code.split-selection-into-lines = Split Selection Into Lines
 command.code.goto-definition = Go to Definition
 command.code.goto-line = Go to Line…

@@ -215,6 +215,24 @@
 (def child-instance-meta
   {`fx.component/instance #(-> % :child fx.component/instance)})
 
+(def ext-map-event-handler
+  "Extension lifecycle that injects a map-event handler into wrapped desc
+
+  Expected props:
+    :desc    required, wrapped component description
+    :key     optional, keyword in wrapped :desc where callback fn will be
+             assoc-ed, defaults to :map-event-handler
+
+  The injected callback is a 1-arg function that expects an event map and
+  forwards it unchanged to :fx.opt/map-event-handler"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [desc key] :or {key :map-event-handler}} opts]
+      (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key (:fx.opt/map-event-handler opts)) opts))
+    (advance [_ component {:keys [desc key] :or {key :map-event-handler}} opts]
+      (fx.lifecycle/advance fx.lifecycle/dynamic component (assoc desc key (:fx.opt/map-event-handler opts)) opts))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic component opts))))
+
 (def ext-memo
   "Extension lifecycle similar to react's useMemo hook
 

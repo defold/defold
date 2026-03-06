@@ -214,6 +214,9 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
+    // Set current frame time and delta-time (in seconds) used for built-in material constants.
+    void SetFrameTime(HRenderContext render_context, float time, float dt);
+
     HMaterial GetContextMaterial(HRenderContext render_context);
 
     Result ClearRenderObjects(HRenderContext context);

@@ -1836,7 +1836,72 @@ TEST(Constants, Constant)
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);
+}
+
+TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
+{
+    // Build a simple shader with a single vec4 uniform "time" backed by a uniform buffer.
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddTypeMember("time", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader_desc_builder.AddUniformBuffer("time", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
+
+    const char* vertex_data   = "";
+    const char* fragment_data = "";
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader, 0, 0);
+
+    const dmGraphics::Uniform* time_uniform = dmGraphics::GetUniform(program, dmHashString64("time"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, time_uniform->m_Location);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+
+    uint32_t set           = UNIFORM_LOCATION_GET_OP0(time_uniform->m_Location);
+    uint32_t binding       = UNIFORM_LOCATION_GET_OP1(time_uniform->m_Location);
+    uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(time_uniform->m_Location);
+
+    dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+
+    // Set frame time values on the render context.
+    float time = 123.0f;
+    float dt   = 1.0f / 60.0f;
+    dmRender::SetFrameTime(m_Context, time, dt);
+
+    // Enable the program so constants can be written to its uniform buffer.
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+
+    dmVMath::Matrix4 identity = dmVMath::Matrix4::identity();
+    dmRender::SetProgramConstant(m_Context,
+                                 m_GraphicsContext,
+                                 identity,
+                                 identity,
+                                 dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                                 dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME,
+                                 program,
+                                 time_uniform->m_Location,
+                                 0);
+
+    // Verify that the written uniform data matches (time, dt, 0, 0).
+    float* written = (float*) (null_program->m_UniformData + uniform_offset);
+    ASSERT_NEAR(time, written[0], EPSILON);
+    ASSERT_NEAR(dt,   written[1], EPSILON);
+    ASSERT_NEAR(0.0f, written[2], EPSILON);
+    ASSERT_NEAR(0.0f, written[3], EPSILON);
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 struct IterConstantContext
