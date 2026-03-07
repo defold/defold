@@ -493,8 +493,8 @@
             (is (pos? (alength (:bytes info))))
             (let [pb-map (:pb-map info)
                   data-map (:data pb-map)
-                  struct   (:struct data-map)
-                  fields   (:fields struct)
+                  struct (:struct data-map)
+                  fields (:fields struct)
                   level-val (get fields "level")]
               (is (= ["foo"] (:tags pb-map)))
               (is (map? data-map))
