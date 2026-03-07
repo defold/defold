@@ -1,0 +1,106 @@
+tags: "tag_one"
+tags: "tag_two"
+data {
+  struct {
+    fields {
+      key: "test_number"
+      value { number: 3 }
+    }
+    fields {
+      key: "test_string"
+      value { string: "hello" }
+    }
+    fields {
+      key: "test_bool"
+      value { bool: true }
+    }
+    fields {
+      key: "test_list"
+      value {
+        list {
+          values { number: 1 }
+          values { number: 2 }
+          values { number: 3 }
+        }
+      }
+    }
+    fields {
+      key: "test_nested_struct"
+      value {
+        struct {
+          fields {
+            key: "inner"
+            value { number: 42 }
+          }
+        }
+      }
+    }
+    fields {
+      key: "test_list_in_nested_struct"
+      value {
+        struct {
+          fields {
+            key: "ids"
+            value {
+              list {
+                values { number: 10 }
+                values { number: 20 }
+                values { number: 30 }
+              }
+            }
+          }
+        }
+      }
+    }
+    fields {
+      key: "test_list_of_structs"
+      value {
+        list {
+          values {
+            struct {
+              fields {
+                key: "name"
+                value { string: "alice" }
+              }
+              fields {
+                key: "score"
+                value { number: 100 }
+              }
+            }
+          }
+          values {
+            struct {
+              fields {
+                key: "name"
+                value { string: "bob" }
+              }
+              fields {
+                key: "score"
+                value { number: 200 }
+              }
+            }
+          }
+        }
+      }
+    }
+    fields {
+      key: "test_list_in_list"
+      value {
+        list {
+          values {
+            list {
+              values { number: 1 }
+              values { number: 2 }
+            }
+          }
+          values {
+            list {
+              values { number: 3 }
+              values { number: 4 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

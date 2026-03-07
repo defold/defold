@@ -28,7 +28,7 @@
 
 (defn- build-data [build-resource _dep-resources user-data]
   (let [{:keys [lines]} user-data
-        ^String text (data/lines->string lines)]
+        text (data/lines->string lines)]
     (try
       (let [pb (protobuf/str->pb DataProto$Data text)
             content (protobuf/pb->bytes pb)]
@@ -40,14 +40,12 @@
                         e))))))
 
 (g/defnk produce-build-targets [_node-id resource lines]
-  (if (g/error? lines)
-    (g/error-aggregate [lines] :_node-id _node-id :_label :build-targets)
-    (let [build-resource (workspace/make-build-resource resource)]
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource build-resource
-          :build-fn build-data
-          :user-data {:lines lines}})])))
+  (let [build-resource (workspace/make-build-resource resource)]
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource build-resource
+        :build-fn build-data
+        :user-data {:lines lines}})]))
 
 (g/defnode DataFileNode
   (inherits r/CodeEditorResourceNode)

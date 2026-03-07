@@ -34,7 +34,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
@@ -472,35 +472,29 @@
 
 (deftest build-data
   (testing "Building data component"
-    (test-util/with-temp-project-content
-      {"/main.data"
-       ["tags: \"foo\""
-        "data {"
-        "  struct {"
-        "    fields {"
-        "      key: \"level\""
-        "      value { number: 3 }"
-        "    }"
-        "  }"
-        "}"]}
-
-      (let [data-node (test-util/resource-node project "/main.data")]
-        (with-open [_ (test-util/build! data-node)]
-          (let [workspace (project/workspace project)
-                path->info (test-util/make-build-output-infos-by-path workspace "/main.datac")
-                info (get path->info "/main.datac")]
-            (is (some? info))
-            (is (pos? (alength (:bytes info))))
-            (let [pb-map (:pb-map info)
-                  data-map (:data pb-map)
-                  struct   (:struct data-map)
-                  fields   (:fields struct)
-                  level-val (get fields "level")]
-              (is (= ["foo"] (:tags pb-map)))
-              (is (map? data-map))
-              (is (map? struct))
-              (is (map? fields))
-              (is (= 3.0 (:number level-val))))))))))
+    (with-build-results "/data/data.data"
+      (let [content (get content-by-source "/data/data.data")
+            desc (protobuf/bytes->map-with-defaults DataProto$Data content)
+            expected {:tags ["tag_one" "tag_two"]
+                      :data {:struct
+                             {:fields
+                              {"test_number" {:number 3.0}
+                               "test_string" {:string "hello"}
+                               "test_bool" {:bool true}
+                               "test_list" {:list {:values [{:number 1.0}
+                                                            {:number 2.0}
+                                                            {:number 3.0}]}}
+                               "test_nested_struct" {:struct {:fields {"inner" {:number 42.0}}}}
+                               "test_list_in_nested_struct" {:struct {:fields {"ids" {:list {:values [{:number 10.0}
+                                                                                                      {:number 20.0}
+                                                                                                      {:number 30.0}]}}}}}
+                               "test_list_of_structs" {:list {:values [{:struct {:fields {"name" {:string "alice"}
+                                                                                          "score" {:number 100.0}}}}
+                                                                       {:struct {:fields {"name" {:string "bob"}
+                                                                                          "score" {:number 200.0}}}}]}}
+                               "test_list_in_list" {:list {:values [{:list {:values [{:number 1.0} {:number 2.0}]}}
+                                                                    {:list {:values [{:number 3.0} {:number 4.0}]}}]}}}}}}]
+        (is (= expected desc))))))
 
 (deftest build-atlas
   (testing "Building atlas"
