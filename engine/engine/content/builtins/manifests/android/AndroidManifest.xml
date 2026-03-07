@@ -8,7 +8,12 @@
         android:appCategory="game"
         android:installLocation="auto">
 
+    {{#shader.exclude_gles_sm100}}
+    <uses-feature android:required="true" android:glEsVersion="0x00030000" />
+    {{/shader.exclude_gles_sm100}}
+    {{^shader.exclude_gles_sm100}}
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
+    {{/shader.exclude_gles_sm100}}
     <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />
     <application
         {{#has-icons?}}
