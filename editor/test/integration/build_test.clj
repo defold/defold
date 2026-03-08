@@ -481,6 +481,7 @@
                               {"test_number" {:number 3.0}
                                "test_string" {:string "hello"}
                                "test_bool" {:bool true}
+                               "test_empty_string" {:string ""}
                                "test_list" {:list {:values [{:number 1.0}
                                                             {:number 2.0}
                                                             {:number 3.0}]}}
@@ -493,7 +494,12 @@
                                                                        {:struct {:fields {"name" {:string "bob"}
                                                                                           "score" {:number 200.0}}}}]}}
                                "test_list_in_list" {:list {:values [{:list {:values [{:number 1.0} {:number 2.0}]}}
-                                                                    {:list {:values [{:number 3.0} {:number 4.0}]}}]}}}}}}]
+                                                                    {:list {:values [{:number 3.0} {:number 4.0}]}}]}}
+                               "test_empty_list" {:list {:values []}}
+                               "test_empty_struct" {:struct {:fields {}}}
+                               "test_mixed_list" {:list {:values [{:number 1.0}
+                                                                   {:string "a"}
+                                                                   {:bool true}]}}}}}}]
         (is (= expected desc))))))
 
 (deftest build-atlas

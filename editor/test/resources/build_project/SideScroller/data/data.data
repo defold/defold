@@ -15,6 +15,10 @@ data {
       value { bool: true }
     }
     fields {
+      key: "test_empty_string"
+      value { string: "" }
+    }
+    fields {
       key: "test_list"
       value {
         list {
@@ -99,6 +103,30 @@ data {
               values { number: 4 }
             }
           }
+        }
+      }
+    }
+    fields {
+      key: "test_empty_list"
+      value {
+        list {
+        }
+      }
+    }
+    fields {
+      key: "test_empty_struct"
+      value {
+        struct {
+        }
+      }
+    }
+    fields {
+      key: "test_mixed_list"
+      value {
+        list {
+          values { number: 1 }
+          values { string: "a" }
+          values { bool: true }
         }
       }
     }
