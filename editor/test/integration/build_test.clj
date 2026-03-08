@@ -495,8 +495,8 @@
                                                                                           "score" {:number 200.0}}}}]}}
                                "test_list_in_list" {:list {:values [{:list {:values [{:number 1.0} {:number 2.0}]}}
                                                                     {:list {:values [{:number 3.0} {:number 4.0}]}}]}}
-                               "test_empty_list" {:list {:values []}}
-                               "test_empty_struct" {:struct {:fields {}}}
+                               "test_empty_list" {:list {}}
+                               "test_empty_struct" {:struct {}}
                                "test_mixed_list" {:list {:values [{:number 1.0}
                                                                    {:string "a"}
                                                                    {:bool true}]}}}}}}]
