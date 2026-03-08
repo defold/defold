@@ -284,22 +284,22 @@ namespace dmGameSystem
         }
 
         HComponentRenderConstants cloned_constants = dmGameSystem::CreateRenderConstants();
-        
+
         uint32_t count = dmGameSystem::GetRenderConstantCount(src_constants);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmRender::HConstant constant = dmGameSystem::GetRenderConstant(src_constants, i);
             dmhash_t name_hash = dmRender::GetConstantName(constant);
-            
+
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            
+
             if (values)
             {
                 dmGameSystem::SetRenderConstant(cloned_constants, name_hash, values, num_values);
             }
         }
-        
+
         return cloned_constants;
     }
 
@@ -1289,6 +1289,8 @@ namespace dmGameSystem
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             params.m_Text = dmGui::GetNodeText(scene, node);
+            if (params.m_Text[0] == '\0')
+                continue;
             params.m_WorldTransform = node_transforms[i];
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
@@ -2971,7 +2973,7 @@ namespace dmGameSystem
         {
             return (*getter_fn)(gui_component->m_Scene, params, out_value);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3075,7 +3077,7 @@ namespace dmGameSystem
         {
             return (*setter_fn)(gui_component->m_Scene, params);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3320,7 +3322,7 @@ namespace dmGameSystem
     {
         g_CompGuiPropertySetters.SetCapacity(4, 8);
         g_CompGuiPropertyGetters.SetCapacity(4, 8);
-        
+
         CompGuiContext* gui_context = new CompGuiContext;
         gui_context->m_Factory = ctx->m_Factory;
         gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));

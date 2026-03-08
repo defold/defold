@@ -32,6 +32,7 @@
 #include "font/font_renderer.h"
 
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
+DM_PROPERTY_U32(rmtp_RenderDispatchCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch registrations", &rmtp_Render);
 
 namespace dmRender
 {
@@ -219,6 +220,7 @@ namespace dmRender
         d.m_VisibilityFn = visibility_fn;
         d.m_UserData = user_data;
         render_context->m_RenderListDispatch.Push(d);
+        DM_PROPERTY_ADD_U32(rmtp_RenderDispatchCount, 1);
 
         return render_context->m_RenderListDispatch.Size() - 1;
     }
@@ -993,7 +995,7 @@ namespace dmRender
                 // continue batch on match, or dispatch
                 if (i < count)
                 {
-                    const RenderListEntry *current_entry = &base[*idx];                
+                    const RenderListEntry *current_entry = &base[*idx];
                     if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
                         continue;
                 }
