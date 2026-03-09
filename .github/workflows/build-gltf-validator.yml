@@ -1,7 +1,9 @@
 name: Build glTF Validator
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - issue-10478-build-gltf-validator-on-ci
 
 jobs:
   build-linux:
