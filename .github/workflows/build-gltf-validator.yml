@@ -22,7 +22,7 @@ jobs:
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 2.19.6  # last stable before Dart 3
 
       - name: Install dependencies
         run: dart pub get
@@ -63,7 +63,7 @@ jobs:
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 2.19.6  # last stable before Dart 3
 
       - name: Install dependencies
         run: dart pub get
@@ -104,7 +104,7 @@ jobs:
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 2.19.6  # last stable before Dart 3
 
       - name: Install dependencies
         run: dart pub get
@@ -145,7 +145,7 @@ jobs:
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 2.19.6  # last stable before Dart 3
 
       - name: Install dependencies
         run: dart pub get
