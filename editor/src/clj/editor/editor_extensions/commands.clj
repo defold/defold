@@ -18,16 +18,17 @@
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.error-handling :as error-handling]
-            [editor.editor-extensions.localization :as ext.localization]
+            [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.future :as future]
             [editor.handler :as handler]
             [editor.lsp.async :as lsp.async]
-            [editor.outline :as outline]
             [editor.resource :as resource]
-            [editor.scene :as scene]))
+            [editor.scene :as scene]
+            [util.coll :as coll]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
@@ -51,8 +52,11 @@
       (first selection))
     selection))
 
+(defn- editor-lookup-userdata [editor-lookup]
+  (rt/wrap-userdata editor-lookup (format "<node: 0x%x>" (graph/editor-lookup->node-id editor-lookup))))
+
 (defn- node-ids->lua-selection [selection q]
-  (ensure-selection-cardinality (mapv rt/wrap-userdata selection) q))
+  (ensure-selection-cardinality (mapv editor-lookup-userdata selection) q))
 
 (defmethod gen-selection-query :resource [q acc project]
   (gen-query acc [env cont]
@@ -74,7 +78,7 @@
                                                  (keep
                                                    (fn [resource]
                                                      (if-let [node-id (project/get-resource-node project resource evaluation-context)]
-                                                       (rt/wrap-userdata node-id)
+                                                       (editor-lookup-userdata node-id)
                                                        (resource/proj-path resource))))))
                                           (ensure-selection-cardinality q)))]
                  (when-not (:evaluation-context env)
@@ -85,8 +89,16 @@
   (gen-query acc [env cont]
              (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
                (when-let [res (some-> (:selection env)
-                                      (handler/adapt-every outline/OutlineNode evaluation-context)
-                                      (node-ids->lua-selection q))]
+                                      (coll/into-> []
+                                        (halt-when
+                                          (fn [selected-item]
+                                            (not (and (map? selected-item)
+                                                      (contains? selected-item :node-id)
+                                                      (contains? selected-item :node-id-path))))
+                                          fn/constantly-nil)
+                                        (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
+                                      coll/not-empty
+                                      (ensure-selection-cardinality q))]
                  (when-not (:evaluation-context env)
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
