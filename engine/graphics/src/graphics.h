@@ -271,17 +271,11 @@ namespace dmGraphics
     };
 
     // Callback invoked for each resource binding in a program that matches the specified family.
-    // The callback receives the descriptor set and binding indices for the resource, and the
-    // root type description for the bound resource.
-    typedef void (*ProgramResourceBindingCallback)(
-        uint16_t                      set,
-        uint16_t                      binding,
-        const ShaderResourceTypeInfo* root_type,
-        void*                         user_data);
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
 
     // Iterate over all resource bindings for the given program that belong to the specified
     // binding family and invoke the supplied callback for each binding.
-    void IterateProgramResourceBindings(HProgram program, ShaderResourceBindingFamily family, ProgramResourceBindingCallback callback, void* user_data);
+    void IterateProgramResourceBindings(HProgram program, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data);
 
     /**
      * Starts the app that needs to control the update loop (iOS only)
