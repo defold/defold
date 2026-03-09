@@ -66,7 +66,7 @@ namespace dmMouseCapture
         if (msg == WM_INPUT)
         {
             Context*  context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-            UINTsize = sizeof(RAWINPUTHEADER) * 2;
+            UINT size = sizeof(RAWINPUTHEADER) * 2;
             RAWINPUT* raw = (RAWINPUT*)_alloca(size);
             GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
 
