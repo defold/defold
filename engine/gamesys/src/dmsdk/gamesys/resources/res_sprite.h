@@ -30,7 +30,6 @@ namespace dmGameSystem
     {
         dmhash_t            m_SamplerNameHash;
         TextureSetResource* m_TextureSet;
-        uint8_t             m_TexturesGeneration;
     };
 
     struct SpriteResource

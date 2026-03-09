@@ -19,7 +19,6 @@
 #include <algorithm>
 
 #include <dlib/array.h>
-#include <dlib/set.h>
 #include <dlib/hash.h>
 #include <dlib/double_linked_list.h>
 #include <dlib/log.h>
@@ -484,17 +483,6 @@ namespace dmGameSystem
         return texture ? texture->m_TextureSet : 0;
     }
 
-    static SpriteTexture* GetSpriteTextureByIndex(const SpriteComponent* component, uint32_t index)
-    {
-        SpriteResourceOverrides* overrides = component->m_Overrides;
-        SpriteTexture* texture = 0x0;
-        if (overrides && index < overrides->m_Textures.Size())
-            texture = &overrides->m_Textures[index];
-        if (!texture || !texture->m_TextureSet)
-            texture = &component->m_Resource->m_Textures[index];
-        return texture;
-    }
-
     static inline TextureSetResource* GetTextureSetByHash(const SpriteComponent* component, dmhash_t sampler_name_hash)
     {
         if (component->m_Overrides)
@@ -535,6 +523,20 @@ namespace dmGameSystem
                 return overrides->m_Textures[texture_unit].m_TextureSet->m_Texture;
         }
         return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_Texture;
+    }
+
+    uint8_t GetTextureResourceGeneration(const SpriteComponent* component, uint32_t texture_unit)
+    {
+        if(texture_unit >= component->m_Resource->m_NumTextures)
+            return 0;
+
+        const SpriteResourceOverrides* overrides = component->m_Overrides;
+        if (overrides && texture_unit < overrides->m_Textures.Size())
+        {
+            if (overrides->m_Textures[texture_unit].m_TextureSet)
+                return overrides->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
+        }
+        return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
     }
 
     dmGraphics::HTexture GetMaterialTexture(const SpriteComponent* component, uint32_t texture_unit)
@@ -649,6 +651,12 @@ namespace dmGameSystem
         }
 
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
+        for (size_t idx = 0; idx < resource->m_NumTextures; ++idx)
+        {
+            uint8_t generation = GetTextureResourceGeneration(component, idx);
+            dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
+        }
+        dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
         dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
 
         HashResourceOverrides(&state, component->m_Overrides);
@@ -1080,7 +1088,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             TextureSetResource* resource = GetTextureSetByIndex(component, i);
-            
+
             const dmGameSystemDDF::TextureSet* texture_set_ddf = resource->m_TextureSet;
             const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
             const uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
@@ -2678,8 +2686,6 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = (SpriteWorld*) params->m_UserData;
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t component_count = components.Size();
-        dmSet<SpriteTexture*> updated_sprite_textures;
-        updated_sprite_textures.SetCapacity(64);
 
         const void* resource = dmResource::GetResource(params->m_Resource);
         for (uint32_t i = 0; i < component_count; ++i)
@@ -2687,21 +2693,12 @@ namespace dmGameSystem
             SpriteComponent* component = &components[i];
             if (component->m_Resource != 0x0)
             {
-                for (uint32_t texture_idx = 0; texture_idx < MAX_TEXTURE_COUNT; ++texture_idx)
+                uint32_t num_textures = component->m_NumTextures;
+                for (uint32_t texture_idx = 0; texture_idx < num_textures; ++texture_idx)
                 {
                     uintptr_t texture = (uintptr_t)GetTextureSetByIndex(component, texture_idx);
                     if (texture == (uintptr_t) resource)
                     {
-                        SpriteTexture* sprite_texture = GetSpriteTextureByIndex(component, texture_idx);
-                        if (!updated_sprite_textures.Contains(sprite_texture))
-                        {
-                            sprite_texture->m_TexturesGeneration++;
-                            if (updated_sprite_textures.Full())
-                            {
-                                updated_sprite_textures.OffsetCapacity(32);
-                            }
-                            updated_sprite_textures.Add(sprite_texture);
-                        }
                         component->m_ReHash = 1;
                         break;
                     }
