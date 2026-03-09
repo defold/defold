@@ -1,5 +1,6 @@
 #include "mouse_capture.h"
 #include <windows.h>
+#include <iostream>
 
 #ifndef QWORD
 typedef unsigned __int64 QWORD;
@@ -15,6 +16,9 @@ namespace dmMouseCapture
         int m_SavedCursorX;
         int m_SavedCursorY;
     };
+
+    static HHOOK g_hook = NULL;
+    static HContext g_context = NULL;
 
     static void ProcessRawInput(HContext context)
     {
@@ -74,6 +78,34 @@ namespace dmMouseCapture
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
+
+    static LRESULT CALLBACK GetMsgHook(int nCode, WPARAM wParam, LPARAM lParam)
+    {
+        if (nCode >= 0) {
+            MSG* msg = (MSG*)lParam;
+            if (msg->message == WM_INPUT && msg->hwnd != g_context->m_MessageWindow) {
+                std::cout << "HWND " << msg->hwnd << " stole WM_INPUT (expected " << g_context->m_MessageWindow << ")" << std::endl;
+            }
+        }
+        return CallNextHookEx(g_hook, nCode, wParam, lParam);
+    }
+
+    static void InstallHook(HContext context)
+    {
+        g_context = context;
+        g_hook = SetWindowsHookExW(WH_GETMESSAGE, GetMsgHook, NULL, GetCurrentThreadId());
+    }
+
+    static void UninstallHook()
+    {
+        if (g_hook)
+        {
+            UnhookWindowsHookEx(g_hook);
+            g_hook = NULL;
+        }
+        g_context = NULL;
+    }
+
 
     static bool EnsureWindowClass()
     {
@@ -154,6 +186,8 @@ namespace dmMouseCapture
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;
+
+        InstallHook(context);
         return true;
     }
 
@@ -162,6 +196,7 @@ namespace dmMouseCapture
         if (!context || !context->m_Capturing)
             return;
 
+        UninstallHook();
         RAWINPUTDEVICE rid;
         rid.usUsagePage = 0x01;
         rid.usUsage = 0x02;
