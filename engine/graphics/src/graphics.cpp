@@ -1350,6 +1350,45 @@ namespace dmGraphics
         }
     }
 
+    void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, ProgramResourceBindingCallback callback, void* user_data)
+    {
+        Program* program = (Program*) prog;
+        if (!program || !callback)
+        {
+            return;
+        }
+
+        ProgramResourceBindingIterator it(program);
+
+        const ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            if (!binding->m_Res)
+            {
+                continue;
+            }
+
+            if (binding->m_Res->m_BindingFamily != family)
+            {
+                continue;
+            }
+
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *binding->m_TypeInfos;
+            uint32_t root_type_index = binding->m_Res->m_Type.m_TypeIndex;
+            if (root_type_index >= (uint32_t) type_infos.Size())
+            {
+                continue;
+            }
+
+            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
+
+            callback(binding->m_Res->m_Set,
+                     binding->m_Res->m_Binding,
+                     root_type,
+                     user_data);
+        }
+    }
+
     void BuildUniforms(Program* program)
     {
         uint32_t uniform_count = 0;
@@ -1594,7 +1633,10 @@ namespace dmGraphics
             if (use_type_index)
             {
                 uint32_t child_type = member.m_Type.m_TypeIndex;
-                dmHashUpdateBuffer32(hash_state, &child_type, sizeof(child_type));
+                // Hash the type's name so the layout hash is independent of type array order
+                // (shader reflection may order types differently than manually built layouts).
+                dmhash_t child_name_hash = types[child_type].m_NameHash;
+                dmHashUpdateBuffer32(hash_state, &child_name_hash, sizeof(child_name_hash));
 
                 // Recurse into referenced type
                 HashTypeRecursive(child_type, types, num_types, hash_state, visited);

@@ -29,6 +29,9 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
+
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
         switch(from_type)
@@ -300,6 +303,35 @@ namespace dmRender
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
     }
 
+    static void LightBufferConfigurationCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    {
+        Material* material = (Material*) user_data;
+
+        if (material->m_HasLightBuffer)
+        {
+            return;
+        }
+
+        if (!root_type || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
+        {
+            return;
+        }
+
+        for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
+        {
+            if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
+            {
+                material->m_LightBufferLightsCount = root_type->m_Members[i].m_ElementCount;
+                break;
+            }
+        }
+
+        // Only one light buffer binding is currently supported.
+        material->m_HasLightBuffer     = true;
+        material->m_LightBufferSet     = (uint8_t) set;
+        material->m_LightBufferBinding = (uint8_t) binding;
+    }
+
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -319,6 +351,8 @@ namespace dmRender
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
+
+        dmGraphics::IterateProgramResourceBindings(m->m_Program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferConfigurationCallback, m);
 
         return (HMaterial)m;
     }
