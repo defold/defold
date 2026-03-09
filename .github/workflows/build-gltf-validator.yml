@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: KhronosGroup/glTF-Validator
-          ref: v2.0.0-dev.3.10
+          ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: KhronosGroup/glTF-Validator
-          ref: v2.0.0-dev.3.10
+          ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
@@ -99,7 +99,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: KhronosGroup/glTF-Validator
-          ref: v2.0.0-dev.3.10
+          ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
@@ -140,7 +140,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: KhronosGroup/glTF-Validator
-          ref: v2.0.0-dev.3.10
+          ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
