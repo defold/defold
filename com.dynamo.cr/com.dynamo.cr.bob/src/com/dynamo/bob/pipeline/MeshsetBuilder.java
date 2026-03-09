@@ -16,7 +16,9 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 
 import javax.xml.stream.XMLStreamException;
@@ -25,12 +27,15 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -39,6 +44,7 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 @BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc", paramsForSignature = {"model-split-large-meshes"})
 public class MeshsetBuilder extends Builder  {
+    private static String gltfValidatorExePath;
     public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
@@ -136,6 +142,10 @@ public class MeshsetBuilder extends Builder  {
             return;
         }
 
+        if (suffix.equals("gltf") || suffix.equals("glb")) {
+            validateGltf(task);
+        }
+
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
         Modelimporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
@@ -191,5 +201,36 @@ public class MeshsetBuilder extends Builder  {
         }
 
         ModelUtil.unloadScene(scene);
+    }
+
+    private void validateGltf(Task task) throws CompileExceptionError {
+        IResource input = task.input(0);
+        File tmpGltfFile = null;
+
+        try {
+            tmpGltfFile = File.createTempFile("gltf_tmp", null, Bob.getRootFolder());
+            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile));
+            try {
+                os.write(input.getContent());
+            } finally {
+                os.close();
+            }
+        } catch (IOException exc) {
+            throw new CompileExceptionError(input, 0,
+                    String.format("Cannot copy glTF file to further process: %s", exc.getMessage()));
+        }
+
+        try {
+            gltfValidatorExePath = Bob.getHostExeOnce("gltf_validator", gltfValidatorExePath);
+            Result result = Exec.execResult(gltfValidatorExePath, tmpGltfFile.getAbsolutePath());
+
+            if (result.ret != 0) {
+                throw new CompileExceptionError(input, 0,
+                        String.format("\nModel validation failed. Make sure your `glTF` files are correct using `gltf_validator`.\n%s", new String(result.stdOutErr)));
+            }
+        } catch (IOException exc) {
+            throw new CompileExceptionError(input, 0,
+                    String.format("Failed to run glTF validator: %s", exc.getMessage()));
+        }
     }
 }
