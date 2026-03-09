@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123be9d34abf
+        uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
@@ -49,13 +49,13 @@ jobs:
     strategy:
       matrix:
         platform: [arm64-macos]
-    runs-on: macOS-14          # Apple Silicon (M1)
+    runs-on: macOS-14 # Apple Silicon (M1)
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123be9d34abf
+        uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
@@ -87,13 +87,13 @@ jobs:
     strategy:
       matrix:
         platform: [x86_64-macos]
-    runs-on: macos-13          # Last Intel runner on GitHub Actions
+    runs-on: macos-15-intel # Last Intel runner on GitHub Actions
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123be9d34abf
+        uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
@@ -131,7 +131,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123be9d34abf
+        uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
