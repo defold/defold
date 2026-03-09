@@ -17,9 +17,6 @@ namespace dmMouseCapture
         int m_SavedCursorY;
     };
 
-    static HHOOK g_hook = NULL;
-    static HContext g_context = NULL;
-
     static void ProcessRawInput(HContext context)
     {
         static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
@@ -68,44 +65,20 @@ namespace dmMouseCapture
     {
         if (msg == WM_INPUT)
         {
-            // If we got some packets leaking into WM_INPUT I guess we can empty the queue
-            Context* ctx = (Context*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-            if (ctx)
+            Context*  context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            UINTsize = sizeof(RAWINPUTHEADER) * 2;
+            RAWINPUT* raw = (RAWINPUT*)_alloca(size);
+            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
+
+            if (raw->header.dwType == RIM_TYPEMOUSE)
             {
-                ProcessRawInput(ctx);
+                context->m_AccumulatedDelta.dx += raw->data.mouse.lLastX;
+                context->m_AccumulatedDelta.dy += raw->data.mouse.lLastY;
             }
             return 0;
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-
-    static LRESULT CALLBACK GetMsgHook(int nCode, WPARAM wParam, LPARAM lParam)
-    {
-        if (nCode >= 0) {
-            MSG* msg = (MSG*)lParam;
-            if (msg->message == WM_INPUT && msg->hwnd != g_context->m_MessageWindow) {
-                std::cout << "HWND " << msg->hwnd << " stole WM_INPUT (expected " << g_context->m_MessageWindow << ")" << std::endl;
-            }
-        }
-        return CallNextHookEx(g_hook, nCode, wParam, lParam);
-    }
-
-    static void InstallHook(HContext context)
-    {
-        g_context = context;
-        g_hook = SetWindowsHookExW(WH_GETMESSAGE, GetMsgHook, NULL, GetCurrentThreadId());
-    }
-
-    static void UninstallHook()
-    {
-        if (g_hook)
-        {
-            UnhookWindowsHookEx(g_hook);
-            g_hook = NULL;
-        }
-        g_context = NULL;
-    }
-
 
     static bool EnsureWindowClass()
     {
@@ -187,7 +160,6 @@ namespace dmMouseCapture
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;
 
-        InstallHook(context);
         return true;
     }
 
@@ -196,7 +168,6 @@ namespace dmMouseCapture
         if (!context || !context->m_Capturing)
             return;
 
-        UninstallHook();
         RAWINPUTDEVICE rid;
         rid.usUsagePage = 0x01;
         rid.usUsage = 0x02;
@@ -216,6 +187,23 @@ namespace dmMouseCapture
         context->m_Capturing = false;
     }
 
+    static inline bool peek_message_excluding_wm_input(MSG* msg, bool& exhausted, HContext context)
+    {
+        if (!exhausted)
+        {
+            if (PeekMessage(msg, context->m_MessageWindow, 0, WM_INPUT - 1, PM_REMOVE))
+            {
+                return true;
+            }
+        }
+        exhausted = true;
+        if (PeekMessage(msg, context->m_MessageWindow, WM_INPUT + 1, ~UINT(0), PM_REMOVE))
+        {
+            return true;
+        }
+        return false;
+    }
+
     bool PollDelta(HContext context, MouseDelta* out_delta)
     {
         if (!context || !context->m_Capturing || !out_delta)
@@ -223,8 +211,9 @@ namespace dmMouseCapture
 
         ProcessRawInput(context);
 
-        MSG msg;
-        while (PeekMessage(&msg, context->m_MessageWindow, 0, 0, PM_REMOVE))
+        bool exhausted = false;
+        MSG  msg;
+        while (peek_message_excluding_wm_input(&msg, exhausted, context))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
