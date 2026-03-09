@@ -58,6 +58,7 @@ import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
+import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
@@ -445,6 +446,10 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = DisplayProfiles.class, messageClass = DisplayProfiles.class)
     @BuilderParams(name="DisplayProfiles", inExts=".display_profiles", outExt=".display_profilesc")
     public static class DisplayProfilesBuilder extends ProtoBuilder<DisplayProfiles.Builder> {}
+
+    @ProtoParams(srcClass = Data.class, messageClass = Data.class)
+    @BuilderParams(name="Data", inExts=".data", outExt=".datac")
+    public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 
 
 }

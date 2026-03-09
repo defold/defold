@@ -511,6 +511,7 @@ proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
+proto_compile_task('data', 'data_ddf_pb2', 'Data', '.data', '.datac')
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('glsl', '.glsl', '.glslc')
