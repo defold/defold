@@ -1,0 +1,169 @@
+name: Build glTF Validator
+
+on:
+  push:
+    branches:
+      - issue-10478-build-gltf-validator-on-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        platform: [x86_64-linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout glTF Validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: KhronosGroup/glTF-Validator
+          ref: 2.0.0-dev.3.10
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6  # last stable before Dart 3
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build
+        run: dart run grinder exe-archive
+
+      - name: Create artifact archive
+        run: |
+          cd build/bin
+          tar -cJf "../gltf_validator-${{ matrix.platform }}.tar.xz" gltf_validator LICENSE NOTICES docs/
+
+      - name: Check artifact
+        run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
+
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gltf_validator-${{ matrix.platform }}
+          path: build/gltf_validator-${{ matrix.platform }}.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-macos-arm64:
+    strategy:
+      matrix:
+        platform: [arm64-macos]
+    runs-on: macOS-14 # Apple Silicon (M1)
+    steps:
+      - name: Checkout glTF Validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: KhronosGroup/glTF-Validator
+          ref: 2.0.0-dev.3.10
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6  # last stable before Dart 3
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build
+        run: dart run grinder exe-archive
+
+      - name: Create artifact archive
+        run: |
+          cd build/bin
+          tar -cJf "../gltf_validator-${{ matrix.platform }}.tar.xz" gltf_validator LICENSE NOTICES docs/
+
+      - name: Check artifact
+        run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
+
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gltf_validator-${{ matrix.platform }}
+          path: build/gltf_validator-${{ matrix.platform }}.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-macos-x86_64:
+    strategy:
+      matrix:
+        platform: [x86_64-macos]
+    runs-on: macos-15-intel # Last Intel runner on GitHub Actions
+    steps:
+      - name: Checkout glTF Validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: KhronosGroup/glTF-Validator
+          ref: 2.0.0-dev.3.10
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6  # last stable before Dart 3
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build
+        run: dart run grinder exe-archive
+
+      - name: Create artifact archive
+        run: |
+          cd build/bin
+          tar -cJf "../gltf_validator-${{ matrix.platform }}.tar.xz" gltf_validator LICENSE NOTICES docs/
+
+      - name: Check artifact
+        run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
+
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gltf_validator-${{ matrix.platform }}
+          path: build/gltf_validator-${{ matrix.platform }}.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-windows:
+    strategy:
+      matrix:
+        platform: [x86_64-win32]
+    runs-on: windows-2025
+    steps:
+      - name: Checkout glTF Validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: KhronosGroup/glTF-Validator
+          ref: 2.0.0-dev.3.10
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6  # last stable before Dart 3
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build
+        run: dart run grinder exe-archive
+
+      - name: Create artifact zip
+        shell: bash
+        run: |
+          cd build/bin
+          7z a "../gltf_validator-${{ matrix.platform }}.zip" gltf_validator.exe LICENSE NOTICES docs/
+
+      - name: Check artifact
+        shell: bash
+        run: ls -lh build/gltf_validator-${{ matrix.platform }}.zip || true
+
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gltf_validator-${{ matrix.platform }}
+          path: build/gltf_validator-${{ matrix.platform }}.zip
+          if-no-files-found: error
+          retention-days: 1
