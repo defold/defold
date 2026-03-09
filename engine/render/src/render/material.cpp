@@ -307,12 +307,7 @@ namespace dmRender
     {
         Material* material = (Material*) user_data;
 
-        if (material->m_HasLightBuffer)
-        {
-            return;
-        }
-
-        if (!root_type || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
+        if (material->m_HasLightBuffer || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
         {
             return;
         }
@@ -352,6 +347,7 @@ namespace dmRender
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
 
+        // Loop over the uniform buffers resources to check if there is a light uniform buffer present.
         dmGraphics::IterateProgramResourceBindings(m->m_Program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferConfigurationCallback, m);
 
         return (HMaterial)m;
