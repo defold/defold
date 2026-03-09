@@ -87,6 +87,26 @@ local function test_get_set_atlas(self)
     resource.set_atlas(self.valid_tileset_path, data)
 end
 
+local function test_get_atlas_frames_non_contiguous(self)
+    local data = resource.get_atlas("/resource/issue_11956.t.texturesetc")
+
+    assert(#data.geometries == 10)
+    assert(#data.animations == 1)
+
+    assert_anim(data.animations[1], {
+        id              = "issue_11956",
+        width           = 64,
+        height          = 64,
+        frame_start     = 10,
+        frame_end       = 20,
+        frames          = {10, 1, 4, 8, 9, 2, 3, 5, 6, 7},
+        fps             = 30,
+        playback        = go.PLAYBACK_ONCE_FORWARD,
+        flip_vertical   = false,
+        flip_horizontal = false,
+    })
+end
+
 local function test_set_atlas_valid(self)
     local animations = {
         {
@@ -182,6 +202,7 @@ function init(self)
     test_create_get_atlas(self)
     test_create_release_atlas(self)
     test_get_set_atlas(self)
+    test_get_atlas_frames_non_contiguous(self)
     test_set_atlas_valid(self)
 
     -- invalid tests
@@ -195,4 +216,3 @@ function init(self)
     -- do a specific invalid test for create_atlas
     test_create_atlas_invalid(self)
 end
-

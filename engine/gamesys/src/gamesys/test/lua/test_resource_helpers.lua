@@ -42,6 +42,19 @@ function assert_anim(a, expected)
     assert(a.height          == expected.height)
     assert(a.frame_start     == expected.frame_start)
     assert(a.frame_end       == expected.frame_end)
+    assert(a.frames)
+
+    local expected_frames = expected.frames
+    if not expected_frames then
+        expected_frames = {}
+        for i = expected.frame_start, expected.frame_end - 1 do
+            table.insert(expected_frames, i)
+        end
+    end
+    assert(#a.frames == #expected_frames)
+    for i = 1, #expected_frames do
+        assert(a.frames[i] == expected_frames[i])
+    end
 
     -- Optional entries, test only if required
     if expected.fps ~= nil then

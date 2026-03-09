@@ -2765,6 +2765,10 @@ static int SetAtlas(lua_State* L)
  * - geometries
  * - animations
  *
+ * Each animation entry also contains a `frames` table with Lua-based indices
+ * into `geometries`, preserving the exact frame-to-geometry mapping used by
+ * the atlas.
+ *
  * See [ref:resource.set_atlas] for a detailed description of each field
  *
  */
@@ -2827,6 +2831,16 @@ static int GetAtlas(lua_State* L)
         SET_LUA_TABLE_FIELD(lua_pushinteger, "frame_end", index_end + 1);
         SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
         SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_vertical", anim.m_FlipVertical);
+        lua_pushliteral(L, "frames");
+        lua_newtable(L);
+        for (uint32_t frame_index = anim.m_Start; frame_index < anim.m_End; ++frame_index)
+        {
+            uint32_t geometry_index = texture_set->m_FrameIndices[frame_index];
+            lua_pushinteger(L, (lua_Integer) (frame_index - anim.m_Start + 1));
+            lua_pushinteger(L, (lua_Integer) (geometry_index + 1));
+            lua_rawset(L, -3);
+        }
+        lua_settable(L, -3);
 
         lua_rawset(L, -3);
     }
