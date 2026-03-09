@@ -1797,11 +1797,16 @@ bail:
 
     static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
+        VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+        CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
     }
@@ -1811,7 +1816,7 @@ bail:
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
         assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
-        SetDeviceBuffer(context, &ubo->m_DeviceBuffer, size, offset, data);
+        DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
     static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)

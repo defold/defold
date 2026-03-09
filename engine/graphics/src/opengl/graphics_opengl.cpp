@@ -2033,6 +2033,9 @@ static void LogFrameBufferError(GLenum status)
         ubo->m_Id = AddNewGLHandle(context, buffer_handle);
         CHECK_GL_ERROR;
 
+        // Clear out UBO first
+        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, layout.m_Size, 0);
+
         return (HUniformBuffer) ubo;
     }
 
@@ -2045,11 +2048,15 @@ static void LogFrameBufferError(GLenum status)
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        if (offset != 0)
+        if (size < ubo->m_BaseUniformBuffer.m_Layout.m_Size)
         {
             glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+            CHECK_GL_ERROR;
         }
-        glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
+        else
+        {
+            glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
+        }
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 

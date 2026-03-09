@@ -1350,7 +1350,7 @@ namespace dmGraphics
         }
     }
 
-    void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, ProgramResourceBindingCallback callback, void* user_data)
+    void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data)
     {
         Program* program = (Program*) prog;
         if (!program || !callback)
