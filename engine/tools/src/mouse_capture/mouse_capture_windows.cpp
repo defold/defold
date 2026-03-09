@@ -1,6 +1,10 @@
 #include "mouse_capture.h"
 #include <windows.h>
 
+#ifndef QWORD
+typedef unsigned __int64 QWORD;
+#endif
+
 namespace dmMouseCapture
 {
     struct Context
@@ -12,28 +16,59 @@ namespace dmMouseCapture
         int m_SavedCursorY;
     };
 
+    static void ProcessRawInput(HContext context)
+    {
+        static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
+        uint64_t raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
+        MouseDelta frame_mouse_delta = {};
+
+        while (true)
+        {
+            PRAWINPUT rawinput_buffer_ptr = reinterpret_cast<PRAWINPUT>(&raw_input_buffer);
+            UINT out_buffer_size = sizeof(raw_input_buffer);
+            UINT rawinput_count = 0;
+            rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
+            if (rawinput_count == 0)
+            {
+                break;
+            }
+            if (rawinput_count == ~UINT(0))
+            {
+                break;
+            }
+
+            PRAWINPUT rawinput_ptr = rawinput_buffer_ptr;
+            for (size_t i = 0; i < rawinput_count; i++)
+            {
+                switch (rawinput_ptr->header.dwType)
+                {
+                    case RIM_TYPEMOUSE:
+                    {
+                        if (rawinput_ptr->header.dwType == RIM_TYPEMOUSE && (rawinput_ptr->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
+                        {
+                            frame_mouse_delta.dx += rawinput_ptr->data.mouse.lLastX;
+                            frame_mouse_delta.dy += rawinput_ptr->data.mouse.lLastY;
+                        }
+                        break;
+                    }
+                }
+                rawinput_ptr = NEXTRAWINPUTBLOCK(rawinput_ptr);
+            }
+        }
+
+        context->m_AccumulatedDelta.dx += frame_mouse_delta.dx;
+        context->m_AccumulatedDelta.dy += frame_mouse_delta.dy;
+    }
+
     static LRESULT CALLBACK RawInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         if (msg == WM_INPUT)
         {
+            // If we got some packets leaking into WM_INPUT I guess we can empty the queue
             Context* ctx = (Context*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
             if (ctx)
             {
-                UINT size = 0;
-                GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &size, sizeof(RAWINPUTHEADER));
-                if (size > 0)
-                {
-                    RAWINPUT raw;
-                    if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) != (UINT)-1)
-                    {
-                        if (raw.header.dwType == RIM_TYPEMOUSE &&
-                            (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
-                        {
-                            ctx->m_AccumulatedDelta.dx += raw.data.mouse.lLastX;
-                            ctx->m_AccumulatedDelta.dy += raw.data.mouse.lLastY;
-                        }
-                    }
-                }
+                ProcessRawInput(ctx);
             }
             return 0;
         }
@@ -151,8 +186,7 @@ namespace dmMouseCapture
         if (!context || !context->m_Capturing || !out_delta)
             return false;
 
-        context->m_AccumulatedDelta.dx = 0.0;
-        context->m_AccumulatedDelta.dy = 0.0;
+        ProcessRawInput(context);
 
         MSG msg;
         while (PeekMessage(&msg, context->m_MessageWindow, 0, 0, PM_REMOVE))
@@ -162,7 +196,11 @@ namespace dmMouseCapture
         }
 
         *out_delta = context->m_AccumulatedDelta;
-        return true;
+
+        context->m_AccumulatedDelta.dx = 0.0;
+        context->m_AccumulatedDelta.dy = 0.0;
+
+        return (out_delta->dx != 0.0 || out_delta->dy != 0.0);
     }
 
     void DestroyContext(HContext context)
@@ -175,4 +213,4 @@ namespace dmMouseCapture
 
         delete context;
     }
-}
+} // namespace dmMouseCapture
