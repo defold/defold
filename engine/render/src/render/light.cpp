@@ -17,15 +17,7 @@
 
 namespace dmRender
 {
-    static struct
-    {
-        dmGraphics::UniformBufferLayout m_LightBufferLayout;
-        uint32_t                        m_LightBufferDataWriteStart;
-        uint32_t                        m_MaxLightCount;
-        bool                            m_Initialized;
-    } g_LightBufferContext;
 
-    static void ResizeLightBuffer(HRenderContext render_context, uint32_t max_light_count);
     static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
     static void CommitLightCount(HRenderContext render_context);
 
@@ -69,21 +61,15 @@ namespace dmRender
 
     HLightInstance NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype)
     {
-        const uint32_t lights_to_add = 32;
-
+        // Reached max count.
         if (render_context->m_RenderLightsIndices.Remaining() == 0)
         {
-            render_context->m_RenderLightsIndices.SetCapacity(render_context->m_RenderLightsIndices.Capacity() + lights_to_add);
+            return 0;
         }
+
         if (render_context->m_RenderLights.Full())
         {
-            render_context->m_RenderLights.Allocate(lights_to_add);
-        }
-        uint32_t scratch_size = render_context->m_RenderLightsIndices.Capacity();
-        if (render_context->m_LightBufferScratch.Capacity() < scratch_size)
-        {
-            render_context->m_LightBufferScratch.SetCapacity(scratch_size);
-            render_context->m_LightBufferScratch.SetSize(scratch_size);
+            render_context->m_RenderLights.Allocate(32);
         }
 
         LightInstance* light_instance      = new LightInstance;
@@ -91,6 +77,11 @@ namespace dmRender
         light_instance->m_Direction        = light_prototype->m_Direction;
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
+
+        if (light_instance->m_LightBufferIndex >= render_context->m_LightBufferScratch.Size())
+        {
+            render_context->m_LightBufferScratch.SetSize(light_instance->m_LightBufferIndex+1);
+        }
 
         CommitLightInstance(render_context, light_instance);
         CommitLightCount(render_context);
@@ -122,7 +113,9 @@ namespace dmRender
     {
         LightInstance* light_instance = render_context->m_RenderLights.Get(instance);
         if (!light_instance)
+        {
             return;
+        }
 
         dmVMath::Vector3 direction = dmVMath::Rotate(rotation, light_instance->m_LightPrototype->m_Direction);
         bool needs_commit = !Vector3Equals(dmVMath::Vector3(position), dmVMath::Vector3(light_instance->m_Position)) || !Vector3Equals(direction, light_instance->m_Direction);
@@ -140,7 +133,7 @@ namespace dmRender
     // Light buffer
     ////////////////////////////////
 
-    static void GenerateDefaultUniformBufferLayout(int max_lights)
+    static void GenerateUniformBuffer(HRenderContext render_context, int max_lights)
     {
         /*
         struct Light
@@ -219,13 +212,12 @@ namespace dmRender
         light_types[1].m_Members     = light_members;
         light_types[1].m_MemberCount = DM_ARRAY_SIZE(light_members);
 
-        // Generate a new layout for the light buffer
+        dmGraphics::UniformBufferLayout layout;
         dmGraphics::UpdateShaderTypesOffsets(light_types, DM_ARRAY_SIZE(light_types));
-        dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types), &g_LightBufferContext.m_LightBufferLayout);
+        dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types), &layout);
 
-        g_LightBufferContext.m_Initialized = true;
-        g_LightBufferContext.m_MaxLightCount = max_lights;
-        g_LightBufferContext.m_LightBufferDataWriteStart = light_buffer_members[1].m_Offset;
+        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout);
+        render_context->m_LightBufferDataWriteStart = light_buffer_members[1].m_Offset;
     }
 
     static inline void CommitLightInstance(HRenderContext render_context, LightInstance* instance)
@@ -243,8 +235,8 @@ namespace dmRender
             instance->m_LightPrototype->m_OuterConeAngle);
 
         // Mark dirty range
-        render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, instance->m_LightBufferIndex);
-        render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint16_t) (instance->m_LightBufferIndex + 1));
+        render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
+        render_context->m_LightBufferDirtyEnd = dmMath::Max(render_context->m_LightBufferDirtyEnd, (uint32_t) (instance->m_LightBufferIndex + 1));
     }
 
     static inline void CommitLightCount(HRenderContext render_context)
@@ -254,24 +246,23 @@ namespace dmRender
 
     static void WriteLightInstanceData(HRenderContext render_context)
     {
-        if (!render_context->m_LightUniformBuffer)
-        {
-            uint32_t min_size = dmMath::Max(1u, render_context->m_LightBufferScratch.Size());
-            ResizeLightBuffer(render_context, min_size);
-        }
-
         // The light count has changed, we need to write that separately
         if (render_context->m_LightBufferDirtyCount)
         {
+            // ... but only if it is actually different from last write.
             float count = (float) render_context->m_RenderLightsIndices.Size();
-            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(float), &count);
+            if (count != render_context->m_LightBufferLastWrittenCount)
+            {
+                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, 0, sizeof(float), &count);
+            }
+            render_context->m_LightBufferLastWrittenCount = count;
         }
 
         // Write the light data from the scratch buffer
         if (render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart)
         {
             // Convert indices to byte offsets
-            uint32_t write_light_data_start = g_LightBufferContext.m_LightBufferDataWriteStart;
+            uint32_t write_light_data_start = render_context->m_LightBufferDataWriteStart;
             uint32_t write_start            = write_light_data_start + render_context->m_LightBufferDirtyStart * sizeof(LightSTD140);
             uint32_t write_end              = write_light_data_start + render_context->m_LightBufferDirtyEnd * sizeof(LightSTD140);
             uint32_t write_size             = write_end - write_start;
@@ -291,49 +282,31 @@ namespace dmRender
         return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyCount;
     }
 
-    static void ResizeLightBuffer(HRenderContext render_context, uint32_t max_light_count)
+    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count)
     {
-        if (render_context->m_LightBufferScratch.Capacity() < max_light_count)
+        render_context->m_MaxLightCount = max_light_count;
+        render_context->m_LightUniformBuffer = 0;
+
+        if (max_light_count > 0)
         {
+            render_context->m_RenderLightsIndices.SetCapacity(max_light_count);
             render_context->m_LightBufferScratch.SetCapacity(max_light_count);
-            render_context->m_LightBufferScratch.SetSize(max_light_count);
+            GenerateUniformBuffer(render_context, max_light_count);
         }
+    }
 
-        if (!g_LightBufferContext.m_Initialized)
-        {
-            GenerateDefaultUniformBufferLayout(max_light_count);
-        }
-        else if (max_light_count != g_LightBufferContext.m_MaxLightCount)
-        {
-            dmLogOnceWarning("Using different sizes of light buffers is not supported. You should use the same size everywhere for the uniform buffer!");
-        }
-
+    void FinalizeLightData(HRenderContext render_context)
+    {
         if (render_context->m_LightUniformBuffer)
         {
             dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
         }
-        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, g_LightBufferContext.m_LightBufferLayout);
-
-        // Dirty the entire range of lights
-        render_context->m_LightBufferDirtyStart = 0;
-        render_context->m_LightBufferDirtyEnd   = render_context->m_LightBufferScratch.Size();
-    }
-
-    void InitializeLightData(HRenderContext render_context)
-    {
-        render_context->m_RenderLightsIndices.SetCapacity(4);
     }
 
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material)
     {
         if (material->m_HasLightBuffer)
         {
-            // The lightbuffer needs to match the material
-            if (material->m_LightBufferLightsCount != render_context->m_LightBufferScratch.Size())
-            {
-                ResizeLightBuffer(render_context, material->m_LightBufferLightsCount);
-            }
-
             if (IsLightBufferDirty(render_context))
             {
                 WriteLightInstanceData(render_context);

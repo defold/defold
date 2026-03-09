@@ -1353,22 +1353,12 @@ namespace dmGraphics
     void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data)
     {
         Program* program = (Program*) prog;
-        if (!program || !callback)
-        {
-            return;
-        }
-
         ProgramResourceBindingIterator it(program);
 
         const ProgramResourceBinding* binding;
         while ((binding = it.Next()))
         {
-            if (!binding->m_Res)
-            {
-                continue;
-            }
-
-            if (binding->m_Res->m_BindingFamily != family)
+            if (!binding->m_Res || binding->m_Res->m_BindingFamily != family)
             {
                 continue;
             }
@@ -1381,11 +1371,7 @@ namespace dmGraphics
             }
 
             const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
-
-            callback(binding->m_Res->m_Set,
-                     binding->m_Res->m_Binding,
-                     root_type,
-                     user_data);
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
         }
     }
 

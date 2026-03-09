@@ -246,11 +246,11 @@ namespace dmGraphics
 
     struct ShaderResourceMember
     {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint32_t                    m_Offset;
+        char*              m_Name;
+        dmhash_t           m_NameHash;
+        ShaderResourceType m_Type;
+        uint32_t           m_ElementCount;
+        uint32_t           m_Offset;
     };
 
     struct ShaderResourceTypeInfo

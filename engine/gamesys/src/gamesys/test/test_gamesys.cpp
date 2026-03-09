@@ -6109,7 +6109,6 @@ TEST_F(MaterialTest, TestLightBuffer)
     ASSERT_NE((void*)0, material);
 
     ASSERT_TRUE(material->m_HasLightBuffer);
-    ASSERT_EQ(32, material->m_LightBufferLightsCount);
     // Set and binding are assigned from the shader's uniform block; ensure they are initialized
     ASSERT_LT(material->m_LightBufferSet, 8u);
     ASSERT_LT(material->m_LightBufferBinding, 32u);

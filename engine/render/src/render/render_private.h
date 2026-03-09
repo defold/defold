@@ -101,7 +101,6 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
-        uint16_t                                    m_LightBufferLightsCount;
         uint8_t                                     m_LightBufferSet;
         uint8_t                                     m_LightBufferBinding;
         uint8_t                                     m_HasLightBuffer : 1;
@@ -275,9 +274,9 @@ namespace dmRender
 
     struct LightPrototype
     {
-        LightType        m_Type;
         dmVMath::Vector4 m_Color;
         dmVMath::Vector3 m_Direction;
+        LightType        m_Type;
         float            m_Intensity;
         float            m_Range;
         float            m_InnerConeAngle;
@@ -327,7 +326,9 @@ namespace dmRender
 
         dmOpaqueHandleContainer<LightInstance> m_RenderLights;
         dmIndexPool16                          m_RenderLightsIndices;
+
         dmArray<LightSTD140>                   m_LightBufferScratch;
+        dmGraphics::UniformBufferLayout        m_LightBufferLayout;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
 
         HFontMap                    m_SystemFontMap;
@@ -340,14 +341,18 @@ namespace dmRender
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
-        uint16_t                    m_LightBufferDirtyStart;
-        uint16_t                    m_LightBufferDirtyEnd;
-        uint32_t                    m_LightBufferDirtyCount         : 1;
-        uint32_t                    m_OutOfResources                : 1;
-        uint32_t                    m_StencilBufferCleared          : 1;
-        uint32_t                    m_MultiBufferingRequired        : 1;
-        uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
-        uint32_t                    m_IsRenderPaused                : 1;
+
+        uint32_t                    m_LightBufferDirtyStart;
+        uint32_t                    m_LightBufferDirtyEnd;
+        uint32_t                    m_LightBufferDataWriteStart;
+        uint32_t                    m_LightBufferLastWrittenCount;
+        uint16_t                    m_MaxLightCount;
+        uint16_t                    m_LightBufferDirtyCount         : 1;
+        uint16_t                    m_OutOfResources                : 1;
+        uint16_t                    m_StencilBufferCleared          : 1;
+        uint16_t                    m_MultiBufferingRequired        : 1;
+        uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
+        uint16_t                    m_IsRenderPaused                : 1;
     };
 
     struct BufferedRenderBuffer
@@ -400,7 +405,8 @@ namespace dmRender
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Lights
-    void InitializeLightData(HRenderContext render_context);
+    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count);
+    void FinalizeLightData(HRenderContext render_context);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
 
     // Exposed here for unit testing

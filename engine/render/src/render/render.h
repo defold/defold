@@ -177,6 +177,7 @@ namespace dmRender
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
+        uint32_t                        m_MaxLights;
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
