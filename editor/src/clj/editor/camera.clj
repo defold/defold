@@ -765,25 +765,25 @@
     (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
 (defn- look-delta! [camera-node current-camera dx dy look-sensitivity dt]
-  (let [{:keys [free-cam-pitch free-cam-yaw free-cam-smoothed-look-delta] :as camera-state} (g/user-data camera-node ::camera-state)
-        [prev-dx prev-dy] free-cam-smoothed-look-delta
-        look-smoothing (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :mouse-smoothing])
-        alpha (- 1.0 (Math/exp (* -25.0 look-smoothing dt)))
-        smooth-dx (+ prev-dx (* alpha (- dx prev-dx)))
-        smooth-dy (+ prev-dy (* alpha (- dy prev-dy)))]
-    (if (or (not= smooth-dx 0.0) (not= smooth-dy 0.0))
-      (let [new-yaw (+ free-cam-yaw (* smooth-dx look-sensitivity))
-            new-pitch (max -86.0 (min 86.0 (+ free-cam-pitch (* smooth-dy look-sensitivity))))
-            new-rotation (math/euler->quat [new-pitch new-yaw 0.0])
-            focus-distance (:focus-distance current-camera)
-            new-camera (assoc current-camera :rotation new-rotation)
-            new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
-            new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
-        (g/user-data-swap! camera-node ::camera-state merge {:free-cam-pitch new-pitch
-                                                             :free-cam-yaw new-yaw
-                                                             :free-cam-smoothed-look-delta [smooth-dx smooth-dy]})
-        (assoc new-camera :focus-point new-focus))
-      current-camera)))
+  (let [{:keys [free-cam-pitch free-cam-yaw smooth-pitch smooth-yaw]} (g/user-data camera-node ::camera-state)
+        smooth-yaw (or smooth-yaw free-cam-yaw)
+        smooth-pitch (or smooth-pitch free-cam-pitch)
+        target-yaw (+ free-cam-yaw (* dx look-sensitivity))
+        target-pitch (max -86.0 (min 86.0 (+ free-cam-pitch (* dy look-sensitivity))))
+        smoothing (- 1.0 (Math/pow 10.0 (* -15.0 dt)))
+        new-smooth-yaw (+ smooth-yaw (* smoothing (- target-yaw smooth-yaw)))
+        new-smooth-pitch (+ smooth-pitch (* smoothing (- target-pitch smooth-pitch)))
+        new-rotation (math/euler->quat [new-smooth-pitch new-smooth-yaw 0.0])
+        focus-distance (:focus-distance current-camera)
+        new-camera (assoc current-camera :rotation new-rotation)
+        new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
+        new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
+    (g/user-data-swap! camera-node ::camera-state merge
+                       {:free-cam-pitch target-pitch
+                        :free-cam-yaw target-yaw
+                        :smooth-pitch new-smooth-pitch
+                        :smooth-yaw new-smooth-yaw})
+    (assoc new-camera :focus-point new-focus)))
 
 (defn- wasd-move
   [camera-node camera ^Vector3d target-dir speed dt]
