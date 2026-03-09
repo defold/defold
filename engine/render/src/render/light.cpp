@@ -222,17 +222,38 @@ namespace dmRender
 
     static inline void CommitLightInstance(HRenderContext render_context, LightInstance* instance)
     {
+        const LightPrototype* prototype = instance->m_LightPrototype;
+
         LightSTD140& light_std140 = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
         light_std140.m_Position = dmVMath::Vector4(instance->m_Position);
-        light_std140.m_Color = instance->m_LightPrototype->m_Color;
-        light_std140.m_DirectionRange = dmVMath::Vector4(
-            instance->m_Direction,
-            instance->m_LightPrototype->m_Range);
-        light_std140.m_Params = dmVMath::Vector4(
-            instance->m_LightPrototype->m_Type,
-            instance->m_LightPrototype->m_Intensity,
-            instance->m_LightPrototype->m_InnerConeAngle,
-            instance->m_LightPrototype->m_OuterConeAngle);
+        light_std140.m_Color    = prototype->m_Color;
+
+        dmVMath::Vector3 direction(0.0f, 0.0f, 0.0f);
+        float range      = 0.0f;
+        float inner_cone = 0.0f;
+        float outer_cone = 0.0f;
+
+        switch (prototype->m_Type)
+        {
+        case LIGHT_TYPE_DIRECTIONAL:
+            direction = instance->m_Direction;
+            break;
+        case LIGHT_TYPE_POINT:
+            range = prototype->m_Range;
+            break;
+        case LIGHT_TYPE_SPOT:
+            direction  = instance->m_Direction;
+            range      = prototype->m_Range;
+            inner_cone = prototype->m_InnerConeAngle;
+            outer_cone = prototype->m_OuterConeAngle;
+            break;
+        default:
+            assert("Light type not supported!");
+            break;
+        }
+
+        light_std140.m_DirectionRange = dmVMath::Vector4(direction, range);
+        light_std140.m_Params = dmVMath::Vector4((float) prototype->m_Type, prototype->m_Intensity, inner_cone, outer_cone);
 
         // Mark dirty range
         render_context->m_LightBufferDirtyStart = dmMath::Min(render_context->m_LightBufferDirtyStart, (uint32_t) instance->m_LightBufferIndex);
