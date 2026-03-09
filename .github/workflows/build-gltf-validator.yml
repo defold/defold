@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - issue-10478-build-gltf-validator-on-ci
+  workflow_dispatch:
 
 jobs:
   build-linux:
