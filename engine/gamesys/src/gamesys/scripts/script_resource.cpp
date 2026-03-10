@@ -2809,19 +2809,6 @@ static int GetAtlas(lua_State* L)
     {
         dmGameSystemDDF::TextureSetAnimation& anim = texture_set->m_Animations[i];
 
-        // Note:
-        // frame_start and frame_end is not necessarily the same thing as an animations m_Start/m_End,
-        // since we generate the geometry based on input textures. But now with the
-        // resource.set_atlas function we allow creating arbitrary geometry and mapping
-        // that to animations and have no concept of input textures.
-        // So we need this indirection to be able to support both creating custom animations in runtime
-        // and the way we have created the DDF in the build pipeline.
-        // Note:
-        // frame_start and frame_end should be considered deprecated in favour of frames
-        // see https://github.com/defold/defold/issues/11956#issuecomment-4023849040
-        uint32_t index_start = texture_set->m_FrameIndices[anim.m_Start];
-        uint32_t index_end   = index_start + (anim.m_End - anim.m_Start);
-
         lua_pushinteger(L, (lua_Integer) (i+1));
         lua_newtable(L);
 
@@ -2830,8 +2817,6 @@ static int GetAtlas(lua_State* L)
         SET_LUA_TABLE_FIELD(lua_pushinteger, "height", anim.m_Height);
         SET_LUA_TABLE_FIELD(lua_pushinteger, "fps", anim.m_Fps);
         SET_LUA_TABLE_FIELD(lua_pushinteger, "playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "frame_start", index_start + 1);
-        SET_LUA_TABLE_FIELD(lua_pushinteger, "frame_end", index_end + 1);
         SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
         SET_LUA_TABLE_FIELD(lua_pushboolean, "flip_vertical", anim.m_FlipVertical);
         lua_pushliteral(L, "frames");
