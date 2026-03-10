@@ -2739,6 +2739,8 @@ namespace dmGameSystem
             render_gui_context.m_Material = GetMaterial(c, c->m_Resource);
             dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
             const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
+            if (count == 0)
+                continue;
 
             dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, count);
             dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
