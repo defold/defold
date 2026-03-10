@@ -12,12 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <math.h>
+
 #include "render.h"
 #include "render_private.h"
 
 namespace dmRender
 {
-
     static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
     static void CommitLightCount(HRenderContext render_context);
 
@@ -32,7 +33,7 @@ namespace dmRender
     , m_Intensity(1.0f)
     , m_Range(10.0f)
     , m_InnerConeAngle(0.0f)
-    , m_OuterConeAngle(3.1415926535f / 4.0f)
+    , m_OuterConeAngle(M_PI_4)
     {
     }
 
