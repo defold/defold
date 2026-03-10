@@ -61,11 +61,14 @@ namespace dmMouseCapture
         context->m_AccumulatedDelta.dy += frame_mouse_delta.dy;
     }
 
+    // Encountered a bug where input packets seem to be dropping so the mouse would just hang, the likely cause is that
+    // JavaFX was dispatching WM_INPUT events to our message window, so by adding this, we can catch the ones that were being
+    // dropped, but we also only handle WM_INPUT messages because we dispatch other messages we don't care about when we PollDelta
     static LRESULT CALLBACK RawInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         if (msg == WM_INPUT)
         {
-            Context*  context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            Context* context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
             UINT size = sizeof(RAWINPUTHEADER) * 2;
             RAWINPUT* raw = (RAWINPUT*)_alloca(size);
             GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
@@ -75,6 +78,7 @@ namespace dmMouseCapture
                 context->m_AccumulatedDelta.dx += raw->data.mouse.lLastX;
                 context->m_AccumulatedDelta.dy += raw->data.mouse.lLastY;
             }
+            ProcessRawInput(context);
             return 0;
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -111,6 +115,36 @@ namespace dmMouseCapture
     void WarpCursor(int x, int y)
     {
         SetCursorPos(x, y);
+    }
+
+    // Just in case we accumulated some deltas between the stop and start capture, let's clear them
+    static void DiscardRawInput()
+    {
+        static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
+        uint64_t raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
+        MouseDelta frame_mouse_delta = {};
+
+        while (true)
+        {
+            PRAWINPUT rawinput_buffer_ptr = reinterpret_cast<PRAWINPUT>(&raw_input_buffer);
+            UINT out_buffer_size = sizeof(raw_input_buffer);
+            UINT rawinput_count = 0;
+            rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
+            if (rawinput_count == 0)
+            {
+                break;
+            }
+            if (rawinput_count == ~UINT(0))
+            {
+                break;
+            }
+
+            PRAWINPUT rawinput_ptr = rawinput_buffer_ptr;
+            for (size_t i = 0; i < rawinput_count; i++)
+            {
+                rawinput_ptr = NEXTRAWINPUTBLOCK(rawinput_ptr);
+            }
+        }
     }
 
     bool StartCapture(HContext context, WindowHandle window)
@@ -156,6 +190,8 @@ namespace dmMouseCapture
         clipRect.bottom = context->m_SavedCursorY + 1;
         ClipCursor(&clipRect);
 
+        DiscardRawInput();
+
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;
@@ -187,7 +223,7 @@ namespace dmMouseCapture
         context->m_Capturing = false;
     }
 
-    static inline bool peek_message_excluding_wm_input(MSG* msg, bool& exhausted, HContext context)
+    static inline bool ClearNonWMInputMessages(MSG* msg, bool& exhausted, HContext context)
     {
         if (!exhausted)
         {
@@ -213,7 +249,9 @@ namespace dmMouseCapture
 
         bool exhausted = false;
         MSG  msg;
-        while (peek_message_excluding_wm_input(&msg, exhausted, context))
+        // We might have accumulated other messages we are not interested in handling, so clear
+        // them out so we don't crash the app
+        while (ClearNonWMInputMessages(&msg, exhausted, context))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
