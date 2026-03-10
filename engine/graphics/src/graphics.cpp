@@ -1185,7 +1185,7 @@ namespace dmGraphics
             free(meta.m_TypeInfos[i].m_Name);
             for (int j = 0; j < meta.m_TypeInfos[i].m_MemberCount; ++j)
             {
-                free(meta.m_TypeInfos[i].m_Members[j].m_Name);
+                free((char*) meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
 
             delete[] meta.m_TypeInfos[i].m_Members;
