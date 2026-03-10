@@ -90,6 +90,22 @@
       (is (not= (digestable/sha1-hash (long-array 0))
                 (digestable/sha1-hash (make-array Long 0))))))
 
+  (testing "Digests nested arrays."
+
+    (testing "Written data is included in the hash."
+      (is (= "206c1f053bb77562b36ffa45c684d3f362d597b7"
+             (digestable/sha1-hash (object-array [(object-array [])]))))
+      (is (= "b5802bec0c5df7eef69a3447b7a7a3816ea051f4"
+             (digestable/sha1-hash (object-array [(object-array ["one"])]))))
+      (is (= "7e3b748e36e4436a0e0e9429dce8c5a3c88bc9a5"
+             (digestable/sha1-hash (object-array [(object-array ["one" "two"])])))))
+
+    (testing "Type information is included in the hash."
+      (is (not= (digestable/sha1-hash (object-array [(make-array Object 0)]))
+                (digestable/sha1-hash (object-array [(make-array String 0)]))))
+      (is (not= (digestable/sha1-hash (make-array String 0))
+                (digestable/sha1-hash (make-array String/1 0))))))
+
   (testing "Throws when it encounters an undigestable value."
     (is (thrown-with-msg? Exception #"Encountered undigestable value"
                           (digestable/sha1-hash (Object.))))))
