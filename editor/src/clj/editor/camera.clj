@@ -1102,7 +1102,10 @@
             [mouse-x mouse-y] (:view-pos input-state)
             movements-enabled (g/node-value self :movements-enabled)
             alt (contains? (:modifiers input-state) :alt)
-            has-mouse-moved (and mouse-x mouse-y last-x last-y (not= :idle movement))
+            has-mouse-moved (and mouse-x mouse-y last-x last-y
+                                 (not= :idle movement)
+                                 (or (not= mouse-x last-x)
+                                     (not= mouse-y last-y)))
             image-view (g/node-value self :image-view)
             [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
             (warp-mouse-around-edges image-view [mouse-x mouse-y] [last-x last-y])
