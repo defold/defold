@@ -182,6 +182,7 @@
     (set! (. m m33) 1.0)
     m))
 
+;; TODO JOE: Get rid of all these schema functions
 (s/defn camera-orthographic-projection-matrix :- Matrix4d
   [camera :- Camera]
   (simple-orthographic-projection-matrix (.z-near camera) (.z-far camera) (.fov-x camera) (.fov-y camera)))
@@ -868,26 +869,32 @@
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
 
 (defn start-free-cam-mode! [^ImageView image-view camera-id current-cursor-pos]
-  (let [current-camera (g/node-value camera-id :local-camera)
+  ;; TODO JOE: There's a bug where if you try to start free cam mode while realign camera is animating, it messes up
+  (let [local-camera (g/node-value camera-id :local-camera)
+        current-camera (cond-> local-camera
+                         (= :orthographic (:type local-camera))
+                         (camera-orthographic->perspective fov-y-35mm-full-frame))
         [pitch yaw _] (math/quat->euler (:rotation current-camera))
         focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
-        current-camera (if (= (:type current-camera) :orthographic)
-                         (camera-orthographic->perspective current-camera fov-y-35mm-full-frame)
-                         current-camera)
         ;; TODO JOE: do we get this from somewhere else?
         bounds (.localToScreen image-view (.getBoundsInLocal image-view))
         center-x (int (+ (.getMinX bounds) (/ (.getWidth bounds) 2.0)))
         center-y (int (+ (.getMinY bounds) (/ (.getHeight bounds) 2.0)))]
     (toggle-free-cam-css image-view true)
+    ;; NOTE: If we don't move the camera to the center, then fast mouse movements might mouse over other nodes, and JavaFX will
+    ;; reset our cursor visibility
     (i/start-mouse-capture center-x center-y)
     (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
     (g/set-property! camera-id :cursor-type :none)
+    ;; TODO: Clean up these constructors/destructors
     (g/user-data-swap! camera-id ::camera-state merge
       {:free-cam-mode true
        :free-cam-cursor-start-pos current-cursor-pos
        :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
        :free-cam-pitch pitch
        :free-cam-yaw yaw
+       :smooth-pitch pitch
+       :smooth-yaw yaw
        :free-cam-smoothed-look-delta [0.0 0.0]})))
 
 (defn stop-free-cam-mode! [image-view camera-id]
@@ -904,6 +911,8 @@
      :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
      :free-cam-pitch 0.0
      :free-cam-yaw 0.0
+     :smooth-pitch 0.0
+     :smooth-yaw 0.0
      :free-cam-smoothed-look-delta [0.0 0.0]}))
 
 (defn- free-cam-movement-keys [prefs]
@@ -987,8 +996,8 @@
       :key-pressed
       (cond
         (and (= key-code KeyCode/ESCAPE)
-             (not (contains? (:mouse-buttons input-state) :secondary))
-             free-cam-mode)
+             free-cam-mode
+             (not (contains? (:mouse-buttons input-state) :secondary)))
         (stop-free-cam-mode! image-view self)
 
         (and (contains? (:mouse-buttons input-state) :secondary)

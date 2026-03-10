@@ -1283,10 +1283,6 @@
                  (= :perspective))))
 
 (handler/defhandler :scene.free-camera-mode :workbench
-  (active? [app-view]
-    (let [scene-view (active-scene-view app-view)
-          camera (view->camera scene-view)]
-      (= :perspective (:type (g/node-value camera :local-camera)))))
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
       (let [input-state (g/node-value scene-view :input-state)
