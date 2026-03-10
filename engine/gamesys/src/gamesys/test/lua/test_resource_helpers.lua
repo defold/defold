@@ -13,13 +13,16 @@
 -- specific language governing permissions and limitations under the License.
 
 function make_anim(id, width, height, fstart, fend)
-    return {
+    local anim = {
         id=id,
         width=width,
         height=height,
-        frame_start=fstart,
-        frame_end=fend
+        frames={}
     }
+    for i=fstart,fend - 1 do
+        table.insert(anim.frames, i)
+    end
+    return anim
 end
 
 function make_quad(w, h, x, y)
@@ -40,20 +43,11 @@ function assert_anim(a, expected)
     assert(a.id              == expected.id)
     assert(a.width           == expected.width)
     assert(a.height          == expected.height)
-    assert(a.frame_start     == expected.frame_start)
-    assert(a.frame_end       == expected.frame_end)
     assert(a.frames)
 
-    local expected_frames = expected.frames
-    if not expected_frames then
-        expected_frames = {}
-        for i = expected.frame_start, expected.frame_end - 1 do
-            table.insert(expected_frames, i)
-        end
-    end
-    assert(#a.frames == #expected_frames)
-    for i = 1, #expected_frames do
-        assert(a.frames[i] == expected_frames[i])
+    assert(#a.frames == #expected.frames)
+    for i = 1, #expected.frames do
+        assert(a.frames[i] == expected.frames[i])
     end
 
     -- Optional entries, test only if required
