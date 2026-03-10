@@ -10,24 +10,24 @@ namespace dmMouseCapture
 {
     struct Context
     {
-        HWND m_MessageWindow;
-        bool m_Capturing;
+        HWND       m_MessageWindow;
+        bool       m_Capturing;
         MouseDelta m_AccumulatedDelta;
-        int m_SavedCursorX;
-        int m_SavedCursorY;
+        int        m_SavedCursorX;
+        int        m_SavedCursorY;
     };
 
     static void ProcessRawInput(HContext context)
     {
         static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
-        uint64_t raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
-        MouseDelta frame_mouse_delta = {};
+        uint64_t                raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
+        MouseDelta              frame_mouse_delta = {};
 
         while (true)
         {
             PRAWINPUT rawinput_buffer_ptr = reinterpret_cast<PRAWINPUT>(&raw_input_buffer);
-            UINT out_buffer_size = sizeof(raw_input_buffer);
-            UINT rawinput_count = 0;
+            UINT      out_buffer_size = sizeof(raw_input_buffer);
+            UINT      rawinput_count = 0;
             rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
             if (rawinput_count == 0)
             {
@@ -68,8 +68,8 @@ namespace dmMouseCapture
     {
         if (msg == WM_INPUT)
         {
-            Context* context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-            UINT size = sizeof(RAWINPUTHEADER) * 2;
+            Context*  context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            UINT      size = sizeof(RAWINPUTHEADER) * 2;
             RAWINPUT* raw = (RAWINPUT*)_alloca(size);
             GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
 
@@ -87,7 +87,8 @@ namespace dmMouseCapture
     static bool EnsureWindowClass()
     {
         static bool registered = false;
-        if (registered) return true;
+        if (registered)
+            return true;
 
         WNDCLASS wc = {};
         wc.lpfnWndProc = RawInputWndProc;
@@ -121,14 +122,14 @@ namespace dmMouseCapture
     static void DiscardRawInput()
     {
         static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
-        uint64_t raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
-        MouseDelta frame_mouse_delta = {};
+        uint64_t                raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
+        MouseDelta              frame_mouse_delta = {};
 
         while (true)
         {
             PRAWINPUT rawinput_buffer_ptr = reinterpret_cast<PRAWINPUT>(&raw_input_buffer);
-            UINT out_buffer_size = sizeof(raw_input_buffer);
-            UINT rawinput_count = 0;
+            UINT      out_buffer_size = sizeof(raw_input_buffer);
+            UINT      rawinput_count = 0;
             rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
             if (rawinput_count == 0)
             {
@@ -159,10 +160,7 @@ namespace dmMouseCapture
         GetCursorPos(&pt);
 
         context->m_MessageWindow = CreateWindowEx(
-            0, TEXT("dmMouseCaptureRawInput"), NULL,
-            0, 0, 0, 0, 0,
-            HWND_MESSAGE,
-            NULL, GetModuleHandle(NULL), NULL);
+        0, TEXT("dmMouseCaptureRawInput"), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
 
         if (!context->m_MessageWindow)
             return false;
@@ -182,7 +180,9 @@ namespace dmMouseCapture
             return false;
         }
 
-        while (ShowCursor(FALSE) >= 0) {}
+        while (ShowCursor(FALSE) >= 0)
+        {
+        }
         RECT clipRect;
         clipRect.left = context->m_SavedCursorX;
         clipRect.right = context->m_SavedCursorX + 1;
@@ -218,7 +218,9 @@ namespace dmMouseCapture
         }
 
         ClipCursor(NULL);
-        while (ShowCursor(TRUE) < 0) {}
+        while (ShowCursor(TRUE) < 0)
+        {
+        }
 
         context->m_Capturing = false;
     }

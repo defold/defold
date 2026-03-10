@@ -7,13 +7,13 @@ namespace dmMouseCapture
 {
     struct Context
     {
-        Display* m_Display;
-        Window m_Window;
-        int m_XIOpcode;
-        bool m_Capturing;
+        Display*   m_Display;
+        Window     m_Window;
+        int        m_XIOpcode;
+        bool       m_Capturing;
         MouseDelta m_AccumulatedDelta;
-        int m_SavedCursorX;
-        int m_SavedCursorY;
+        int        m_SavedCursorX;
+        int        m_SavedCursorY;
     };
 
     HContext CreateContext(int save_cursor_x, int save_cursor_y)
@@ -66,9 +66,9 @@ namespace dmMouseCapture
 
         context->m_Window = (Window)window;
 
-        Window root = DefaultRootWindow(context->m_Display);
-        Window dummy;
-        int root_x, root_y, dummy_int;
+        Window       root = DefaultRootWindow(context->m_Display);
+        Window       dummy;
+        int          root_x, root_y, dummy_int;
         unsigned int dummy_uint;
         XQueryPointer(context->m_Display, root, &dummy, &dummy, &root_x, &root_y, &dummy_int, &dummy_int, &dummy_uint);
 
@@ -98,7 +98,7 @@ namespace dmMouseCapture
         if (!context || !context->m_Capturing)
             return;
 
-        Window root = DefaultRootWindow(context->m_Display);
+        Window        root = DefaultRootWindow(context->m_Display);
         unsigned char mask_bytes[(XI_LASTEVENT + 7) / 8];
         memset(mask_bytes, 0, sizeof(mask_bytes));
 
@@ -135,9 +135,9 @@ namespace dmMouseCapture
                     if (ev.xcookie.evtype == XI_RawMotion)
                     {
                         XIRawEvent* raw = (XIRawEvent*)ev.xcookie.data;
-                        double* raw_vals = raw->raw_values;
+                        double*     raw_vals = raw->raw_values;
 
-                        int val_idx = 0;
+                        int         val_idx = 0;
                         for (int i = 0; i < raw->valuators.mask_len * 8; i++)
                         {
                             if (XIMaskIsSet(raw->valuators.mask, i))
@@ -158,8 +158,7 @@ namespace dmMouseCapture
         *out_delta = context->m_AccumulatedDelta;
 
         Window root = DefaultRootWindow(context->m_Display);
-        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0,
-                     context->m_SavedCursorX, context->m_SavedCursorY);
+        XWarpPointer(context->m_Display, None, root, 0, 0, 0, 0, context->m_SavedCursorX, context->m_SavedCursorY);
         XFlush(context->m_Display);
 
         return (context->m_AccumulatedDelta.dx != 0.0 ||
@@ -177,4 +176,4 @@ namespace dmMouseCapture
         XCloseDisplay(context->m_Display);
         delete context;
     }
-}
+} // namespace dmMouseCapture
