@@ -478,6 +478,9 @@ public class Bob {
 
                 opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use"),
 
+                // experimental features
+                opt(null, "experimental-path-minification", ZERO, "Minimizes resource path names in order to save bundle size."),
+
                 // debug options
                 opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip"),
                 opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders"),

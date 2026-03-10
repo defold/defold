@@ -50,7 +50,7 @@ TEST(ResourceChunkCache, Small)
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
 
     // Read chunk 1
-    memset(&getter, 0, sizeof(getter));
+    getter = {};
     ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 0, &getter));
     ASSERT_EQ(0u, getter.m_Offset);
     ASSERT_EQ(8u, getter.m_Size);
@@ -71,7 +71,7 @@ TEST(ResourceChunkCache, Small)
     ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size*1));
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
 
-    memset(&getter, 0, sizeof(getter));
+    getter = {};
     ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 8, &getter));
     ASSERT_EQ(8u, getter.m_Offset);
     ASSERT_EQ(8u, getter.m_Size);
@@ -85,7 +85,7 @@ TEST(ResourceChunkCache, Small)
     ASSERT_FALSE(ResourceChunkCacheCanFit(cache, chunk_size*1));
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
 
-    memset(&getter, 0, sizeof(getter));
+    getter = {};
     ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
     ASSERT_EQ(16u, getter.m_Offset);
     ASSERT_EQ(8u, getter.m_Size);
