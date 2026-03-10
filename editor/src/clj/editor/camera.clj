@@ -378,50 +378,64 @@
 
 (defn- dolly-orthographic [camera ^double delta]
   (let [dolly-fn (fn [^double fov]
-                   (min 1000000.0
-                        (max 0.01 (+ (or fov 0.0)
-                                     (* (or fov 1.0)
-                                        delta)))))]
+                   (let [scale (Math/pow 2.0 (- delta))]
+                     (min 1000000.0
+                          (max 0.01 (* (or fov 1.0) scale)))))]
     (-> camera
         (update :fov-x dolly-fn)
         (update :fov-y dolly-fn))))
 
 (defn- dolly-perspective [camera ^double delta]
-  (let [forward (camera-forward-vector camera)
+  (let [scale (Math/pow 2.0 (- delta))
+        forward (camera-forward-vector camera)
         position (types/position camera)
         focus ^Vector4d (:focus-point camera)
         camera-to-focus-point (doto (Vector3d. (.x focus) (.y focus) (.z focus))
                                 (.sub position))
         distance-to-focus-point (.length camera-to-focus-point)
-        offset-distance (if (pos? delta)
-                          (max 0.01 (* delta distance-to-focus-point))
-                          (min -0.01 (* delta distance-to-focus-point)))]
-    (update camera :position math/offset-scaled forward (- offset-distance))))
+        new-distance (* distance-to-focus-point scale)
+        new-distance (max 0.01 (min 10000.0 new-distance))
+        offset-distance (- distance-to-focus-point new-distance)]
+    (update camera :position math/offset-scaled forward offset-distance)))
 
 (defn dolly [camera delta]
   (case (:type camera)
     :orthographic (dolly-orthographic camera delta)
     :perspective (dolly-perspective camera delta)))
 
-(def ^:private dolly-friction 8.0)
-(def ^:private dolly-sensitivity 0.5)
+(def ^:private zoom-inertia 0.06)
 
-(def ^:private dolly-smooth-speed 10.0)
+(defn- apply-dolly-interpolation [self camera ^double dt]
+  (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
+    (if (nil? target-camera)
+      camera
+      (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
+            current-pos (types/position camera)
+            target-pos (types/position target-camera)
+            new-pos (Point3d. current-pos)
+            _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
+            new-fov-x (+ (* (- 1.0 factor) (double (:fov-x camera)))
+                         (* factor (double (:fov-x target-camera))))
+            new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
+                         (* factor (double (:fov-y target-camera))))
+            pos-dist (.distance ^Point3d new-pos target-pos)
+            fov-close (and (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) 0.001)
+                          (< (Math/abs (- new-fov-y (double (:fov-y target-camera)))) 0.001))
+            converged (and (< pos-dist 0.00001) fov-close)]
+        (if converged
+          (do
+            (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
+            target-camera)
+          (assoc camera
+                 :position new-pos
+                 :fov-x new-fov-x
+                 :fov-y new-fov-y))))))
 
-(defn- apply-dolly-easing [self camera ^double dt]
-  (let [remaining (double (or (:dolly-target (g/user-data self ::camera-state)) 0.0))]
-    (if (< (Math/abs remaining) 0.01)
-      (do
-        (g/user-data-swap! self ::camera-state assoc :dolly-target 0.0)
-        camera)
-      (let [step (* (Math/signum remaining)
-                    (min (Math/abs remaining)
-                         (* ^double dolly-smooth-speed (Math/abs remaining) dt)))]
-        (g/user-data-swap! self ::camera-state assoc :dolly-target (- remaining step))
-        (dolly camera step)))))
-
-(defn- add-dolly-impulse! [self ^double delta]
-  (g/user-data-swap! self ::camera-state update :dolly-target + (* delta ^double dolly-sensitivity)))
+(defn- set-dolly-target! [self ^double delta]
+  (let [current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
+                           (g/node-value self :local-camera))
+        new-target (dolly current-target delta)]
+    (g/user-data-swap! self ::camera-state assoc :dolly-target-camera new-target)))
 
 (defn mode-2d? [camera]
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
@@ -949,7 +963,7 @@
     (case type
       :scroll (if (contains? movements-enabled :dolly)
                 (do
-                  (add-dolly-impulse! self (* -0.002 (double (:delta-y action))))
+                  (set-dolly-target! self (* 0.002 (double (:delta-y action))))
                   nil)
                 action)
       :mouse-pressed
@@ -1115,12 +1129,9 @@
                                      mouse-y
                                      (significant-drag? [mouse-x mouse-y] [initial-x initial-y]))
             camera (cond-> camera
-                     (and (not (zero? scroll-delta-y))
+                     #_#_(and (not (zero? scroll-delta-y))
                           (contains? movements-enabled :dolly))
                      (cond->
-                         :always
-                       (dolly (* -0.002 scroll-delta-y))
-
                        (or (and is-mode-2d (not alt))
                            (and (not is-mode-2d) alt))
                        (pan-at-pointer-position camera viewport [mouse-x mouse-y]))
@@ -1128,7 +1139,7 @@
                      has-mouse-moved
                      (cond->
                          (= :dolly movement)
-                       (dolly (* -0.002 (- mouse-y last-y)))
+                       (as-> c (do (set-dolly-target! self (* -0.002 (- mouse-y last-y))) c))
                        (and (= :track movement)
                             #_is-significant-drag)
                        (track viewport last-x last-y mouse-x mouse-y)
@@ -1137,7 +1148,7 @@
 
                      filter-fn
                      filter-fn)
-            camera (apply-dolly-easing self camera dt)]
+            camera (apply-dolly-interpolation self camera dt)]
         (g/set-property! self :local-camera camera)
         (when has-mouse-moved
           (g/user-data-swap! self ::camera-state assoc
