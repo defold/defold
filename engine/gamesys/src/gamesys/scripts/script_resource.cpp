@@ -2816,6 +2816,9 @@ static int GetAtlas(lua_State* L)
         // that to animations and have no concept of input textures.
         // So we need this indirection to be able to support both creating custom animations in runtime
         // and the way we have created the DDF in the build pipeline.
+        // Note:
+        // frame_start and frame_end should be considered deprecated in favour of frames
+        // see https://github.com/defold/defold/issues/11956#issuecomment-4023849040
         uint32_t index_start = texture_set->m_FrameIndices[anim.m_Start];
         uint32_t index_end   = index_start + (anim.m_End - anim.m_Start);
 
