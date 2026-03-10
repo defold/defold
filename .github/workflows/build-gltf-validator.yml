@@ -57,11 +57,14 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: KhronosGroup/glTF-Validator
+          ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 2.19.6  # last stable before Dart 3
 
       - name: Install dependencies
         run: dart pub get
@@ -69,12 +72,10 @@ jobs:
       - name: Build
         run: dart run grinder exe-archive
 
-      - name: Rename artifact
+      - name: Create artifact archive
         run: |
-          cd build
-          for f in gltf_validator-*-linux.tar.xz; do
-            mv "$f" "gltf_validator-${{ matrix.platform }}.tar.xz"
-          done
+          cd build/bin
+          tar -cJf "../gltf_validator-${{ matrix.platform }}.tar.xz" gltf_validator LICENSE NOTICES docs/
 
       - name: Check artifact
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
