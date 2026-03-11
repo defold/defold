@@ -907,32 +907,36 @@
 
 (defn start-free-cam-mode! [^ImageView image-view camera-id current-cursor-pos]
   ;; TODO JOE: There's a bug where if you try to start free cam mode while realign camera is animating, it messes up
-  (let [local-camera (g/node-value camera-id :local-camera)
-        current-camera (cond-> local-camera
-                         (= :orthographic (:type local-camera))
-                         (camera-orthographic->perspective fov-y-35mm-full-frame))
-        [pitch yaw _] (math/quat->euler (:rotation current-camera))
-        focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
-        ;; TODO JOE: do we get this from somewhere else?
-        bounds (.localToScreen image-view (.getBoundsInLocal image-view))
-        center-x (int (+ (.getMinX bounds) (/ (.getWidth bounds) 2.0)))
-        center-y (int (+ (.getMinY bounds) (/ (.getHeight bounds) 2.0)))]
-    (toggle-free-cam-css image-view true)
-    ;; NOTE: If we don't move the camera to the center, then fast mouse movements might mouse over other nodes, and JavaFX will
-    ;; reset our cursor visibility
-    (i/start-mouse-capture center-x center-y)
-    (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
-    (g/set-property! camera-id :cursor-type :none)
-    ;; TODO: Clean up these constructors/destructors
-    (g/user-data-swap! camera-id ::camera-state merge
-      {:free-cam-mode true
-       :free-cam-cursor-start-pos current-cursor-pos
-       :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
-       :free-cam-pitch pitch
-       :free-cam-yaw yaw
-       :smooth-pitch pitch
-       :smooth-yaw yaw
-       :free-cam-smoothed-look-delta [0.0 0.0]})))
+  (when (not (:free-cam-mode (g/user-data camera-id ::camera-state)))
+    ;; NOTE: If the dolly is animating, this prevents funkiness
+    (reset-dolly! camera-id)
+    (let [local-camera (g/node-value camera-id :local-camera)
+          current-camera (cond-> local-camera
+                           (= :orthographic (:type local-camera))
+                           (camera-orthographic->perspective fov-y-35mm-full-frame))
+          [pitch yaw _] (math/quat->euler (:rotation current-camera))
+          focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
+          ;; TODO JOE: do we get this from somewhere else?
+          bounds (.localToScreen image-view (.getBoundsInLocal image-view))
+          center-x (int (+ (.getMinX bounds) (/ (.getWidth bounds) 2.0)))
+          center-y (int (+ (.getMinY bounds) (/ (.getHeight bounds) 2.0)))]
+      (toggle-free-cam-css image-view true)
+      ;; NOTE: If we don't move the camera to the center, then fast mouse movements might mouse over other nodes, and JavaFX will
+      ;; reset our cursor visibility
+      (i/start-mouse-capture center-x center-y)
+      ;; TODO JOE: Combine these
+      (g/set-property! camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
+      (g/set-property! camera-id :cursor-type :none)
+      ;; TODO: Clean up these constructors/destructors
+      (g/user-data-swap! camera-id ::camera-state merge
+        {:free-cam-mode true
+         :free-cam-cursor-start-pos current-cursor-pos
+         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
+         :free-cam-pitch pitch
+         :free-cam-yaw yaw
+         :smooth-pitch pitch
+         :smooth-yaw yaw
+         :free-cam-smoothed-look-delta [0.0 0.0]}))))
 
 (defn stop-free-cam-mode! [image-view camera-id]
   (ui/set-cursor image-view Cursor/DEFAULT)
@@ -1044,15 +1048,12 @@
         (and (contains? (:mouse-buttons input-state) :secondary)
              (not free-cam-mode)
              (contains? (free-cam-movement-keys (g/node-value self :prefs)) key-code))
-        ;; TODO JOE: There's a bug here where if we start immediately, the proper
-        ;; focus-point + focus-distance hasn't been calculated yet
         (start-free-cam-mode! image-view self (:cursor-pos input-state)))
 
       ;; NOTE: Don't let other handlers receive input if we're in free camera mode
-      free-cam-mode
-      nil
-
-      action)))
+      (if free-cam-mode
+        nil
+        action))))
 
 (def ^:private camera-speed 5.0)
 (def ^:private camera-speed-boost 3.0)
