@@ -2024,7 +2024,7 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             num_animation_frames++;
         }
     }
-    lua_pop(L, 1); // geometries
+    lua_pop(L, 1);
 
     lua_getfield(L, -1, "animations");
     if (!lua_isnil(L, -1))
@@ -2101,7 +2101,7 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             lua_pop(L, 1); // pop table value, table key is top
         }
     }
-    lua_pop(L, 1); // animations
+    lua_pop(L, 1);
 
     *num_animations_out       = num_animations;
     *num_geometries_out       = num_geometries;
@@ -2300,7 +2300,6 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
         {
             lua_pushnumber(L, i+1);
             lua_gettable(L, -2);
-
 
             dmGameSystemDDF::TextureSetAnimation& animation = texture_set_ddf->m_Animations[i];
 
