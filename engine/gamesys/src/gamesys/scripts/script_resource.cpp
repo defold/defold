@@ -2289,13 +2289,12 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
         lua_pop(L, 1); // geometries
     }
 
+    // We can write all geometry UV bounds
+    memcpy(texcoord_ptr, geometry_scratch_ptr, num_geometries * sizeof(float) * 8);
+    texcoord_ptr += num_geometries * 8;
+
     if (num_animations > 0)
     {
-
-        // We can write all geometry UV bounds
-        memcpy(texcoord_ptr, geometry_scratch_ptr, num_geometries * sizeof(float) * 8);
-        texcoord_ptr += num_geometries * 8;
-
         lua_getfield(L, -1, "animations");
         for (int i = 0; i < num_animations; ++i)
         {
@@ -2337,11 +2336,11 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                     lua_gettable(L, -2); // pop frames index and get animation frame index
 
                     // copy geometry and write frame
-                    uint32_t animation_frame_index = luaL_checknumber(L, -1);
+                    uint32_t animation_frame_index = luaL_checknumber(L, -1) - 1;
                     float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
                     memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
                     texcoord_ptr += 8;
-                    texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index - 1;
+                    texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
                     lua_pop(L, 1); // pop animation frame index
                 }
 
@@ -2355,13 +2354,13 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                 int frame_start = lua_tointeger(L, -1);
                 lua_pop(L, 1);
 
-                lua_getfield(L, -1, "frame_end");
+                lua_getfield(L, -1, "frame_end"); // non-inclusive
                 int frame_end = lua_tointeger(L, -1);
                 lua_pop(L, 1);
 
-                int frame_count = (frame_end - frame_start) + 1;
+                int frame_count = (frame_end - frame_start);
                 animation.m_Start  = frame_index;
-                animation.m_End    = frame_index + frame_count - 1;
+                animation.m_End    = frame_index + frame_count;
 
                 // Values stored in the frame indices table refer to entries in the
                 // m_Geometry table of the DDF, so we need to adjust the values so
@@ -2369,12 +2368,12 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                 // the indirection works when getting animations in e.g comp_sprite
                 for (int j = 0; j < frame_count; ++j)
                 {
-                    uint32_t animation_frame_index = frame_start + j - num_geometries;
+                    uint32_t animation_frame_index = frame_start + j - 1;
                     float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
                     memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
 
                     texcoord_ptr += 8;
-                    texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index - 1;
+                    texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
                 }
 
             }
