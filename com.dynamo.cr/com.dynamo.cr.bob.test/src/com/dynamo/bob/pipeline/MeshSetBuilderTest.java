@@ -16,68 +16,45 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
+
+import com.dynamo.bob.fs.IResource;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.CompileExceptionError;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
+    private static final Map<String, String> invalidGLTFFiles = new HashMap<String, String>();
+
+    static {
+        invalidGLTFFiles.put("/gltf/accessor_normalized_invalid.gltf", "ACCESSOR_NORMALIZED_INVALID");
+        invalidGLTFFiles.put("/gltf/accessor_offset_alignment.gltf", "ACCESSOR_OFFSET_ALIGNMENT");
+        invalidGLTFFiles.put("/gltf/buffer_view_too_long.gltf", "BUFFER_VIEW_TOO_LONG");
+        invalidGLTFFiles.put("/gltf/index_out_of_bounds.gltf", "ACCESSOR_INDEX_OOB");
+        invalidGLTFFiles.put("/gltf/node_matrix_and_trs.gltf", "NODE_MATRIX_TRS");
+        invalidGLTFFiles.put("/gltf/position_accessor_no_bounds.gltf", "MESH_PRIMITIVE_POSITION_ACCESSOR_WITHOUT_BOUNDS");
+        invalidGLTFFiles.put("/gltf/rotation_non_unit.gltf", "ROTATION_NON_UNIT");
+        invalidGLTFFiles.put("/gltf/scene_non_root_node.gltf", "SCENE_NON_ROOT_NODE");
+        invalidGLTFFiles.put("/gltf/unequal_accessor_count.gltf", "MESH_PRIMITIVE_UNEQUAL_ACCESSOR_COUNT");
+        invalidGLTFFiles.put("/gltf/unknown_major_version.gltf", "UNKNOWN_ASSET_MAJOR_VERSION");
+    }
+
+    String[] validGLTFFiles = {
+            "/gltf/valid.gltf",
+    };
+
     @Before
     public void setup() {
         addTestFiles();
     }
 
-    private GLTFValidator.ValidateResult parseValidatorResult(String errorText) {
-        GLTFValidator.ValidateResult result = new GLTFValidator.ValidateResult();
-        result.result = true;
-
-        if (errorText == null) {
-            return result;
-        }
-
-        String[] lines = errorText.split("\\r?\\n");
-        for (String line : lines) {
-            line = line.trim();
-            if (!line.startsWith("- ")) {
-                continue;
-            }
-
-            // Strip leading "- "
-            String body = line.substring(2).trim();
-
-            String message = body;
-            String pointer = null;
-            String code = null;
-
-            int paren = body.indexOf(" (");
-            if (paren != -1 && body.endsWith(")")) {
-                message = body.substring(0, paren).trim();
-                String inside = body.substring(paren + 2, body.length() - 1);
-                String[] parts = inside.split(",\\s*");
-                for (String part : parts) {
-                    if (part.startsWith("pointer: ")) {
-                        pointer = part.substring("pointer: ".length());
-                    } else if (part.startsWith("code: ")) {
-                        code = part.substring("code: ".length());
-                    }
-                }
-            }
-
-            GLTFValidator.ValidateError err = new GLTFValidator.ValidateError();
-            err.message = message;
-            err.pointer = pointer;
-            err.code = code;
-            result.errors.add(err);
-        }
-
-        if (!result.errors.isEmpty()) {
-            result.result = false;
-        }
-        return result;
-    }
-
-    private GLTFValidator.ValidateResult doTest(String glTF) {
+    // Return the exception as string if the validation fails
+    private String doTest(String glTF) {
         String template =
                 "name: \"invalid_gltf_model\"\n" +
                 "mesh: \"%s\"\n" +
@@ -85,32 +62,60 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 "default_animation: \"invalid\"\n";
         try {
             build("/test_model.model", String.format(template, glTF, glTF));
-            GLTFValidator.ValidateResult ok = new GLTFValidator.ValidateResult();
-            ok.result = true;
-            return ok;
-        } catch (CompileExceptionError e) {
-            return parseValidatorResult(e.getMessage());
+            return null;
         } catch (Exception e) {
-            GLTFValidator.ValidateResult res = new GLTFValidator.ValidateResult();
-            res.result = false;
-            GLTFValidator.ValidateError err = new GLTFValidator.ValidateError();
-            err.message = e.getMessage();
-            res.errors.add(err);
-            return res;
+            return e.getMessage();
         }
     }
 
     @Test
-    public void testValidGLTF() {
-        GLTFValidator.ValidateResult res = doTest("/gltf/valid.gltf");
-        assertTrue(res.result);
-        assertTrue(res.errors.isEmpty());
+    public void testMeshSetGLTFValid() {
+        for (String validGLTFFile : validGLTFFiles) {
+            String res = doTest(validGLTFFile);
+            assertNull(res);
+        }
     }
 
     @Test
-    public void testInvalidGLTF() {
-        GLTFValidator.ValidateResult res = doTest("/gltf/accessor_element_out_of_max_bound.gltf");
-        assertFalse(res.result);
-        assertFalse(res.errors.isEmpty());
+    public void testMeshSetGLTFInvalid() {
+        for (Map.Entry<String, String> entry : invalidGLTFFiles.entrySet()) {
+            String invalidGLTFFile = entry.getKey();
+            String expectedCode = entry.getValue();
+
+            String res = doTest(invalidGLTFFile);
+            assertNotNull(res);
+            assertTrue(res.contains(expectedCode));
+        }
+    }
+
+    @Test
+    public void testGLTFValidatorValid() throws IOException {
+        for (String validGLTFFile : validGLTFFiles) {
+            IResource projectRes = getFileSystem().get(validGLTFFile);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getAbsPath());
+            assertTrue(res.result);
+        }
+    }
+
+    @Test
+    public void testGLTFValidatorInvalid() throws IOException {
+        for (Map.Entry<String, String> entry : invalidGLTFFiles.entrySet()) {
+            String invalidGLTFFile = entry.getKey();
+            String expectedCode = entry.getValue();
+
+            IResource projectRes = getFileSystem().get(invalidGLTFFile);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getAbsPath());
+            assertFalse(res.result);
+            assertFalse(res.errors.isEmpty());
+
+            boolean found = false;
+            for (GLTFValidator.ValidateError err : res.errors) {
+                if (err.code != null && err.code.contains(expectedCode)) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found);
+        }
     }
 }

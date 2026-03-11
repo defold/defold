@@ -1,9 +1,6 @@
 name: Build glTF Validator
 
 on:
-  push:
-    branches:
-      - issue-10478-gltf-validator
   workflow_dispatch:
 
 permissions:
