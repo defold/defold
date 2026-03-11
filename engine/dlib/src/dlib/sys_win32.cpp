@@ -23,6 +23,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <limits.h> // UINT_MAX
 
 #include "sys.h"
 #include "log.h"
@@ -52,8 +53,6 @@
 
 namespace dmSys
 {
-    static const uint64_t UINT32_MAX_VALUE = 0xFFFFFFFFu;
-
     char* GetEnv(const char* name)
     {
         return getenv(name);
@@ -358,7 +357,7 @@ namespace dmSys
                 return RESULT_NOENT;
             }
 
-            if (file_stat.st_size > UINT32_MAX_VALUE)
+            if (file_stat.st_size > UINT_MAX)
             {
                 return RESULT_FBIG;
             }
@@ -379,7 +378,7 @@ namespace dmSys
                 return RESULT_NOENT;
             }
 
-            if (file_stat.st_size > UINT32_MAX_VALUE)
+            if (file_stat.st_size > UINT_MAX)
             {
                 return RESULT_FBIG;
             }
