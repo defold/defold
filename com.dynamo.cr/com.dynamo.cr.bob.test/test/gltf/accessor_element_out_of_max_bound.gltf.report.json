@@ -1,0 +1,73 @@
+{
+    "uri": "com.dynamo.cr/com.dynamo.cr.bob.test/test/gltf/accessor_element_out_of_max_bound.gltf",
+    "mimeType": "model/gltf+json",
+    "validatorVersion": "2.0.0-dev.3.10",
+    "issues": {
+        "numErrors": 4,
+        "numWarnings": 0,
+        "numInfos": 0,
+        "numHints": 2,
+        "messages": [
+            {
+                "code": "BUFFER_VIEW_TARGET_MISSING",
+                "message": "bufferView.target should be set for vertex or index data.",
+                "severity": 3,
+                "pointer": "/meshes/0/primitives/0/attributes/POSITION"
+            },
+            {
+                "code": "BUFFER_VIEW_TARGET_MISSING",
+                "message": "bufferView.target should be set for vertex or index data.",
+                "severity": 3,
+                "pointer": "/meshes/0/primitives/0/indices"
+            },
+            {
+                "code": "ACCESSOR_MAX_MISMATCH",
+                "message": "Declared maximum value for this component (0.10000000149011612) does not match actual maximum (1.0).",
+                "severity": 0,
+                "pointer": "/accessors/0/max/0"
+            },
+            {
+                "code": "ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND",
+                "message": "Accessor contains 1 element(s) greater than declared maximum value 0.10000000149011612.",
+                "severity": 0,
+                "pointer": "/accessors/0/max/0"
+            },
+            {
+                "code": "ACCESSOR_MAX_MISMATCH",
+                "message": "Declared maximum value for this component (0.10000000149011612) does not match actual maximum (1.0).",
+                "severity": 0,
+                "pointer": "/accessors/0/max/1"
+            },
+            {
+                "code": "ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND",
+                "message": "Accessor contains 1 element(s) greater than declared maximum value 0.10000000149011612.",
+                "severity": 0,
+                "pointer": "/accessors/0/max/1"
+            }
+        ],
+        "truncated": false
+    },
+    "info": {
+        "version": "2.0",
+        "resources": [
+            {
+                "pointer": "/buffers/0",
+                "mimeType": "application/gltf-buffer",
+                "storage": "data-uri",
+                "byteLength": 44
+            }
+        ],
+        "animationCount": 0,
+        "materialCount": 0,
+        "hasMorphTargets": false,
+        "hasSkins": false,
+        "hasTextures": false,
+        "hasDefaultScene": true,
+        "drawCallCount": 1,
+        "totalVertexCount": 3,
+        "totalTriangleCount": 1,
+        "maxUVs": 0,
+        "maxInfluences": 0,
+        "maxAttributes": 1
+    }
+}
