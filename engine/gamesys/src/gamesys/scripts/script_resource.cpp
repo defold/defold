@@ -2363,9 +2363,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                 animation.m_End    = frame_index + frame_count;
 
                 // Values stored in the frame indices table refer to entries in the
-                // m_Geometry table of the DDF, so we need to adjust the values so
-                // that the start and end values are based from zero because that is how
-                // the indirection works when getting animations in e.g comp_sprite
+                // m_Geometry table of the DDF
                 for (int j = 0; j < frame_count; ++j)
                 {
                     uint32_t animation_frame_index = frame_start + j - 1;
