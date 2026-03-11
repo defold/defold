@@ -2683,6 +2683,11 @@ namespace dmGameSystem
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
+        dmhash_t name_hash = ResourceTypeGetNameHash(params->m_Type);
+        if (name_hash != TEXTURE_SET_EXT_HASH)
+        {
+            return;
+        }
         SpriteWorld* sprite_world = (SpriteWorld*) params->m_UserData;
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t component_count = components.Size();
