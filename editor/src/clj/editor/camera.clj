@@ -378,58 +378,72 @@
 
 (defn- dolly-orthographic [camera ^double delta]
   (let [dolly-fn (fn [^double fov]
-                   (let [scale (Math/pow 2.0 (- delta))]
-                     (min 1000000.0
-                          (max 0.01 (* (or fov 1.0) scale)))))]
+                   (min 1000000.0
+                        (max 0.01 (+ (or fov 0.0)
+                                     (* (or fov 1.0)
+                                        delta)))))]
     (-> camera
         (update :fov-x dolly-fn)
         (update :fov-y dolly-fn))))
 
 (defn- dolly-perspective [camera ^double delta]
-  (let [scale (Math/pow 2.0 (- delta))
-        forward (camera-forward-vector camera)
+  (let [forward (camera-forward-vector camera)
         position (types/position camera)
         focus ^Vector4d (:focus-point camera)
         camera-to-focus-point (doto (Vector3d. (.x focus) (.y focus) (.z focus))
                                 (.sub position))
         distance-to-focus-point (.length camera-to-focus-point)
-        new-distance (* distance-to-focus-point scale)
-        new-distance (max 0.01 (min 10000.0 new-distance))
-        offset-distance (- distance-to-focus-point new-distance)]
+        offset-distance (if (pos? delta)
+                          (max 0.01 (* delta distance-to-focus-point))
+                          (min -0.01 (* delta distance-to-focus-point)))]
     (update camera :position math/offset-scaled forward offset-distance)))
 
-(defn dolly [camera delta]
+(defn dolly [camera ^double delta]
   (case (:type camera)
-    :orthographic (dolly-orthographic camera delta)
+    :orthographic (dolly-orthographic camera (- delta))
     :perspective (dolly-perspective camera delta)))
 
 (def ^:private zoom-inertia 0.06)
 
-(defn- apply-dolly-interpolation [self camera ^double dt]
+(defn- apply-dolly-interpolation-perspective [self camera ^double dt]
   (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
     (if (nil? target-camera)
       camera
       (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
             current-pos (types/position camera)
             target-pos (types/position target-camera)
+            ;; TODO: Avoid allocation here
             new-pos (Point3d. current-pos)
             _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
+            distance (.distance ^Point3d new-pos target-pos)]
+        (if (< distance 10.0)
+          (do
+            (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
+            target-camera)
+          (assoc camera :position new-pos))))))
+
+(defn- apply-dolly-interpolation-orthographic [self camera ^double dt]
+  (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
+    (if (nil? target-camera)
+      camera
+      (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
             new-fov-x (+ (* (- 1.0 factor) (double (:fov-x camera)))
                          (* factor (double (:fov-x target-camera))))
             new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
-                         (* factor (double (:fov-y target-camera))))
-            pos-dist (.distance ^Point3d new-pos target-pos)
-            fov-close (and (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) 0.001)
-                          (< (Math/abs (- new-fov-y (double (:fov-y target-camera)))) 0.001))
-            converged (and (< pos-dist 0.00001) fov-close)]
-        (if converged
+                         (* factor (double (:fov-y target-camera))))]
+        (if (and (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) 10.0)
+                 (< (Math/abs (- new-fov-y (double (:fov-y target-camera)))) 10.0))
           (do
             (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
             target-camera)
           (assoc camera
-                 :position new-pos
                  :fov-x new-fov-x
                  :fov-y new-fov-y))))))
+
+(defn- apply-dolly-interpolation [self camera ^double dt]
+  (case (:type camera)
+    :perspective (apply-dolly-interpolation-perspective self camera dt)
+    :orthographic (apply-dolly-interpolation-orthographic self camera dt)))
 
 (defn- set-dolly-target! [self ^double delta]
   (let [current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
