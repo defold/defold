@@ -318,7 +318,7 @@
     (.setStroke gc stroke)
     (.setLineWidth gc 1.0)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.5 0.5)]
+      :word (let [^Rect r (data/expand-rect (first rects) 1.5 0.0)]
               (assert (= 1 (count rects)))
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
