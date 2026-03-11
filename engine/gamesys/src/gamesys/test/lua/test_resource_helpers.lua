@@ -12,17 +12,23 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-function make_anim(id, width, height, fstart, fend)
-    local anim = {
+function make_anim(id, width, height, frames)
+    return {
         id=id,
         width=width,
         height=height,
-        frames={}
+        frames=frames
     }
-    for i=fstart,fend - 1 do
-        table.insert(anim.frames, i)
-    end
-    return anim
+end
+
+function make_anim_from_startend(id, width, height, fstart, fend)
+    return {
+        id=id,
+        width=width,
+        height=height,
+        frame_start=fstart,
+        frame_end=fend
+    }
 end
 
 function make_quad(w, h, x, y)
@@ -45,9 +51,15 @@ function assert_anim(a, expected)
     assert(a.height          == expected.height)
     assert(a.frames)
 
-    assert(#a.frames == #expected.frames)
-    for i = 1, #expected.frames do
-        assert(a.frames[i] == expected.frames[i])
+    if expected.frames then
+        assert(#a.frames == #expected.frames)
+        for i = 1, #expected.frames do
+            assert(a.frames[i] == expected.frames[i])
+        end
+    else
+        assert(expected.frame_start)
+        assert(expected.frame_end)
+        assert(a.frames)
     end
 
     -- Optional entries, test only if required

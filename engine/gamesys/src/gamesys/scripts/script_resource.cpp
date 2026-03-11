@@ -2059,13 +2059,29 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             if (!lua_isnil(L, -1))
             {
                 luaL_checktype(L, -1, LUA_TTABLE);
-                frame_interval = lua_objlen(L, -1);
-                lua_pop(L, 1); // frames
+                size_t frame_count = lua_objlen(L, -1);
+                frame_interval = frame_count;
+
+                // verify that list of animation frames exist in the geometry
+                for (int j=0; j < frame_count; ++j)
+                {
+                    lua_pushinteger(L, j + 1);
+                    lua_gettable(L, -2); // pop frames index and get animation frame index
+                    uint32_t animation_frame_index = luaL_checknumber(L, -1);
+                    if (animation_frame_index < 1 || animation_frame_index > (num_geometries+1))
+                    {
+                        luaL_error(L, "Invalid frame in animation [%d], index %d is outside of geometry bounds 1..%d",
+                            animation_index, animation_frame_index, num_geometries);
+                    }
+                    lua_pop(L, 1); // pop animation frame index
+                }
 
                 if (frame_interval <= 0)
                 {
                     luaL_error(L, "Invalid frame interval in animation [%d], animation is empty", animation_index);
                 }
+
+                lua_pop(L, 1); // frames
             }
             else
             {
@@ -2077,13 +2093,13 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
                 frame_interval = frame_end - frame_start;
                 if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
                 {
-                    luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 0..%d",
+                    luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 1..%d",
                             animation_index, frame_start, num_geometries);
                 }
 
                 if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
                 {
-                    luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 0..%d",
+                    luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 1..%d",
                         animation_index, frame_end, num_geometries);
                 }
 

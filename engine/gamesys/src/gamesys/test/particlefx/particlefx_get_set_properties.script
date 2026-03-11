@@ -72,8 +72,8 @@ local function test_get_set_image_overrides()
     local atlas_id = resource.create_atlas("/test_atlas.texturesetc", {
         texture = "/test_simple.texturec",
         animations = {
-            make_anim("test_anim_1", 128, 128, 1, 2),
-            make_anim("test_anim_2", 128, 128, 1, 2),
+            make_anim("test_anim_1", 128, 128, { 1 }),
+            make_anim("test_anim_2", 128, 128, { 1 }),
         },
         geometries = {make_quad(128, 128, 0, 0)}
     })

@@ -24,8 +24,7 @@ local function assert_error(func)
     assert(not r)
 end
 
-local function test_create_get_atlas(self)
-    local test_anim = make_anim("test_anim", 128, 128, 1, 2)
+local function test_create_get_atlas(self, test_anim)
     local test_geo = make_quad(128, 128, 0, 0)
 
     local atlas_id = resource.create_atlas("/test_create.texturesetc", {
@@ -40,18 +39,16 @@ local function test_create_get_atlas(self)
     assert(#data.animations == 1)
     assert(#data.geometries == 1)
 
-    for k,v in pairs(data.animations) do
-        assert_anim(v, test_anim)
-    end
-    for k,v in pairs(data.geometries) do
-        assert_geo(v, test_geo)
-    end
+    assert_anim(data.animations[1], test_anim)
+    assert_geo(data.geometries[1], test_geo)
+
+    resource.release(atlas_id)
 end
 
 local function test_create_release_atlas(self)
     local atlas_id = resource.create_atlas("/test_release.texturesetc", {
         texture = self.valid_texture_path,
-        animations = {make_anim("test_anim", 128, 128, 1, 2)},
+        animations = {make_anim("test_anim", 128, 128, { 1 })},
         geometries = {make_quad(128, 128, 0, 0)}
     })
 
@@ -173,11 +170,15 @@ local function test_atlas_invalid(self, fn, valid_path)
 
     -- test specifying animations but no geometry
     assert_error(function() fn(valid_path, {
-        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, 1, 2)}, geometries = {}}) end)
+        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, { 1 })}, geometries = {}}) end)
 
     -- test specifying incorrect animation start/end
     assert_error(function() fn(valid_path, {
-        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, 0, 0)}, geometries = {make_quad(1,1,1,1)}}) end)
+        texture = self.valid_texture_path, animations = {make_anim_from_startend("test", 1, 1, 0, 0)}, geometries = {make_quad(1,1,1,1)}}) end)
+
+    -- test specifying incorrect animation frames
+    assert_error(function() fn(valid_path, {
+        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, { 0 })}, geometries = {make_quad(1,1,1,1)}}) end)
 
     -- test uneven components in data array
     assert_error(function() fn(valid_path, {
@@ -194,7 +195,8 @@ function init(self)
     self.valid_texture_path = "/tile/mario_tileset.texturec"
 
     -- valid tests
-    test_create_get_atlas(self)
+    test_create_get_atlas(self, make_anim("test_anim", 128, 128, { 1 }))
+    test_create_get_atlas(self, make_anim_from_startend("test_anim", 128, 128, 1, 2))
     test_create_release_atlas(self)
     test_get_set_atlas(self)
     test_get_atlas_frames_non_contiguous(self)
