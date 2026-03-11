@@ -2530,8 +2530,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *                 id          = "my_animation",
  *                 width       = 128,
  *                 height      = 128,
- *                 frame_start = 1,
- *                 frame_end   = 2,
+ *                 frames      = { 1 }
  *             }
  *         },
  *         geometries = {
@@ -2723,8 +2722,7 @@ static int CreateAtlas(lua_State* L)
  *                 id          = "my_animation",
  *                 width       = 256,
  *                 height      = 256,
- *                 frame_start = 1,
- *                 frame_end   = 2,
+ *                 frames      = { 1 }
  *             }
  *         },
  *         geometries = {
