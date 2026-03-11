@@ -415,8 +415,11 @@
             ;; TODO: Avoid allocation here
             new-pos (Point3d. current-pos)
             _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
-            distance (.distance ^Point3d new-pos target-pos)]
-        (if (< distance 10.0)
+            distance (.distance ^Point3d new-pos target-pos)
+            fp ^Vector4d (:focus-point camera)
+            fp (Point3d. (.x fp) (.y fp) (.z fp))
+            focus-point-distance (.distance fp new-pos)]
+        (if (< distance (* focus-point-distance 0.002))
           (do
             (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
             target-camera)
@@ -430,9 +433,10 @@
             new-fov-x (+ (* (- 1.0 factor) (double (:fov-x camera)))
                          (* factor (double (:fov-x target-camera))))
             new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
-                         (* factor (double (:fov-y target-camera))))]
-        (if (and (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) 10.0)
-                 (< (Math/abs (- new-fov-y (double (:fov-y target-camera)))) 10.0))
+                         (* factor (double (:fov-y target-camera))))
+            ;; Calculate dynamic threshold so long distances don't animate for long, and short distances don't stop abruptly
+            threshold (* ^double (:fov-x camera) 0.008)]
+        (if (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) threshold)
           (do
             (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
             target-camera)
@@ -450,6 +454,11 @@
                            (g/node-value self :local-camera))
         new-target (dolly current-target delta)]
     (g/user-data-swap! self ::camera-state assoc :dolly-target-camera new-target)))
+
+(defn- reset-dolly! [self]
+  (when-let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
+    (g/user-data-swap! self ::camera-state assoc :dolly-target-camera nil)
+    (g/set-property! self :local-camera target-camera)))
 
 (defn mode-2d? [camera]
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
@@ -975,13 +984,17 @@
                                  y
                                  (significant-drag? [x y] [initial-x initial-y]))]
     (case type
-      :scroll (if (contains? movements-enabled :dolly)
+      :scroll (if (and (contains? movements-enabled :dolly)
+                       (not free-cam-mode))
                 (do
                   (set-dolly-target! self (* 0.002 (double (:delta-y action))))
                   nil)
                 action)
       :mouse-pressed
       (do
+        ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly,
+        ;; just reset it
+        (reset-dolly! self)
         (g/user-data-swap! self ::camera-state assoc
                            :last-x x
                            :last-y y
