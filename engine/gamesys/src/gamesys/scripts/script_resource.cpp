@@ -2098,7 +2098,7 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
 
             num_animation_frames += frame_interval;
 
-            lua_pop(L, 1); // pop table value, table key is top
+            lua_pop(L, 1);
         }
     }
 
