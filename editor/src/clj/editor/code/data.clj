@@ -41,6 +41,9 @@
   (line-height [this] "A rounded double representing the line height.")
   (char-width [this character] "A rounded double representing the width of the specified character."))
 
+(defmacro clamp [value minimum maximum]
+  `(max ~minimum (min ~value ~maximum)))
+
 (defn- identifier-character-at-index? [line ^long index]
   (if-some [^char character (get line index)]
     (case character
@@ -467,6 +470,27 @@
           (- (.y r) y)
           (+ (.w r) (* 2.0 x))
           (+ (.h r) (* 2.0 y))))
+
+(defn rect-intersection
+  "Returns either nil if no intersection or a Rect of some area where the two
+  input rectangles intersect. See also cursor-range-intersection."
+  ^Rect [^Rect a ^Rect b]
+  (let [al (.x a)
+        at (.y a)
+        ar (+ al (.w a))
+        ab (+ at (.h a))
+        bl (.x b)
+        bt (.y b)
+        br (+ bl (.w b))
+        bb (+ bt (.h b))
+        l (clamp al bl br)
+        r (clamp ar bl br)
+        t (clamp at bt bb)
+        b (clamp ab bt bb)
+        w (- r l)
+        h (- b t)]
+    (when (and (pos? w) (pos? h))
+      (->Rect l t w h))))
 
 (defn- outer-bounds
   ^Rect [^Rect a ^Rect b]

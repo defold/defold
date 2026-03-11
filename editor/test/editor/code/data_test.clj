@@ -15,7 +15,7 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.code.data :as data :refer [->Cursor ->CursorRange]]
+            [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
             [editor.code.script :as script])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
@@ -1587,6 +1587,52 @@
       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
                                                 (cr [0 0] [0 0])))))))
 
+(deftest rect-intersection-test
+  (testing "no intersection => nil"
+    (testing "not touching"
+      (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                        (->Rect 2 0 1 1))))
+      (is (nil? (data/rect-intersection (->Rect 2 0 1 1)
+                                        (->Rect 0 0 1 1)))))
+    (testing "touching"
+      (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                        (->Rect 1 0 1 1))))
+      (is (nil? (data/rect-intersection (->Rect 1 0 1 1)
+                                        (->Rect 0 0 1 1))))
+      (testing "one is empty"
+        (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                          (->Rect 1 0 0 0))))
+        (is (nil? (data/rect-intersection (->Rect 1 0 0 0)
+                                          (->Rect 0 0 1 1))))
+        (is (nil? (data/rect-intersection (->Rect 0 0 0 0)
+                                          (->Rect 0 0 1 1))))
+        (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                          (->Rect 0 0 0 0)))))))
+  (testing "one within another"
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 0 0 3 1)
+                                   (->Rect 1 0 1 1))))
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 1 0 1 1)
+                                   (->Rect 0 0 3 1))))
+    (testing "empty is still nil"
+      (is (nil? (data/rect-intersection (->Rect 0 0 2 1)
+                                        (->Rect 1 0 0 0))))))
+  (testing "partial intersection"
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 0 0 2 1)
+                                   (->Rect 1 0 2 1))))
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 1 0 2 1)
+                                   (->Rect 0 0 2 1)))))
+  (testing "full overlap"
+    (is (= (->Rect 0 0 1 1)
+           (data/rect-intersection (->Rect 0 0 1 1)
+                                   (->Rect 0 0 1 1))))
+    (testing "empty is still nil"
+      (is (nil? (data/rect-intersection (->Rect 0 0 0 0)
+                                        (->Rect 0 0 0 0)))))))
+
 (deftest syntax-scope-before-cursor-test
   (let [syntax-scope-before-cursor (fn syntax-scope-before-cursor [lines cursor]
                                      (data/syntax-scope-before-cursor
@@ -1605,7 +1651,6 @@
            (syntax-scope-before-cursor ["'bar'"] (->Cursor 0 5))))
     (is (= "comment.block.lua"
            (syntax-scope-before-cursor ["--[[" "inside a comment" "]]"] (->Cursor 1 1))))))
-
 
 (deftest auto-insert-test
   (let [key-typed (fn key-typed [lines cursor-ranges typed]

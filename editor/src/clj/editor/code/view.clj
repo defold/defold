@@ -876,16 +876,19 @@
   (let [^Pane canvas-pane (.getParent canvas)
         ^Rect canvas-rect (.canvas layout)
         ^Rect minimap-rect (.minimap layout)
-        gutter-end (dec (.x canvas-rect))
-        canvas-end (.x minimap-rect)
+        view-x (if (neg? (.scroll-x layout))
+                 (.x canvas-rect) ; We're scrolled in a bit. The gutter covers the code.
+                 0.0)
+        view-y (.y canvas-rect)
+        view-w (- (.x minimap-rect) view-x)
+        view-h (.h canvas-rect)
+        view-rect (data/->Rect view-x view-y view-w view-h)
         children (.getChildren canvas-pane)
         cursor-color (color-lookup color-scheme "editor.cursor")
-        cursor-rectangles (into []
-                                (comp (map (partial data/cursor-rect layout lines))
-                                      (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
-                                      (remove (fn [^Rect cursor-rect] (> (.x cursor-rect) canvas-end)))
-                                      (map (partial make-cursor-rectangle cursor-color cursor-opacity)))
-                                visible-cursors)]
+        cursor-rectangles (coll/into-> visible-cursors []
+                            (map (partial data/cursor-rect layout lines))
+                            (keep (partial data/rect-intersection view-rect))
+                            (map (partial make-cursor-rectangle cursor-color cursor-opacity)))]
     (assert (identical? canvas (first children)))
     (.remove children 1 (count children))
     (.addAll children ^Collection cursor-rectangles)
