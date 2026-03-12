@@ -172,6 +172,41 @@ namespace dmGameSystem
         return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
     }
 
+    static void PushMassData(lua_State* L, const b2MassData& mass_data)
+    {
+        lua_newtable(L);
+
+        lua_pushnumber(L, mass_data.mass);
+        lua_setfield(L, -2, "mass");
+
+        dmScript::PushVector3(L, FromB2(mass_data.center, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "center");
+
+        lua_pushnumber(L, mass_data.I);
+        lua_setfield(L, -2, "inertia");
+    }
+
+    static b2MassData CheckMassData(lua_State* L, int index)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        b2MassData mass_data = {};
+
+        lua_getfield(L, index, "mass");
+        mass_data.mass = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "center");
+        mass_data.center = CheckVec2(L, -1, GetPhysicsScale());
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "inertia");
+        mass_data.I = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+
+        return mass_data;
+    }
+
     static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
     {
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
@@ -318,6 +353,34 @@ namespace dmGameSystem
         b2Body* body = CheckBody(L, 1);
         lua_pushnumber(L, body->GetInertia());
         return 1;
+    }
+
+    static int Body_GetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        b2MassData mass_data = {};
+        body->GetMassData(&mass_data);
+        PushMassData(L, mass_data);
+        return 1;
+    }
+
+    static int Body_SetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2MassData mass_data = CheckMassData(L, 2);
+        body->SetMassData(&mass_data);
+        return 0;
+    }
+
+    static int Body_ResetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->ResetMassData();
+        return 0;
     }
 
     static int Body_GetAngle(lua_State* L)
@@ -672,11 +735,11 @@ namespace dmGameSystem
 
         {"get_mass", Body_GetMass},
         {"get_inertia", Body_GetInertia},
+        {"get_mass_data", Body_GetMassData},
+        {"set_mass_data", Body_SetMassData},
+        {"reset_mass_data", Body_ResetMassData},
         {"get_angle", Body_GetAngle},
 
-        // {"get_mass_data", Body_GetMassData},
-        // {"set_mass_data", Body_SetMassData},
-        // {"reset_mass_data", Body_ResetMassData},
         // {"synchronize_fixtures", SynchronizeFixtures},
         // SynchronizeSingle(b2Shape* shape, int32 index)
 
@@ -842,7 +905,7 @@ namespace dmGameSystem
 /** Get the body transform for the body's origin.
  * @name b2d.body.get_transform
  * @param body [type: b2Body] body
- * @return transform [type: table] table with `position` and `angle`.
+ * @return transform [type: table] table with `position` and `angle` in radians.
  */
 
 /*# Get the world body origin position.
@@ -950,7 +1013,7 @@ namespace dmGameSystem
  * Get the mass data of the body.
  * @name b2d.body.get_mass_data
  * @param body [type: b2Body] body
- * @return data [type: b2MassData] a struct containing the mass, inertia and center of the body.
+ * @return data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
  */
 
 /**
@@ -960,7 +1023,7 @@ namespace dmGameSystem
  * @note Creating or destroying fixtures can also alter the mass.
  * @name b2d.body.set_mass_data
  * @param body [type: b2Body] body
- * @param data [type: b2MassData] the mass properties.
+ * @param data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
  */
 
 /*#
