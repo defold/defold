@@ -17,7 +17,9 @@
 #include <Box2D/Dynamics/b2Body.h>
 #include <Box2D/Dynamics/Joints/b2Joint.h>
 
+#include <dlib/array.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -43,17 +45,123 @@ namespace dmGameSystem
 
     struct B2DLuaBody
     {
+        uint32_t                  m_HandleSlot;
+        uint32_t                  m_HandleGeneration;
+    };
+
+    struct B2DBodyHandle
+    {
         b2Body*                   m_Body;
         dmGameObject::HCollection m_Collection;
         dmhash_t                  m_InstanceId;
+        uint32_t                  m_Generation;
+        bool                      m_Valid;
     };
+
+    static dmArray<B2DBodyHandle>  g_BodyHandles;
+    static dmArray<uint32_t>       g_FreeBodyHandleSlots;
+    static dmHashTable64<uint32_t> g_BodyToHandle;
+
+    static uint64_t BodyPtrToKey(const b2Body* body)
+    {
+        return (uint64_t)(uintptr_t)body;
+    }
+
+    static void EnsureBodyHandleCapacity()
+    {
+        if (g_BodyHandles.Full())
+        {
+            g_BodyHandles.OffsetCapacity(32);
+            g_FreeBodyHandleSlots.OffsetCapacity(32);
+            g_BodyToHandle.OffsetCapacity(32);
+        }
+    }
+
+    static void InvalidateBodyHandle(uint32_t slot)
+    {
+        EnsureBodyHandleCapacity();
+
+        if (slot >= g_BodyHandles.Size())
+            return;
+
+        B2DBodyHandle* body_handle = &g_BodyHandles[slot];
+        if (!body_handle->m_Valid)
+            return;
+
+        const uint64_t key = BodyPtrToKey(body_handle->m_Body);
+        uint32_t* mapped_slot = g_BodyToHandle.Get(key);
+        if (mapped_slot && *mapped_slot == slot)
+        {
+            g_BodyToHandle.Erase(key);
+        }
+
+        body_handle->m_Body = 0;
+        body_handle->m_Collection = 0;
+        body_handle->m_InstanceId = 0;
+        body_handle->m_Valid = false;
+        body_handle->m_Generation++;
+        if (body_handle->m_Generation == 0)
+        {
+            body_handle->m_Generation = 1;
+        }
+
+        g_FreeBodyHandleSlots.Push(slot);
+    }
+
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t* out_slot, uint32_t* out_generation)
+    {
+        assert(body);
+        EnsureBodyHandleCapacity();
+
+        const uint64_t key = BodyPtrToKey(body);
+        uint32_t* existing_slot = g_BodyToHandle.Get(key);
+        if (existing_slot)
+        {
+            B2DBodyHandle* body_handle = &g_BodyHandles[*existing_slot];
+            body_handle->m_Collection = collection;
+            body_handle->m_InstanceId = instance_id;
+            *out_slot = *existing_slot;
+            *out_generation = body_handle->m_Generation;
+            return;
+        }
+
+        uint32_t slot = 0;
+        if (!g_FreeBodyHandleSlots.Empty())
+        {
+            slot = g_FreeBodyHandleSlots.Back();
+            g_FreeBodyHandleSlots.Pop();
+        }
+        else
+        {
+            B2DBodyHandle body_handle = {};
+            body_handle.m_Generation = 1;
+            g_BodyHandles.Push(body_handle);
+            slot = g_BodyHandles.Size() - 1;
+        }
+
+        B2DBodyHandle* body_handle = &g_BodyHandles[slot];
+        if (body_handle->m_Generation == 0)
+        {
+            body_handle->m_Generation = 1;
+        }
+
+        body_handle->m_Body = body;
+        body_handle->m_Collection = collection;
+        body_handle->m_InstanceId = instance_id;
+        body_handle->m_Valid = true;
+
+        g_BodyToHandle.Put(key, slot);
+
+        *out_slot = slot;
+        *out_generation = body_handle->m_Generation;
+    }
 
     void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
-        luabody->m_Body = (b2Body*) body;
-        luabody->m_Collection = collection;
-        luabody->m_InstanceId = instance_id;
+
+        RegisterBodyHandle((b2Body*)body, collection, instance_id, &luabody->m_HandleSlot, &luabody->m_HandleGeneration);
+
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
@@ -74,29 +182,45 @@ namespace dmGameSystem
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
     }
 
-    static int VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
+    static B2DBodyHandle* VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
     {
-        if (luabody->m_InstanceId) // check if the instance is alive
+        if (luabody->m_HandleSlot >= g_BodyHandles.Size())
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
+            luaL_error(L, "Invalid b2body handle.");
+            return 0;
+        }
+
+        B2DBodyHandle* body_handle = &g_BodyHandles[luabody->m_HandleSlot];
+        if (!body_handle->m_Valid || body_handle->m_Generation != luabody->m_HandleGeneration || body_handle->m_Body == 0)
+        {
+            luaL_error(L, "Invalid b2body handle. Has the body been destroyed?");
+            return 0;
+        }
+
+        if (body_handle->m_InstanceId) // check if the instance is alive
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_handle->m_Collection, body_handle->m_InstanceId);
             if (!instance)
             {
-                return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
+                InvalidateBodyHandle(luabody->m_HandleSlot);
+                luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(body_handle->m_InstanceId));
+                return 0;
             }
         }
-        return 0;
+
+        return body_handle;
     }
 
     static b2Body* CheckBody(lua_State* L, int index)
     {
-        B2DLuaBody* luabody = (B2DLuaBody*) CheckBodyInternal(L, index);
-        VerifyBodyInternal(L, luabody);
-        return luabody->m_Body;
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        B2DBodyHandle* body_handle = VerifyBodyInternal(L, luabody);
+        return body_handle->m_Body;
     }
 
-    static b2Body* ToBody(lua_State* L, int index)
+    static B2DLuaBody* ToBody(lua_State* L, int index)
     {
-        return (b2Body*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
+        return (B2DLuaBody*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
     }
 
     static int Body_GetPosition(lua_State* L)
@@ -457,10 +581,10 @@ namespace dmGameSystem
     static int Body_GetNext(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DLuaBody* luabody = (B2DLuaBody*) CheckBodyInternal(L, 1);
-        VerifyBodyInternal(L, luabody);
+        B2DLuaBody* luabody = CheckBodyInternal(L, 1);
+        B2DBodyHandle* body_handle = VerifyBodyInternal(L, luabody);
 
-        b2Body* next = luabody->m_Body->GetNext();
+        b2Body* next = body_handle->m_Body->GetNext();
         if (next)
         {
             void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
@@ -477,7 +601,7 @@ namespace dmGameSystem
                 id = dmGameObject::GetIdentifier(instance);
             }
 
-            PushBody(L, next, luabody->m_Collection, id);
+            PushBody(L, next, body_handle->m_Collection, id);
         }
         else
         {
@@ -503,9 +627,9 @@ namespace dmGameSystem
 
     static int Body_eq(lua_State *L)
     {
-        b2Body* a = ToBody(L, 1);
-        b2Body* b = ToBody(L, 2);
-        lua_pushboolean(L, a && b && a == b);
+        B2DLuaBody* a = ToBody(L, 1);
+        B2DLuaBody* b = ToBody(L, 2);
+        lua_pushboolean(L, a && b && a->m_HandleSlot == b->m_HandleSlot && a->m_HandleGeneration == b->m_HandleGeneration);
         return 1;
     }
 
@@ -1048,5 +1172,3 @@ namespace dmGameSystem
  * @param body [type: b2Body] body
  * @return force [type: vector3]
  */
-
-
