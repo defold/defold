@@ -16,6 +16,7 @@
 #define DM_VMATH_H
 
 #include <dmsdk/dlib/vmath.h>
+#include "math.h"
 
 #include <assert.h>
 
