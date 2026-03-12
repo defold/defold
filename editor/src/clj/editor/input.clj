@@ -51,7 +51,7 @@
 
 (defn start-mouse-capture [view-center-x view-center-y]
   (when-let [context (MouseCapture/MouseCapture_CreateContext view-center-x view-center-y)]
-    (when (MouseCapture/MouseCapture_StartCapture context (long window))
+    (when (MouseCapture/MouseCapture_StartCapture context)
       (reset! mouse-capture-context context)
       true)))
 
