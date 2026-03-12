@@ -233,6 +233,22 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Body_GetTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        lua_newtable(L);
+
+        dmScript::PushVector3(L, FromB2(body->GetPosition(), GetInvPhysicsScale()));
+        lua_setfield(L, -2, "position");
+
+        lua_pushnumber(L, body->GetAngle());
+        lua_setfield(L, -2, "angle");
+
+        return 1;
+    }
+
     static int Body_SetTransform(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -650,11 +666,9 @@ namespace dmGameSystem
 
     static const luaL_reg Body_functions[] =
     {
+        {"get_transform", Body_GetTransform},
         {"get_position", Body_GetPosition},
         {"set_transform", Body_SetTransform},
-
-        //{"get_user_data", Body_GetUserData}, - could return the game object id ? ur url?
-        //{"set_user_data", Body_SetUserData}, - could attach the body to a game object?
 
         {"get_mass", Body_GetMass},
         {"get_inertia", Body_GetInertia},
@@ -828,7 +842,7 @@ namespace dmGameSystem
 /** Get the body transform for the body's origin.
  * @name b2d.body.get_transform
  * @param body [type: b2Body] body
- * @return transform [type: b2Transform] the world position of the body's origin.
+ * @return transform [type: table] table with `position` and `angle`.
  */
 
 /*# Get the world body origin position.
@@ -1144,18 +1158,6 @@ namespace dmGameSystem
  * @name b2d.body.get_next
  * @param body [type: b2Body] body
  * @return body [type: b2Body] the next body
- */
-
-/** Get the user data pointer that was provided in the body definition.
- * @name b2d.body.get_user_data
- * @param body [type: b2Body] body
- * @return id [type: hash] the game object id this body is connected to
- */
-
-/** Set the user data. Use this to store your application specific data.
- * @name b2d.body.set_user_data
- * @param body [type: b2Body] body
- * @param id [type: hash] the game object id
  */
 
 /*# Get the parent world of this body.
