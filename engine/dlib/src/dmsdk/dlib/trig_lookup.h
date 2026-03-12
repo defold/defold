@@ -75,7 +75,7 @@ namespace dmTrigLookup
      */
     inline float Sin(float radians)
     {
-        return Cos(radians - M_PI_2);
+        return Cos(radians - (float) M_PI_2);
     }
 
 }
