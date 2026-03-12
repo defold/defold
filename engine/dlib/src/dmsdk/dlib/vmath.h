@@ -16,6 +16,7 @@
 #define DMSDK_VMATH_H
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include "math.h"
 #include <dmsdk/dlib/trig_lookup.h>
 
 /*# Vector Math API documentation
