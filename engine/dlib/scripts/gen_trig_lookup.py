@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -37,8 +38,8 @@ def generate(path, bits):
     frac_mask = remainder - 1
     weight = 1.0 / remainder
 
-    files = {"trig_lookup_template.h" : "../src/dlib/trig_lookup.h", "trig_lookup_template.cpp" : "../src/dlib/trig_lookup.cpp"}
-    for k,v in files.iteritems():
+    files = {"trig_lookup_template.h" : "../src/dmsdk/dlib/trig_lookup.h", "trig_lookup_template.cpp" : "../src/dlib/trig_lookup.cpp"}
+    for k,v in files.items():
         template = path + "/" + k
         target = path + "/" + v
         with open(template, 'r') as f:
@@ -51,7 +52,7 @@ def main():
     # parse command line options
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hb", ["help", "bits="])
-    except getopt.error, msg:
+    except getopt.error(msg):
         print(msg)
         print("for help use --help")
         sys.exit(2)
