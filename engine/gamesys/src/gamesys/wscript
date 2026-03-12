@@ -89,12 +89,12 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
-        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v3/script_box2d_body_v3.cpp',
         target = 'script_box2d')
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto ' + build_util.get_dynamo_ext('include', 'box2d_defold'),
-        source = 'scripts/box2d_v2/script_box2d_v2.cpp scripts/box2d_v2/script_box2d_body_v2.cpp',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v2/script_box2d_body_v2.cpp',
         target = 'script_box2d_defold')
 
     bld.add_group()
