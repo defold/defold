@@ -20,7 +20,7 @@
 
 #include "math.h"
 
-/*# Trigonometric lookup API documentation
+/** Trigonometric lookup API documentation
  *
  * Api for trigonometrics using lookup tables. The precision is guaranteed to
  * have an error less than 0.001f.
@@ -37,7 +37,7 @@ namespace dmTrigLookup
     /// Size of the table
     const uint32_t COS_TABLE_SIZE = {size};
 
-    /*#
+    /**
      * Returns the cosine of the given angle from a lookup table.
      *
      * @name Cos
@@ -59,7 +59,7 @@ namespace dmTrigLookup
         return (1.0f - t) * v0 + t * v1;
     }}
 
-    /*#
+    /**
      * Returns the sine of the given angle from a lookup table.
      *
      * @name Sin
