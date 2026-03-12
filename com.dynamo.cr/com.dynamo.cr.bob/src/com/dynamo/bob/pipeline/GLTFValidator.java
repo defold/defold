@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.util.Exec;
 
 import org.codehaus.jackson.JsonNode;
@@ -45,26 +46,26 @@ public class GLTFValidator {
     }
 
     // Called from editor
-    public static ValidateResult validateGltf(InputStream stream) throws IOException {
+    public static ValidateResult validateGltf(InputStream stream, boolean validateResources) throws IOException {
         byte[] content = stream.readAllBytes();
-        return validateGltf(content);
+        return validateGltf(content, validateResources);
     }
 
-    public static ValidateResult validateGltf(byte[] content) throws IOException {
+    public static ValidateResult validateGltf(String path, boolean validateResources) throws IOException {
         ValidateResult validateResult = new ValidateResult();
         validateResult.result = true;
 
-        // Write the provided content to a temporary file so we can pass a real path
-        // to the gltf_validator executable.
-        File tmpGltfFile = File.createTempFile("gltf_tmp", ".gltf", Bob.getRootFolder());
-        tmpGltfFile.deleteOnExit();
-
-        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile))) {
-            os.write(content);
+        // gltf_validator is not supported on win32 (we can't build a binary on this platform).
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.X86Win32) {
+            return validateResult;
         }
 
+        // Validation is on by default
+        String validateResourcesFlag = validateResources ? "--validate-resources" : "--no-validate-resources";
+
         gltfValidatorExePath = Bob.getHostExeOnce("gltf_validator", gltfValidatorExePath);
-        Exec.Result execResult = Exec.execResult(gltfValidatorExePath, "-o", tmpGltfFile.getAbsolutePath());
+        Exec.Result execResult = Exec.execResult(gltfValidatorExePath, "-o", validateResourcesFlag, path);
         String output = new String(execResult.stdOutErr);
 
         // Parse the summary header line: "Errors: N, Warnings: ..., Infos: ..., Hints: ..."
@@ -119,6 +120,21 @@ public class GLTFValidator {
 
         validateResult.result = validateResult.errors.isEmpty();
         return validateResult;
+    }
+
+    public static ValidateResult validateGltf(byte[] content, boolean validateResources) throws IOException {
+        ValidateResult validateResult = new ValidateResult();
+        validateResult.result = true;
+
+        // Write the provided content to a temporary file so we can pass a real path
+        // to the gltf_validator executable.
+        File tmpGltfFile = File.createTempFile("gltf_tmp", ".gltf", Bob.getRootFolder());
+        tmpGltfFile.deleteOnExit();
+
+        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile))) {
+            os.write(content);
+        }
+        return validateGltf(tmpGltfFile.getAbsolutePath(), validateResources);
     }
 }
 

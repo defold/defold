@@ -200,14 +200,25 @@ public class MeshsetBuilder extends Builder  {
         ModelUtil.unloadScene(scene);
     }
 
+    private static boolean isPhysicalFile(IResource resource) {
+        return new File(resource.getAbsPath()).isFile();
+    }
+
     private void validateGltf(Task task, String suffix) throws CompileExceptionError {
         IResource input = task.input(0);
         try {
-            GLTFValidator.ValidateResult validateResult = GLTFValidator.validateGltf(input.getContent());
+
+            GLTFValidator.ValidateResult validateResult;
+
+            // NOTE: If the file is part of an archive, we cannot validate embedded or external resources
+            if (isPhysicalFile(input)) {
+                validateResult = GLTFValidator.validateGltf(input.getAbsPath(), true);
+            } else {
+                validateResult = GLTFValidator.validateGltf(input.getContent(), false);
+            }
 
             if (!validateResult.result) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("Model validation failed. Make sure your `glTF` files are correct using `gltf_validator`.\n");
                 sb.append("Errors reported by gltf_validator:\n");
 
                 for (GLTFValidator.ValidateError err : validateResult.errors) {

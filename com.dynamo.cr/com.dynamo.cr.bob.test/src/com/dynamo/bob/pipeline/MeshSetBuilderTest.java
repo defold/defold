@@ -92,7 +92,17 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     public void testGLTFValidatorValid() throws IOException {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent());
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), true);
+            assertTrue(res.result);
+        }
+    }
+
+    // Same as above, but we need to make sure the flag is working (i.e. we get an ok validation result back).
+    @Test
+    public void testGLTFValidatorValidNoValidateResources() throws IOException {
+        for (String validGLTFFile : validGLTFFiles) {
+            IResource projectRes = getFileSystem().get(validGLTFFile);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), false);
             assertTrue(res.result);
         }
     }
@@ -104,7 +114,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
             String expectedCode = entry.getValue();
 
             IResource projectRes = getFileSystem().get(invalidGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent());
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), true);
             assertFalse(res.result);
             assertFalse(res.errors.isEmpty());
 

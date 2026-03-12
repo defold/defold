@@ -23,7 +23,7 @@
             [service.log :as log])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
-           [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError]
+           [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.util ArrayList]
            [java.io InputStream]))
@@ -80,18 +80,26 @@
                                (.-code error)))
                      validation-errors)))
 
+(defn- handle-gltf-validation-result [resource ^GLTFValidator$ValidateResult gltf-validation-result]
+  (when-not (.-result gltf-validation-result)
+    (let [gltf-validation-errors (.-errors gltf-validation-result)
+          formatted-gltf-validation-error (format-gltf-validation-errors gltf-validation-errors)]
+      (throw (ex-info (str "glTF validation failed:\n" formatted-gltf-validation-error)
+                      {:resource resource
+                       :errors gltf-validation-errors})))))
+
 (defn- load-scene-internal [resource]
-  (let [ext (string/lower-case (resource/ext resource))]
-    ;; First, run glTF/glb files through the bob validator using a fresh stream.
+  (let [ext (string/lower-case (resource/ext resource))
+        is-zip-resource? (resource/zip-resource? resource)]
+    ;; First, run glTF/glb files through the bob validator.
+    ;; For zip resources we validate from a stream and avoid validating external
+    ;; resources (buffers on disk). For regular filesystem resources we validate
+    ;; by absolute path and allow external resource validation.
     (when (or (= ext "gltf") (= ext "glb"))
-      (with-open [stream (io/input-stream resource)]
-        (let [gltf-validation-result (GLTFValidator/validateGltf stream)]
-          (when-not (.-result gltf-validation-result)
-            (let [gltf-validation-errors (.-errors gltf-validation-result)
-                  formatted-gltf-validation-error (format-gltf-validation-errors gltf-validation-errors)]
-              (throw (ex-info (str "glTF validation failed:\n" formatted-gltf-validation-error)
-                              {:resource resource
-                               :errors gltf-validation-errors})))))))
+      (if is-zip-resource?
+        (with-open [stream (io/input-stream resource)]
+          (handle-gltf-validation-result resource (GLTFValidator/validateGltf stream false)))
+        (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
     ;; Then, open a new stream for actually loading the scene.
     (with-open [stream (io/input-stream resource)]
       (if (= "dae" ext)
