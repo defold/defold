@@ -521,12 +521,12 @@
     manip
     manip-pos
     original-values
-    (fn local-move-fn [{:keys [node-id position]} local-delta]
-      (manip-move-preview evaluation-context node-id local-delta position))
-    (fn local-rotate-fn [{:keys [node-id rotation]} local-rotation]
-      (manip-rotate-preview evaluation-context node-id local-rotation rotation))
-    (fn local-scale-fn [{:keys [node-id scale]} scale-factor]
-      (manip-scale-preview evaluation-context node-id scale-factor scale))))
+    (fn local-move-fn [{:keys [node-id node-id-path position]} local-delta]
+      {node-id-path (manip-move-preview evaluation-context node-id local-delta position)})
+    (fn local-rotate-fn [{:keys [node-id node-id-path rotation]} local-rotation]
+      {node-id-path (manip-rotate-preview evaluation-context node-id local-rotation rotation)})
+    (fn local-scale-fn [{:keys [node-id node-id-path scale]} scale-factor]
+      {node-id-path (manip-scale-preview evaluation-context node-id scale-factor scale)})))
 
 (defn- apply-manipulator [manip-opts evaluation-context original-values manip manip-space start-action action camera viewport manip->value-fn]
   (let [{:keys [world-rotation world-transform]} (peek original-values)
@@ -552,7 +552,7 @@
 (defn- renderable->original-values [evaluation-context renderable]
   (let [node-id (:node-id renderable)
         node-type (g/node-type* (:basis evaluation-context) node-id)]
-    (cond-> (select-keys renderable [:node-id :world-rotation :world-transform :parent-world-transform])
+    (cond-> (select-keys renderable [:node-id :node-id-path :world-rotation :world-transform :parent-world-transform])
 
             (g/has-property? node-type :position)
             (assoc :position (g/node-value node-id :position evaluation-context))

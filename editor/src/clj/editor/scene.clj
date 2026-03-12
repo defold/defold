@@ -55,6 +55,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.profiler :as profiler])
@@ -385,22 +386,31 @@
                                    alloc-picking-id!]
   (let [node-id (peek node-id-path)
         renderable (:renderable scene)
-        local-transform ^Matrix4d (:transform scene geom/Identity4d)
-        local-transform ^Matrix4d (if-let [preview-override (get preview-overrides node-id)]
-                                    (let [position (Vector3d.)
-                                          rotation (Quat4d.)
-                                          scale (Vector3d.)]
-                                      (math/split-mat4 local-transform position rotation scale)
-                                      (math/clj->mat4 (or (:position preview-override) (math/vecmath->clj position))
-                                                      (or (:rotation preview-override) (math/vecmath->clj rotation))
-                                                      (or (:scale preview-override) (math/vecmath->clj scale))))
-                                    local-transform)
+        local-translation (Vector3d. 0.0 0.0 0.0)
+        local-rotation (Quat4d. 0.0 0.0 0.0 1.0)
+        local-scale (Vector3d. 1.0 1.0 1.0)
+
+        has-transform-preview-overrides
+        (let [override-value-by-prop-kw (get preview-overrides node-id-path)
+              position-override (:position override-value-by-prop-kw)
+              rotation-override (:rotation override-value-by-prop-kw)
+              scale-override (:scale override-value-by-prop-kw)]
+          (when-not (and position-override rotation-override scale-override)
+            (when-some [local-transform (:transform scene)]
+              (math/split-mat4 local-transform local-translation local-rotation local-scale)))
+          (when position-override
+            (math/clj->vecmath local-translation position-override))
+          (when rotation-override
+            (math/clj->vecmath local-rotation rotation-override))
+          (when scale-override
+            (math/clj->vecmath local-scale scale-override))
+          (boolean (or position-override rotation-override scale-override)))
+
+        local-transform (math/->mat4-non-uniform local-translation local-rotation local-scale)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
-        local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
-        local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
-        world-translation (math/transform parent-world-transform (math/translation local-transform))
+        world-translation (math/transform parent-world-transform local-translation)
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
-        world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
+        world-scale (math/multiply-vector parent-world-scale local-scale)
         picking-node-id (or (:picking-node-id scene) node-id)
         selection-state (cond
                           (contains? selection-set node-id) :self-selected ; This node is selected.
@@ -453,16 +463,20 @@
     (reduce (fn [pass-renderables child-scene]
               (let [parent-node-id (:node-id scene)
                     child-node-id (:node-id child-scene)
-                    child-node-id-path (if (= parent-node-id child-node-id)
+                    is-child-node-same-as-parent (= parent-node-id child-node-id)
+                    child-preview-overrides (if (and has-transform-preview-overrides is-child-node-same-as-parent)
+                                              (update preview-overrides node-id-path dissoc :position :rotation :scale)
+                                              preview-overrides)
+                    child-node-id-path (if is-child-node-same-as-parent
                                          node-id-path
                                          (conj node-id-path child-node-id))
-                    child-node-outline-key-path (if (= parent-node-id child-node-id)
+                    child-node-outline-key-path (if is-child-node-same-as-parent
                                                   node-outline-key-path
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
                 (flatten-scene-renderables! pass-renderables
                                             (and parent-shows-children (:visible-children? renderable true))
                                             child-scene
-                                            preview-overrides
+                                            child-preview-overrides
                                             selection-set
                                             hidden-renderable-tags
                                             hidden-node-outline-key-paths
@@ -1988,9 +2002,9 @@
 (defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
   (manip-move-scene-node evaluation-context node-id delta))
 
-(defmethod scene-tools/manip-move-preview ::SceneNode [_evaluation-context node-id delta original-position]
+(defmethod scene-tools/manip-move-preview ::SceneNode [_evaluation-context _node-id delta original-position]
   (when original-position
-    {node-id {:position (apply-move-delta original-position delta)}}))
+    {:position (apply-move-delta original-position delta)}))
 
 (defn apply-rotate-delta [old-clj-rotation vecmath-delta]
   ;; Note! The rotation is not rounded here like we do for apply-move-delta and
@@ -2009,9 +2023,9 @@
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
   (manip-rotate-scene-node evaluation-context node-id delta))
 
-(defmethod scene-tools/manip-rotate-preview ::SceneNode [_evaluation-context node-id delta original-rotation]
+(defmethod scene-tools/manip-rotate-preview ::SceneNode [_evaluation-context _node-id delta original-rotation]
   (when original-rotation
-    {node-id {:rotation (apply-rotate-delta original-rotation delta)}}))
+    {:rotation (apply-rotate-delta original-rotation delta)}))
 
 (defn apply-scale-delta [old-scale vecmath-delta]
   (properties/scale-and-round-vec old-scale vecmath-delta))
@@ -2021,6 +2035,6 @@
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))
 
-(defmethod scene-tools/manip-scale-preview ::SceneNode [_evaluation-context node-id delta original-scale]
+(defmethod scene-tools/manip-scale-preview ::SceneNode [_evaluation-context _node-id delta original-scale]
   (when original-scale
-    {node-id {:scale (apply-scale-delta original-scale delta)}}))
+    {:scale (apply-scale-delta original-scale delta)}))
