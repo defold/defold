@@ -26,7 +26,7 @@
 #include "gamesys_private.h"
 #include "components/comp_collision_object.h"
 
-#include "script_box2d.h"
+#include "script_box2d_v2.h"
 
 extern "C"
 {
