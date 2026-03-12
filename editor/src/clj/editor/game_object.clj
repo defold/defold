@@ -253,24 +253,29 @@
 ;;
 ;; Here we delegate scaling to the embedded resource node. To support scaling,
 ;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
+;; TODO(drag-perf): This isn't true anymore since we've migrated these scale property to the ComponentNode now Remove this?
 
 (defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
   (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
       (contains? (g/node-value node-id :transform-properties) :scale)))
 
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [initial-evaluation-context node-id ^Vector3d delta]
-  ;; TODO(drag-perf): We need to do something similar for manip-scale-preview.
-  ;;   the original-value argument might be tricky when delegating.
+(defn- manip-transform-embedded-component-impl [transform-property-kw manip-self-fn manip-embed-fn initial-evaluation-context node-id delta]
   (let [embedded-resource-id (g/node-value node-id :embedded-resource-id initial-evaluation-context)]
     (cond
       (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale initial-evaluation-context embedded-resource-id delta)
+      (manip-embed-fn initial-evaluation-context embedded-resource-id delta)
 
-      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) :scale)
-      (scene/manip-scale-scene-node initial-evaluation-context node-id delta)
+      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) transform-property-kw)
+      (manip-self-fn initial-evaluation-context node-id delta)
 
       :else
       nil)))
+
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [initial-evaluation-context node-id ^Vector3d delta]
+  (manip-transform-embedded-component-impl :scale scene/manip-scale-scene-node scene-tools/manip-scale initial-evaluation-context node-id delta))
+
+(defmethod scene-tools/manip-scale-preview ::EmbeddedComponent [initial-evaluation-context node-id ^Vector3d delta]
+  (manip-transform-embedded-component-impl :scale scene/manip-scale-preview-scene-node scene-tools/manip-scale-preview initial-evaluation-context node-id delta))
 
 ;; -----------------------------------------------------------------------------
 
