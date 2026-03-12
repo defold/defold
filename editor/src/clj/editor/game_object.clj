@@ -258,14 +258,16 @@
   (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
       (contains? (g/node-value node-id :transform-properties) :scale)))
 
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [evaluation-context node-id ^Vector3d delta]
-  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [initial-evaluation-context node-id ^Vector3d delta]
+  ;; TODO(drag-perf): We need to do something similar for manip-scale-preview.
+  ;;   the original-value argument might be tricky when delegating.
+  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id initial-evaluation-context)]
     (cond
       (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale evaluation-context embedded-resource-id delta)
+      (scene-tools/manip-scale initial-evaluation-context embedded-resource-id delta)
 
-      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale)
-      (scene/manip-scale-scene-node evaluation-context node-id delta)
+      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) :scale)
+      (scene/manip-scale-scene-node initial-evaluation-context node-id delta)
 
       :else
       nil)))
