@@ -18,7 +18,10 @@
 #ifndef DMSDK_TRIG_LOOKUP_H
 #define DMSDK_TRIG_LOOKUP_H
 
-#include "math.h"
+#if defined(_MSC_VER) && !defined(_USE_MATH_DEFINES)
+# define _USE_MATH_DEFINES
+#endif
+#include <cmath>
 
 /*# Trigonometric lookup API documentation
  *

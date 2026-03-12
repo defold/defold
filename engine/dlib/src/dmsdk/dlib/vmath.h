@@ -17,8 +17,10 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dmsdk/dlib/trig_lookup.h>
-#include <math.h>
-#include <stdint.h>
+#if defined(_MSC_VER) && !defined(_USE_MATH_DEFINES)
+# define _USE_MATH_DEFINES
+#endif
+#include <cmath>
 
 /*# Vector Math API documentation
  * Vector Math functions.
