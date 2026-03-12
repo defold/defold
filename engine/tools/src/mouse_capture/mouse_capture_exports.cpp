@@ -18,9 +18,9 @@ extern "C"
         dmMouseCapture::WarpCursor(x, y);
     }
 
-    DM_DLLEXPORT bool MouseCapture_StartCapture(void* context, WindowHandle window)
+    DM_DLLEXPORT bool MouseCapture_StartCapture(void* context)
     {
-        return dmMouseCapture::StartCapture((dmMouseCapture::HContext)context, window);
+        return dmMouseCapture::StartCapture((dmMouseCapture::HContext)context);
     }
 
     DM_DLLEXPORT void MouseCapture_StopCapture(void* context)

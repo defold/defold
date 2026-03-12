@@ -59,12 +59,11 @@ namespace dmMouseCapture
         XFlush(display);
     }
 
-    bool StartCapture(HContext context, unsigned long window)
+    bool StartCapture(HContext context)
     {
-        if (!context || context->m_Capturing || window == None)
+        if (!context || context->m_Capturing)
             return false;
 
-        context->m_Window = (Window)window;
 
         Window       root = DefaultRootWindow(context->m_Display);
         Window       dummy;
@@ -82,10 +81,11 @@ namespace dmMouseCapture
         XISetMask(mask_bytes, XI_RawMotion);
         XISelectEvents(context->m_Display, root, &evmask, 1);
 
-        XFixesHideCursor(context->m_Display, context->m_Window);
+        XFixesHideCursor(context->m_Display, root);
 
         XFlush(context->m_Display);
 
+        context->m_Window = root;
         context->m_Capturing = true;
         context->m_AccumulatedDelta.dx = 0.0;
         context->m_AccumulatedDelta.dy = 0.0;

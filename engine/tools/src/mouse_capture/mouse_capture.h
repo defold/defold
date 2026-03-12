@@ -3,16 +3,6 @@
 
 #include <stdint.h>
 
-#ifdef _WIN32
-#include <windows.h>
-typedef HWND WindowHandle;
-#elif __APPLE__
-typedef unsigned long WindowHandle;
-#else
-#include <X11/Xlib.h>
-typedef unsigned long WindowHandle;
-#endif
-
 namespace dmMouseCapture
 {
     struct MouseDelta
@@ -25,7 +15,7 @@ namespace dmMouseCapture
 
     HContext                CreateContext(int save_cursor_x, int save_cursor_y);
     void                    WarpCursor(int x, int y);
-    bool                    StartCapture(HContext context, WindowHandle window);
+    bool                    StartCapture(HContext context);
     void                    StopCapture(HContext context);
     bool                    PollDelta(HContext context, MouseDelta* out_delta);
     void                    DestroyContext(HContext context);

@@ -1564,8 +1564,10 @@
       (.addEventFilter KeyEvent/KEY_RELEASED
         (ui/event-handler e
           (let [action (i/action-from-jfx e)]
-            (g/update-property! view-id :input-state i/update-input-state action)
-            (g/update-property view-id :input-action-queue conj action)
+            (g/transact
+              (concat
+                (g/update-property view-id :input-state i/update-input-state action)
+                (g/update-property view-id :input-action-queue conj action)))
             (let [current-input (g/node-value view-id :input-state)]
               (when (contains? (:mouse-buttons current-input) :secondary)
                 (.consume e))))))

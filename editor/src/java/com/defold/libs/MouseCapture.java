@@ -41,7 +41,7 @@ public class MouseCapture {
 
     public static native void MouseCapture_WarpCursor(int x, int y);
 
-    public static native boolean MouseCapture_StartCapture(Pointer context, long window);
+    public static native boolean MouseCapture_StartCapture(Pointer context);
 
     public static native void MouseCapture_StopCapture(Pointer context);
 

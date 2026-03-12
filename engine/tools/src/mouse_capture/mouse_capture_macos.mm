@@ -36,7 +36,7 @@ namespace dmMouseCapture
         CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
-    bool StartCapture(HContext context, unsigned long window)
+    bool StartCapture(HContext context)
     {
         if (!context || context->m_Capturing)
             return false;

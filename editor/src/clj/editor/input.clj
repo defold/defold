@@ -45,64 +45,15 @@
 
 (def ^:private mouse-capture-context (atom nil))
 
-(defn- get-x11-window []
-  (try
-    (let [window-class (Class/forName "com.sun.glass.ui.Window")
-          get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
-          windows ^java.util.List (.invoke get-windows-method nil (make-array Object 0))
-          first-window (.get windows 0)
-          get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))]
-      (.invoke get-native-window-method first-window (make-array Object 0)))
-    (catch Exception e
-      (println "Error getting X11 window:" e)
-      nil)))
-
-(defn- get-windows-window []
-  (try
-    (let [window-class (Class/forName "com.sun.glass.ui.Window")
-          get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
-          windows ^java.util.List (.invoke get-windows-method nil (make-array Object 0))
-          first-window (.get windows 0)
-          get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))
-          native-handle (.invoke get-native-window-method first-window (make-array Object 0))]
-      ;; On Windows, this returns a long representing HWND
-      native-handle)
-    (catch Exception e
-      (println "Error getting Windows window:" e)
-      nil)))
-
-(defn- get-macos-window []
-  (try
-    (let [window-class (Class/forName "com.sun.glass.ui.Window")
-          get-windows-method (.getDeclaredMethod window-class "getWindows" (make-array Class 0))
-          windows ^java.util.List (.invoke get-windows-method nil (make-array Object 0))
-          first-window (.get windows 0)
-          get-native-window-method (.getDeclaredMethod window-class "getNativeWindow" (make-array Class 0))
-          native-handle (.invoke get-native-window-method first-window (make-array Object 0))]
-      native-handle)
-    (catch Exception e
-      (println "Error getting macOS window:" e)
-      nil)))
-
-(defn- get-native-window []
-  (let [os-name (System/getProperty "os.name")]
-    (cond
-      (.contains os-name "Linux") (get-x11-window)
-      (.contains os-name "Mac")   (get-macos-window)
-      :else                       (get-windows-window))))
-
 ;; NOTE: JavaFX provides Robot for this sort of thing, however, it requires Accessibility Permissions
 ;; on macos, so we need to make native calls
-(defn warp-cursor [x y]
-  (MouseCapture/MouseCapture_WarpCursor x y))
+(defn warp-cursor [x y] (MouseCapture/MouseCapture_WarpCursor x y))
 
 (defn start-mouse-capture [view-center-x view-center-y]
-  (when-let [window (editor.ui/run-now (get-native-window))]
-    (let [context (MouseCapture/MouseCapture_CreateContext view-center-x view-center-y)]
-      (when-not (nil? context)
-        (when-let [ret-val (MouseCapture/MouseCapture_StartCapture context (long window))]
-          (reset! mouse-capture-context context)
-          true)))))
+  (when-let [context (MouseCapture/MouseCapture_CreateContext view-center-x view-center-y)]
+    (when (MouseCapture/MouseCapture_StartCapture context (long window))
+      (reset! mouse-capture-context context)
+      true)))
 
 (defn stop-mouse-capture []
   (when-let [context @mouse-capture-context]
@@ -244,9 +195,3 @@
            (let [code (:key-code action)]
              (or (.isLetterKey ^KeyCode code) (.isDigitKey ^KeyCode code))))
       (update :pressed-keys disj (:key-code action)))))
-
-(comment
-  (start-mouse-capture)
-  (stop-mouse-capture)
-  (editor.ui/run-now (get-native-window))
-  :-)
