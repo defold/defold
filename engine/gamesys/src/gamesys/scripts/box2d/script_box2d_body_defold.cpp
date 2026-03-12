@@ -17,8 +17,8 @@
 #include <Box2D/Dynamics/b2Body.h>
 #include <Box2D/Dynamics/Joints/b2Joint.h>
 
-#include <dlib/array.h>
 #include <dlib/log.h>
+#include <dlib/opaque_handle_container.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <gameobject/script.h>
 
@@ -45,22 +45,18 @@ namespace dmGameSystem
 
     struct B2DLuaBody
     {
-        uint32_t                  m_HandleSlot;
-        uint32_t                  m_HandleGeneration;
+        HOpaqueHandle             m_Handle;
     };
 
-    struct B2DBodyHandle
+    struct B2DBodyMeta
     {
-        b2Body*                   m_Body;
         dmGameObject::HCollection m_Collection;
         dmhash_t                  m_InstanceId;
-        uint32_t                  m_Generation;
-        bool                      m_Valid;
     };
 
-    static dmArray<B2DBodyHandle>  g_BodyHandles;
-    static dmArray<uint32_t>       g_FreeBodyHandleSlots;
-    static dmHashTable64<uint32_t> g_BodyToHandle;
+    static dmOpaqueHandleContainer<uintptr_t> g_BodyHandles;
+    static dmHashTable64<HOpaqueHandle>       g_BodyToHandle;
+    static dmHashTable32<B2DBodyMeta>         g_BodyMeta;
 
     static uint64_t BodyPtrToKey(const b2Body* body)
     {
@@ -71,96 +67,95 @@ namespace dmGameSystem
     {
         if (g_BodyHandles.Full())
         {
-            g_BodyHandles.OffsetCapacity(32);
-            g_FreeBodyHandleSlots.OffsetCapacity(32);
+            assert(g_BodyHandles.Allocate(32));
             g_BodyToHandle.OffsetCapacity(32);
+            g_BodyMeta.OffsetCapacity(32);
         }
     }
 
-    static void InvalidateBodyHandle(uint32_t slot)
+    static void InvalidateBodyHandle(HOpaqueHandle handle)
     {
-        EnsureBodyHandleCapacity();
-
-        if (slot >= g_BodyHandles.Size())
+        uintptr_t* body_ptr = g_BodyHandles.Get(handle);
+        if (!body_ptr)
             return;
 
-        B2DBodyHandle* body_handle = &g_BodyHandles[slot];
-        if (!body_handle->m_Valid)
-            return;
-
-        const uint64_t key = BodyPtrToKey(body_handle->m_Body);
-        uint32_t* mapped_slot = g_BodyToHandle.Get(key);
-        if (mapped_slot && *mapped_slot == slot)
+        const uint64_t key = BodyPtrToKey((b2Body*)body_ptr);
+        HOpaqueHandle* mapped_handle = g_BodyToHandle.Get(key);
+        if (mapped_handle && *mapped_handle == handle)
         {
             g_BodyToHandle.Erase(key);
         }
 
-        body_handle->m_Body = 0;
-        body_handle->m_Collection = 0;
-        body_handle->m_InstanceId = 0;
-        body_handle->m_Valid = false;
-        body_handle->m_Generation++;
-        if (body_handle->m_Generation == 0)
+        B2DBodyMeta* body_meta = g_BodyMeta.Get(handle);
+        if (body_meta)
         {
-            body_handle->m_Generation = 1;
+            g_BodyMeta.Erase(handle);
         }
-
-        g_FreeBodyHandleSlots.Push(slot);
+        g_BodyHandles.Release(handle);
     }
 
-    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t* out_slot, uint32_t* out_generation)
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, HOpaqueHandle* out_handle)
     {
         assert(body);
         EnsureBodyHandleCapacity();
 
         const uint64_t key = BodyPtrToKey(body);
-        uint32_t* existing_slot = g_BodyToHandle.Get(key);
-        if (existing_slot)
+        HOpaqueHandle* existing_handle = g_BodyToHandle.Get(key);
+        if (existing_handle)
         {
-            B2DBodyHandle* body_handle = &g_BodyHandles[*existing_slot];
-            body_handle->m_Collection = collection;
-            body_handle->m_InstanceId = instance_id;
-            *out_slot = *existing_slot;
-            *out_generation = body_handle->m_Generation;
-            return;
+            uintptr_t* body_ptr = g_BodyHandles.Get(*existing_handle);
+            if (body_ptr)
+            {
+                B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
+                if (body_meta)
+                {
+                    body_meta->m_Collection = collection;
+                    body_meta->m_InstanceId = instance_id;
+                }
+                else
+                {
+                    B2DBodyMeta new_body_meta = {};
+                    new_body_meta.m_Collection = collection;
+                    new_body_meta.m_InstanceId = instance_id;
+                    if (g_BodyMeta.Full())
+                    {
+                        g_BodyMeta.OffsetCapacity(32);
+                    }
+                    g_BodyMeta.Put(*existing_handle, new_body_meta);
+                }
+
+                *out_handle = *existing_handle;
+                return;
+            }
+
+            // stale reverse mapping
+            g_BodyToHandle.Erase(key);
         }
 
-        uint32_t slot = 0;
-        if (!g_FreeBodyHandleSlots.Empty())
+        HOpaqueHandle handle = g_BodyHandles.Put((uintptr_t*) body);
+        if (g_BodyToHandle.Full())
         {
-            slot = g_FreeBodyHandleSlots.Back();
-            g_FreeBodyHandleSlots.Pop();
+            g_BodyToHandle.OffsetCapacity(32);
         }
-        else
+        g_BodyToHandle.Put(key, handle);
+
+        B2DBodyMeta body_meta = {};
+        body_meta.m_Collection = collection;
+        body_meta.m_InstanceId = instance_id;
+        if (g_BodyMeta.Full())
         {
-            B2DBodyHandle body_handle = {};
-            body_handle.m_Generation = 1;
-            g_BodyHandles.Push(body_handle);
-            slot = g_BodyHandles.Size() - 1;
+            g_BodyMeta.OffsetCapacity(32);
         }
+        g_BodyMeta.Put(handle, body_meta);
 
-        B2DBodyHandle* body_handle = &g_BodyHandles[slot];
-        if (body_handle->m_Generation == 0)
-        {
-            body_handle->m_Generation = 1;
-        }
-
-        body_handle->m_Body = body;
-        body_handle->m_Collection = collection;
-        body_handle->m_InstanceId = instance_id;
-        body_handle->m_Valid = true;
-
-        g_BodyToHandle.Put(key, slot);
-
-        *out_slot = slot;
-        *out_generation = body_handle->m_Generation;
+        *out_handle = handle;
     }
 
     void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
 
-        RegisterBodyHandle((b2Body*)body, collection, instance_id, &luabody->m_HandleSlot, &luabody->m_HandleGeneration);
+        RegisterBodyHandle((b2Body*)body, collection, instance_id, &luabody->m_Handle);
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
@@ -182,40 +177,47 @@ namespace dmGameSystem
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
     }
 
-    static B2DBodyHandle* VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
+    static b2Body* VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody, B2DBodyMeta** out_body_meta)
     {
-        if (luabody->m_HandleSlot >= g_BodyHandles.Size())
+        uintptr_t* body_ptr = g_BodyHandles.Get(luabody->m_Handle);
+        if (!body_ptr)
         {
             luaL_error(L, "Invalid b2body handle.");
             return 0;
         }
 
-        B2DBodyHandle* body_handle = &g_BodyHandles[luabody->m_HandleSlot];
-        if (!body_handle->m_Valid || body_handle->m_Generation != luabody->m_HandleGeneration || body_handle->m_Body == 0)
+        B2DBodyMeta* body_meta = g_BodyMeta.Get(luabody->m_Handle);
+        if (!body_meta)
         {
-            luaL_error(L, "Invalid b2body handle. Has the body been destroyed?");
+            InvalidateBodyHandle(luabody->m_Handle);
+            luaL_error(L, "Invalid b2body handle.");
             return 0;
         }
 
-        if (body_handle->m_InstanceId) // check if the instance is alive
+        dmhash_t instance_id = body_meta->m_InstanceId;
+        if (instance_id) // check if the instance is alive
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_handle->m_Collection, body_handle->m_InstanceId);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, instance_id);
             if (!instance)
             {
-                InvalidateBodyHandle(luabody->m_HandleSlot);
-                luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(body_handle->m_InstanceId));
+                InvalidateBodyHandle(luabody->m_Handle);
+                luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
                 return 0;
             }
         }
 
-        return body_handle;
+        if (out_body_meta)
+        {
+            *out_body_meta = body_meta;
+        }
+
+        return (b2Body*) body_ptr;
     }
 
     static b2Body* CheckBody(lua_State* L, int index)
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
-        B2DBodyHandle* body_handle = VerifyBodyInternal(L, luabody);
-        return body_handle->m_Body;
+        return VerifyBodyInternal(L, luabody, 0);
     }
 
     static B2DLuaBody* ToBody(lua_State* L, int index)
@@ -582,9 +584,10 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         B2DLuaBody* luabody = CheckBodyInternal(L, 1);
-        B2DBodyHandle* body_handle = VerifyBodyInternal(L, luabody);
+        B2DBodyMeta* body_meta = 0;
+        b2Body* body = VerifyBodyInternal(L, luabody, &body_meta);
 
-        b2Body* next = body_handle->m_Body->GetNext();
+        b2Body* next = body->GetNext();
         if (next)
         {
             void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
@@ -601,7 +604,7 @@ namespace dmGameSystem
                 id = dmGameObject::GetIdentifier(instance);
             }
 
-            PushBody(L, next, body_handle->m_Collection, id);
+            PushBody(L, next, body_meta->m_Collection, id);
         }
         else
         {
@@ -629,7 +632,7 @@ namespace dmGameSystem
     {
         B2DLuaBody* a = ToBody(L, 1);
         B2DLuaBody* b = ToBody(L, 2);
-        lua_pushboolean(L, a && b && a->m_HandleSlot == b->m_HandleSlot && a->m_HandleGeneration == b->m_HandleGeneration);
+        lua_pushboolean(L, a && b && a->m_Handle == b->m_Handle);
         return 1;
     }
 
