@@ -202,23 +202,8 @@ public class MeshsetBuilder extends Builder  {
 
     private void validateGltf(Task task, String suffix) throws CompileExceptionError {
         IResource input = task.input(0);
-        File tmpGltfFile = null;
-
         try {
-            tmpGltfFile = File.createTempFile("gltf_tmp", "." + suffix, Bob.getRootFolder());
-            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile));
-            try {
-                os.write(input.getContent());
-            } finally {
-                os.close();
-            }
-        } catch (IOException exc) {
-            throw new CompileExceptionError(input, 0,
-                    String.format("Cannot copy glTF file to further process: %s", exc.getMessage()));
-        }
-
-        try {
-            GLTFValidator.ValidateResult validateResult = GLTFValidator.validateGltf(tmpGltfFile.getAbsolutePath());
+            GLTFValidator.ValidateResult validateResult = GLTFValidator.validateGltf(input.getContent());
 
             if (!validateResult.result) {
                 StringBuilder sb = new StringBuilder();

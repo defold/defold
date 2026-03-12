@@ -81,16 +81,19 @@
                      validation-errors)))
 
 (defn- load-scene-internal [resource]
-  (with-open [stream (io/input-stream resource)]
-    (let [ext (string/lower-case (resource/ext resource))]
-      (when (or (= ext "gltf") (= ext "glb"))
-        (let [gltf-validation-result (GLTFValidator/validateGltf (resource/abs-path resource))]
+  (let [ext (string/lower-case (resource/ext resource))]
+    ;; First, run glTF/glb files through the bob validator using a fresh stream.
+    (when (or (= ext "gltf") (= ext "glb"))
+      (with-open [stream (io/input-stream resource)]
+        (let [gltf-validation-result (GLTFValidator/validateGltf stream)]
           (when-not (.-result gltf-validation-result)
             (let [gltf-validation-errors (.-errors gltf-validation-result)
                   formatted-gltf-validation-error (format-gltf-validation-errors gltf-validation-errors)]
               (throw (ex-info (str "glTF validation failed:\n" formatted-gltf-validation-error)
                               {:resource resource
-                               :errors gltf-validation-errors}))))))
+                               :errors gltf-validation-errors})))))))
+    ;; Then, open a new stream for actually loading the scene.
+    (with-open [stream (io/input-stream resource)]
       (if (= "dae" ext)
         (load-collada-scene stream)
         (load-model-scene resource stream)))))

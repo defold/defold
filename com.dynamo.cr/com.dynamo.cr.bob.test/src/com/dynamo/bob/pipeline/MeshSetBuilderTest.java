@@ -92,7 +92,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     public void testGLTFValidatorValid() throws IOException {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getAbsPath());
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent());
             assertTrue(res.result);
         }
     }
@@ -104,7 +104,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
             String expectedCode = entry.getValue();
 
             IResource projectRes = getFileSystem().get(invalidGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getAbsPath());
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent());
             assertFalse(res.result);
             assertFalse(res.errors.isEmpty());
 
