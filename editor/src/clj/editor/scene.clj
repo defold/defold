@@ -1982,9 +1982,9 @@
 (defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :scale))
 
-(defn- manip-scene-node [apply-delta-fn prop-kw evaluation-context node-id vecmath-delta]
+(defn- manip-scene-node [apply-delta-fn prop-kw initial-evaluation-context node-id vecmath-delta]
   (g/set-property node-id prop-kw
-    (-> (g/node-value node-id prop-kw evaluation-context)
+    (-> (g/node-value node-id prop-kw initial-evaluation-context)
         (apply-delta-fn vecmath-delta))))
 
 (defn apply-move-delta [old-clj-position vecmath-delta]
@@ -1999,11 +1999,11 @@
 
 (def manip-move-scene-node (partial manip-scene-node apply-move-delta :position))
 
-(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
-  (manip-move-scene-node evaluation-context node-id delta))
+(defmethod scene-tools/manip-move ::SceneNode [initial-evaluation-context node-id delta]
+  (manip-move-scene-node initial-evaluation-context node-id delta))
 
-(defmethod scene-tools/manip-move-preview ::SceneNode [_evaluation-context _node-id delta original-position]
-  (when original-position
+(defmethod scene-tools/manip-move-preview ::SceneNode [initial-evaluation-context node-id delta]
+  (let [original-position (g/node-value node-id :position initial-evaluation-context)]
     {:position (apply-move-delta original-position delta)}))
 
 (defn apply-rotate-delta [old-clj-rotation vecmath-delta]
@@ -2020,11 +2020,11 @@
 
 (def manip-rotate-scene-node (partial manip-scene-node apply-rotate-delta :rotation))
 
-(defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
-  (manip-rotate-scene-node evaluation-context node-id delta))
+(defmethod scene-tools/manip-rotate ::SceneNode [initial-evaluation-context node-id delta]
+  (manip-rotate-scene-node initial-evaluation-context node-id delta))
 
-(defmethod scene-tools/manip-rotate-preview ::SceneNode [_evaluation-context _node-id delta original-rotation]
-  (when original-rotation
+(defmethod scene-tools/manip-rotate-preview ::SceneNode [initial-evaluation-context node-id delta]
+  (let [original-rotation (g/node-value node-id :rotation initial-evaluation-context)]
     {:rotation (apply-rotate-delta original-rotation delta)}))
 
 (defn apply-scale-delta [old-scale vecmath-delta]
@@ -2032,9 +2032,9 @@
 
 (def manip-scale-scene-node (partial manip-scene-node apply-scale-delta :scale))
 
-(defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
-  (manip-scale-scene-node evaluation-context node-id delta))
+(defmethod scene-tools/manip-scale ::SceneNode [initial-evaluation-context node-id delta]
+  (manip-scale-scene-node initial-evaluation-context node-id delta))
 
-(defmethod scene-tools/manip-scale-preview ::SceneNode [_evaluation-context _node-id delta original-scale]
-  (when original-scale
+(defmethod scene-tools/manip-scale-preview ::SceneNode [initial-evaluation-context node-id delta]
+  (let [original-scale (g/node-value node-id :scale initial-evaluation-context)]
     {:scale (apply-scale-delta original-scale delta)}))

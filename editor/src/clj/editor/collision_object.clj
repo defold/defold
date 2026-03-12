@@ -286,9 +286,8 @@
 
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::SphereShape
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-diameter (g/node-value node-id :diameter evaluation-context)
+(defmethod scene-tools/manip-scale ::SphereShape [initial-evaluation-context node-id ^Vector3d delta]
+  (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))]
     (g/set-property node-id :diameter new-diameter)))
 
@@ -322,9 +321,8 @@
 
 (defmethod scene-tools/manip-scalable? ::BoxShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::BoxShape
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-dimensions (g/node-value node-id :dimensions evaluation-context)
+(defmethod scene-tools/manip-scale ::BoxShape [initial-evaluation-context node-id ^Vector3d delta]
+  (let [old-dimensions (g/node-value node-id :dimensions initial-evaluation-context)
         new-dimensions (math/zip-clj-v3 old-dimensions delta properties/scale-by-absolute-value-and-round)]
     (g/set-property node-id :dimensions new-dimensions)))
 
@@ -353,10 +351,9 @@
 
 (defmethod scene-tools/manip-scalable? ::CapsuleShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::CapsuleShape
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-diameter (g/node-value node-id :diameter evaluation-context)
-        old-height (g/node-value node-id :height evaluation-context)
+(defmethod scene-tools/manip-scale ::CapsuleShape [initial-evaluation-context node-id ^Vector3d delta]
+  (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
+        old-height (g/node-value node-id :height initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
         new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
     (g/set-properties node-id :diameter new-diameter :height new-height)))
