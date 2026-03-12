@@ -17,10 +17,6 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dmsdk/dlib/trig_lookup.h>
-#if defined(_MSC_VER) && !defined(_USE_MATH_DEFINES)
-# define _USE_MATH_DEFINES
-#endif
-#include <cmath>
 
 /*# Vector Math API documentation
  * Vector Math functions.
@@ -119,21 +115,22 @@ namespace dmVMath
      * @param radians [type: float] angle of rotation in radians
      * @return q [type: Quat] quaternion describing the rotation
      */
-    inline Quat QuatFromAngle(uint32_t axis_index, float radians)
+    inline dmVMath::Quat QuatFromAngle(uint32_t axis_index, float radians)
     {
-        Quat q(0, 0, 0, 1);
+        dmVMath::Quat q(0, 0, 0, 1);
         float half_angle = 0.5f * radians;
         q.setElem(axis_index, dmTrigLookup::Sin(half_angle));
         q.setW(dmTrigLookup::Cos(half_angle));
         return q;
     }
 
-#define DMSDK_DEG_FACTOR 57.295779513f
+#define DEG_FACTOR 57.295779513f
 
-    /*# convert a quaternion into euler angles
-     * Converts a quaternion into euler angles `(x, y, z)`, based on YZX rotation order.
-     * To handle gimbal lock (singularity at `z ~ +/- 90` degrees), the cut off is at `z = +/- 88.85`, which snaps to `+/- 90`.
+    /*#
+     * Converts a quaternion into euler angles (r0, r1, r2), based on YZX rotation order.
+     * To handle gimbal lock (singularity at r1 ~ +/- 90 degrees), the cut off is at r0 = +/- 88.85 degrees, which snaps to +/- 90.
      * The provided quaternion is expected to be normalized.
+     * The error is guaranteed to be less than +/- 0.02 degrees
      * @name QuatToEuler
      * @param q0 [type: float] first imaginary axis
      * @param q1 [type: float] second imaginary axis
@@ -141,23 +138,28 @@ namespace dmVMath
      * @param q3 [type: float] real part
      * @return euler [type: Vector3] euler angles in degrees
      */
-    inline Vector3 QuatToEuler(float q0, float q1, float q2, float q3)
+    inline dmVMath::Vector3 QuatToEuler(float q0, float q1, float q2, float q3)
     {
-        // One-axis rotation is common and cheaper to convert directly.
+        // Early-out when the rotation axis is either X, Y or Z.
+        // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (q2 != 0.f) << 2 | (q1 != 0.f) << 1 | (q0 != 0.f);
         switch (mask) {
         case 0b000:
-            return Vector3(0.0f, 0.0f, 0.0f);
+            return dmVMath::Vector3(0.0f, 0.0f, 0.0f);
         case 0b001:
         case 0b010:
         case 0b100:
-        {
-            Vector3 r(0.0f, 0.0f, 0.0f);
-            r.setElem(mask >> 1, atan2f(q0 + q1 + q2, q3) * 2.0f * DMSDK_DEG_FACTOR);
-            return r;
+            {
+                dmVMath::Vector3 r(0.0f, 0.0f, 0.0f);
+                // the sum of the values yields one value, as the others are 0
+                r.setElem(mask >> 1, atan2f(q0+q1+q2, q3) * 2.0f * DEG_FACTOR);
+                return r;
+            }
         }
-        }
-
+        // Implementation based on:
+        // * http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        // * http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
+        // * http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/Quaternions.pdf
         const float limit = 0.4999f; // gimbal lock limit, corresponds to 88.85 degrees
         float r0, r1, r2;
         float test = q0 * q1 + q2 * q3;
@@ -182,40 +184,44 @@ namespace dmVMath
             r2 = asinf(2.0f * test);
             r0 = atan2f(2.0f * q0 * q3 - 2.0f * q1 * q2, 1.0f - 2.0f * sq0 - 2.0f * sq2);
         }
-        return Vector3(r0, r1, r2) * DMSDK_DEG_FACTOR;
+        return dmVMath::Vector3(r0, r1, r2) * DEG_FACTOR;
     }
 
-#undef DMSDK_DEG_FACTOR
-#define DMSDK_HALF_RAD_FACTOR 0.008726646f
+#undef DEG_FACTOR
+#define HALF_RAD_FACTOR 0.008726646f
 
-    /*# convert euler angles into a quaternion
-     * Converts euler angles `(x, y, z)` in degrees into a quaternion using YZX rotation order.
+    /*#
+     * Converts euler angles (x, y, z) in degrees into a quaternion
+     * The error is guaranteed to be less than 0.001.
      * @name EulerToQuat
-     * @param xyz [type: Vector3] rotations around x, y and z axes in degrees
-     * @return q [type: Quat] quaternion describing an equivalent rotation
+     * @param xyz [type: Vector3]  rotation (deg)
+     * @result rot [type: Quat] Quat describing an equivalent rotation (231 (YZX) rotation sequence).
      */
-    inline Quat EulerToQuat(Vector3 xyz)
+    inline dmVMath::Quat EulerToQuat(dmVMath::Vector3 xyz)
     {
-        // One-axis rotation is common and cheaper to convert directly.
+        // Early-out when the rotation axis is either X, Y or Z.
+        // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (xyz.getZ() != 0.f) << 2 | (xyz.getY() != 0.f) << 1 | (xyz.getX() != 0.f);
         switch (mask) {
         case 0b000:
-            return Quat(0.0f, 0.0f, 0.0f, 1.0f);
+            return dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f);
         case 0b001:
         case 0b010:
         case 0b100:
-        {
-            float ha = (xyz.getX() + xyz.getY() + xyz.getZ()) * DMSDK_HALF_RAD_FACTOR;
-            Quat q(0.0f, 0.0f, 0.0f, dmTrigLookup::Cos(ha));
-            q.setElem(mask >> 1, dmTrigLookup::Sin(ha));
-            return q;
+            {
+                // the sum of the angles yields one angle, as the others are 0
+                float ha = (xyz.getX()+xyz.getY()+xyz.getZ()) * HALF_RAD_FACTOR;
+                dmVMath::Quat q(0.0f, 0.0f, 0.0f, dmTrigLookup::Cos(ha));
+                q.setElem(mask >> 1, dmTrigLookup::Sin(ha));
+                return q;
+            }
         }
-        }
-
+        // Implementation based on:
+        // http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
         // Rotation sequence: 231 (YZX)
-        float t1 = xyz.getY() * DMSDK_HALF_RAD_FACTOR;
-        float t2 = xyz.getZ() * DMSDK_HALF_RAD_FACTOR;
-        float t3 = xyz.getX() * DMSDK_HALF_RAD_FACTOR;
+        float t1 = xyz.getY() * HALF_RAD_FACTOR;
+        float t2 = xyz.getZ() * HALF_RAD_FACTOR;
+        float t3 = xyz.getX() * HALF_RAD_FACTOR;
 
         float c1 = dmTrigLookup::Cos(t1);
         float s1 = dmTrigLookup::Sin(t1);
@@ -223,18 +229,17 @@ namespace dmVMath
         float s2 = dmTrigLookup::Sin(t2);
         float c3 = dmTrigLookup::Cos(t3);
         float s3 = dmTrigLookup::Sin(t3);
-        float c1_c2 = c1 * c2;
-        float s2_s3 = s2 * s3;
+        float c1_c2 = c1*c2;
+        float s2_s3 = s2*s3;
 
-        Quat quat;
-        quat.setW(-s1 * s2_s3 + c1_c2 * c3);
-        quat.setX( s1 * s2 * c3 + s3 * c1_c2);
-        quat.setY( s1 * c2 * c3 + s2_s3 * c1);
-        quat.setZ(-s1 * s3 * c2 + s2 * c1 * c3);
+        dmVMath::Quat quat;
+        quat.setW(-s1*s2_s3 + c1_c2*c3 );
+        quat.setX( s1*s2*c3 + s3*c1_c2 );
+        quat.setY( s1*c2*c3 + s2_s3*c1 );
+        quat.setZ(-s1*s3*c2 + s2*c1*c3 );
         return quat;
     }
-
-#undef DMSDK_HALF_RAD_FACTOR
+#undef HALF_RAD_FACTOR
 
     /*# dot product between two vectors
      * @name Dot
