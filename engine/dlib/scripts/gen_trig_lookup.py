@@ -37,10 +37,10 @@ def generate(path, bits):
     frac_mask = remainder - 1
     weight = 1.0 / remainder
 
-    files = {"trig_lookup_template.h" : "trig_lookup.h", "trig_lookup_template.cpp" : "trig_lookup.cpp"}
+    files = {"trig_lookup_template.h" : "../src/dlib/trig_lookup.h", "trig_lookup_template.cpp" : "../src/dlib/trig_lookup.cpp"}
     for k,v in files.iteritems():
         template = path + "/" + k
-        target = path + "/../src/dlib/" + v
+        target = path + "/" + v
         with open(template, 'r') as f:
             data = f.read()
             data = data.format(size = size, table = table, table_mask = table_mask, frac_mask = frac_mask, weight = weight, bits = bits)
