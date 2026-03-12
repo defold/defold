@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 #include <Box2D/Dynamics/b2Body.h>
+#include <Box2D/Dynamics/b2Fixture.h>
 #include <Box2D/Dynamics/Joints/b2Joint.h>
 
 #include <dlib/log.h>
@@ -26,7 +27,7 @@
 #include "gamesys_private.h"
 #include "components/comp_collision_object.h"
 
-#include "../script_box2d.h"
+#include "script_box2d_v2.h"
 
 extern "C"
 {
@@ -207,6 +208,9 @@ namespace dmGameSystem
         return mass_data;
     }
 
+    // Returns the raw Lua userdata wrapper without touching the native handle.
+    // Callers that need the actual Box2D body must follow this with VerifyBodyInternal()
+    // so stale handles and dead game object instances are rejected consistently.
     static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
     {
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
@@ -249,10 +253,82 @@ namespace dmGameSystem
         return (b2Body*) body_ptr;
     }
 
-    static b2Body* CheckBody(lua_State* L, int index)
+    b2Body* CheckBody(lua_State* L, int index)
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         return VerifyBodyInternal(L, luabody, 0);
+    }
+
+    static dmhash_t GetBodyInstanceId(b2Body* body)
+    {
+        void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+
+        dmGameObject::HInstance instance = 0;
+        if (user_data)
+        {
+            instance = dmGameSystem::CompCollisionObjectGetInstance(user_data);
+        }
+
+        return instance ? dmGameObject::GetIdentifier(instance) : 0;
+    }
+
+    b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index)
+    {
+        if (fixture_index <= 0)
+        {
+            return 0;
+        }
+
+        b2Fixture* fixture = body->GetFixtureList();
+        int current_index = 1;
+        while (fixture)
+        {
+            if (current_index == fixture_index)
+            {
+                return fixture;
+            }
+            fixture = fixture->GetNext();
+            ++current_index;
+        }
+
+        return 0;
+    }
+
+    // Reuses the collection context from an existing Lua body handle when pushing a related
+    // native body. This keeps new handles tied to the same collection while deriving the
+    // instance id from the target body itself when that body belongs to a collision object.
+    void PushBodyFromReference(lua_State* L, b2Body* body, int reference_index)
+    {
+        B2DLuaBody* reference_body = CheckBodyInternal(L, reference_index);
+        B2DBodyMeta* body_meta = 0;
+        VerifyBodyInternal(L, reference_body, &body_meta);
+        PushBody(L, body, body_meta->m_Collection, GetBodyInstanceId(body));
+    }
+
+    static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int fixture_index)
+    {
+        lua_newtable(L);
+
+        lua_pushinteger(L, fixture_index);
+        lua_setfield(L, -2, "index");
+
+        lua_pushinteger(L, fixture->GetType());
+        lua_setfield(L, -2, "type");
+
+        lua_pushboolean(L, fixture->IsSensor());
+        lua_setfield(L, -2, "sensor");
+
+        lua_pushnumber(L, fixture->GetDensity());
+        lua_setfield(L, -2, "density");
+
+        lua_pushnumber(L, fixture->GetFriction());
+        lua_setfield(L, -2, "friction");
+
+        lua_pushnumber(L, fixture->GetRestitution());
+        lua_setfield(L, -2, "restitution");
+
+        lua_pushinteger(L, fixture->GetShape()->GetChildCount());
+        lua_setfield(L, -2, "child_count");
     }
 
     static B2DLuaBody* ToBody(lua_State* L, int index)
@@ -380,6 +456,40 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2Body* body = CheckBody(L, 1);
         body->ResetMassData();
+        return 0;
+    }
+
+    static int Body_GetFixtures(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        lua_newtable(L);
+
+        b2Fixture* fixture = body->GetFixtureList();
+        int fixture_index = 1;
+        while (fixture)
+        {
+            PushFixtureInfo(L, fixture, fixture_index);
+            lua_rawseti(L, -2, fixture_index);
+            fixture = fixture->GetNext();
+            ++fixture_index;
+        }
+
+        return 1;
+    }
+
+    static int Body_DestroyFixture(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        int fixture_index = luaL_checkinteger(L, 2);
+        b2Fixture* fixture = GetFixtureByIndex(body, fixture_index);
+        if (!fixture)
+        {
+            return luaL_error(L, "fixture_index %d out of range.", fixture_index);
+        }
+        body->DestroyFixture(fixture);
         return 0;
     }
 
@@ -663,27 +773,12 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         B2DLuaBody* luabody = CheckBodyInternal(L, 1);
-        B2DBodyMeta* body_meta = 0;
-        b2Body* body = VerifyBodyInternal(L, luabody, &body_meta);
+        b2Body* body = VerifyBodyInternal(L, luabody, 0);
 
         b2Body* next = body->GetNext();
         if (next)
         {
-            void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
-
-            dmGameObject::HInstance instance = 0;
-            if (next_user_data)
-            {
-                instance = dmGameSystem::CompCollisionObjectGetInstance(next_user_data);
-            }
-
-            dmhash_t id = 0;
-            if (instance)
-            {
-                id = dmGameObject::GetIdentifier(instance);
-            }
-
-            PushBody(L, next, body_meta->m_Collection, id);
+            PushBodyFromReference(L, next, 1);
         }
         else
         {
@@ -738,6 +833,8 @@ namespace dmGameSystem
         {"get_mass_data", Body_GetMassData},
         {"set_mass_data", Body_SetMassData},
         {"reset_mass_data", Body_ResetMassData},
+        {"get_fixtures", Body_GetFixtures},
+        {"destroy_fixture", Body_DestroyFixture},
         {"get_angle", Body_GetAngle},
 
         // {"synchronize_fixtures", SynchronizeFixtures},
@@ -827,6 +924,8 @@ namespace dmGameSystem
 #undef SET_CONSTANT
 
         lua_setfield(L, -2, "body");
+
+        ScriptBox2DInitializeFixture(L);
     }
 }
 
@@ -878,18 +977,6 @@ namespace dmGameSystem
  * @param body [type: b2Body] body
  * @param shape  [type: b2Shape] the shape to be cloned.
  * @param density [type: number] the shape density (set to zero for static bodies).
- */
-
-/**
- * Destroy a fixture. This removes the fixture from the broad-phase and
- * destroys all contacts associated with this fixture. This will
- * automatically adjust the mass of the body if the body is dynamic and the
- * fixture has positive density.
- * All fixtures attached to a body are implicitly destroyed when the body is destroyed.
- * @warning This function is locked during callbacks.
- * @name b2d.body.destroy_fixture
- * @param body [type: b2Body] body
- * @param fixture [type: b2Fixture] the world position of the body's origin.
  */
 
 /*#
@@ -1031,6 +1118,18 @@ namespace dmGameSystem
  * This normally does not need to be called unless you called SetMassData to override
  * @name b2d.body.reset_mass_data
  * @param body [type: b2Body] body
+ */
+
+/*# Get the fixtures attached to this body.
+ * @name b2d.body.get_fixtures
+ * @param body [type: b2Body] body
+ * @return fixtures [type: table] array of fixture info tables with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ */
+
+/*# Destroy a fixture from a body.
+ * @name b2d.body.destroy_fixture
+ * @param body [type: b2Body] body
+ * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
  */
 
 /*# Get the world coordinates of a point given the local coordinates.
@@ -1197,12 +1296,6 @@ namespace dmGameSystem
  * @name b2d.body.is_fixed_rotation
  * @param body [type: b2Body] body
  * @return enabled [type: boolean] is the rotation fixed
- */
-
-/** Get the list of all fixtures attached to this body.
- * @name b2d.body.get_fixture_list
- * @param body [type: b2Body] body
- * @return edge [type: b2Fixture] the first fixture
  */
 
 /** Get the list of all joints attached to this body.

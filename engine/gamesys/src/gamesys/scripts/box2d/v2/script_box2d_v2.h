@@ -12,27 +12,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_SCRIPT_BOX2D_H
-#define DM_GAMESYS_SCRIPT_BOX2D_H
+#ifndef DM_GAMESYS_SCRIPT_BOX2D_V2_H
+#define DM_GAMESYS_SCRIPT_BOX2D_V2_H
 
-#include <dmsdk/dlib/hash.h>
-#include <dmsdk/dlib/vmath.h>
+#include "../script_box2d.h"
 
-namespace dmGameObject
-{
-    typedef struct CollectionHandle* HCollection;
-}
+class b2Body;
+class b2Fixture;
 
 namespace dmGameSystem
 {
-    float GetPhysicsScale();
-    float GetInvPhysicsScale();
-
-    void  PushWorld(struct lua_State* L, void* world);
-    void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
-
-    void  ScriptBox2DInitializeBody(struct lua_State* L);
-    void  ScriptBox2DInitializeFixture(struct lua_State* L);
+    b2Body*    CheckBody(struct lua_State* L, int index);
+    b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index);
+    void       PushBodyFromReference(struct lua_State* L, b2Body* body, int reference_index);
 }
 
-#endif // DM_GAMESYS_SCRIPT_BOX2D_H
+#endif // DM_GAMESYS_SCRIPT_BOX2D_V2_H
