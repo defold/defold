@@ -1157,6 +1157,7 @@
                                      mouse-y
                                      (significant-drag? [mouse-x mouse-y] [initial-x initial-y]))
             camera (cond-> camera
+                     ;; TODO: We have to fix this
                      #_#_(and (not (zero? scroll-delta-y))
                           (contains? movements-enabled :dolly))
                      (cond->

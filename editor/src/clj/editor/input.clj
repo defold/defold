@@ -100,7 +100,7 @@
      :meta (.isMetaDown e) :control (.isControlDown e)})
   InputEvent
   (get-modifiers [_]
-    ;; NOTE: Return an empty map so it doesn't potentiall clobber InputState
+    ;; NOTE: Return an empty map so it doesn't potentially clobber InputState
     {}))
 
 (defn action-from-jfx [^InputEvent jfx-event]

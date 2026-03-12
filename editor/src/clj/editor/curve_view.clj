@@ -490,9 +490,7 @@
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
-  (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
-  (property input-state g/Any (default {}))
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)

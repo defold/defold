@@ -988,9 +988,7 @@
   (property async-copy-state g/Any)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
-  (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
-  (property input-state g/Any (default (i/make-input-state)))
 
   (input input-handlers Runnable :array)
   (input update-tick-handlers Runnable :array)
@@ -1066,8 +1064,6 @@
            :world-pos world-pos
            :world-dir world-dir)))
 
-(def current-input-state (atom {}))
-
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
         node (g/node-by-id-at basis node-id)
@@ -1077,7 +1073,7 @@
             async-copy-state-atom (g/raw-property-value* basis node :async-copy-state)]
         (when (and (some? drawable)
                    (some? async-copy-state-atom))
-          (update-image-view! image-view drawable async-copy-state-atom dt)
+          (update-image-view! node-id image-view drawable async-copy-state-atom dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
@@ -1285,7 +1281,7 @@
 (handler/defhandler :scene.free-camera-mode :workbench
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
-      (let [input-state (g/node-value scene-view :input-state)
+      (let [input-state (g/user-data scene-view ::input-state)
             camera (view->camera scene-view)
             image-view (g/node-value scene-view :image-view)]
         (c/start-free-cam-mode! image-view camera (:cursor-pos input-state))))))
@@ -1378,6 +1374,7 @@
               ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
 
+;; TODO: Can we merge this with dispatch-input?
 (defn dispatch-update-tick [update-tick-handlers input-state dt]
   (reduce (fn [input-state [node-id label]]
             (when input-state
@@ -1396,76 +1393,79 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
-  (when-let [view-id (ui/user-data image-view ::view-id)]
-    (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
+(defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
+  (let [action-queue (g/user-data view-id ::input-action-queue)
+        [render-mode tool-user-data play-mode active-updatables updatable-states]
+        (g/with-auto-evaluation-context evaluation-context
+          [(g/node-value view-id :render-mode evaluation-context)
+           (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
+           (g/node-value view-id :play-mode evaluation-context)
+           (g/node-value view-id :active-updatables evaluation-context)
+           (g/node-value view-id :updatable-states evaluation-context)])
+        has-active-updatables (not (coll/empty? active-updatables))
+        new-updatable-states (if has-active-updatables
+                               (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
+                               updatable-states)
+        renderables (g/node-value view-id :all-renderables)
+        last-renderables (ui/user-data image-view ::last-renderables)
+        last-frame-version (ui/user-data image-view ::last-frame-version)
+        frame-version (cond-> (or last-frame-version 0)
+                        (or (nil? last-renderables)
+                            (not (identical? last-renderables renderables))
+                            (and has-active-updatables (= :playing play-mode)))
+                        inc)]
+    (profiler/profile "input-dispatch" -1
+      (let [input-handlers (g/sources-of view-id :input-handlers)]
+        (g/user-data! view-id ::input-state
+                      (reduce (fn [input-state action]
+                                (let [input-state (i/update-input-state input-state action)]
+                                  (dispatch-input input-handlers input-state action tool-user-data)
+                                  input-state))
+                              (g/user-data view-id ::input-state)
+                              action-queue))
+        (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
+          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (profiler/profile "update-tick" -1
+      (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
+            input-state (g/user-data view-id ::input-state)]
+        (dispatch-update-tick update-tick-handlers input-state dt)))
+    (when (seq action-queue)
+      (g/user-data! view-id ::input-action-queue [])
+      ;; TODO: WHy did we add this?
+      (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
+    (when has-active-updatables
+      (g/set-property! view-id :updatable-states new-updatable-states))
+    (profiler/profile "render" -1
+      (when (not= last-frame-version frame-version)
+        (gl/with-drawable-as-current drawable
+          (let [[viewport pass->render-args]
+                (g/with-auto-evaluation-context evaluation-context
+                  [(g/node-value view-id :viewport evaluation-context)
+                   (g/node-value view-id :pass->render-args evaluation-context)])]
+            (scene-cache/process-pending-deletions! gl)
+            (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
+            (ui/user-data! image-view ::last-renderables renderables)
+            (ui/user-data! image-view ::last-frame-version frame-version)
+            (scene-cache/prune-context! gl)
+            (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
+    ;; call frame-selection if it's the very first aabb change for the scene
+    (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+          [scene-aabb reframing-info]
           (g/with-auto-evaluation-context evaluation-context
-            [(g/node-value view-id :input-action-queue evaluation-context)
-             (g/node-value view-id :render-mode evaluation-context)
-             (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
-             (g/node-value view-id :play-mode evaluation-context)
-             (g/node-value view-id :active-updatables evaluation-context)
-             (g/node-value view-id :updatable-states evaluation-context)])
-          has-active-updatables (not (coll/empty? active-updatables))
-          new-updatable-states (if has-active-updatables
-                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
-                                 updatable-states)
-          renderables (g/node-value view-id :all-renderables)
-          last-renderables (ui/user-data image-view ::last-renderables)
-          last-frame-version (ui/user-data image-view ::last-frame-version)
-          frame-version (cond-> (or last-frame-version 0)
-                                (or (nil? last-renderables)
-                                    (not (identical? last-renderables renderables))
-                                    (and has-active-updatables (= :playing play-mode)))
-                                inc)]
-      (profiler/profile "input-dispatch" -1
-        (let [input-handlers (g/sources-of view-id :input-handlers)
-              input-state (g/node-value view-id :input-state)]
-          (doseq [action action-queue]
-            (dispatch-input input-handlers input-state action tool-user-data))
-          (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
-            (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-      (profiler/profile "update-tick" -1
-        (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
-              input-state (g/node-value view-id :input-state)]
-          (dispatch-update-tick update-tick-handlers input-state dt)))
-      (when (seq action-queue)
-        (g/set-property! view-id :input-action-queue [])
-        (g/update-property! view-id :input-state assoc :scroll-delta [0.0 0.0]))
-      (when has-active-updatables
-        (g/set-property! view-id :updatable-states new-updatable-states))
-      (profiler/profile "render" -1
-        (when (not= last-frame-version frame-version)
-          (gl/with-drawable-as-current drawable
-            (let [[viewport pass->render-args]
-                  (g/with-auto-evaluation-context evaluation-context
-                    [(g/node-value view-id :viewport evaluation-context)
-                     (g/node-value view-id :pass->render-args evaluation-context)])]
-              (scene-cache/process-pending-deletions! gl)
-              (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
-              (ui/user-data! image-view ::last-renderables renderables)
-              (ui/user-data! image-view ::last-frame-version frame-version)
-              (scene-cache/prune-context! gl)
-              (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
-      ;; call frame-selection if it's the very first aabb change for the scene
-      (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+            (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
+                  reframing-info (when (and prev-aabb
+                                            (geom/predefined-aabb? prev-aabb)
+                                            (not (geom/predefined-aabb? scene-aabb)))
+                                   (aabb-framing-info view-id scene-aabb evaluation-context))]
+              (pair scene-aabb
+                    reframing-info)))]
 
-            [scene-aabb reframing-info]
-            (g/with-auto-evaluation-context evaluation-context
-              (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
-                    reframing-info (when (and prev-aabb
-                                              (geom/predefined-aabb? prev-aabb)
-                                              (not (geom/predefined-aabb? scene-aabb)))
-                                     (aabb-framing-info view-id scene-aabb evaluation-context))]
-                (pair scene-aabb
-                      reframing-info)))]
-
-        (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
-        (when reframing-info
-          (apply-framing-info! reframing-info true)))
-      (let [new-image (scene-async/image @async-copy-state-atom)]
-        (when-not (identical? (.getImage image-view) new-image)
-          (.setImage image-view new-image))))))
+      (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
+      (when reframing-info
+        (apply-framing-info! reframing-info true)))
+    (let [new-image (scene-async/image @async-copy-state-atom)]
+      (when-not (identical? (.getImage image-view) new-image)
+        (.setImage image-view new-image)))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
@@ -1523,6 +1523,8 @@
       ::unhandled)))
 
 (defn register-event-handler! [^Parent parent image-view view-id]
+  (g/user-data! view-id ::input-state (i/make-input-state))
+  (g/user-data! view-id ::input-action-queue [])
   (let [process-events? (atom true)
         event-handler
         (ui/event-handler e
@@ -1530,20 +1532,19 @@
             (try
               (profiler/profile "input-event" -1
                 (if (some-> (view->camera view-id) (g/user-data ::camera-state) :free-cam-mode)
-                  (g/update-property! view-id :input-state i/update-input-state (i/action-from-jfx e))
+                  (g/user-data-swap! view-id ::input-action-queue conj (i/action-from-jfx e))
                   (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                         pos [x y 0.0]
                         picking-rect (selection/calc-picking-rect pos pos)]
                     (when (= :mouse-pressed (:type action))
                       (.requestFocus parent)
                       (.consume e))
+                    (g/user-data-swap! view-id ::input-action-queue conj action)
                     (g/transact
                       (concat
                         (when screen-x
                           (g/set-property view-id :cursor-pos [screen-x screen-y]))
-                        (g/update-property view-id :input-state i/update-input-state action)
-                        (g/set-property view-id :tool-picking-rect picking-rect)
-                        (g/update-property view-id :input-action-queue conj action))))))
+                        (g/set-property view-id :tool-picking-rect picking-rect))))))
               (catch Throwable error
                 (reset! process-events? false)
                 (error-reporting/report-exception! error)))))]
@@ -1563,22 +1564,17 @@
       (.setOnScroll event-handler)
       (.addEventFilter KeyEvent/KEY_RELEASED
         (ui/event-handler e
-          (let [action (i/action-from-jfx e)]
-            (g/transact
-              (concat
-                (g/update-property view-id :input-state i/update-input-state action)
-                (g/update-property view-id :input-action-queue conj action)))
-            (let [current-input (g/node-value view-id :input-state)]
-              (when (contains? (:mouse-buttons current-input) :secondary)
-                (.consume e))))))
+          (let [action (i/action-from-jfx e)
+                input-state (i/update-input-state (g/user-data view-id ::input-state) action)]
+            (g/user-data-swap! view-id ::input-action-queue conj action)
+            (when (contains? (:mouse-buttons input-state) :secondary)
+              (.consume e)))))
       (.addEventFilter KeyEvent/KEY_PRESSED
         (ui/event-handler e
           (when @process-events?
             (let [action (i/action-from-jfx e)
-                  _ (g/update-property! view-id :input-state i/update-input-state action)
-                  current-input (g/node-value view-id :input-state)
-                  is-secondary (contains? (:mouse-buttons current-input) :secondary)]
-              (g/update-property! view-id :input-action-queue conj action)
+                  is-secondary (contains? (:button action) :secondary)]
+              (g/user-data-swap! view-id ::input-action-queue conj action)
               ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
               ;; would be consumed by the TabPane and will trigger next/prev tab selection.
               ;; Because of that, such key presses will not reach the workbench view and
