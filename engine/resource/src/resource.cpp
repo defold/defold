@@ -1199,7 +1199,8 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
                 pair.m_Callback(&reload_params);
             }
         }
-        if (rd->m_PrevResource) {
+        if (rd->m_PrevResource)
+        {
             ResourceDescriptor tmp_resource = *rd;
             tmp_resource.m_Resource = rd->m_PrevResource;
             ResourceDestroyParams params;
@@ -1348,6 +1349,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 params.m_Resource = rd;
                 params.m_Filename = 0;
                 params.m_FilenameHash = hashed_name;
+                params.m_Type = resource_type;
                 pair.m_Callback(&params);
             }
         }
