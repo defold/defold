@@ -1531,7 +1531,7 @@
           (when @process-events?
             (try
               (profiler/profile "input-event" -1
-                (if (some-> (view->camera view-id) (g/user-data ::camera-state) :free-cam-mode)
+                (if (c/free-cam-mode-active? cam)
                   (g/user-data-swap! view-id ::input-action-queue conj (i/action-from-jfx e))
                   (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                         pos [x y 0.0]
@@ -1548,6 +1548,12 @@
               (catch Throwable error
                 (reset! process-events? false)
                 (error-reporting/report-exception! error)))))]
+    (ui/observe (.focusedProperty parent)
+      (fn [_ _ focused]
+        (let [cam (view->camera view-id)]
+          (when (and (not focused)
+                     (c/free-cam-mode-active? cam))
+            (c/stop-free-cam-mode! image-view cam)))))
     (doto parent
       ;; TODO: Why did we add this this? This fixed something...
       (ui/on-mouse! (fn [type e]

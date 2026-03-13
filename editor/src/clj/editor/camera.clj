@@ -924,6 +924,9 @@
                        is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
 
+(defn free-cam-mode-active? [camera-id]
+  (some-> camera-id (g/user-data ::camera-state) :free-cam-mode))
+
 (defn start-free-cam-mode! [^ImageView image-view camera-id current-cursor-pos]
   ;; TODO JOE: There's a bug where if you try to start free cam mode while realign camera is animating, it messes up
   (when (not (:free-cam-mode (g/user-data camera-id ::camera-state)))
