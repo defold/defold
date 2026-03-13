@@ -793,20 +793,23 @@
 (defn manip-move! [scene-node-id offset-xyz]
   {:pre [(vector? offset-xyz)]}
   (g/transact
-    (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+    (:manip/tx-data
+      (g/with-auto-evaluation-context evaluation-context
+        (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
-    (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+    (:manip/tx-data
+      (g/with-auto-evaluation-context evaluation-context
+        (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
-    (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
+    (:manip/tx-data
+      (g/with-auto-evaluation-context evaluation-context
+        (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]
