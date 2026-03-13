@@ -21,6 +21,7 @@ import static org.junit.Assert.assertNotNull;
 
 import com.dynamo.bob.fs.IResource;
 
+import org.apache.commons.io.FilenameUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -45,6 +46,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
 
     String[] validGLTFFiles = {
             "/gltf/valid.gltf",
+            "/gltf/valid.glb",
     };
 
     @Before
@@ -91,7 +93,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     public void testGLTFValidatorValid() throws IOException {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), true);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(validGLTFFile), true);
             assertTrue(res.result);
         }
     }
@@ -101,7 +103,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     public void testGLTFValidatorValidNoValidateResources() throws IOException {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), false);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(validGLTFFile), false);
             assertTrue(res.result);
         }
     }
@@ -113,7 +115,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
             String expectedCode = entry.getValue();
 
             IResource projectRes = getFileSystem().get(invalidGLTFFile);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), true);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(invalidGLTFFile), true);
             assertFalse(res.result);
             assertFalse(res.errors.isEmpty());
 

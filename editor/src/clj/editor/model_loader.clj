@@ -98,7 +98,7 @@
     (when (or (= ext "gltf") (= ext "glb"))
       (if is-zip-resource?
         (with-open [stream (io/input-stream resource)]
-          (handle-gltf-validation-result resource (GLTFValidator/validateGltf stream false)))
+          (handle-gltf-validation-result resource (GLTFValidator/validateGltf stream ext false)))
         (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
     ;; Then, open a new stream for actually loading the scene.
     (with-open [stream (io/input-stream resource)]

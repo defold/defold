@@ -46,9 +46,9 @@ public class GLTFValidator {
     }
 
     // Called from editor
-    public static ValidateResult validateGltf(InputStream stream, boolean validateResources) throws IOException {
+    public static ValidateResult validateGltf(InputStream stream, String suffix, boolean validateResources) throws IOException {
         byte[] content = stream.readAllBytes();
-        return validateGltf(content, validateResources);
+        return validateGltf(content, suffix, validateResources);
     }
 
     public static ValidateResult validateGltf(String path, boolean validateResources) throws IOException {
@@ -122,13 +122,13 @@ public class GLTFValidator {
         return validateResult;
     }
 
-    public static ValidateResult validateGltf(byte[] content, boolean validateResources) throws IOException {
+    public static ValidateResult validateGltf(byte[] content, String suffix, boolean validateResources) throws IOException {
         ValidateResult validateResult = new ValidateResult();
         validateResult.result = true;
 
         // Write the provided content to a temporary file so we can pass a real path
         // to the gltf_validator executable.
-        File tmpGltfFile = File.createTempFile("gltf_tmp", ".gltf", Bob.getRootFolder());
+        File tmpGltfFile = File.createTempFile("gltf_tmp", "." + suffix, Bob.getRootFolder());
         tmpGltfFile.deleteOnExit();
 
         try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile))) {

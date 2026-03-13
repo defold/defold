@@ -214,7 +214,7 @@ public class MeshsetBuilder extends Builder  {
             if (isPhysicalFile(input)) {
                 validateResult = GLTFValidator.validateGltf(input.getAbsPath(), true);
             } else {
-                validateResult = GLTFValidator.validateGltf(input.getContent(), false);
+                validateResult = GLTFValidator.validateGltf(input.getContent(), suffix, false);
             }
 
             if (!validateResult.result) {

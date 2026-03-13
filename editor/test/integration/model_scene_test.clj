@@ -45,10 +45,15 @@
 
 (deftest gltf-valid-scene
   (test-util/with-loaded-project
+    ;; Valid .gltf should load successfully via model_loader and glTF validation.
     (let [node-id (test-util/resource-node project "/mesh/triangle/gltf/Triangle.gltf")
           scene (log/without-logging
                   (g/node-value node-id :scene))]
-      ;; Should load successfully via model_loader and glTF validation.
+      (is (not (g/error? scene))))
+    ;; Valid .glb should load successfully via model_loader and glTF validation.
+    (let [node-id (test-util/resource-node project "/mesh/triangle/glb/valid.glb")
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
       (is (not (g/error? scene))))))
 
 (deftest gltf-invalid-scene
