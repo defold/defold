@@ -156,7 +156,10 @@ public abstract class AbstractProtoBuilderTest {
     protected Project getProject() {
         return this.project;
     }
-    protected MockFileSystem getFileSystem() { return this.fileSystem; }
+
+    protected MockFileSystem getFileSystem() {
+        return this.fileSystem;
+    }
 
     protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);

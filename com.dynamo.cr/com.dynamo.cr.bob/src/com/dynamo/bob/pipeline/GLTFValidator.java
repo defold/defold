@@ -55,7 +55,7 @@ public class GLTFValidator {
         ValidateResult validateResult = new ValidateResult();
         validateResult.result = true;
 
-        // gltf_validator is not supported on win32 (we can't build a binary on this platform).
+        // gltf_validator is not supported on win32 (we can't build the gltf_validator binary for this platform).
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.X86Win32) {
             return validateResult;
