@@ -60,10 +60,15 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 "mesh: \"%s\"\n" +
                 "animations: \"%s\"\n" +
                 "default_animation: \"invalid\"\n";
+
+        System.out.println("Testing " + glTF);
+
         try {
             build("/test_model.model", String.format(template, glTF, glTF));
+            System.out.println("Success");
             return null;
         } catch (Exception e) {
+            System.out.println("Failed: " + e.getMessage());
             return e.getMessage();
         }
     }
