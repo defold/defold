@@ -475,26 +475,15 @@
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
 
-(defn- snapshot-camera
-  "Creates a deep copy of a camera, cloning mutable Java math objects."
-  [camera]
-  (-> camera
-      (update :position #(when % (Point3d. ^Tuple3d %)))
-      (update :focus-point #(when % (Vector4d. ^Tuple4d %)))
-      (update :rotation #(when % (Quat4d. ^Quat4d %)))))
-
 (defn- set-dolly-target!
   ([self ^double delta]
    (set-dolly-target! self delta nil [nil nil]))
   ([self ^double delta viewport [mouse-x mouse-y]]
-   (let [current-camera (g/node-value self :local-camera)
-         current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
-                            (do (g/user-data-swap! self ::camera-state assoc :dolly-start-camera (snapshot-camera current-camera))
-                                current-camera))
+   (let [current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
+                            (g/node-value self :local-camera))
          new-target (dolly current-target delta)
-         prev-camera (:dolly-start-camera (g/user-data self ::camera-state))
          new-target (if (and viewport mouse-x mouse-y)
-                      (pan-at-pointer-position new-target prev-camera viewport [mouse-x mouse-y])
+                      (pan-at-pointer-position new-target current-target viewport [mouse-x mouse-y])
                       new-target)]
      (g/user-data-swap! self ::camera-state assoc :dolly-target-camera new-target))))
 
@@ -1194,9 +1183,6 @@
             camera (cond-> camera
                      has-mouse-moved
                      (cond->
-                       (= :dolly movement)
-                       (do (set-dolly-target! self (* -0.002 (- mouse-y last-y))))
-
                        (= :track movement)
                        (track viewport last-x last-y mouse-x mouse-y)
 
@@ -1206,6 +1192,8 @@
                      filter-fn
                      filter-fn)
             camera (apply-dolly-interpolation self camera dt)]
+        (when (and has-mouse-moved (= :dolly movement))
+          (set-dolly-target! self (* 0.002 (- mouse-y last-y))))
         (g/set-property! self :local-camera camera)
         (when has-mouse-moved
           (g/user-data-swap! self ::camera-state assoc
