@@ -403,7 +403,7 @@
     :orthographic (dolly-orthographic camera (- delta))
     :perspective (dolly-perspective camera delta)))
 
-(def ^:private zoom-inertia 0.06)
+(def ^:private zoom-inertia 0.04)
 
 (defn- apply-dolly-interpolation-perspective [self camera ^double dt]
   (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
