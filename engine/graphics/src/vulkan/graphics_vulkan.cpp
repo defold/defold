@@ -4979,6 +4979,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+    }
 
     VkImage VulkanGetImage(HContext _context, HTexture texture)
     {
