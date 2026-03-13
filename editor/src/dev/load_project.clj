@@ -22,9 +22,10 @@
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.resource-types :as resource-types]
+            [editor.scene :as scene]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
             [internal.graph.types]
             [internal.system :as is]
             [internal.transaction :as it]
@@ -130,13 +131,22 @@
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
 (defonce workspace-graph-id (g/last-graph-added))
 
+(defn- setup-workspace! [workspace-graph-id project-path]
+  (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+        workspace (workspace/make-workspace workspace-graph-id project-path {} workspace-config localization)]
+    (g/transact
+      (concat
+        (scene/register-view-types workspace)))
+    (resource-types/register-resource-types! workspace)
+    workspace))
+
 (defonce workspace
   (run-and-measure-task!
     :setup-workspace
-    (test-util/setup-workspace! workspace-graph-id project-path)))
+    (setup-workspace! workspace-graph-id project-path)))
 
 (defonce game-project-resource
-  (workspace/find-resource workspace "/game.project"))
+  (workspace/file-resource workspace "/game.project"))
 
 (defonce up-to-date-lib-states
   (run-and-measure-task!
