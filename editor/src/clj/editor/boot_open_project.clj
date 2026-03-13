@@ -96,7 +96,6 @@
 
     (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)
-    (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
 
@@ -436,7 +435,7 @@
           build-settings (workspace/make-build-settings prefs)
           workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
           workspace (setup-workspace! project-path build-settings workspace-config localization)
-          game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
+          game-project-res (workspace/file-resource workspace "/game.project")
           extensions (extensions/make *project-graph*)
           project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
       (ui/run-now
