@@ -1325,7 +1325,7 @@
 (defmethod scene-tools/manip-scale ::ModifierNode [initial-evaluation-context node-id ^Vector3d delta]
   (let [old-magnitude (g/node-value node-id :magnitude initial-evaluation-context)
         new-magnitude (update-curve-spread-start-value old-magnitude #(properties/scale-and-round % (.getX delta)))]
-    (g/set-property node-id :magnitude new-magnitude)))
+    {:manip/tx-data (g/set-property node-id :magnitude new-magnitude)}))
 
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
 
@@ -1336,10 +1336,10 @@
         new-x (update-curve-spread-start-value old-x #(properties/scale-by-absolute-value-and-round % (.getX delta)))
         new-y (update-curve-spread-start-value old-y #(properties/scale-by-absolute-value-and-round % (.getY delta)))
         new-z (update-curve-spread-start-value old-z #(properties/scale-by-absolute-value-and-round % (.getZ delta)))]
-    (g/set-properties node-id
-      :emitter-key-size-x new-x
-      :emitter-key-size-y new-y
-      :emitter-key-size-z new-z)))
+    {:manip/tx-data (g/set-properties node-id
+                      :emitter-key-size-x new-x
+                      :emitter-key-size-y new-y
+                      :emitter-key-size-z new-z)}))
 
 (defn load-particle-fx [project self _resource pb]
   (concat

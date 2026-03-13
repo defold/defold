@@ -1011,6 +1011,10 @@
 ;; Transaction step inspection
 ;; ---------------------------------------------------------------------------
 
+(defn tx-step?
+  [value]
+  (instance? TransactionStep value))
+
 (def tx-step-type TransactionStep/.step_type)
 
 (defn tx-step-added-node

@@ -289,7 +289,7 @@
 (defmethod scene-tools/manip-scale ::SphereShape [initial-evaluation-context node-id ^Vector3d delta]
   (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))]
-    (g/set-property node-id :diameter new-diameter)))
+    {:manip/tx-data (g/set-property node-id :diameter new-diameter)}))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
   [node-id]
@@ -324,7 +324,7 @@
 (defmethod scene-tools/manip-scale ::BoxShape [initial-evaluation-context node-id ^Vector3d delta]
   (let [old-dimensions (g/node-value node-id :dimensions initial-evaluation-context)
         new-dimensions (math/zip-clj-v3 old-dimensions delta properties/scale-by-absolute-value-and-round)]
-    (g/set-property node-id :dimensions new-dimensions)))
+    {:manip/tx-data (g/set-property node-id :dimensions new-dimensions)}))
 
 (g/defnode CapsuleShape
   (inherits Shape)
@@ -356,7 +356,7 @@
         old-height (g/node-value node-id :height initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
         new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
-    (g/set-properties node-id :diameter new-diameter :height new-height)))
+    {:manip/tx-data (g/set-properties node-id :diameter new-diameter :height new-height)}))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]

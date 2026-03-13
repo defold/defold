@@ -1417,14 +1417,17 @@
   ;; from disk during resource-sync. The id must be unique within the gui scene.
   (g/node-value node-id :id evaluation-context))
 
+(defn- manip-gui-node [initial-evaluation-context node-id prop-kw update-fn & args]
+  {:manip/tx-data (apply basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw update-fn args)})
+
 (defmethod scene-tools/manip-move ::GuiNode [initial-evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout initial-evaluation-context node-id :position scene/apply-move-delta delta))
+  (manip-gui-node initial-evaluation-context node-id :position scene/apply-move-delta delta))
 
 (defmethod scene-tools/manip-rotate ::GuiNode [initial-evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout initial-evaluation-context node-id :rotation scene/apply-rotate-delta delta))
+  (manip-gui-node initial-evaluation-context node-id :rotation scene/apply-rotate-delta delta))
 
 (defmethod scene-tools/manip-scale ::GuiNode [initial-evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout initial-evaluation-context node-id :scale scene/apply-scale-delta delta))
+  (manip-gui-node initial-evaluation-context node-id :scale scene/apply-scale-delta delta))
 
 (defn- transfer-overrides-target-properties
   [target-node-id target-layout-name evaluation-context]

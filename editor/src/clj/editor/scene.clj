@@ -1983,13 +1983,14 @@
   (contains? (g/node-value node-id :transform-properties) :scale))
 
 (defn- manip-scene-node [apply-delta-fn prop-kw initial-evaluation-context node-id vecmath-delta]
-  (g/set-property node-id prop-kw
-    (-> (g/node-value node-id prop-kw initial-evaluation-context)
-        (apply-delta-fn vecmath-delta))))
+  (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
+        new-value (apply-delta-fn old-value vecmath-delta)]
+    {:manip/tx-data (g/set-property node-id prop-kw new-value)}))
 
 (defn- manip-preview-scene-node [apply-delta-fn prop-kw initial-evaluation-context node-id vecmath-delta]
-  (let [initial-value (g/node-value node-id prop-kw initial-evaluation-context)]
-    {prop-kw (apply-delta-fn initial-value vecmath-delta)}))
+  (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
+        new-value (apply-delta-fn old-value vecmath-delta)]
+    {:manip/prop-kw->override-value {prop-kw new-value}}))
 
 (defn apply-move-delta [old-clj-position vecmath-delta]
   (let [old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))

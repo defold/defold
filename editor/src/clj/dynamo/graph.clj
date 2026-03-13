@@ -344,6 +344,19 @@
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
 
+(defn tx-data?
+  "Returns true if the value is a (possibly nested) sequence of transaction
+  steps."
+  [value]
+  (and (seqable? value)
+       (coll/reduce-> value
+         false
+         coll/flatten-xf
+         (fn [_ item]
+           (if (it/tx-step? item)
+             true
+             (reduced false))))))
+
 (defn tx-data-step-types
   "Given a sequence of possibly nested transaction steps, returns a sequence of
   keywords identifying the type of each encountered transaction step. Used in
