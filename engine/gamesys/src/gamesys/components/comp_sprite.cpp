@@ -214,6 +214,7 @@ namespace dmGameSystem
     static void SetCursor(SpriteComponent* component, float cursor);
     static float GetPlaybackRate(SpriteComponent* component);
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
 
     static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context)
     {
@@ -262,6 +263,8 @@ namespace dmGameSystem
         InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
 
         *params.m_World = sprite_world;
+
+        dmResource::RegisterResourceReloadedCallback(sprite_context->m_Factory, ResourceReloadedCallback, sprite_world);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -289,6 +292,7 @@ namespace dmGameSystem
             free(data);
         }
 
+        dmResource::UnregisterResourceReloadedCallback(sprite_context->m_Factory, ResourceReloadedCallback, sprite_world);
         delete sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -521,6 +525,20 @@ namespace dmGameSystem
         return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_Texture;
     }
 
+    uint8_t GetTextureResourceGeneration(const SpriteComponent* component, uint32_t texture_unit)
+    {
+        if(texture_unit >= component->m_Resource->m_NumTextures)
+            return 0;
+
+        const SpriteResourceOverrides* overrides = component->m_Overrides;
+        if (overrides && texture_unit < overrides->m_Textures.Size())
+        {
+            if (overrides->m_Textures[texture_unit].m_TextureSet)
+                return overrides->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
+        }
+        return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
+    }
+
     dmGraphics::HTexture GetMaterialTexture(const SpriteComponent* component, uint32_t texture_unit)
     {
         TextureResource* texture = GetTextureResource(component, texture_unit);
@@ -633,6 +651,12 @@ namespace dmGameSystem
         }
 
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
+        for (size_t idx = 0; idx < resource->m_NumTextures; ++idx)
+        {
+            uint8_t generation = GetTextureResourceGeneration(component, idx);
+            dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
+        }
+        dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
         dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
 
         HashResourceOverrides(&state, component->m_Overrides);
@@ -1064,7 +1088,7 @@ namespace dmGameSystem
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             TextureSetResource* resource = GetTextureSetByIndex(component, i);
-            
+
             const dmGameSystemDDF::TextureSet* texture_set_ddf = resource->m_TextureSet;
             const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
             const uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
@@ -1347,6 +1371,7 @@ namespace dmGameSystem
                 dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
                 (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
             }
+
             return *found;
         }
 
@@ -2654,6 +2679,37 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompSpriteIterPropertiesGetNext;
+    }
+
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
+    {
+        dmhash_t name_hash = ResourceTypeGetNameHash(params->m_Type);
+        if (name_hash != TEXTURE_SET_EXT_HASH)
+        {
+            return;
+        }
+        SpriteWorld* sprite_world = (SpriteWorld*) params->m_UserData;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
+        uint32_t component_count = components.Size();
+
+        const void* resource = dmResource::GetResource(params->m_Resource);
+        for (uint32_t i = 0; i < component_count; ++i)
+        {
+            SpriteComponent* component = &components[i];
+            if (component->m_Resource != 0x0)
+            {
+                uint32_t num_textures = component->m_NumTextures;
+                for (uint32_t texture_idx = 0; texture_idx < num_textures; ++texture_idx)
+                {
+                    uintptr_t texture = (uintptr_t)GetTextureSetByIndex(component, texture_idx);
+                    if (texture == (uintptr_t) resource)
+                    {
+                        component->m_ReHash = 1;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     // For tests

@@ -12,7 +12,16 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-function make_anim(id, width, height, fstart, fend)
+function make_anim(id, width, height, frames)
+    return {
+        id=id,
+        width=width,
+        height=height,
+        frames=frames
+    }
+end
+
+function make_anim_from_startend(id, width, height, fstart, fend)
     return {
         id=id,
         width=width,
@@ -40,8 +49,18 @@ function assert_anim(a, expected)
     assert(a.id              == expected.id)
     assert(a.width           == expected.width)
     assert(a.height          == expected.height)
-    assert(a.frame_start     == expected.frame_start)
-    assert(a.frame_end       == expected.frame_end)
+    assert(a.frames)
+
+    if expected.frames then
+        assert(#a.frames == #expected.frames)
+        for i = 1, #expected.frames do
+            assert(a.frames[i] == expected.frames[i])
+        end
+    else
+        assert(expected.frame_start)
+        assert(expected.frame_end)
+        assert(a.frames)
+    end
 
     -- Optional entries, test only if required
     if expected.fps ~= nil then
