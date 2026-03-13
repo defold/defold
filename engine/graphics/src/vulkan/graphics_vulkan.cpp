@@ -4979,6 +4979,19 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+
+    VkImage VulkanGetImage(HContext _context, HTexture texture)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Handle.m_Image : 0;
+    }
+
+    VkImageView VulkanGetImageView(HContext _context, HTexture texture)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Handle.m_ImageView : 0;
     }
 
     bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)
