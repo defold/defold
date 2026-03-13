@@ -412,18 +412,22 @@
       (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
             current-pos (types/position camera)
             target-pos (types/position target-camera)
-            ;; TODO: Avoid allocation here
             new-pos (Point3d. current-pos)
             _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
+            current-fp ^Vector4d (:focus-point camera)
+            target-fp ^Vector4d (:focus-point target-camera)
+            new-fp (Vector4d. (.x current-fp) (.y current-fp) (.z current-fp) (.w current-fp))
+            _ (.interpolate ^Tuple4d new-fp ^Tuple4d target-fp factor)
             distance (.distance ^Point3d new-pos target-pos)
-            fp ^Vector4d (:focus-point camera)
-            fp (Point3d. (.x fp) (.y fp) (.z fp))
-            focus-point-distance (.distance fp new-pos)]
+            fp-point (Point3d. (.x new-fp) (.y new-fp) (.z new-fp))
+            focus-point-distance (.distance fp-point new-pos)]
         (if (< distance (* focus-point-distance 0.002))
           (do
             (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
             target-camera)
-          (assoc camera :position new-pos))))))
+          (assoc camera
+                 :position new-pos
+                 :focus-point new-fp))))))
 
 (defn- apply-dolly-interpolation-orthographic [self camera ^double dt]
   (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
@@ -434,7 +438,14 @@
                          (* factor (double (:fov-x target-camera))))
             new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
                          (* factor (double (:fov-y target-camera))))
-            ;; Calculate dynamic threshold so long distances don't animate for long, and short distances don't stop abruptly
+            current-pos (types/position camera)
+            target-pos (types/position target-camera)
+            new-pos (Point3d. current-pos)
+            _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
+            current-fp ^Vector4d (:focus-point camera)
+            target-fp ^Vector4d (:focus-point target-camera)
+            new-fp (Vector4d. (.x current-fp) (.y current-fp) (.z current-fp) (.w current-fp))
+            _ (.interpolate ^Tuple4d new-fp ^Tuple4d target-fp factor)
             threshold (* ^double (:fov-x camera) 0.008)]
         (if (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) threshold)
           (do
@@ -442,37 +453,14 @@
             target-camera)
           (assoc camera
                  :fov-x new-fov-x
-                 :fov-y new-fov-y))))))
+                 :fov-y new-fov-y
+                 :position new-pos
+                 :focus-point new-fp))))))
 
 (defn- apply-dolly-interpolation [self camera ^double dt]
   (case (:type camera)
     :perspective (apply-dolly-interpolation-perspective self camera dt)
     :orthographic (apply-dolly-interpolation-orthographic self camera dt)))
-
-(defn- set-dolly-target! [self ^double delta]
-  (let [current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
-                           (g/node-value self :local-camera))
-        new-target (dolly current-target delta)]
-    (g/user-data-swap! self ::camera-state assoc :dolly-target-camera new-target)))
-
-(defn- reset-dolly! [self]
-  (when-let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
-    (g/user-data-swap! self ::camera-state assoc :dolly-target-camera nil)
-    (g/set-property! self :local-camera target-camera)))
-
-(defn mode-2d? [camera]
-  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
-       (= :orthographic (:type camera))))
-
-(defn track [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
-  (let [focus ^Vector4d (:focus-point camera)
-        point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        screen-z (.z point)
-        world ^Vector4d (camera-unproject camera viewport (Point3d. evt-x evt-y screen-z))
-        delta ^Vector4d (camera-unproject camera viewport (Point3d. last-x last-y screen-z))]
-    (.sub delta world)
-    (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
-           :focus-point (doto focus (.add delta)))))
 
 (defn pan-at-pointer-position
   "Pans the camera so that the focus point is at the same position as it was before `dolly`."
@@ -483,6 +471,44 @@
         prev-point (camera-project prev-camera viewport focus-point-3d)
         world (camera-unproject camera viewport (Point3d. x y (.z point)))
         delta (camera-unproject prev-camera viewport (Point3d. x y (.z prev-point)))]
+    (.sub delta world)
+    (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
+           :focus-point (doto focus (.add delta)))))
+
+(defn- snapshot-camera
+  "Creates a deep copy of a camera, cloning mutable Java math objects."
+  [camera]
+  (-> camera
+      (update :position #(when % (Point3d. ^Tuple3d %)))
+      (update :focus-point #(when % (Vector4d. ^Tuple4d %)))
+      (update :rotation #(when % (Quat4d. ^Quat4d %)))))
+
+(defn- set-dolly-target!
+  ([self ^double delta]
+   (set-dolly-target! self delta nil [nil nil]))
+  ([self ^double delta viewport [mouse-x mouse-y]]
+   (let [current-camera (g/node-value self :local-camera)
+         current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
+                            (do (g/user-data-swap! self ::camera-state assoc :dolly-start-camera (snapshot-camera current-camera))
+                                current-camera))
+         new-target (dolly current-target delta)
+         prev-camera (:dolly-start-camera (g/user-data self ::camera-state))
+         new-target (if (and viewport mouse-x mouse-y)
+                      (pan-at-pointer-position new-target prev-camera viewport [mouse-x mouse-y])
+                      new-target)]
+     (g/user-data-swap! self ::camera-state assoc :dolly-target-camera new-target))))
+
+(defn- reset-dolly! [self]
+  (when-let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
+    (g/user-data-swap! self ::camera-state assoc :dolly-target-camera nil)
+    (g/set-property! self :local-camera target-camera)))
+
+(defn track [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
+  (let [focus ^Vector4d (:focus-point camera)
+        point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        screen-z (.z point)
+        world ^Vector4d (camera-unproject camera viewport (Point3d. evt-x evt-y screen-z))
+        delta ^Vector4d (camera-unproject camera viewport (Point3d. last-x last-y screen-z))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
@@ -856,6 +882,10 @@
                          :perspective (camera-orthographic->perspective old-camera fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
+(defn mode-2d? [camera]
+  (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
+       (= :orthographic (:type camera))))
+
 (defn camera-2d?
   [camera-node evaluation-context]
   (mode-2d? (g/node-value camera-node :local-camera evaluation-context)))
@@ -990,14 +1020,19 @@
     (case type
       :scroll (if (and (contains? movements-enabled :dolly)
                        (not free-cam-mode))
-                (do
-                  (set-dolly-target! self (* 0.002 (double (:delta-y action))))
+                (let [is-mode-2d (mode-2d? local-cam)
+                      alt (contains? (:modifiers input-state) :alt)
+                      pan (or (and is-mode-2d (not alt))
+                              (and (not is-mode-2d) alt))
+                      delta (* 0.002 (double (:delta-y action)))]
+                  (if pan
+                    (set-dolly-target! self delta (g/node-value self :viewport) (:view-pos input-state))
+                    (set-dolly-target! self delta))
                   nil)
                 action)
       :mouse-pressed
       (do
-        ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly,
-        ;; just reset it
+        ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
         (reset-dolly! self)
         (g/user-data-swap! self ::camera-state assoc
                            :last-x x
@@ -1157,21 +1192,14 @@
                                      mouse-y
                                      (significant-drag? [mouse-x mouse-y] [initial-x initial-y]))
             camera (cond-> camera
-                     ;; TODO: We have to fix this
-                     #_#_(and (not (zero? scroll-delta-y))
-                          (contains? movements-enabled :dolly))
-                     (cond->
-                       (or (and is-mode-2d (not alt))
-                           (and (not is-mode-2d) alt))
-                       (pan-at-pointer-position camera viewport [mouse-x mouse-y]))
-
                      has-mouse-moved
                      (cond->
-                         (= :dolly movement)
-                       (as-> c (do (set-dolly-target! self (* -0.002 (- mouse-y last-y))) c))
-                       (and (= :track movement)
-                            #_is-significant-drag)
+                       (= :dolly movement)
+                       (do (set-dolly-target! self (* -0.002 (- mouse-y last-y))))
+
+                       (= :track movement)
                        (track viewport last-x last-y mouse-x mouse-y)
+
                        (= :tumble movement)
                        (tumble (- last-x mouse-x) (- last-y mouse-y)))
 
