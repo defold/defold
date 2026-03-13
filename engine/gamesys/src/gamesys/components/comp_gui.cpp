@@ -23,7 +23,7 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 #include <dmsdk/dlib/vmath.h>
 #include <font/text_layout.h>
 #include <graphics/graphics.h>
