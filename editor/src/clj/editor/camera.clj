@@ -1169,7 +1169,7 @@
           (set-camera! self current-camera final-camera false)))
       (let [viewport (g/node-value self :viewport)
             {:keys [^double last-x ^double last-y ^double initial-x ^double initial-y movement]} camera-state
-            camera (g/node-value self :local-camera)
+            camera (g/node-value self :camera)
             is-mode-2d (mode-2d? camera)
             filter-fn (:filter-fn camera)
             {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
