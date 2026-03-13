@@ -28,6 +28,7 @@ import log
 import run
 import re
 import platform
+import shutil
 from collections import defaultdict
 
 DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dynamo_home'))
@@ -53,10 +54,8 @@ VERSION_MACOSX_MIN="10.15"
 
 SWIFT_VERSION="5.5"
 
-VERSION_LINUX_CLANG="16.0.0"
+VERSION_LINUX_CLANG="19.0.0"
 PACKAGES_LINUX_CLANG="clang-16.0.0"
-PACKAGES_LINUX_X86_64_TOOLCHAIN="clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04"
-PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
 
 ## **********************************************************************************************
 # Android
@@ -310,6 +309,7 @@ def get_android_clang_name(platform, api_version):
 # Linux
 
 _is_wsl = None
+_local_compiler_info = None
 
 def is_wsl():
     global _is_wsl
@@ -324,33 +324,52 @@ def is_wsl():
             _is_wsl = "Microsoft" in data
     return _is_wsl
 
-def get_local_compiler_from_bash():
-    path = run.shell_command('which clang++')
-    if path != None:
-        return "clang++"
-    path = run.shell_command('which g++')
-    if path != None:
-        return "g++"
-    return None
-
-def get_local_compiler_path():
-    tool = get_local_compiler_from_bash()
-    if tool is None:
-        return None
-
-    path = run.shell_command('which %s' % tool)
+def _get_compiler_root_from_path(path):
     substr = '/bin'
     if substr in path:
         i = path.find(substr)
-        path = path[:i]
-        return path
+        return path[:i]
     return None
 
+def _get_local_compiler_info():
+    global _local_compiler_info
+    if _local_compiler_info is not None:
+        return _local_compiler_info
+
+    compiler_path = shutil.which('clang++')
+    if compiler_path is not None:
+        _local_compiler_info = {
+            'name': 'clang++',
+            'path': compiler_path,
+            'root': _get_compiler_root_from_path(compiler_path),
+            'version': run.shell_command('clang++ -dumpversion').strip(),
+        }
+        return _local_compiler_info
+
+    compiler_path = shutil.which('g++')
+    if compiler_path is not None:
+        _local_compiler_info = {
+            'name': 'g++',
+            'path': compiler_path,
+            'root': _get_compiler_root_from_path(compiler_path),
+            'version': run.shell_command('g++ -dumpversion').strip(),
+        }
+        return _local_compiler_info
+
+    _local_compiler_info = {}
+    return _local_compiler_info
+
+def get_local_compiler_from_bash():
+    info = _get_local_compiler_info()
+    return info.get('name', None)
+
+def get_local_compiler_path():
+    info = _get_local_compiler_info()
+    return info.get('root', None)
+
 def get_local_compiler_version():
-    tool = get_local_compiler_from_bash()
-    if tool is None:
-        return None
-    return run.shell_command('%s -dumpversion' % tool).strip()
+    info = _get_local_compiler_info()
+    return info.get('version', None)
 
 
 ## **********************************************************************************************
@@ -652,6 +671,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
         info['xcode-clang'] = defold_info['xcode-clang']['version']
+        info['clang-version'] = info['xcode-clang']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
@@ -661,6 +681,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
+        info['clang-version'] = defold_info[platform]['version']
         # We download the package for the host platform, and rely on its ability cross compile
         info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
@@ -694,6 +715,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
         info['xcode-clang'] = get_local_darwin_clang_version()
+        info['clang-version'] = info['xcode-clang']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
@@ -706,6 +728,7 @@ def _get_local_sdk_info(platform, verbose=False):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
+        info['clang-version'] = info[platform]['version']
         info[platform]['path'] = get_local_compiler_path()
 
     elif platform in ('win32', 'x86_64-win32'):
@@ -842,20 +865,56 @@ def _get_clang_arch_from_platform(platform):
 class TestSdkException(Exception):
     pass
 
+def _get_clang_from_info(info):
+    clang = info.get('clang', None)
+    if clang is not None:
+        return clang
+
+    clang = shutil.which('clang++')
+    if clang is None:
+        raise TestSdkException("Path not found for clang!")
+
+    info['clang'] = clang
+    return clang
+
+def _parse_version_tuple(version):
+    match = re.search(r'(\d+(?:\.\d+)+)', version)
+    if not match:
+        raise TestSdkException(f"Failed to parse version from '{version}'")
+    return tuple(int(token) for token in match.group(1).split('.'))
+
+def _test_version_clang(platform, info, can_run, verbose):
+    required_version = None
+
+    if platform in ['arm64-linux', 'x86_64-linux']:
+        required_version = VERSION_LINUX_CLANG
+    elif platform in ['arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+        required_version = VERSION_XCODE_CLANG
+
+    if required_version is None:
+        return
+
+    version_str = info.get('clang-version', None)
+    if version_str is None:
+        raise TestSdkException(f"Failed to get clang version for {platform}")
+    actual_version = _parse_version_tuple(version_str)
+    minimum_version = _parse_version_tuple(required_version)
+    actual_version_str = '.'.join(str(token) for token in actual_version)
+
+    log.log(f"clang version for {platform}: required={required_version}, actual={actual_version_str}")
+
+    if actual_version < minimum_version:
+        raise TestSdkException(f"Invalid clang version for {platform}: found {actual_version}, expected at least {required_version}")
+
 def _compile_file_clang(platform, info, srcfile, exefile, verbose):
     # if we can rely on the PATH variable
     use_local_path = False
+    clang = 'clang++'
     if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
         use_local_path = True
-
-        clang = run.shell_command(f'which clang++')
+        clang = _get_clang_from_info(info)
         if verbose:
             log.log(clang)
-
-        if not clang:
-            raise TestSdkException("Path not found for clang!")
-
-    clang = 'clang++'
     sysroot = ''
     arch = ''
 
@@ -912,6 +971,7 @@ def test_sdk(platform, info, verbose=False):
 
     try:
         if use_clang:
+            _test_version_clang(platform, info, can_run, verbose)
             _test_compiler_clang(platform, info, can_run, verbose)
 
     except TestSdkException as e:
