@@ -29,13 +29,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
-    private static final Map<String, String> invalidGLTFFiles = new HashMap<String, String>();
+    private static final Map<String, String> invalidGLTFFiles = new HashMap<>();
 
     static {
         invalidGLTFFiles.put("/gltf/accessor_normalized_invalid.gltf", "ACCESSOR_NORMALIZED_INVALID");
         invalidGLTFFiles.put("/gltf/accessor_offset_alignment.gltf", "ACCESSOR_OFFSET_ALIGNMENT");
         invalidGLTFFiles.put("/gltf/buffer_view_too_long.gltf", "BUFFER_VIEW_TOO_LONG");
-        //invalidGLTFFiles.put("/gltf/index_out_of_bounds.gltf", "ACCESSOR_INDEX_OOB");
         invalidGLTFFiles.put("/gltf/node_matrix_and_trs.gltf", "NODE_MATRIX_TRS");
         invalidGLTFFiles.put("/gltf/position_accessor_no_bounds.gltf", "MESH_PRIMITIVE_POSITION_ACCESSOR_WITHOUT_BOUNDS");
         invalidGLTFFiles.put("/gltf/rotation_non_unit.gltf", "ROTATION_NON_UNIT");
@@ -60,15 +59,10 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 "mesh: \"%s\"\n" +
                 "animations: \"%s\"\n" +
                 "default_animation: \"invalid\"\n";
-
-        System.out.println("Testing " + glTF);
-
         try {
             build("/test_model.model", String.format(template, glTF, glTF));
-            System.out.println("Success");
             return null;
         } catch (Exception e) {
-            System.out.println("Failed: " + e.getMessage());
             return e.getMessage();
         }
     }
@@ -83,16 +77,13 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testMeshSetGLTFInvalid() {
-        for (String invalidGLTFFile : invalidGLTFFiles.keySet()) {
-            String res = doTest(invalidGLTFFile);
+        for (Map.Entry<String, String> entry : invalidGLTFFiles.entrySet()) {
+            String invalidGLTFFile = entry.getKey();
+            String expectedCode = entry.getValue();
 
-            /*
-            assertNotNull("Expected validation failure for " + invalidGLTFFile, res);
-            assertTrue("Expected gltf_validator header in error for " + invalidGLTFFile,
-                    res.contains("Errors reported by gltf_validator"));
-            assertTrue("Expected at least one error code in " + invalidGLTFFile,
-                    res.contains("code: "));
-             */
+            String res = doTest(invalidGLTFFile);
+            assertNotNull(res);
+            assertTrue(res.contains(expectedCode));
         }
     }
 
@@ -119,20 +110,21 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     public void testGLTFValidatorInvalid() throws IOException {
         for (Map.Entry<String, String> entry : invalidGLTFFiles.entrySet()) {
             String invalidGLTFFile = entry.getKey();
+            String expectedCode = entry.getValue();
 
             IResource projectRes = getFileSystem().get(invalidGLTFFile);
             GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), true);
             assertFalse(res.result);
             assertFalse(res.errors.isEmpty());
 
-            boolean hasCode = false;
+            boolean found = false;
             for (GLTFValidator.ValidateError err : res.errors) {
-                if (err.code != null && !err.code.isEmpty()) {
-                    hasCode = true;
+                if (err.code != null && err.code.contains(expectedCode)) {
+                    found = true;
                     break;
                 }
             }
-            assertTrue("Expected at least one non-empty error code for " + invalidGLTFFile, hasCode);
+            assertTrue(found);
         }
     }
 }
