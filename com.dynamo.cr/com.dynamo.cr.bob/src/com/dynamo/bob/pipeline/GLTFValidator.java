@@ -61,7 +61,6 @@ public class GLTFValidator {
             return validateResult;
         }
 
-        // Validation is on by default
         String validateResourcesFlag = validateResources ? "--validate-resources" : "--no-validate-resources";
 
         gltfValidatorExePath = Bob.getHostExeOnce("gltf_validator", gltfValidatorExePath);
@@ -105,15 +104,8 @@ public class GLTFValidator {
             if (severityNode.asInt() == 0) {
                 ValidateError err = new ValidateError();
                 err.message = messageNode.asText();
-                JsonNode pointerNode = msgNode.get("pointer");
-                JsonNode codeNode = msgNode.get("code");
-
-                if (pointerNode != null && !pointerNode.asText().isEmpty()) {
-                    err.pointer = pointerNode.asText();
-                }
-                if (codeNode != null && !codeNode.asText().isEmpty()) {
-                    err.code = codeNode.asText();
-                }
+                err.pointer = msgNode.get("pointer").asText();
+                err.code = msgNode.get("code").asText();
                 validateResult.errors.add(err);
             }
         }

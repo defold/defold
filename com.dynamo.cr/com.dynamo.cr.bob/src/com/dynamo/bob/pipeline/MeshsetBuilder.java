@@ -222,25 +222,8 @@ public class MeshsetBuilder extends Builder  {
                 sb.append("Errors reported by gltf_validator:\n");
 
                 for (GLTFValidator.ValidateError err : validateResult.errors) {
-                    StringBuilder line = new StringBuilder();
-                    line.append(err.message != null ? err.message : "");
-
-                    StringBuilder detail = new StringBuilder();
-                    if (err.pointer != null && !err.pointer.isEmpty()) {
-                        detail.append("pointer: ").append(err.pointer);
-                    }
-                    if (err.code != null && !err.code.isEmpty()) {
-                        if (!detail.isEmpty()) {
-                            detail.append(", ");
-                        }
-                        detail.append("code: ").append(err.code);
-                    }
-
-                    if (!detail.isEmpty()) {
-                        line.append(" (").append(detail).append(")");
-                    }
-
-                    sb.append(" - ").append(line).append("\n");
+                    String line = String.format(" - %s (pointer: %s, code: %s)\n", err.message, err.pointer, err.code);
+                    sb.append(line);
                 }
 
                 throw new CompileExceptionError(input, 0, sb.toString());
