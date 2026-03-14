@@ -4983,6 +4983,7 @@ bail:
     VkImage VulkanGetImage(HContext _context, HTexture texture)
     {
         VulkanContext* context = (VulkanContext*) _context;
+        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Handle.m_Image : 0;
     }
@@ -4990,6 +4991,7 @@ bail:
     VkImageView VulkanGetImageView(HContext _context, HTexture texture)
     {
         VulkanContext* context = (VulkanContext*) _context;
+        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Handle.m_ImageView : 0;
     }
