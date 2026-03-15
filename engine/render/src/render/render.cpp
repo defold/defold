@@ -101,6 +101,7 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
+    , m_MaxLights(0)
     {
 
     }
@@ -167,6 +168,8 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
+        InitializeLightData(context, params.m_MaxLights);
+
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
         return context;
@@ -186,6 +189,7 @@ namespace dmRender
         dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
+        FinalizeLightData(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);
         delete render_context;
 
@@ -1180,6 +1184,8 @@ namespace dmRender
                     }
                 }
             }
+
+            ApplyMaterialProgramLightBuffers(render_context, material);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 

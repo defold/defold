@@ -23,7 +23,7 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 #include <dmsdk/dlib/vmath.h>
 #include <font/text_layout.h>
 #include <graphics/graphics.h>
@@ -208,6 +208,23 @@ namespace dmGameSystem
         else
         {
             return GetMaterialResource(component, resource)->m_Material;
+        }
+    }
+
+    static dmGui::NodeType DDFNodeTypeToGuiNodeType(dmGuiDDF::NodeDesc::Type type)
+    {
+        switch (type)
+        {
+            case dmGuiDDF::NodeDesc::TYPE_BOX:        return dmGui::NODE_TYPE_BOX;
+            case dmGuiDDF::NodeDesc::TYPE_TEXT:       return dmGui::NODE_TYPE_TEXT;
+            case dmGuiDDF::NodeDesc::TYPE_PIE:        return dmGui::NODE_TYPE_PIE;
+            case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:   return dmGui::NODE_TYPE_TEMPLATE;
+            case dmGuiDDF::NodeDesc::TYPE_PARTICLEFX: return dmGui::NODE_TYPE_PARTICLEFX;
+            case dmGuiDDF::NodeDesc::TYPE_CUSTOM:     return dmGui::NODE_TYPE_CUSTOM;
+            default:
+                dmLogError("Unknown gui node type: %d", type);
+                assert(0);
+                return dmGui::NODE_TYPE_BOX;
         }
     }
 
@@ -911,11 +928,9 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
-            // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
             const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
-            dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
+            dmGui::NodeType type = DDFNodeTypeToGuiNodeType(node_desc->m_Type);
             uint32_t custom_type = node_desc->m_CustomType;
-
 
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;

@@ -30,7 +30,7 @@
 #include <dlib/transform.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 
 #include <script/script.h>
 #include <script/lua_source_ddf.h>

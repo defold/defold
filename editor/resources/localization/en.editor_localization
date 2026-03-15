@@ -1417,6 +1417,7 @@ resource.type.convexshape = Convex Shape
 resource.type.cp = Compute Program
 resource.type.cpp = C++
 resource.type.custom = Resource
+resource.type.data = Data
 resource.type.cubemap = Cubemap
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload

@@ -58,6 +58,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
+            [util.debug-util :as du]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -95,7 +96,6 @@
 
     (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)
-    (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
 
@@ -430,15 +430,16 @@
 
 (defn open-project!
   [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
-  (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
-        build-settings (workspace/make-build-settings prefs)
-        workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-        workspace (setup-workspace! project-path build-settings workspace-config localization)
-        game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        extensions (extensions/make *project-graph*)
-        project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
-    (ui/run-now
-      (icons/initialize! workspace)
-      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
-    (g/reset-undo! *project-graph*)
-    (log/info :message "project loaded")))
+  (du/log-time "Project loading"
+    (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
+          build-settings (workspace/make-build-settings prefs)
+          workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+          workspace (setup-workspace! project-path build-settings workspace-config localization)
+          game-project-res (workspace/file-resource workspace "/game.project")
+          extensions (extensions/make *project-graph*)
+          project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
+      (ui/run-now
+        (icons/initialize! workspace)
+        (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
+      (g/reset-undo! *project-graph*)
+      (log/info :message "project loaded"))))

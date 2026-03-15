@@ -27,14 +27,14 @@ set -e
 
 VSWHERE=./scripts/windows/vswhere2/vswhere2.exe
 
-# E.g. 14.36.32532
+# E.g. 14.44.35207
 MSVC_VERSION="$(${VSWHERE} | grep -e vs_version | cut -d' ' -f2-)"
-# E.g. 10.0.19041.0
+# E.g. 10.0.26100.0
 SDK_VERSION="$(${VSWHERE} | grep -e sdk_version | cut -d' ' -f2-)"
 # E.g. C:\Program Files (x86)\Windows Kits\10\
 SDK_ROOT="$(${VSWHERE} | grep -e sdk_root | cut -d' ' -f2-)"
 SDK_PATH="$(dirname "${SDK_ROOT}")"
-# E.g. C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.36.32532
+# E.g. C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207
 VS_ROOT="$(${VSWHERE} | grep -e vs_root | cut -d' ' -f2-)"
 YEAR="$(echo ${VS_ROOT} | cut -d "\\" -f4- | cut -d "\\" -f1)"
 
