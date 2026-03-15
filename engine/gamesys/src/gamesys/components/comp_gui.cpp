@@ -1281,6 +1281,7 @@ namespace dmGameSystem
                          RenderGuiContext* gui_context)
     {
         GuiWorld* gui_world = gui_context->m_GuiWorld;
+        uint32_t batch_render_order = MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++);
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1305,7 +1306,7 @@ namespace dmGameSystem
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
-            params.m_RenderOrder = dmGui::GetRenderOrder(scene);
+            params.m_RenderOrder = batch_render_order;
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
             params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
@@ -1368,8 +1369,6 @@ namespace dmGameSystem
 
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
-
-        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     static void RenderParticlefxNodes(dmGui::HScene scene,
@@ -2409,6 +2408,8 @@ namespace dmGameSystem
                     break;
             }
         }
+
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, 0, false);
 
         dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
