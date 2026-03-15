@@ -22,6 +22,7 @@
 #include "../../../../gui/src/gui_private.h"
 
 #include <render/font/fontmap.h>
+#include <algorithm>
 #include <platform/window.hpp>
 
 #include "gamesys/resources/res_compute.h"
@@ -2689,6 +2690,88 @@ TEST_P(DrawCountTest, DrawCount)
 
     ASSERT_EQ(expected_draw_count, dmGraphics::GetDrawCount());
     dmGraphics::Flip(m_GraphicsContext);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Test that a GUI with mixed nodes (box + multiple text nodes) produces a single font
+// dispatch for all text (not one per text node), and that text render order is preserved.
+TEST_F(ComponentTest, GuiTextSingleFlushAndOrder)
+{
+    const char* go_path = "/gui/gui_text_flush_test.goc";
+    const uint32_t num_text_nodes = 5;
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
+
+    // Count how many entries use each dispatch
+    uint32_t dispatch_entry_count[256] = {};
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderList.Size(); ++i)
+    {
+        dispatch_entry_count[render_context_ptr->m_RenderList[i].m_Dispatch]++;
+    }
+
+    // With mixed nodes (4 boxes, 5 text interleaved) we get two batched dispatches:
+    // one for the 4 box nodes, one for the 5 text nodes (single FlushTexts at end of RenderNodes).
+    // The text dispatch is the only one with exactly num_text_nodes entries.
+    uint32_t max_entries_for_any_dispatch = 0;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    {
+        if (dispatch_entry_count[i] > max_entries_for_any_dispatch)
+        {
+            max_entries_for_any_dispatch = dispatch_entry_count[i];
+        }
+    }
+    ASSERT_GE(max_entries_for_any_dispatch, num_text_nodes);
+
+    uint32_t dispatches_with_multiple_entries = 0;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    {
+        if (dispatch_entry_count[i] >= 2u)
+        {
+            dispatches_with_multiple_entries++;
+        }
+    }
+    ASSERT_EQ(2u, dispatches_with_multiple_entries);
+
+    // Find the text dispatch (only one with exactly num_text_nodes entries; boxes have 4).
+    uint8_t text_dispatch = 255;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    {
+        if (dispatch_entry_count[i] == num_text_nodes)
+        {
+            text_dispatch = (uint8_t)i;
+            break;
+        }
+    }
+    ASSERT_LT(text_dispatch, render_context_ptr->m_RenderListDispatch.Size());
+
+    uint32_t text_orders[32] = {};
+    uint32_t num_text_orders = 0;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderList.Size() && num_text_orders < 32; ++i)
+    {
+        if (render_context_ptr->m_RenderList[i].m_Dispatch == text_dispatch)
+        {
+            text_orders[num_text_orders++] = render_context_ptr->m_RenderList[i].m_Order;
+        }
+    }
+    ASSERT_EQ(num_text_nodes, num_text_orders);
+
+    // Order should be strictly increasing (scene order preserved)
+    for (uint32_t i = 1; i < num_text_orders; ++i)
+    {
+        ASSERT_LT(text_orders[i - 1], text_orders[i]);
+    }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
