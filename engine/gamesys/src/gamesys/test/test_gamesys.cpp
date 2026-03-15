@@ -4043,6 +4043,7 @@ DrawCountParams draw_count_params[] =
 {
     {"/gui/draw_count_test.goc", 1},
     {"/gui/draw_count_test2.goc", 1},
+    {"/gui/draw_count_empty_text_test.goc", 0},
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
