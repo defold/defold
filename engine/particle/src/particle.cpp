@@ -1341,7 +1341,7 @@ namespace dmParticle
                 particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
             }
 
-            // Local space has full transform scale applied (like old code: Apply(transform, basis)); world matrix has no scale so view_proj * mtx_world * position_local == view_proj * position_world
+            // Local space has full transform scale; world matrix is rotation+translation only so mtx_world * position_local == position_world
             Vector3 scale = particle_transform.GetScale();
             float hx = width_factor * scale.getX();
             float hy = height_factor * scale.getY();
