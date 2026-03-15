@@ -48,8 +48,8 @@ nodes {
   layer: ""
   inherit_alpha: true
   line_break: false
-  leading: 1.0
-  tracking: 0.0
+  text_leading: 1.0
+  text_tracking: 0.0
   outline {
     x: 0.0
     y: 0.0
