@@ -1526,12 +1526,13 @@
   (g/user-data! view-id ::input-state (i/make-input-state))
   (g/user-data! view-id ::input-action-queue [])
   (let [process-events? (atom true)
+        camera-id (view->camera view-id)
         event-handler
         (ui/event-handler e
           (when @process-events?
             (try
               (profiler/profile "input-event" -1
-                (if (c/free-cam-mode-active? (view->camera view-id))
+                (if (c/free-cam-mode-active? camera-id)
                   (g/user-data-swap! view-id ::input-action-queue conj (i/action-from-jfx e))
                   (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                         pos [x y 0.0]
@@ -1550,10 +1551,9 @@
                 (error-reporting/report-exception! error)))))]
     (ui/observe (.focusedProperty parent)
       (fn [_ _ focused]
-        (let [cam (view->camera view-id)]
-          (when (and (not focused)
-                     (c/free-cam-mode-active? cam))
-            (c/stop-free-cam-mode! image-view cam)))))
+        (when (and (not focused)
+                   (c/free-cam-mode-active? camera-id))
+          (c/stop-free-cam-mode! image-view camera-id))))
     (doto parent
       ;; TODO: Why did we add this this? This fixed something...
       (ui/on-mouse! (fn [type e]
@@ -1585,7 +1585,7 @@
               ;; Because of that, such key presses will not reach the workbench view and
               ;; will not trigger the commands as might be expected
               (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
-                        (c/free-cam-mode-active? (view->camera view-id)))
+                        (c/free-cam-mode-active? camera-id))
                 (.consume e)))))))))
 
 (defn make-gl-pane! [view-id opts]
