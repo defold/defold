@@ -387,11 +387,17 @@
                                    alloc-picking-id!]
   (let [node-id (peek node-id-path)
         renderable (:renderable scene)
+        preview-fn (:preview-fn renderable)
         local-translation (Vector3d. 0.0 0.0 0.0)
         local-rotation (Quat4d. 0.0 0.0 0.0 1.0)
         local-scale (Vector3d. 1.0 1.0 1.0)
 
-        has-transform-preview-overrides
+        ;; Consume transform property overrides so they aren't applied to child
+        ;; scenes with the same node-id-path (common for parenting selection
+        ;; outlines). This also lets us know if we have any non-transform
+        ;; property overrides that should be passed on to the renderables
+        ;; associated :preview-fn, if present.
+        override-value-by-prop-kw
         (let [override-value-by-prop-kw (get preview-overrides node-id-path)
               position-override (:position override-value-by-prop-kw)
               rotation-override (:rotation override-value-by-prop-kw)
@@ -405,7 +411,19 @@
             (math/clj->vecmath local-rotation rotation-override))
           (when scale-override
             (math/clj->vecmath local-scale scale-override))
-          (boolean (or position-override rotation-override scale-override)))
+          (-> override-value-by-prop-kw
+              (dissoc :position :rotation :scale)
+              (coll/not-empty)))
+
+        child-preview-overrides
+        (if (nil? override-value-by-prop-kw)
+          (dissoc preview-overrides node-id-path)
+          (assoc preview-overrides node-id-path override-value-by-prop-kw))
+
+        user-data
+        (cond-> (:user-data renderable)
+                (and preview-fn override-value-by-prop-kw)
+                (preview-fn override-value-by-prop-kw))
 
         local-transform (math/->mat4-non-uniform local-translation local-rotation local-scale)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
@@ -435,7 +453,7 @@
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
                                    :selected selection-state
-                                   :user-data (:user-data renderable)
+                                   :user-data user-data
                                    :batch-key (:batch-key renderable)
                                    :aabb (geom/aabb-transform aabb world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
@@ -465,9 +483,6 @@
               (let [parent-node-id (:node-id scene)
                     child-node-id (:node-id child-scene)
                     is-child-node-same-as-parent (= parent-node-id child-node-id)
-                    child-preview-overrides (if (and has-transform-preview-overrides is-child-node-same-as-parent)
-                                              (update preview-overrides node-id-path dissoc :position :rotation :scale)
-                                              preview-overrides)
                     child-node-id-path (if is-child-node-same-as-parent
                                          node-id-path
                                          (conj node-id-path child-node-id))
