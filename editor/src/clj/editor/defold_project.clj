@@ -996,12 +996,12 @@
 
          total-progress (progress/advance total-progress read-progress-span)
 
-         ;; We can disable change tracking on the initial load since we have
+         ;; We can use full invalidation on the initial load since we have
          ;; nothing in the cache and will reset the undo history afterward.
-         change-tracked-transact false
+         full-invalidation-transact true
 
          transact-opts {:metrics transaction-metrics
-                        :track-changes change-tracked-transact}
+                        :full-invalidation full-invalidation-transact}
 
          prelude-tx-data
          (e/concat
@@ -1025,14 +1025,6 @@
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
            (du/measuring process-metrics :load-new-nodes
              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
-
-     ;; When we're not tracking changes, we will not evict stale values from the
-     ;; system cache. This means subsequent graph queries won't see the changes
-     ;; from the transaction if a value was previously cached. To be on the safe
-     ;; side, we clear the cache after each transaction we perform with change
-     ;; tracking disabled.
-     (when-not change-tracked-transact
-       (g/clear-system-cache!))
 
      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
      (render-progress! progress/done)

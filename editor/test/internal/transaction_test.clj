@@ -202,6 +202,75 @@
         (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent}
                (into #{} (map gt/endpoint-label) outputs-modified)))))))
 
+(defn- graph-successors-cache
+  [graph-id]
+  (get-in @g/*the-system* [:graphs graph-id :successors]))
+
+(deftest transact-with-full-invalidation-test
+  (testing "Invalidates all graph successor caches after a property update."
+    (ts/with-clean-system
+      (let [graph-a (g/make-graph! :history false)
+            graph-b (g/make-graph! :history false)
+            [resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
+                                                            (g/make-node graph-a Resource)
+                                                            (g/make-node graph-a Receiver)
+                                                            (g/make-node graph-b Resource)
+                                                            (g/make-node graph-b Receiver))]
+        (g/transact
+          [(g/connect resource-a :b receiver-a :generic-input)
+           (g/connect resource-b :b receiver-b :generic-input)])
+
+        (is (= #{(g/endpoint receiver-a :passthrough)}
+               (set (g/successors (g/now) resource-a :b))))
+        (is (= #{(g/endpoint receiver-b :passthrough)}
+               (set (g/successors (g/now) resource-b :b))))
+
+        (let [graph-a-successors-before (graph-successors-cache graph-a)
+              graph-b-successors-before (graph-successors-cache graph-b)]
+          (g/transact {:full-invalidation true}
+            (g/set-property resource-a :marker (int 1)))
+
+          (let [graph-a-successors-after (graph-successors-cache graph-a)
+                graph-b-successors-after (graph-successors-cache graph-b)]
+            ;; :successors is a mutable cache object stored per graph. With full
+            ;; invalidation, we conservatively replace that cache for every
+            ;; graph. This ensures later successor queries are recomputed from
+            ;; the current topology instead of using stale cached data from
+            ;; before the transaction.
+            (is (not (identical? graph-a-successors-before graph-a-successors-after)))
+            (is (not (identical? graph-b-successors-before graph-b-successors-after)))
+            (is (= #{(g/endpoint receiver-b :passthrough)}
+                   (set (g/successors (g/now) resource-b :b)))))))))
+
+  (testing "Does not invalidate successors for a no-op transaction."
+    (ts/with-clean-system
+      (let [graph (g/make-graph! :history false)
+            [resource receiver] (ts/tx-nodes
+                                  (g/make-node graph Resource)
+                                  (g/make-node graph Receiver))]
+        (g/transact
+          (g/connect resource :b receiver :generic-input))
+
+        (let [successors-before (graph-successors-cache graph)]
+          (g/transact {:full-invalidation true} [])
+          (is (identical? successors-before (graph-successors-cache graph)))))))
+
+  (testing "Recomputes topology changes after connect and disconnect."
+    (ts/with-clean-system
+      (let [graph (g/make-graph! :history false)
+            [resource receiver] (ts/tx-nodes
+                                  (g/make-node graph Resource)
+                                  (g/make-node graph Receiver))]
+        (g/transact {:full-invalidation true}
+          (g/connect resource :b receiver :generic-input))
+        (is (= #{(g/endpoint receiver :passthrough)}
+               (set (g/successors (g/now) resource :b))))
+
+        (g/transact {:full-invalidation true}
+          (g/disconnect resource :b receiver :generic-input))
+        (is (= #{}
+               (set (g/successors (g/now) resource :b))))))))
+
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))
 
