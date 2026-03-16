@@ -223,7 +223,6 @@ namespace dmGraphics
         for(uint8_t i=0; i < frame_resource_count; i++)
         {
             if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_ImageAvailable) != VK_SUCCESS ||
-                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_RenderFinished) != VK_SUCCESS ||
                 vkCreateFence(vk_device, &vk_create_fence_info, 0, &frame_resources_out[i].m_SubmitFence) != VK_SUCCESS)
             {
                 return VK_ERROR_INITIALIZATION_FAILED;
@@ -1484,6 +1483,7 @@ bail:
 
         // Determine the swapchain image we rendered to
         uint32_t swapchainImageIndex = context->m_SwapChain->m_ImageIndex;
+        VkSemaphore renderFinishedSemaphore = context->m_SwapChain->m_RenderFinishedSemaphores[swapchainImageIndex];
 
         // End the current render pass
         EndRenderPass(context);
@@ -1503,7 +1503,7 @@ bail:
         submitInfo.commandBufferCount   = 1;
         submitInfo.pCommandBuffers      = &cmd;
         submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores    = &currentFrame.m_RenderFinished;
+        submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
         res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
         CHECK_VK_ERROR(res);
@@ -1512,7 +1512,7 @@ bail:
         VkPresentInfoKHR presentInfo = {};
         presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores    = &currentFrame.m_RenderFinished;
+        presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
         presentInfo.swapchainCount     = 1;
         presentInfo.pSwapchains        = &context->m_SwapChain->m_SwapChain;
         presentInfo.pImageIndices      = &swapchainImageIndex;
@@ -4348,7 +4348,6 @@ bail:
 
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
-            vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
             vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
             vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
         }
@@ -4978,7 +4977,7 @@ bail:
     VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        return context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
     }
 
     VkImage VulkanGetImage(HContext _context, HTexture texture)

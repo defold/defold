@@ -219,7 +219,6 @@ namespace dmGraphics
     struct FrameResource
     {
         VkSemaphore m_ImageAvailable;
-        VkSemaphore m_RenderFinished;
         VkFence     m_SubmitFence;
     };
 
@@ -367,6 +366,7 @@ namespace dmGraphics
 
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
+        dmArray<VkSemaphore>  m_RenderFinishedSemaphores;
         VulkanTexture*        m_ResolveTexture;
         const VkSurfaceKHR    m_Surface;
         const QueueFamily     m_QueueFamily;
