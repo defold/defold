@@ -928,8 +928,9 @@
   (some-> camera-id (g/user-data ::camera-state) :free-cam-mode))
 
 (defn start-free-cam-mode! [^ImageView image-view camera-id current-cursor-pos]
-  ;; TODO JOE: There's a bug where if you try to start free cam mode while realign camera is animating, it messes up
-  (when (not (:free-cam-mode (g/user-data camera-id ::camera-state)))
+  (println (not (g/node-value camera-id :animating)))
+  (when (and (not (:free-cam-mode (g/user-data camera-id ::camera-state)))
+             (not (g/node-value camera-id :animating)))
     ;; NOTE: If the dolly is animating, this prevents funkiness
     (reset-dolly! camera-id)
     (let [local-camera (g/node-value camera-id :local-camera)
@@ -1203,7 +1204,9 @@
                              :last-x mouse-x
                              :last-y mouse-y
                              :is-dragging (or (:is-dragging camera-state) is-significant-drag))
-          (when is-significant-drag
+          (when (and is-significant-drag
+                     is-primary
+                     (not (g/node-value self :animating)))
             (g/set-property! self :cursor-type
                              (if (or (not= :perspective (:type (g/node-value self :local-camera)))
                                      is-primary)

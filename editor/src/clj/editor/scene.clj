@@ -1531,7 +1531,7 @@
           (when @process-events?
             (try
               (profiler/profile "input-event" -1
-                (if (c/free-cam-mode-active? cam)
+                (if (c/free-cam-mode-active? (view->camera view-id))
                   (g/user-data-swap! view-id ::input-action-queue conj (i/action-from-jfx e))
                   (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
                         pos [x y 0.0]
@@ -1578,15 +1578,14 @@
       (.addEventFilter KeyEvent/KEY_PRESSED
         (ui/event-handler e
           (when @process-events?
-            (let [action (i/action-from-jfx e)
-                  is-secondary (contains? (:button action) :secondary)]
+            (let [action (i/action-from-jfx e)]
               (g/user-data-swap! view-id ::input-action-queue conj action)
               ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
               ;; would be consumed by the TabPane and will trigger next/prev tab selection.
               ;; Because of that, such key presses will not reach the workbench view and
               ;; will not trigger the commands as might be expected
               (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
-                        is-secondary)
+                        (c/free-cam-mode-active? (view->camera view-id)))
                 (.consume e)))))))))
 
 (defn make-gl-pane! [view-id opts]
