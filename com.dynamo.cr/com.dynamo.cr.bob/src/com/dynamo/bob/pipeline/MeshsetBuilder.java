@@ -217,12 +217,12 @@ public class MeshsetBuilder extends Builder  {
                 validateResult = GLTFValidator.validateGltf(input.getContent(), suffix, false);
             }
 
-            if (!validateResult.result) {
+            if (!validateResult.result()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append("Errors reported by gltf_validator:\n");
 
-                for (GLTFValidator.ValidateError err : validateResult.errors) {
-                    String line = String.format(" - %s (pointer: %s, code: %s)\n", err.message, err.pointer, err.code);
+                for (GLTFValidator.ValidateError err : validateResult.errors()) {
+                    String line = String.format(" - %s (pointer: %s, code: %s)\n", err.message(), err.pointer(), err.code());
                     sb.append(line);
                 }
 

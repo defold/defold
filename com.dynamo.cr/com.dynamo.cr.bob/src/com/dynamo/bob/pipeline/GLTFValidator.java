@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,16 +35,9 @@ import org.codehaus.jackson.map.ObjectMapper;
 public class GLTFValidator {
     private static String gltfValidatorExePath;
 
-    public static class ValidateError {
-        public String message;
-        public String pointer;
-        public String code;
-    }
+    public static record ValidateError(String message, String pointer, String code) {}
 
-    public static class ValidateResult {
-        public boolean result;
-        public ArrayList<ValidateError> errors = new ArrayList<>();
-    }
+    public static record ValidateResult(boolean result, List<ValidateError> errors) {}
 
     // Called from editor
     public static ValidateResult validateGltf(InputStream stream, String suffix, boolean validateResources) throws IOException {
@@ -52,13 +46,13 @@ public class GLTFValidator {
     }
 
     public static ValidateResult validateGltf(String path, boolean validateResources) throws IOException {
-        ValidateResult validateResult = new ValidateResult();
-        validateResult.result = true;
+        ArrayList<ValidateError> errors = new ArrayList<>();
+        boolean result = true;
 
         // gltf_validator is not supported on win32 (we can't build the gltf_validator binary for this platform).
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.X86Win32) {
-            return validateResult;
+            return new ValidateResult(result, errors);
         }
 
         String validateResourcesFlag = validateResources ? "--validate-resources" : "--no-validate-resources";
@@ -73,16 +67,15 @@ public class GLTFValidator {
         if (headerMatcher.find()) {
             errorCount = Integer.parseInt(headerMatcher.group(1));
         } else {
-            ValidateError err = new ValidateError();
-            err.message = output;
-            validateResult.errors.add(err);
-            validateResult.result = false;
-            return validateResult;
+            ValidateError err = new ValidateError(output, null, null);
+            errors.add(err);
+            result = false;
+            return new ValidateResult(result, errors);
         }
 
         if (errorCount == 0) {
             // No errors reported; warnings/infos/hints are allowed.
-            return validateResult;
+            return new ValidateResult(result, errors);
         }
 
         int jsonStart = output.indexOf('{');
@@ -102,31 +95,31 @@ public class GLTFValidator {
 
             // 0: error, we only look at errors in validation.
             if (severityNode.asInt() == 0) {
-                ValidateError err = new ValidateError();
-                err.message = messageNode.asText();
-                err.pointer = msgNode.get("pointer").asText();
-                err.code = msgNode.get("code").asText();
-                validateResult.errors.add(err);
+                ValidateError err = new ValidateError(
+                    messageNode.asText(),
+                    msgNode.get("pointer").asText(),
+                    msgNode.get("code").asText()
+                );
+                errors.add(err);
             }
         }
 
-        validateResult.result = validateResult.errors.isEmpty();
-        return validateResult;
+        result = errors.isEmpty();
+        return new ValidateResult(result, errors);
     }
 
     public static ValidateResult validateGltf(byte[] content, String suffix, boolean validateResources) throws IOException {
-        ValidateResult validateResult = new ValidateResult();
-        validateResult.result = true;
-
         // Write the provided content to a temporary file so we can pass a real path
         // to the gltf_validator executable.
         File tmpGltfFile = File.createTempFile("gltf_tmp", "." + suffix, Bob.getRootFolder());
-        tmpGltfFile.deleteOnExit();
-
-        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile))) {
-            os.write(content);
+        try {
+            try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpGltfFile))) {
+                os.write(content);
+            }
+            return validateGltf(tmpGltfFile.getAbsolutePath(), validateResources);
+        } finally {
+            tmpGltfFile.delete();
         }
-        return validateGltf(tmpGltfFile.getAbsolutePath(), validateResources);
     }
 }
 

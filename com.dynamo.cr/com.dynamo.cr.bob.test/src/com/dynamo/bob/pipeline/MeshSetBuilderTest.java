@@ -94,7 +94,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
             GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(validGLTFFile), true);
-            assertTrue(res.result);
+            assertTrue(res.result());
         }
     }
 
@@ -104,7 +104,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
             GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(validGLTFFile), false);
-            assertTrue(res.result);
+            assertTrue(res.result());
         }
     }
 
@@ -116,12 +116,12 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
 
             IResource projectRes = getFileSystem().get(invalidGLTFFile);
             GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(invalidGLTFFile), true);
-            assertFalse(res.result);
-            assertFalse(res.errors.isEmpty());
+            assertFalse(res.result());
+            assertFalse(res.errors().isEmpty());
 
             boolean found = false;
-            for (GLTFValidator.ValidateError err : res.errors) {
-                if (err.code != null && err.code.contains(expectedCode)) {
+            for (GLTFValidator.ValidateError err : res.errors()) {
+                if (err.code() != null && err.code().contains(expectedCode)) {
                     found = true;
                     break;
                 }

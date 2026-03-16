@@ -71,18 +71,18 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- format-gltf-validation-errors [validation-errors]
+(defn- format-gltf-validation-errors [^java.util.List validation-errors]
   (string/join "\n"
                (mapv (fn [^GLTFValidator$ValidateError error]
                        (format "  - %s (pointer=%s, code=%s)"
-                               (.-message error)
-                               (.-pointer error)
-                               (.-code error)))
+                               (.message error)
+                               (.pointer error)
+                               (.code error)))
                      validation-errors)))
 
 (defn- handle-gltf-validation-result [resource ^GLTFValidator$ValidateResult gltf-validation-result]
-  (when-not (.-result gltf-validation-result)
-    (let [gltf-validation-errors (.-errors gltf-validation-result)
+  (when-not (.result gltf-validation-result)
+    (let [gltf-validation-errors (.errors gltf-validation-result)
           formatted-gltf-validation-error (format-gltf-validation-errors gltf-validation-errors)]
       (throw (ex-info (str "glTF validation failed:\n" formatted-gltf-validation-error)
                       {:resource resource
