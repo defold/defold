@@ -1341,9 +1341,10 @@ namespace dmParticle
                 particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
             }
 
-            // Local space has size applied (like sprites); world matrix has no scale so view_proj * mtx_world * position_local == view_proj * position_world
-            float hx = width_factor * size.getX();
-            float hy = height_factor * size.getY();
+            // Local space has full transform scale; world matrix is rotation+translation only so mtx_world * position_local == position_world
+            Vector3 scale = particle_transform.GetScale();
+            float hx = width_factor * scale.getX();
+            float hy = height_factor * scale.getY();
             position_local_flat[0] = Point3(-hx, -hy, 0.0f);
             position_local_flat[1] = Point3(-hx,  hy, 0.0f);
             position_local_flat[2] = Point3( hx,  hy, 0.0f);
