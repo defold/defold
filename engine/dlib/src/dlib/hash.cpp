@@ -90,6 +90,7 @@ struct ReverseHashContainer
                 IncreaseTableCapacity(&m_HashTable32Entries, m_HashTableCapacityIncrement);
             if (m_HashTable64Entries.Full())
                 IncreaseTableCapacity(&m_HashTable64Entries, m_HashTableCapacityIncrement);
+            m_HashTable32Entries.Clear();
             m_HashTable64Entries.Clear();
             m_HashStates.SetCapacity(m_HashStatesCapacity);
             m_HashStates.SetSize(m_HashStatesCapacity);

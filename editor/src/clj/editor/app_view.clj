@@ -14,8 +14,11 @@
 
 (ns editor.app-view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.split-pane :as fx.split-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -95,6 +98,7 @@
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
+           [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
@@ -290,10 +294,63 @@
                                (-> .getStyleClass (.add "key-button")))
                              1 row)))))))))
 
+(def ^:private ext-with-split-pane-props
+  (fx/make-ext-with-props fx.split-pane/props))
+
+(defn- split-pane-item [pane-desc]
+  {:fx/type fx.anchor-pane/lifecycle
+   :split-pane/resizable-with-parent false
+   :children [(assoc pane-desc
+                :anchor-pane/left 0.0
+                :anchor-pane/right 0.0
+                :anchor-pane/top 0.0
+                :anchor-pane/bottom 0.0)]})
+
+(defn- debuggable-resource?
+  [resource]
+  (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
+
+(g/defnk produce-active-sidebar
+  [active-view active-resource open-sidebar-panes debugger-sidebar-panes outline-active ^:try properties-pane-desc]
+  (if (and debugger-sidebar-panes (debuggable-resource? active-resource))
+    debugger-sidebar-panes
+    (coll/into-> (get open-sidebar-panes active-view) []
+      (keep #(case %
+               :outline-pane (when outline-active {:fx/type fx/ext-get-ref :ref :outline-pane})
+               :properties-pane properties-pane-desc
+               %)))))
+
+(g/defnk produce-outline-active [active-view open-sidebar-panes ^:try outline-pane-desc]
+  (and (not (g/error-value? outline-pane-desc))
+       (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
+
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
+  {:fx/type fxui/ext-dedupe-identical-desc
+   :desc {:fx/type fx/ext-let-refs
+          ;; If outline is active (requested by the view), we want to ensure
+          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; This is necessary because the outline view defines commands on the
+          ;; :workbench context, which is available throughout the editor, and
+          ;; those commands expect the outline view to be up to date. When
+          ;; outline is active, it's guaranteed that it's not an error value,
+          ;; but we need to keep the `^:try` so that the broken outline does not
+          ;; fail this whole output when it's inactive
+          :refs (if outline-active
+                  {:outline-pane outline-pane-desc}
+                  {})
+          :desc {:fx/type ext-with-split-pane-props
+                 :desc {:fx/type fxui/ext-value :value right-split}
+                 :props {:items (or (coll/not-empty
+                                      (coll/into-> active-sidebar []
+                                        (remove g/error-value?)
+                                        (map split-pane-item)))
+                                    [(split-pane-item {:fx/type fx.region/lifecycle})])}}}})
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
   (property editor-tabs-split SplitPane)
+  (property right-split SplitPane)
   (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
@@ -302,6 +359,9 @@
   (property keymap g/Any)
   (property localization g/Any)
 
+  (input outline-pane-desc g/Any)
+  (input properties-pane-desc g/Any)
+  (input open-sidebar-panes g/Any :array :substitute gu/array-subst-remove-errors)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -313,8 +373,10 @@
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
+  (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
 
+  (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
@@ -331,6 +393,10 @@
               (when-let [view-type (editor-tab/view-type active-tab)]
                 {:view-id view-node-id
                  :view-type view-type}))))
+  (output outline-active g/Bool :cached produce-outline-active)
+
+  (output active-sidebar g/Any :cached produce-active-sidebar)
+  (output right-split-desc g/Any :cached produce-right-split-desc)
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource-node+type g/Any :cached
@@ -592,10 +658,16 @@
   (prefs/get prefs prefs-split-positions))
 
 (defn store-split-positions! [^Scene scene prefs]
-  (let [split-positions (into (stored-split-positions prefs)
-                              (map (fn [[id ^SplitPane sp]]
-                                     [id (vec (.getDividerPositions sp))]))
-                              (existing-split-panes scene))]
+  ;; Preserve trailing stored divider positions when this split currently has
+  ;; fewer dividers, e.g. when the sidebar temporarily shows a single pane
+  (let [split-positions (coll/reduce-kv-> (existing-split-panes scene) (stored-split-positions prefs)
+                          (fn [acc id ^SplitPane split-pane]
+                            (let [current-positions (vec (.getDividerPositions split-pane))
+                                  old-positions (get acc id)
+                                  persisted-positions (if (< (count current-positions) (count old-positions))
+                                                        (into current-positions (drop (count current-positions)) old-positions)
+                                                        current-positions)]
+                              (assoc acc id persisted-positions))))]
     (prefs/set! prefs prefs-split-positions split-positions)))
 
 (defn restore-split-positions! [^Scene scene prefs]
@@ -1762,6 +1834,10 @@
 (handler/defhandler :help.open-logs :global
   (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
 
+(handler/defhandler :help.open-editor-server :global
+  (run [web-server]
+    (ui/open-url (http-server/local-url web-server))))
+
 (handler/defhandler :help.open-donations :global
   (run [] (ui/open-url "https://www.defold.com/donate")))
 
@@ -1888,6 +1964,8 @@
                 :command :help.open-documentation}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
+               {:label (localization/message "command.help.open-editor-server")
+                :command :help.open-editor-server}
                {:label (localization/message "command.help.open-asset-portal")
                 :command :help.open-asset-portal}
                menu-items/separator
@@ -2091,7 +2169,12 @@
     ;; The new focus owner is or belongs to an editor TabPane.
     (on-active-tab-changed! app-view prefs (ui/selected-tab editor-tab-pane) true)))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
+(defn- refresh-right-split! [app-view]
+  (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
+             right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
+    (fxui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2103,6 +2186,7 @@
                                                                      :stage stage
                                                                      :scene app-scene
                                                                      :editor-tabs-split editor-tabs-split
+                                                                     :right-split right-split
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
                                                                      :manip-space :world
@@ -2123,6 +2207,8 @@
                             (fn [_animation-timer _elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
+                                  (when (NodeHelper/isTreeShowing right-split)
+                                    (refresh-right-split! app-view))
                                   (when refresh-requested?
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (g/with-auto-evaluation-context evaluation-context
@@ -2194,7 +2280,8 @@
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty app-view :open-dirty-views)))
+        (g/connect view :view-dirty app-view :open-dirty-views)
+        (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
     (.add tabs tab)
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))

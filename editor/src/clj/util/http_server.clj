@@ -397,8 +397,8 @@
         method-set (cond-> method-set (contains? method-set "GET") (conj "HEAD"))]
     (string/join ", " (sort method-set))))
 
-(defn- invoke-handler [handler request match]
-  (handler (assoc request :path-params (:path-params match))))
+(defn- invoke-handler [handler request router match]
+  (handler (assoc request :path-params (:path-params match) :router router)))
 
 (defn router-handler
   "Create HTTP request handler function from reitit routes
@@ -449,7 +449,7 @@
           (let [method->handler (:data match)
                 method (:method request)]
             (if-let [handler (method->handler method)]
-              (invoke-handler handler request match)
+              (invoke-handler handler request router match)
               (case method
                 "OPTIONS" (response
                             200
@@ -457,7 +457,7 @@
                              "access-control-allow-methods" (allowed-methods method->handler)}
                             nil)
                 "HEAD" (if-let [get-handler (method->handler "GET")]
-                         (invoke-handler get-handler request match) ;; http server will strip the body
+                         (invoke-handler get-handler request router match) ;; http server will strip the body
                          (update method-not-allowed :headers assoc "allow" (allowed-methods method->handler)))
                 (update method-not-allowed :headers assoc "allow" (allowed-methods method->handler)))))
           not-found)))))

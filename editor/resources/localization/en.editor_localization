@@ -578,12 +578,15 @@ dialog.bundle.error.bundle-format.required = No bundle format selected.
 pane.assets = Assets
 pane.changed-files = Changed Files
 pane.outline = Outline
+pane.structure = Structure
 pane.properties = Properties
 pane.console = Console
 pane.curve-editor = Curve Editor
 pane.build-errors = Build Errors
 pane.search-results = Search Results
 pane.breakpoints = Breakpoints
+pane.debugger.call-stack = Call Stack
+pane.debugger.variables = Variables
 
 # Assets
 
@@ -914,6 +917,7 @@ command.code.sort-lines.case-sensitive = Sort Lines (Case Sensitive)
 command.code.sort-lines.option.case-insensitive = Case Insensitive
 command.code.sort-lines.option.case-sensitive = Case Sensitive
 command.code.select-next-occurrence = Select Next Occurrence
+command.code.duplicate-selection = Duplicate Selection
 command.code.split-selection-into-lines = Split Selection Into Lines
 command.code.goto-definition = Go to Definition
 command.code.goto-line = Go to Line…
@@ -972,6 +976,7 @@ command.help.open-logs = Show Logs
 command.file.create-desktop-entry = Create Desktop Entry
 command.help.open-documentation = Documentation
 command.help.open-forum = Support Forum
+command.help.open-editor-server = Open Editor Server
 command.help.open-asset-portal = Find Assets
 command.help.report-issue = Report Issue
 command.help.report-suggestion = Report Suggestion
@@ -1412,6 +1417,7 @@ resource.type.convexshape = Convex Shape
 resource.type.cp = Compute Program
 resource.type.cpp = C++
 resource.type.custom = Resource
+resource.type.data = Data
 resource.type.cubemap = Cubemap
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
@@ -2035,6 +2041,7 @@ form.label.camera.orthographic-zoom = Orthographic Zoom
 
 form.label.collectionproxy = Collection Proxy
 form.label.collectionproxy.collection = Collection
+form.label.collectionproxy.exclude = Exclude
 
 form.label.render = Render
 form.label.render.script = Script

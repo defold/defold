@@ -168,6 +168,7 @@
           ;; FileNotFoundException being thrown by the read attempt. Instead, we
           ;; explicitly check that the file exists, which will follow symlinks.
           (when (and (resource/stateful-resource-type? resource-type)
+                     (resource/symlink? resource)
                      (not (resource/exists? resource)))
             (make-file-not-found-error node-id resource)))
 
@@ -1907,8 +1908,7 @@
       (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
     (render-progress! (swap! progress progress/advance 1 (localization/message "progress.loading-project")))
     (let [project (make-project graph workspace-id extensions)
-          populated-project (du/log-time "Project loading"
-                              (load-project! project (progress/nest-render-progress render-progress! @progress 8)))]
+          populated-project (load-project! project (progress/nest-render-progress render-progress! @progress 8))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)
       (du/log-statistics! "Project loaded")

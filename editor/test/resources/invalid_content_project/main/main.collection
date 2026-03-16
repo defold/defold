@@ -1,0 +1,5 @@
+name: "main"
+collection_instances {
+  id: "invalid"
+  collection: "/main/invalid_child_ref.collection"
+}

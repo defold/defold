@@ -125,7 +125,7 @@ public class GameProjectBuilder extends Builder {
         TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(".projectc").disableCache());
+                .addOutput(input.disableMinifyPath().changeExt(".projectc").disableCache());
 
         for (IResource propertyFile : project.getPropertyFilesAsResources()) {
             builder.addInput(propertyFile);
@@ -133,11 +133,11 @@ public class GameProjectBuilder extends Builder {
 
         TimeProfiler.start("Add outputs");
         if (project.option("archive", "false").equals("true")) {
-            builder.addOutput(input.changeExt(".arci").disableCache());
-            builder.addOutput(input.changeExt(".arcd").disableCache());
-            builder.addOutput(input.changeExt(".dmanifest").disableCache());
-            builder.addOutput(input.changeExt(".public.der").disableCache());
-            builder.addOutput(input.changeExt(".graph.json").disableCache());
+            builder.addOutput(input.disableMinifyPath().changeExt(".arci").disableCache());
+            builder.addOutput(input.disableMinifyPath().changeExt(".arcd").disableCache());
+            builder.addOutput(input.disableMinifyPath().changeExt(".dmanifest").disableCache());
+            builder.addOutput(input.disableMinifyPath().changeExt(".public.der").disableCache());
+            builder.addOutput(input.disableMinifyPath().changeExt(".graph.json").disableCache());
         }
         TimeProfiler.stop();
 
@@ -147,19 +147,24 @@ public class GameProjectBuilder extends Builder {
             // initial values already have 'c' in the end
             if (path != null && path.length() > 0) {
                 path = path.substring(0, path.length() - 1);
+
+                String field = "";
                 if (ROOT_NODES.length < index) {
                     String[] tuples = ROOT_NODES[index];
-                    createSubTask(path, String.format("%s.%s", tuples[0], tuples[1]), builder);
+                    field = String.format("%s.%s", tuples[0], tuples[1]);
                 }
-                else {
-                    createSubTask(path, "", builder);
-                }
+
+                IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, path);
+                res.disableMinifyPath();
+                createSubTask(res, builder);
             }
             index++;
         }
 
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles", "/builtins/graphics/default.texture_profiles");
-        createSubTask(textureProfilesPath, "graphics.texture_profiles", builder);
+        IResource textureProfiles = BuilderUtil.checkResource(project, builder.firstInput(), "graphics.texture_profiles", textureProfilesPath);
+        textureProfiles.disableMinifyPath();
+        createSubTask(textureProfiles, builder);
 
         IResource publisherSettingsResorce = project.getPublisher().getPublisherSettingsResorce();
         if (publisherSettingsResorce != null) {

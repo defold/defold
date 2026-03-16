@@ -29,6 +29,9 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
+
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
         switch(from_type)
@@ -52,7 +55,7 @@ namespace dmRender
         return (dmGraphics::VertexAttribute::VectorType) -1;
     }
 
-    static void SetVertexAttributeInfoDefaultSettings(dmGraphics::VertexAttributeInfo* info, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported, const uint8_t* value_ptr)
+    static void SetVertexAttributeInfoDefaultSettings(dmGraphics::VertexAttributeInfo* info, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported)
     {
         info->m_NameHash        = name_hash;
         info->m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
@@ -62,7 +65,7 @@ namespace dmRender
         info->m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
         info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
         info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
-        info->m_ValuePtr        = value_ptr;
+        info->m_ValuePtr        = 0;
         info->m_ValueVectorType = info->m_VectorType;
 
         if (name_hash == VERTEX_STREAM_POSITION)
@@ -127,6 +130,11 @@ namespace dmRender
             {
                 info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             }
+        }
+        else if (name_hash == VERTEX_STREAM_TEXTURE_TRANSFORM_2D)
+        {
+            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D;
+            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
         }
     }
 
@@ -250,8 +258,7 @@ namespace dmRender
             material_attribute.m_ValueIndex       = num_attribute_byte_size;
             material_attribute.m_ValueCount       = num_values;
 
-            const uint8_t* value_ptr = 0; // Will be set after we allocate the value buffer
-            SetVertexAttributeInfoDefaultSettings(&m->m_VertexAttributeInfos[i], name_hash, type, element_count, instancing_supported, value_ptr);
+            SetVertexAttributeInfoDefaultSettings(&m->m_VertexAttributeInfos[i], name_hash, type, element_count, instancing_supported);
 
             dmGraphics::Type base_type = dmGraphics::GetGraphicsType(m->m_VertexAttributeInfos[i].m_DataType);
             num_attribute_byte_size += dmGraphics::GetTypeSize(base_type) * element_count;
@@ -296,6 +303,44 @@ namespace dmRender
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
     }
 
+    struct LightBufferConfigurationCallbackContext
+    {
+        RenderContext* m_Context;
+        Material* m_Material;
+    };
+
+    static void LightBufferConfigurationCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    {
+        LightBufferConfigurationCallbackContext* cb_ctx = (LightBufferConfigurationCallbackContext*) user_data;
+        Material* material = cb_ctx->m_Material;
+
+        if (material->m_HasLightBuffer || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
+        {
+            return;
+        }
+
+        uint32_t ubo_light_count = 0;
+        for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
+        {
+            if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
+            {
+                ubo_light_count = root_type->m_Members[i].m_ElementCount;
+                break;
+            }
+        }
+
+        if (cb_ctx->m_Context->m_MaxLightCount != ubo_light_count)
+        {
+            dmLogOnceWarning("The size of the light buffer must match the project configuration. You should use the same size everywhere for the uniform buffer!");
+            return;
+        }
+
+        // Only one light buffer binding is currently supported.
+        material->m_HasLightBuffer     = true;
+        material->m_LightBufferSet     = (uint8_t) set;
+        material->m_LightBufferBinding = (uint8_t) binding;
+    }
+
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -315,6 +360,12 @@ namespace dmRender
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
+
+        // Loop over the uniform buffers resources to check if there is a light uniform buffer present.
+        LightBufferConfigurationCallbackContext cb_ctx;
+        cb_ctx.m_Context = render_context;
+        cb_ctx.m_Material = m;
+        dmGraphics::IterateProgramResourceBindings(m->m_Program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferConfigurationCallback, &cb_ctx);
 
         return (HMaterial)m;
     }

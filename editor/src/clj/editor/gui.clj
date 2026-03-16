@@ -437,7 +437,7 @@
 
 (declare get-registered-node-type-cls)
 
-(def ^:private default-node-desc-pb-field-values (protobuf/default-value Gui$NodeDesc))
+(def ^:private default-node-desc-pb-field-values (protobuf/optional-field-defaults Gui$NodeDesc))
 
 (def ^:private default-pb-node-type (protobuf/default Gui$NodeDesc :type)) ; E.g. :type-box.
 
@@ -4686,7 +4686,24 @@
             (let [value (prop->value prop-kw)
                   edit-type-id (properties/edit-type-id (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
               (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
-                #(converter value)))))))))
+                #(converter value))))))))
+  (fn GuiNode-lister [node-id evaluation-context]
+    (let [{:keys [basis]} evaluation-context
+          node (g/node-by-id basis node-id)
+          node-type (g/node-type node)
+          property-name->prop-kw (node-type->layout-property-names node-type)
+          layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)]
+      (coll/into-> layout->prop->value []
+        (mapcat
+          (fn [[layout-name _prop->value]]
+            (coll/into-> property-name->prop-kw :eduction
+              (keep
+                (fn [[property-name prop-kw]]
+                  (when-let [edit-type-id (properties/edit-type-id (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
+                    (when-let [_converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
+                      (if (empty? layout-name)
+                        property-name
+                        (str layout-name ":" property-name)))))))))))))
 
 (ext-graph/register-property-setter!
   ::GuiNode

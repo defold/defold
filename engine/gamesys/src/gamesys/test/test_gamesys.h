@@ -521,7 +521,7 @@ void GamesysTest<T>::SetUp()
     dmHID::SetWindow(m_HidContext, m_Window);
 
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
     dmGraphics::ResetDrawCount(); // for the unit test
 
     dmGraphics::ContextParams graphics_context_params;
@@ -577,6 +577,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_ScriptContext = m_ScriptContext;
     render_params.m_MaxCharacters = 256;
     render_params.m_MaxBatches = 128;
+    render_params.m_MaxLights = 32;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
     dmInput::NewContextParams input_params;
@@ -637,6 +638,7 @@ void GamesysTest<T>::SetUp()
 
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
+    m_SpriteContext.m_Factory = m_Factory;
 
     m_CollectionProxyContext.m_Factory = m_Factory;
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;

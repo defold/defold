@@ -1,0 +1,19 @@
+syntax = "proto2";
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_struct.proto";
+
+option java_package = "com.dynamo.gamesys.proto";
+option java_outer_classname = "DataProto";
+
+message Data
+{
+    // Tags represent high-level metadata about the resoure,
+    // which can be used in the future to query components in a database like fashion.
+    // The current use-case for this is that the light component will use tags to
+    // distinguish between light types based on which tags are present in this list.
+    repeated string            tags = 1;
+    // The payload of the resource.
+    optional dmStructDDF.Value data = 2;
+}

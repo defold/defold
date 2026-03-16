@@ -118,7 +118,6 @@ namespace dmGraphics
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_UseValidationLayers     = params.m_UseValidationLayers;
-        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
@@ -1154,7 +1153,7 @@ namespace dmGraphics
         void* device_pNext_chain = 0;
 
         uint16_t validation_layers_count;
-        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
+        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers);
 
         if (selected_device == NULL)
         {
@@ -1323,7 +1322,7 @@ bail:
             uint16_t extension_names_count;
             const char** extension_names = GetExtensionNames(&extension_names_count);
             uint16_t validation_layers_count;
-            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers, params.m_RenderDocSupport);
+            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers);
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
@@ -1798,11 +1797,16 @@ bail:
 
     static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
+        VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+        CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
     }
@@ -1812,7 +1816,7 @@ bail:
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
         assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
-        SetDeviceBuffer(context, &ubo->m_DeviceBuffer, size, offset, data);
+        DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
     static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -4975,6 +4979,22 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+    }
+
+    VkImage VulkanGetImage(HContext _context, HTexture texture)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Handle.m_Image : 0;
+    }
+
+    VkImageView VulkanGetImageView(HContext _context, HTexture texture)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Handle.m_ImageView : 0;
     }
 
     bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)

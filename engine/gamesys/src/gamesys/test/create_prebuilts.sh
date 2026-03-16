@@ -68,3 +68,7 @@ cp build/default/model/dynamic_vertex_attributes.modelc ../model/dynamic_vertex_
 cp build/default/model/dynamic_vertex_attributes.rigscenec ../model/dynamic_vertex_attributes.prebuilt_rigscenec
 cp build/default/model/dynamic_vertex_attributes.meshsetc ../model/dynamic_vertex_attributes.prebuilt_meshsetc
 cp build/default/model/dynamic_vertex_attributes.skeletonc ../model/dynamic_vertex_attributes.prebuilt_skeletonc
+
+# Texture transform (models) - uses aabb_model.gltf mesh; meshsetc/skeletonc come from that gltf (aabb_model.*), already copied above
+cp build/default/model/texture_transform_model.modelc ../model/texture_transform_model.prebuilt_modelc
+cp build/default/model/texture_transform_model.rigscenec ../model/texture_transform_model.prebuilt_rigscenec

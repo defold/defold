@@ -106,7 +106,7 @@ protected:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);
@@ -991,19 +991,19 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     // First update: A "draw_text" message is sent
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     // Second update: "draw_text" is processed, but no glyphs are in font cache,
     //                they are marked as missing and uploaded. A new "draw_text" also is sent.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     // Third update: The second "draw_text" is processed, this time the glyphs are uploaded
     //               and the text is drawn.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     ASSERT_NE(0u, m_Context->m_TextContext.m_TextEntries.Size());
 

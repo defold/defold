@@ -32,6 +32,7 @@
 #include "font/font_renderer.h"
 
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
+DM_PROPERTY_U32(rmtp_RenderDispatchCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch registrations", &rmtp_Render);
 
 namespace dmRender
 {
@@ -40,19 +41,20 @@ namespace dmRender
     const char* RENDER_SOCKET_NAME = "@render";
 
     // Declararions are in render.h
-    const dmhash_t VERTEX_STREAM_POSITION        = dmHashString64("position");
-    const dmhash_t VERTEX_STREAM_NORMAL          = dmHashString64("normal");
-    const dmhash_t VERTEX_STREAM_TANGENT         = dmHashString64("tangent");
-    const dmhash_t VERTEX_STREAM_COLOR           = dmHashString64("color");
-    const dmhash_t VERTEX_STREAM_TEXCOORD0       = dmHashString64("texcoord0");
-    const dmhash_t VERTEX_STREAM_TEXCOORD1       = dmHashString64("texcoord1");
-    const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
-    const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
-    const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
-    const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
-    const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
-    const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
-    const dmhash_t SAMPLER_POSE_MATRIX_CACHE     = dmHashString64("pose_matrix_cache");
+    const dmhash_t VERTEX_STREAM_POSITION             = dmHashString64("position");
+    const dmhash_t VERTEX_STREAM_NORMAL               = dmHashString64("normal");
+    const dmhash_t VERTEX_STREAM_TANGENT              = dmHashString64("tangent");
+    const dmhash_t VERTEX_STREAM_COLOR                = dmHashString64("color");
+    const dmhash_t VERTEX_STREAM_TEXCOORD0            = dmHashString64("texcoord0");
+    const dmhash_t VERTEX_STREAM_TEXCOORD1            = dmHashString64("texcoord1");
+    const dmhash_t VERTEX_STREAM_PAGE_INDEX           = dmHashString64("page_index");
+    const dmhash_t VERTEX_STREAM_WORLD_MATRIX         = dmHashString64("mtx_world");
+    const dmhash_t VERTEX_STREAM_NORMAL_MATRIX        = dmHashString64("mtx_normal");
+    const dmhash_t VERTEX_STREAM_BONE_WEIGHTS         = dmHashString64("bone_weights");
+    const dmhash_t VERTEX_STREAM_BONE_INDICES         = dmHashString64("bone_indices");
+    const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
+    const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
+    const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
 
     StencilTestParams::StencilTestParams() {
         Init();
@@ -99,6 +101,7 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
+    , m_MaxLights(0)
     {
 
     }
@@ -127,6 +130,8 @@ namespace dmRender
         context->m_View = Matrix4::identity();
         context->m_Projection = Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
+        context->m_Time = 0.0f;
+        context->m_Dt = 0.0f;
 
         context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
@@ -163,6 +168,8 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
+        InitializeLightData(context, params.m_MaxLights);
+
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
         return context;
@@ -182,6 +189,7 @@ namespace dmRender
         dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
+        FinalizeLightData(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);
         delete render_context;
 
@@ -216,6 +224,7 @@ namespace dmRender
         d.m_VisibilityFn = visibility_fn;
         d.m_UserData = user_data;
         render_context->m_RenderListDispatch.Push(d);
+        DM_PROPERTY_ADD_U32(rmtp_RenderDispatchCount, 1);
 
         return render_context->m_RenderListDispatch.Size() - 1;
     }
@@ -295,7 +304,7 @@ namespace dmRender
     {
         // Unflushed leftovers are assumed to be the debug rendering
         // and we give them render orders statically here
-        FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, 0xffffff, true);
+        FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, true);
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
@@ -344,6 +353,12 @@ namespace dmRender
     {
         render_context->m_Projection = projection;
         render_context->m_ViewProj = projection * render_context->m_View;
+    }
+
+    void SetFrameTime(HRenderContext render_context, float time, float dt)
+    {
+        render_context->m_Time = time;
+        render_context->m_Dt = dt;
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)
@@ -984,7 +999,7 @@ namespace dmRender
                 // continue batch on match, or dispatch
                 if (i < count)
                 {
-                    const RenderListEntry *current_entry = &base[*idx];                
+                    const RenderListEntry *current_entry = &base[*idx];
                     if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
                         continue;
                 }
@@ -1169,6 +1184,8 @@ namespace dmRender
                     }
                 }
             }
+
+            ApplyMaterialProgramLightBuffers(render_context, material);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 

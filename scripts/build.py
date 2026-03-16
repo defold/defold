@@ -121,7 +121,6 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
-    "protobuf-java-3.20.1",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
@@ -131,7 +130,7 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
-    "jctest-0.12",
+    "jctest-0.13",
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -304,9 +303,7 @@ PACKAGES_LINUX_ARM64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_ANDROID=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -321,9 +318,7 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -1044,10 +1039,11 @@ class Configuration(object):
         # .. so we stick with the old version of prewarming
 
         # Compile a file warm up the emscripten caches (libc etc)
-        c_file = tempfile.mktemp(suffix='.c')
-        exe_file = tempfile.mktemp(suffix='.js')
-        with open(c_file, 'w') as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
+            c_file = f.name
             f.write('int main() { return 0; }')
+        with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
+            exe_file = f.name
         run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
@@ -1215,9 +1211,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar",
-                                 "glfw_android.jar")
+                external_jars = ("glfw_android.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)

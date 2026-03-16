@@ -261,6 +261,11 @@ public class ExtenderUtil {
             return false;
         }
 
+        @Override
+        public IResource disableMinifyPath() { return this; }
+
+        @Override
+        public boolean isMinifyPath() { return false; }
     }
 
     // Used to rename a resource in the multipart request and prefix the content with a base variant

@@ -125,7 +125,7 @@ public abstract class LuaBuilder extends Builder {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.disableMinifyPath().changeExt(params.outExt()));
 
         LuaScanner.Result result = getLuaScannerResult(input);
         long finalLuaHash = MurmurHash.hash64(result.code());

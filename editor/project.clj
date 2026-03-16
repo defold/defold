@@ -32,7 +32,6 @@
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [commons-io/commons-io                       "2.4"]
@@ -299,7 +298,7 @@
                                                     [org.openjfx/javafx-media "25"]
                                                     [org.openjfx/javafx-fxml "25"]
                                                     [org.openjfx/javafx-swing "25"]
-                                                    [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
+                                                    [com.clojure-goes-fast/clj-async-profiler "2.0.0-beta1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [io.github.cljfx/dev "1.10.6.42"]
@@ -310,9 +309,9 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.1.0.zip"
-                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.3.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/10.2.0.zip"
+                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.4.1.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.6.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"

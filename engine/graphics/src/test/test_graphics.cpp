@@ -84,7 +84,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams params;
         WindowCreateParamsInitialize(&params);
@@ -1429,6 +1429,44 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::SetWriteAttributeStreamDesc(&params.m_Tangents, tangent_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
+        }
+
+        DestroyVertexAttributeInfos(attribute_infos);
+    }
+
+    // TextureTransform2D semantic: metadata and engine-provided MAT3 write
+    {
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
+        AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3);
+        attribute_infos.m_VertexStride = sizeof(float) * 9;
+
+        dmGraphics::VertexAttributeInfoMetadata metadata = dmGraphics::GetVertexAttributeInfosMetaData(attribute_infos);
+        ASSERT_TRUE(metadata.m_HasAttributeTextureTransform2D != 0);
+
+        dmGraphics::WriteAttributeParams params = {};
+        params.m_VertexAttributeInfos = &attribute_infos;
+
+        // No engine-provided data: default is identity 3x3 (from top-left of default 4x4 identity)
+        {
+            float expected[9] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+            float actual[9]   = {};
+
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+            ASSERT_VECF(expected, actual, 9);
+        }
+
+        // Engine-provided packed 3x3 (column-major)
+        {
+            float tt_values[] = {1.0f, 0.0f, 0.0f,  0.0f, 2.0f, 0.0f,  0.5f, 0.25f, 1.0f};
+            float expected[9] = {1.0f, 0.0f, 0.0f,  0.0f, 2.0f, 0.0f,  0.5f, 0.25f, 1.0f};
+            float actual[9]   = {};
+
+            const float* tt_channel[] = { tt_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_TextureTransform2D, tt_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+            ASSERT_VECF(expected, actual, 9);
         }
 
         DestroyVertexAttributeInfos(attribute_infos);

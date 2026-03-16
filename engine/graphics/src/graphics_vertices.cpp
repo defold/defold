@@ -39,6 +39,7 @@ namespace dmGraphics
         uint8_t m_ChannelIndexColors;
         uint8_t m_ChannelIndexTexCoords;
         uint8_t m_ChannelIndexPageIndices;
+        uint8_t m_ChannelIndexTextureTransform2D;
     };
 
     struct UnpackAttributeData
@@ -377,6 +378,11 @@ namespace dmGraphics
             case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                 stream_desc = &params.m_NormalMatrix;
                 channel_index = unpack_state.m_ChannelIndexNormalMatrix++;
+                break;
+
+            case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
+                stream_desc = &params.m_TextureTransform2D;
+                channel_index = unpack_state.m_ChannelIndexTextureTransform2D++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NONE:

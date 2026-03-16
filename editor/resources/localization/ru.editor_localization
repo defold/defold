@@ -578,12 +578,15 @@ dialog.bundle.error.bundle-format.required = Не выбран формат сб
 pane.assets = Ресурсы
 pane.changed-files = Изменённые Файлы
 pane.outline = Структура
+pane.structure = Структура
 pane.properties = Свойства
 pane.console = Консоль
 pane.curve-editor = Редактор Кривых
 pane.build-errors = Ошибки Сборки
 pane.search-results = Результаты Поиска
 pane.breakpoints = Точки останова
+pane.debugger.call-stack = Стек Вызовов
+pane.debugger.variables = Переменные
 
 # Assets
 
@@ -914,6 +917,7 @@ command.code.sort-lines.case-sensitive = Сортировать строки (с
 command.code.sort-lines.option.case-insensitive = Без учета регистра
 command.code.sort-lines.option.case-sensitive = С учетом регистра
 command.code.select-next-occurrence = Выбрать следующее вхождение
+command.code.duplicate-selection = Дублировать выделение
 command.code.split-selection-into-lines = Разделить выделение на строки
 command.code.goto-definition = Перейти к определению
 command.code.goto-line = Перейти к строке…
@@ -972,6 +976,7 @@ command.help.open-logs = Показать логи
 command.file.create-desktop-entry = Создать ярлык на рабочем столе
 command.help.open-documentation = Документация
 command.help.open-forum = Открыть форум
+command.help.open-editor-server = Открыть сервер редактора
 command.help.open-asset-portal = Найти ассеты
 command.help.report-issue = Сообщить о проблеме
 command.help.report-suggestion = Предложить улучшение
@@ -2035,6 +2040,7 @@ form.label.camera.orthographic-zoom = Ортографический зум
 
 form.label.collectionproxy = Прокси коллекции
 form.label.collectionproxy.collection = Коллекция
+form.label.collectionproxy.exclude = Исключить
 
 form.label.render = Рендер
 form.label.render.script = Скрипт

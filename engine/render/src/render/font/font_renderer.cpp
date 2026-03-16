@@ -455,7 +455,7 @@ namespace dmRender
         }
     }
 
-    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final)
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final)
     {
         DM_PROFILE("FlushTexts");
 
@@ -490,7 +490,7 @@ namespace dmRender
                     write_ptr->m_WorldPosition = Point3(te.m_Transform.getTranslation());
                     write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = major_order;
-                    write_ptr->m_Order = render_order;
+                    write_ptr->m_Order = te.m_RenderOrder & 0xFFFFFF;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
                     write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(te.m_Material);

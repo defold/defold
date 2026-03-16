@@ -960,11 +960,21 @@ namespace dmSys
 
 #ifdef _WIN32
             struct _stat64 path_stat;
-            _stat64(abs_path, &path_stat);
+            int stat_result = _stat64(abs_path, &path_stat);
 #else
-            struct stat path_stat;
-            stat(abs_path, &path_stat);
+            struct stat path_stat = {};
+            int stat_result = stat(abs_path, &path_stat);
 #endif
+
+            if (stat_result != 0)
+            {
+                if (errno == ENOENT)
+                {
+                    continue;
+                }
+                res = ErrnoToResult(errno);
+                goto cleanup;
+            }
 
             bool isdir = S_ISDIR(path_stat.st_mode);
 

@@ -928,7 +928,7 @@
     (doto tree-view
       (.setShowRoot false)
       (.setSkin (ExtendedTreeViewSkin. tree-view))
-      (ui/customize-tree-view! {:double-click-expand? true})
+      (ui/customize-tree-view! {:double-click-expand true})
       (ui/bind-double-click! :file.open-selected)
       (ui/bind-key-commands! {"Enter" :file.open-selected})
       (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))

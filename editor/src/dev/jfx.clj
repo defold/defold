@@ -19,6 +19,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.control ChoiceBox ChoiceDialog ComboBox ContextMenu Control CustomMenuItem Dialog Labeled ListView Menu MenuButton MenuItem ScrollPane SplitPane Tab TabPane TableColumnBase TableView TextInputControl TitledPane ToolBar Tooltip TreeItem]
            [javafx.scene.control.cell ChoiceBoxListCell ChoiceBoxTableCell ChoiceBoxTreeCell ChoiceBoxTreeTableCell ComboBoxListCell ComboBoxTableCell ComboBoxTreeCell ComboBoxTreeTableCell]
+           [javafx.scene.layout Region]
            [javafx.scene.text Text]
            [javafx.stage Popup Window]))
 
@@ -246,6 +247,9 @@
             (not (.isManaged node)) (assoc :managed false)
             (not (.isVisible node)) (assoc :visible false))))
 
+(defn- region-props [^Region region]
+  {:is-snap-to-pixel (.isSnapToPixel region)})
+
 (defn- to-coll [items]
   (cond
     (or (nil? items)
@@ -272,6 +276,9 @@
 
           (instance? Node obj)
           (into (node-props obj))
+
+          (instance? Region obj)
+          (into (region-props obj))
 
           (satisfies? InfoProps obj)
           (into (info-props obj))

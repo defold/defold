@@ -903,10 +903,8 @@ namespace dmEngine
         if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1))
             verify_graphics_calls = false;
 
-        bool renderdoc_support = false;
         bool use_validation_layers = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
-        const char renderdoc_support_arg[] = "--renderdoc";
         const char validation_layers_support_arg[] = "--use-validation-layers";
         const char verbose_long[] = "--verbose";
         const char verbose_short[] = "-v";
@@ -923,10 +921,6 @@ namespace dmEngine
                 } else {
                     dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
                 }
-            }
-            else if (strncmp(renderdoc_support_arg, arg, sizeof(renderdoc_support_arg)-1) == 0)
-            {
-                renderdoc_support = true;
             }
             else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
             {
@@ -1105,7 +1099,6 @@ namespace dmEngine
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
         graphics_context_params.m_UseValidationLayers     = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize      = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
         graphics_context_params.m_Window                  = engine->m_Window;
@@ -1422,6 +1415,7 @@ namespace dmEngine
 #endif
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpriteContext.m_Factory = engine->m_Factory;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
@@ -2049,9 +2043,12 @@ bail:
                 dmSound::Update();
 
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
-                    && do_render)
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    // Update renderer with current time since engine start and frame delta-time.
+                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    dmRender::SetFrameTime(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
                     // if any extension wants to render on under of the game.

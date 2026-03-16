@@ -299,7 +299,7 @@
 
 (defn make-build-errors-view [^TreeView errors-tree localization open-resource-fn]
   (doto errors-tree
-    (ui/customize-tree-view! {:double-click-expand? false})
+    (ui/customize-tree-view! {:double-click-expand false})
     (.setShowRoot false)
     (-> .getProperties (.put ::localization localization))
     (fxui/advance-ui-user-data-component! ::view {:fx/type build-errors-view :tree-view errors-tree})

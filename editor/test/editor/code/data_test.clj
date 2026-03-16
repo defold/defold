@@ -15,7 +15,7 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.code.data :as data :refer [->Cursor ->CursorRange]]
+            [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
             [editor.code.script :as script])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
@@ -504,7 +504,13 @@
            (splice-lines ["one"
                           "two"]
                          [[(cr [0 0] [0 1]) ["bo"]]
-                          [(cr [1 1] [1 2]) ["omat"]]])))))
+                          [(cr [1 1] [1 2]) ["omat"]]])))
+    (is (= ["a"
+            "a"
+            ""]
+           (splice-lines ["a"
+                          ""]
+                         [[(c 0 1) ["" "a"]]])))))
 
 (defn- splice-cursor-ranges [ascending-cursor-ranges ascending-cursor-ranges-and-replacements]
   (#'data/splice-cursor-ranges ascending-cursor-ranges ascending-cursor-ranges-and-replacements))
@@ -1352,6 +1358,54 @@
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])))))))
 
+(deftest duplicate-selection-test
+  (let [duplicate-selection (fn [lines cursor-ranges]
+                              (select-keys (data/duplicate-selection lines cursor-ranges nil (layout-info lines))
+                                           [:lines :cursor-ranges]))]
+    (testing "Duplicates selected lines when all cursors are empty"
+      (is (= {:lines ["abcdef"
+                      "abcdef"]
+              :cursor-ranges [(c 1 1)
+                              (c 1 4)]}
+             (duplicate-selection ["abcdef"]
+                                  [(c 0 1)
+                                   (c 0 4)])))
+      (is (= {:lines ["a"
+                      "a"
+                      "b"
+                      "c"
+                      "c"]
+              :cursor-ranges [(c 1 1)
+                              (c 4 0)]}
+             (duplicate-selection ["a"
+                                   "b"
+                                   "c"]
+                                  [(c 0 1)
+                                   (c 2 0)])))
+      (is (= {:lines ["a"
+                      "a"
+                      ""]
+              :cursor-ranges [(c 1 1)]}
+             (duplicate-selection ["a"
+                                   ""]
+                                  [(c 0 1)]))))
+    (testing "Duplicates selected ranges when there are non-empty ranges"
+      (is (= {:lines ["abcbcdef"]
+              :cursor-ranges [(c 0 0)
+                              (cr [0 3] [0 5])]}
+             (duplicate-selection ["abcdef"]
+                                  [(c 0 0)
+                                   (cr [0 1] [0 3])]))))
+    (testing "Does not persist synthetic duplicate ranges as regions"
+      (is (= {:lines ["abcbcdef"]
+              :cursor-ranges [(cr [0 3] [0 5])]
+              :regions [(assoc (cr [0 6] [0 7]) :type :foo)]}
+             (select-keys (data/duplicate-selection ["abcdef"]
+                                                    [(cr [0 1] [0 3])]
+                                                    [(assoc (cr [0 4] [0 5]) :type :foo)]
+                                                    (layout-info ["abcdef"]))
+                          [:lines :cursor-ranges :regions]))))))
+
 (deftest find-matching-braces-test
   (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 0))))
   (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 1))))
@@ -1533,6 +1587,52 @@
       (is (nil? (data/cursor-range-intersection (cr [0 0] [0 0])
                                                 (cr [0 0] [0 0])))))))
 
+(deftest rect-intersection-test
+  (testing "no intersection => nil"
+    (testing "not touching"
+      (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                        (->Rect 2 0 1 1))))
+      (is (nil? (data/rect-intersection (->Rect 2 0 1 1)
+                                        (->Rect 0 0 1 1)))))
+    (testing "touching"
+      (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                        (->Rect 1 0 1 1))))
+      (is (nil? (data/rect-intersection (->Rect 1 0 1 1)
+                                        (->Rect 0 0 1 1))))
+      (testing "one is empty"
+        (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                          (->Rect 1 0 0 0))))
+        (is (nil? (data/rect-intersection (->Rect 1 0 0 0)
+                                          (->Rect 0 0 1 1))))
+        (is (nil? (data/rect-intersection (->Rect 0 0 0 0)
+                                          (->Rect 0 0 1 1))))
+        (is (nil? (data/rect-intersection (->Rect 0 0 1 1)
+                                          (->Rect 0 0 0 0)))))))
+  (testing "one within another"
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 0 0 3 1)
+                                   (->Rect 1 0 1 1))))
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 1 0 1 1)
+                                   (->Rect 0 0 3 1))))
+    (testing "empty is still nil"
+      (is (nil? (data/rect-intersection (->Rect 0 0 2 1)
+                                        (->Rect 1 0 0 0))))))
+  (testing "partial intersection"
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 0 0 2 1)
+                                   (->Rect 1 0 2 1))))
+    (is (= (->Rect 1 0 1 1)
+           (data/rect-intersection (->Rect 1 0 2 1)
+                                   (->Rect 0 0 2 1)))))
+  (testing "full overlap"
+    (is (= (->Rect 0 0 1 1)
+           (data/rect-intersection (->Rect 0 0 1 1)
+                                   (->Rect 0 0 1 1))))
+    (testing "empty is still nil"
+      (is (nil? (data/rect-intersection (->Rect 0 0 0 0)
+                                        (->Rect 0 0 0 0)))))))
+
 (deftest syntax-scope-before-cursor-test
   (let [syntax-scope-before-cursor (fn syntax-scope-before-cursor [lines cursor]
                                      (data/syntax-scope-before-cursor
@@ -1551,7 +1651,6 @@
            (syntax-scope-before-cursor ["'bar'"] (->Cursor 0 5))))
     (is (= "comment.block.lua"
            (syntax-scope-before-cursor ["--[[" "inside a comment" "]]"] (->Cursor 1 1))))))
-
 
 (deftest auto-insert-test
   (let [key-typed (fn key-typed [lines cursor-ranges typed]
