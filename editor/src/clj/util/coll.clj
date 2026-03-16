@@ -15,8 +15,9 @@
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
   (:import [clojure.core Eduction Vec]
-           [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
+           [clojure.lang Cons Cycle IEditableCollection LazilyPersistentVector LazySeq MapEntry Repeat Var]
            [java.util ArrayList Arrays List]
+           [java.util.concurrent StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -1044,3 +1045,25 @@
    (mapv f coll))
   ([coll f & args]
    (mapv #(apply f % args) coll)))
+
+(defn pmapv
+  "Like core.pmap, but eagerly returns a vector and uses virtual threads. Fails
+  fast by cancelling remaining tasks on the first error."
+  ([f coll]
+   (let [items (if (vector? coll) coll (vec coll))
+         item-count (count items)]
+     (if (zero? item-count)
+       []
+       (let [binding-frame (Var/cloneThreadBindingFrame)
+             results (object-array item-count)]
+         (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+           (dotimes [index item-count]
+             (.fork scope ^Runnable #(do
+                                       (Var/resetThreadBindingFrame binding-frame)
+                                       (aset results index (f (nth items index))))))
+           (try
+             (.join scope)
+             (catch StructuredTaskScope$FailedException e (throw (.getCause e))))
+           (LazilyPersistentVector/createOwning results))))))
+  ([f coll & colls]
+   (pmapv #(apply f %) (apply mapv vector coll colls))))
