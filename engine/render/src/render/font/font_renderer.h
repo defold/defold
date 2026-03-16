@@ -104,7 +104,7 @@ namespace dmRender
      * @param render_order Render order to write for the rendering
      * @param render_context Context to use when rendering
      */
-    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final);
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final);
 }
 
 #endif // DM_FONT_RENDERER_H

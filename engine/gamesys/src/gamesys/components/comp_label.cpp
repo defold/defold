@@ -502,7 +502,7 @@ namespace dmGameSystem
             dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, text_params);
         }
 
-        dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, 0, false);
+        dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, false);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

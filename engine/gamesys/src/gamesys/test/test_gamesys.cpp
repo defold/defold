@@ -22,7 +22,6 @@
 #include "../../../../gui/src/gui_private.h"
 
 #include <render/font/fontmap.h>
-#include <algorithm>
 #include <platform/window.hpp>
 
 #include "gamesys/resources/res_compute.h"

@@ -455,7 +455,7 @@ namespace dmRender
         }
     }
 
-    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final)
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final)
     {
         DM_PROFILE("FlushTexts");
 

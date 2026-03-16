@@ -304,7 +304,7 @@ namespace dmRender
     {
         // Unflushed leftovers are assumed to be the debug rendering
         // and we give them render orders statically here
-        FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, 0xffffff, true);
+        FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, true);
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
