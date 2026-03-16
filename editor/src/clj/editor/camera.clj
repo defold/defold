@@ -1201,13 +1201,6 @@
                                :pan
                                :none))))))))
 
-;; NOTE: Merge this back in or use an fnk thingie?
-(defn- handle-input-fnk [self input-state action user-data]
-  (handle-input self input-state action user-data))
-
-(defn- handle-update-tick-fnk [self input-state dt]
-  (handle-update-tick self input-state dt))
-
 (g/defnode CameraController
   (property prefs g/Any)
   (property image-view ImageView)
@@ -1233,8 +1226,8 @@
                                             :down     (keymap/shortcuts keymap :scene.camera-move-down)
                                             :up       (keymap/shortcuts keymap :scene.camera-move-up)}))
 
-  (output input-handler Runnable :cached (g/constantly handle-input-fnk))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
