@@ -47,6 +47,8 @@
 (def fov-x-35mm-full-frame 54.4)
 (def fov-y-35mm-full-frame 37.8)
 
+(def vector3-up (Vector3d. 0.0 1.0 0.0))
+
 (defn camera-forward-vector
   ^Vector3d [^Camera camera]
   (math/rotate (types/rotation camera)
@@ -54,8 +56,7 @@
 
 (defn camera-up-vector
   ^Vector3d [^Camera camera]
-  (math/rotate (types/rotation camera)
-               (Vector3d. 0.0 1.0 0.0)))
+  (math/rotate (types/rotation camera) vector3-up))
 
 (defn camera-right-vector
   ^Vector3d [^Camera camera]
@@ -566,11 +567,11 @@
         [(:fov-x camera) (:fov-y camera)]
         (let [w (- (.right viewport) (.left viewport))
               h (- (.bottom viewport) (.top viewport))
-              factor-x    (/ proj-width w)
-              factor-y    (/ proj-height h)
+              factor-x (/ proj-width w)
+              factor-y (/ proj-height h)
               ;; TODO JOE: This might be a good candidate for changing the camera to a normal record
-              fov-x-prim  (* factor-x (double (:fov-x camera)))
-              fov-y-prim  (* factor-y (double (:fov-y camera)))]
+              fov-x-prim  (* factor-x (.fov-x camera))
+              fov-y-prim  (* factor-y (.fov-y camera))]
           [(* 1.1 fov-x-prim) (* 1.1 fov-y-prim)])))))
 
 (defn camera-orthographic-frame-aabb
@@ -754,8 +755,8 @@
                (.sub p)
                (.negate)
                (.normalize))
-          up ^Vector3d (math/rotate ^Quat4d (:rotation from) (Vector3d. 0.0 1.0 0.0))
-          to-up ^Vector3d (math/rotate ^Quat4d (:rotation to) (Vector3d. 0.0 1.0 0.0))
+          up ^Vector3d (math/rotate ^Quat4d (:rotation from) vector3-up)
+          to-up ^Vector3d (math/rotate ^Quat4d (:rotation to) vector3-up)
           up (doto up
                (.interpolate ^Tuple3d to-up t)
                (.normalize))
@@ -1116,7 +1117,7 @@
                         f))
             right (camera-right-vector current-camera)
             up (if walking-mode
-                 (Vector3d. 0.0 1.0 0.0)
+                 vector3-up
                  (camera-up-vector current-camera))
             camera-after-look
             (let [invert-y? (prefs/get prefs [:scene :perspective-camera :invert-y])
