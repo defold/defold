@@ -1770,6 +1770,7 @@
                   (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
                   (g/connect app-view-id     :keymap                        view-id         :keymap)
                   (g/connect app-view-id     :localization                  view-id         :localization)
+                  (g/connect app-view-id     :keymap                        camera          :keymap)
 
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)

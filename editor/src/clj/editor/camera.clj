@@ -1110,39 +1110,31 @@
                                    :else 1.0))
                      (double (prefs/get prefs [:scene :perspective-camera :speed])))
             walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
-            forward (let [f (camera-forward-vector current-camera)]
-                      (if walking-mode
-                        (Vector3d. (.x f) 0.0 (.z f))
-                        f))
-            right (camera-right-vector current-camera)
-            up (if walking-mode
+            camera-forward (camera-forward-vector current-camera)
+            camera-forward (if walking-mode
+                      (Vector3d. (.x camera-forward) 0.0 (.z camera-forward))
+                      camera-forward)
+            camera-right (camera-right-vector current-camera)
+            camera-up (if walking-mode
                  vector3-up
                  (camera-up-vector current-camera))
             camera-state (g/user-data self ::camera-state)
-            [camera camera-state]
-            (let [look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
-                  mouse-delta (i/poll-mouse-delta)
-                  dx (- (if mouse-delta (.dx mouse-delta) 0.0))
-                  dy (if mouse-delta (.dy mouse-delta) 0.0)
-                  dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))]
-              (look-delta camera-state current-camera dx dy look-sensitivity dt))
-            key-for-command (fn [cmd] (some-> ^KeyCodeCombination (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
-                                              (.getCode)))
-            w-key (key-for-command :scene.camera-move-forward)
-            a-key (key-for-command :scene.camera-move-left)
-            s-key (key-for-command :scene.camera-move-backward)
-            d-key (key-for-command :scene.camera-move-right)
-            q-key (key-for-command :scene.camera-move-down)
-            e-key (key-for-command :scene.camera-move-up)
+            look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
+            mouse-delta (i/poll-mouse-delta)
+            dx (- (if mouse-delta (.dx mouse-delta) 0.0))
+            dy (if mouse-delta (.dy mouse-delta) 0.0)
+            dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))
+            [camera camera-state] (look-delta camera-state current-camera dx dy look-sensitivity dt)
+            {:keys [forward left backward right down up]} (g/node-value self :free-camera-keys)
             target-dir (Vector3d.)
             _ (doseq [key pressed-keys]
                 (cond
-                  (= key w-key) (.add target-dir forward)
-                  (= key s-key) (.sub target-dir forward)
-                  (= key d-key) (.add target-dir right)
-                  (= key a-key) (.sub target-dir right)
-                  (= key q-key) (.sub target-dir up)
-                  (= key e-key) (.add target-dir up)))
+                  (= key forward) (.add target-dir camera-forward)
+                  (= key backward) (.sub target-dir camera-forward)
+                  (= key right) (.add target-dir camera-right)
+                  (= key left) (.sub target-dir camera-right)
+                  (= key down) (.sub target-dir camera-up)
+                  (= key up) (.add target-dir camera-up)))
             final-camera (wasd-move self camera target-dir speed dt)]
         (g/user-data-swap! self ::camera-state merge camera-state)
         (when (not= final-camera current-camera)
@@ -1219,10 +1211,23 @@
 
   (input scene-aabb AABB)
   (input viewport Region)
+  (input keymap g/Any)
 
   (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
+  (output free-camera-keys g/Any :cached (g/fnk [keymap]
+                                           (println "the thing changed")
+                                           (let [key-for-command (fn [cmd]
+                                                                   (some-> ^KeyCodeCombination
+                                                                           (first (keymap/shortcuts keymap cmd))
+                                                                           (.getCode)))]
+                                             {:forward  (key-for-command :scene.camera-move-forward)
+                                              :left     (key-for-command :scene.camera-move-left)
+                                              :backward (key-for-command :scene.camera-move-backward)
+                                              :right    (key-for-command :scene.camera-move-right)
+                                              :down     (key-for-command :scene.camera-move-down)
+                                              :up       (key-for-command :scene.camera-move-up)})))
 
   (output input-handler Runnable :cached (g/constantly handle-input-fnk))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
