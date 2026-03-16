@@ -1584,8 +1584,8 @@
               ;; would be consumed by the TabPane and will trigger next/prev tab selection.
               ;; Because of that, such key presses will not reach the workbench view and
               ;; will not trigger the commands as might be expected
-              (when (or (not= ::unhandled (attempt-handle-arrow-key-commands! e))
-                        (c/free-cam-mode-active? camera-id))
+              (when (or (c/free-cam-mode-active? camera-id)
+                        (not= ::unhandled (attempt-handle-arrow-key-commands! e)))
                 (.consume e)))))))))
 
 (defn make-gl-pane! [view-id opts]

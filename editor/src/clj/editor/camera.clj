@@ -36,7 +36,7 @@
            [javafx.scene Cursor Node Parent]
            [javafx.scene.control Button Control CheckBox Label PopupControl Slider TextField ToggleButton ToggleGroup]
            [javafx.scene.image ImageView]
-           [javafx.scene.input KeyCode KeyCodeCombination]
+           [javafx.scene.input KeyCode KeyCodeCombination KeyCombination$ModifierValue]
            [javafx.scene.layout HBox Priority StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]
@@ -1095,6 +1095,23 @@
         [cursor-x cursor-y last-x last-y]))
     [cursor-x cursor-y last-x last-y]))
 
+(defn combo-active? [^KeyCodeCombination combo pressed-keys modifiers]
+  (and (contains? pressed-keys (.getCode combo))
+       (= (contains? modifiers :shift) (= (.getShift combo) KeyCombination$ModifierValue/DOWN))
+       (= (contains? modifiers :alt)   (= (.getAlt combo)   KeyCombination$ModifierValue/DOWN))
+       (= (contains? modifiers :ctrl)  (= (.getControl combo) KeyCombination$ModifierValue/DOWN))))
+
+(defn compute-target-dir [pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up]
+  (let [target-dir (Vector3d.)
+        {:keys [forward left backward right down up]} free-cam-shortcuts]
+    (when (some #(combo-active? % pressed-keys modifiers) forward)  (.add target-dir camera-forward))
+    (when (some #(combo-active? % pressed-keys modifiers) backward) (.sub target-dir camera-forward))
+    (when (some #(combo-active? % pressed-keys modifiers) right)    (.add target-dir camera-right))
+    (when (some #(combo-active? % pressed-keys modifiers) left)     (.sub target-dir camera-right))
+    (when (some #(combo-active? % pressed-keys modifiers) down)     (.sub target-dir camera-up))
+    (when (some #(combo-active? % pressed-keys modifiers) up)       (.add target-dir camera-up))
+    target-dir))
+
 (defn- handle-update-tick [self input-state dt]
   (let [{:keys [free-cam-mode] :as camera-state} (g/user-data self ::camera-state)]
     (if free-cam-mode
@@ -1125,16 +1142,8 @@
             dy (if mouse-delta (.dy mouse-delta) 0.0)
             dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))
             [camera camera-state] (look-delta camera-state current-camera dx dy look-sensitivity dt)
-            {:keys [forward left backward right down up]} (g/node-value self :free-camera-keys)
-            target-dir (Vector3d.)
-            _ (doseq [key pressed-keys]
-                (cond
-                  (= key forward) (.add target-dir camera-forward)
-                  (= key backward) (.sub target-dir camera-forward)
-                  (= key right) (.add target-dir camera-right)
-                  (= key left) (.sub target-dir camera-right)
-                  (= key down) (.sub target-dir camera-up)
-                  (= key up) (.add target-dir camera-up)))
+            free-cam-shortcuts (g/node-value self :free-cam-shortcuts)
+            target-dir (compute-target-dir pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up)
             final-camera (wasd-move self camera target-dir speed dt)]
         (g/user-data-swap! self ::camera-state merge camera-state)
         (when (not= final-camera current-camera)
@@ -1216,18 +1225,13 @@
   (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
-  (output free-camera-keys g/Any :cached (g/fnk [keymap]
-                                           (println "the thing changed")
-                                           (let [key-for-command (fn [cmd]
-                                                                   (some-> ^KeyCodeCombination
-                                                                           (first (keymap/shortcuts keymap cmd))
-                                                                           (.getCode)))]
-                                             {:forward  (key-for-command :scene.camera-move-forward)
-                                              :left     (key-for-command :scene.camera-move-left)
-                                              :backward (key-for-command :scene.camera-move-backward)
-                                              :right    (key-for-command :scene.camera-move-right)
-                                              :down     (key-for-command :scene.camera-move-down)
-                                              :up       (key-for-command :scene.camera-move-up)})))
+  (output free-cam-shortcuts g/Any :cached (g/fnk [keymap]
+                                           {:forward  (keymap/shortcuts keymap :scene.camera-move-forward)
+                                            :left     (keymap/shortcuts keymap :scene.camera-move-left)
+                                            :backward (keymap/shortcuts keymap :scene.camera-move-backward)
+                                            :right    (keymap/shortcuts keymap :scene.camera-move-right)
+                                            :down     (keymap/shortcuts keymap :scene.camera-move-down)
+                                            :up       (keymap/shortcuts keymap :scene.camera-move-up)}))
 
   (output input-handler Runnable :cached (g/constantly handle-input-fnk))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))

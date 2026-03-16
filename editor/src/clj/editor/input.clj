@@ -162,6 +162,9 @@
           :screen-x (.getScreenX mouse-event)
           :screen-y (.getScreenY mouse-event))))))
 
+(defn- trackable-key? [^KeyCode code]
+  (not (.isModifierKey code)))
+
 (defn update-input-state [state action]
   (let [modifiers (->> [:alt :shift :meta :control]
                        (filter action)
@@ -187,11 +190,9 @@
       (update :scroll-delta #(mapv + % [(:delta-x action) (:delta-y action)]))
 
       (and (= :key-pressed (:type action))
-           (let [code (:key-code action)]
-             (or (.isLetterKey ^KeyCode code) (.isDigitKey ^KeyCode code))))
+           (trackable-key? (:key-code action)))
       (update :pressed-keys conj (:key-code action))
 
       (and (= :key-released (:type action))
-           (let [code (:key-code action)]
-             (or (.isLetterKey ^KeyCode code) (.isDigitKey ^KeyCode code))))
+           (trackable-key? (:key-code action)))
       (update :pressed-keys disj (:key-code action)))))
