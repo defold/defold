@@ -1047,20 +1047,35 @@
    (mapv #(apply f % args) coll)))
 
 (defn pmapv
-  "Like core.pmap, but eagerly returns a vector and uses virtual threads. Fails
-  fast by cancelling remaining tasks on the first error."
+  "Like core.pmap, but eagerly returns a vector, uses virtual threads, and
+  keeps a bounded number of tasks in flight. Fails fast by cancelling
+  remaining tasks on the first error."
   ([f coll]
    (let [items (if (vector? coll) coll (vec coll))
          item-count (count items)]
      (if (zero? item-count)
        []
        (let [binding-frame (Var/cloneThreadBindingFrame)
-             results (object-array item-count)]
+             results (object-array item-count)
+             next-index (AtomicInteger. 0)
+             worker-count (-> (.availableProcessors (Runtime/getRuntime))
+                              (* 2)
+                              (min (long item-count))
+                              (max 4))]
          (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
-           (dotimes [index item-count]
-             (.fork scope ^Runnable #(do
-                                       (Var/resetThreadBindingFrame binding-frame)
-                                       (aset results index (f (nth items index))))))
+           (dotimes [_ worker-count]
+             (.fork
+               scope
+               ^Runnable
+               (fn []
+                 (do
+                   (Var/resetThreadBindingFrame binding-frame)
+                   (loop []
+                     (when-not (.isInterrupted (Thread/currentThread))
+                       (let [index (.getAndIncrement next-index)]
+                         (when (< index item-count)
+                           (aset results index (f (nth items index)))
+                           (recur)))))))))
            (try
              (.join scope)
              (catch StructuredTaskScope$FailedException e (throw (.getCause e))))

@@ -1958,12 +1958,12 @@
                           (.await all-started)
                           (if (zero? value)
                             (throw (ex-info "boom" {}))
-                            (try
-                              (Thread/sleep 10000)
-                              value
-                              (catch InterruptedException _
-                                (swap! cancellation-count inc)
-                                :interrupted))))
+                            (loop []
+                              (if (.isInterrupted (Thread/currentThread))
+                                (do
+                                  (swap! cancellation-count inc)
+                                  :interrupted)
+                                (recur)))))
                         (range task-count))))
       (is (= true (.await all-started 1 TimeUnit/SECONDS)))
       (dotimes [_ 100]
