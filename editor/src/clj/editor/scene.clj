@@ -1278,13 +1278,22 @@
                  (g/node-value :camera-type evaluation-context)
                  (= :perspective))))
 
-(handler/defhandler :scene.free-camera-mode :workbench
+(handler/defhandler :scene.free-camera.activate :workbench
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
       (let [input-state (g/user-data scene-view ::input-state)
             camera (view->camera scene-view)
             image-view (g/node-value scene-view :image-view)]
         (c/start-free-cam-mode! image-view camera (:cursor-pos input-state))))))
+
+;; NOTE: If we don't register these commands deleting the commands default shortcut makes the command unreachable unless
+;; we clear player prefs, so add these dummy commands to keep them active
+(handler/defhandler :scene.free-camera.up :free-camera (run []))
+(handler/defhandler :scene.free-camera.down :free-camera (run []))
+(handler/defhandler :scene.free-camera.left :free-camera (run []))
+(handler/defhandler :scene.free-camera.forward :free-camera (run []))
+(handler/defhandler :scene.free-camera.right :free-camera (run []))
+(handler/defhandler :scene.free-camera.backward :free-camera (run []))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))

@@ -1219,12 +1219,12 @@
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
   (output free-cam-shortcuts g/Any :cached (g/fnk [keymap]
-                                           {:forward  (keymap/shortcuts keymap :scene.camera-move-forward)
-                                            :left     (keymap/shortcuts keymap :scene.camera-move-left)
-                                            :backward (keymap/shortcuts keymap :scene.camera-move-backward)
-                                            :right    (keymap/shortcuts keymap :scene.camera-move-right)
-                                            :down     (keymap/shortcuts keymap :scene.camera-move-down)
-                                            :up       (keymap/shortcuts keymap :scene.camera-move-up)}))
+                                           {:forward  (keymap/shortcuts keymap :scene.free-camera.forward)
+                                            :left     (keymap/shortcuts keymap :scene.free-camera.left)
+                                            :backward (keymap/shortcuts keymap :scene.free-camera.backward)
+                                            :right    (keymap/shortcuts keymap :scene.free-camera.right)
+                                            :down     (keymap/shortcuts keymap :scene.free-camera.down)
+                                            :up       (keymap/shortcuts keymap :scene.free-camera.up)}))
 
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
