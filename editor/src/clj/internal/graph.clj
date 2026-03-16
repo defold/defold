@@ -1261,3 +1261,9 @@
               basis))
           basis
           (util/group-into (comp gt/node-id->graph-id first) changes)))
+
+(defn invalidate-all-successors
+  [basis]
+  (update basis :graphs #(coll/map-vals (fn [graph]
+                                          (assoc graph :successors (make-successors)))
+                                        %)))

@@ -1026,14 +1026,6 @@
            (du/measuring process-metrics :load-new-nodes
              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
 
-     ;; When we're not tracking changes, we will not evict stale values from the
-     ;; system cache. This means subsequent graph queries won't see the changes
-     ;; from the transaction if a value was previously cached. To be on the safe
-     ;; side, we clear the cache after each transaction we perform with change
-     ;; tracking disabled.
-     (when-not change-tracked-transact
-       (g/clear-system-cache!))
-
      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
      (render-progress! progress/done)
 

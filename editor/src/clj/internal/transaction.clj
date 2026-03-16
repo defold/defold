@@ -213,17 +213,18 @@
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
           "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
-        all-originals (ig/override-originals basis original-node-id)]
-    (-> ctx
-        (assoc :basis (gt/override-node basis original-node-id override-node-id))
+        ctx (assoc ctx :basis (gt/override-node basis original-node-id override-node-id))]
+    (if (:track-changes ctx)
+      (let [all-originals (ig/override-originals basis original-node-id)]
+        (-> ctx
+            ;; Any property, input or output on any original nodes must now take the
+            ;; new override node into account.
+            (flag-all-successors-changed all-originals)
 
-        ;; Any property, input or output on any original nodes must now take the
-        ;; new override node into account.
-        (flag-all-successors-changed all-originals)
-
-        ;; Similarly, so must the source outputs of any arcs that target any of
-        ;; the original nodes.
-        (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))
+            ;; Similarly, so must the source outputs of any arcs that target any of
+            ;; the original nodes.
+            (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals))))
+      ctx)))
 
 (defonce/type NewOverrideTXS [override-id root-id traverse-fn init-props-fn]
   TransactionStep
@@ -663,20 +664,23 @@
             (ctx-disconnect-single target target-id target-label)
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
-            ;; When updating the successors, we must also consider any override
-            ;; nodes of the source node, since these will inherit an implicit
-            ;; connection between them and the corresponding override nodes of
-            ;; the target node.
-            (flag-successors-changed (e/cons
-                                       (pair source-id source-label)
-                                       (e/map #(pair % source-label)
-                                              (ig/get-overrides basis source-id))))
-            ;; If we're connecting to a :cascade-delete input, we will need to
-            ;; re-traverse the :cascade-delete inputs of the connected sub-graph
-            ;; and create override nodes for each node. This happens in the
-            ;; update-overrides function once the transaction concludes.
             (cond->
+              (:track-changes ctx)
+              ;; When updating the successors, we must also consider any override
+              ;; nodes of the source node, since these will inherit an implicit
+              ;; connection between them and the corresponding override nodes of
+              ;; the target node.
+              (flag-successors-changed
+                (e/cons
+                  (pair source-id source-label)
+                  (e/map #(pair % source-label)
+                         (ig/get-overrides basis source-id))))
+
               (contains? target-cascade-deletes target-label)
+              ;; If we're connecting to a :cascade-delete input, we will need to
+              ;; re-traverse the :cascade-delete inputs of the connected sub-graph
+              ;; and create override nodes for each node. This happens in the
+              ;; update-overrides function once the transaction concludes.
               (flag-override-nodes-affected target-id))))
       ctx)
     ctx))
@@ -704,13 +708,14 @@
   (-> ctx
       (mark-input-activated target-id target-label)
       (update :basis gt/disconnect source-id source-label target-id target-label)
-      ;; When updating the successors, we must also consider any override nodes
-      ;; of the source node, since these will inherit an implicit connection
-      ;; between them and the corresponding override nodes of the target node.
-      (flag-successors-changed (e/cons
-                                 (pair source-id source-label)
-                                 (e/map #(pair % source-label)
-                                        (ig/get-overrides (:basis ctx) source-id))))
+      (cond-> (:track-changes ctx)
+        ;; When updating the successors, we must also consider any override nodes
+        ;; of the source node, since these will inherit an implicit connection
+        ;; between them and the corresponding override nodes of the target node.
+        (flag-successors-changed (e/cons
+                                   (pair source-id source-label)
+                                   (e/map #(pair % source-label)
+                                          (ig/get-overrides (:basis ctx) source-id)))))
       (ctx-remove-overrides source-id source-label target-id target-label)))
 
 (defn- ctx-update-graph-value
@@ -1108,9 +1113,17 @@
             override-nodes-affected-ordered)))
 
 (defn update-successors
-  [{:keys [successors-changed] :as ctx}]
+  [{:keys [completed-action-count successors-changed] :as ctx}]
   (du/measuring (:metrics ctx) :update-successors
-    (update ctx :basis ig/update-successors successors-changed)))
+    (cond
+      (zero? completed-action-count)
+      ctx
+
+      (:track-changes ctx)
+      (update ctx :basis ig/update-successors successors-changed)
+
+      :else
+      (update ctx :basis ig/invalidate-all-successors))))
 
 (defn trace-dependencies
   [ctx]
