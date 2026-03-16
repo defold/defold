@@ -261,7 +261,15 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             }
             return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
-            String compileResult = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
+            String compileResult = ShaderUtil.Common.compileGLSL(
+                    module.desc.source,
+                    shaderType,
+                    shaderLanguage,
+                    false,
+                    false,
+                    this.options.splitTextureSamplers,
+                    this.options.glslEsDefaultFloatPrecision,
+                    this.options.glslEsDefaultIntPrecision);
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();
             return result;

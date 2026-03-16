@@ -34,11 +34,14 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.io.FileUtils;
+import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
         public ArrayList<String> defines = new ArrayList<>();
+        public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }
 
     public static class ShaderModuleDesc {

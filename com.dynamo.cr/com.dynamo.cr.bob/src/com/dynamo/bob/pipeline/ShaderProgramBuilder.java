@@ -119,6 +119,15 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
+    static Shaderc.ShaderPrecision shaderPrecisionFromString(String value) {
+        if (value.equals("highp"))
+            return Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        else if (value.equals("mediump"))
+            return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        // Not implemented
+        assert null;
+    }
+
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
         String resourceOutputPath = task.getOutputs().get(0).getPath();
@@ -134,6 +143,9 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
+        compileOptions.glslEsDefaultFloatPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_float", "mediump"));
+        compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
+
         if (getOutputHlslFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
         }

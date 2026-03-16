@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
@@ -506,7 +507,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String source;
         String expected;
 
-        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                "",
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#version 330\n" +
                     "#ifndef GL_ES\n" +
                     "#define lowp\n" +
@@ -519,7 +528,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         source = "#extension GL_OES_standard_derivatives : enable\n" +
                  "varying highp vec2 var_texcoord0;";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#version 330\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -537,7 +554,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
@@ -551,7 +576,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true, false, false);
+        source = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
         expected =  "#version 300 es\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +

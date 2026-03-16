@@ -164,7 +164,8 @@ public class ShaderCompilers {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
-
+            opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
+            opts.glslEsDefaultIntPrecision   = compileOptions.glslEsDefaultIntPrecision;
 
             for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
                 boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
