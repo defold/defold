@@ -55,36 +55,24 @@
 ;;   a `:preview` or `:commit` mode argument.
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
-(defmulti manip-move (fn [initial-evaluation-context node-id ^Vector3d _delta]
+(defmulti manip-move (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
                        (g/node-type-kw (:basis initial-evaluation-context) node-id)))
-(defmulti manip-move-preview (fn [initial-evaluation-context node-id ^Vector3d _delta]
-                               (g/node-type-kw (:basis initial-evaluation-context) node-id)))
-(defmethod manip-move-preview :default [initial-evaluation-context node-id ^Vector3d delta]
-  (manip-move initial-evaluation-context node-id delta))
 (defmulti manip-move-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-move-manips :default [_]
   [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
 
 (defmulti manip-rotatable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-rotatable? :default [_] false)
-(defmulti manip-rotate (fn [initial-evaluation-context node-id ^Quat4d _delta]
+(defmulti manip-rotate (fn [node-id ^Quat4d _delta _manip-phase initial-evaluation-context]
                          (g/node-type-kw (:basis initial-evaluation-context) node-id)))
-(defmulti manip-rotate-preview (fn [initial-evaluation-context node-id ^Quat4d _delta]
-                                 (g/node-type-kw (:basis initial-evaluation-context) node-id)))
-(defmethod manip-rotate-preview :default [initial-evaluation-context node-id ^Quat4d delta]
-  (manip-rotate initial-evaluation-context node-id delta))
 (defmulti manip-rotate-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-rotate-manips :default [_]
   [:rot-x :rot-y :rot-z :rot-screen])
 
 (defmulti manip-scalable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-scalable? :default [_] false)
-(defmulti manip-scale (fn [initial-evaluation-context node-id ^Vector3d _delta]
+(defmulti manip-scale (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
                         (g/node-type-kw (:basis initial-evaluation-context) node-id)))
-(defmulti manip-scale-preview (fn [initial-evaluation-context node-id ^Vector3d _delta]
-                                (g/node-type-kw (:basis initial-evaluation-context) node-id)))
-(defmethod manip-scale-preview :default [initial-evaluation-context node-id ^Vector3d delta]
-  (manip-scale initial-evaluation-context node-id delta))
 (defmulti manip-scale-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-scale-manips :default [_]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
@@ -521,16 +509,6 @@
         (for [original-value original-values]
           (local-scale-fn original-value s))))))
 
-(def ^:private preview-manipulation-fns
-  {:move manip-move-preview
-   :rotate manip-rotate-preview
-   :scale manip-scale-preview})
-
-(def ^:private commit-manipulation-fns
-  {:move manip-move
-   :rotate manip-rotate
-   :scale manip-scale})
-
 (defn combine-manipulations [manipulations]
   {:post [(s/assert ::combined-manipulations %)]}
   (coll/reduce-> manipulations {}
@@ -547,7 +525,7 @@
                         update (s/assert ::node-id-path node-id-path)
                         coll/merge prop-kw->override-value))))))
 
-(defn- apply-manipulator [manip-opts initial-evaluation-context original-values manip manip-space start-action action camera viewport manipulation-fns]
+(defn- apply-manipulator [manip-phase manip-opts original-values manip manip-space start-action action camera viewport initial-evaluation-context]
   ;; TODO(drag-perf): Feels like we should break out a lot of this stuff to start-drag state?
   (let [{:keys [world-rotation world-transform]} (peek original-values)
         manip-origin (math/translation world-transform)
@@ -563,7 +541,7 @@
         (fn make-local-manipulation-fn [manipulation-fn]
           {:pre [(ifn? manipulation-fn)]}
           (fn local-manipulation-fn [{:keys [node-id node-id-path]} local-delta]
-            (-> (s/assert ::manipulation (manipulation-fn initial-evaluation-context node-id local-delta))
+            (-> (s/assert ::manipulation (manipulation-fn node-id local-delta manip-phase initial-evaluation-context))
                 (assoc :manip/node-id-path node-id-path))))
 
         manipulations-fn
@@ -572,9 +550,9 @@
           manip
           manip-origin
           original-values
-          (make-local-manipulation-fn (:move manipulation-fns))
-          (make-local-manipulation-fn (:rotate manipulation-fns))
-          (make-local-manipulation-fn (:scale manipulation-fns)))
+          (make-local-manipulation-fn manip-move)
+          (make-local-manipulation-fn manip-rotate)
+          (make-local-manipulation-fn manip-scale))
 
         manipulations (manipulations-fn start-pos pos)]
     (combine-manipulations manipulations)))
@@ -616,9 +594,9 @@
                               camera (g/node-value self :camera)
                               viewport (g/node-value self :viewport)
                               initial-evaluation-context (g/node-value self :initial-evaluation-context)
-                              combined-manipulations (apply-manipulator manip-opts initial-evaluation-context original-values manip manip-space start-action action camera viewport commit-manipulation-fns)
+                              combined-manipulations (apply-manipulator :manip-phase/commit manip-opts original-values manip manip-space start-action action camera viewport initial-evaluation-context)
                               commit-tx-data (:tx-data combined-manipulations)]
-                          (when (not (empty? commit-tx-data))
+                          (when (not (coll/empty? commit-tx-data))
                             (g/transact
                               (concat
                                 (g/operation-label (get-in transform-tools [active-tool :label]))
@@ -634,21 +612,27 @@
                         nil)
                       action)
     :mouse-moved (if-let [start-action (g/node-value self :start-action)]
-                   (let [original-values (g/node-value self :original-values)
+                   (let [active-tool (g/node-value self :active-tool)
+                         original-values (g/node-value self :original-values)
                          manip (g/node-value self :active-manip)
                          manip-opts (g/node-value self :manip-opts)
                          manip-space (g/node-value self :manip-space)
+                         op-seq (g/node-value self :op-seq)
                          camera (g/node-value self :camera)
                          viewport (g/node-value self :viewport)
                          initial-evaluation-context (g/node-value self :initial-evaluation-context)
-                         combined-manipulations (apply-manipulator manip-opts initial-evaluation-context original-values manip manip-space start-action action camera viewport preview-manipulation-fns)
+                         combined-manipulations (apply-manipulator :manip-phase/preview manip-opts original-values manip manip-space start-action action camera viewport initial-evaluation-context)
                          preview-tx-data (:tx-data combined-manipulations)
                          preview-overrides (:node-id-path->prop-kw->override-value combined-manipulations)]
                      ;; TODO(drag-perf): Show the preview-overrides in the property editor while dragging.
-                     (g/transact
-                       (concat
-                         preview-tx-data
-                         (g/set-property self :preview-overrides preview-overrides)))
+                     (when (or (not (coll/empty? preview-tx-data))
+                               (not (coll/empty? preview-overrides)))
+                       (g/transact
+                         (concat
+                           (g/operation-label (get-in transform-tools [active-tool :label]))
+                           (g/operation-sequence op-seq)
+                           preview-tx-data
+                           (g/set-property self :preview-overrides preview-overrides))))
                      nil)
                    (let [manip (first (get selection-data self))]
                      (when (not= manip (g/node-value self :hot-manip))

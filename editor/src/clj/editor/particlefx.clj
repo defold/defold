@@ -1319,17 +1319,19 @@
 
 (defmethod scene-tools/manip-scalable? ::ModifierNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale-manips ::ModifierNode [node-id]
+(defmethod scene-tools/manip-scale-manips ::ModifierNode [_node-id]
   [:scale-x])
 
-(defmethod scene-tools/manip-scale ::ModifierNode [initial-evaluation-context node-id ^Vector3d delta]
+(defmethod scene-tools/manip-scale ::ModifierNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  ;; TODO: Implementing the :manip-phase/preview code path for ParticleFX is tricky. Maybe some day!
   (let [old-magnitude (g/node-value node-id :magnitude initial-evaluation-context)
         new-magnitude (update-curve-spread-start-value old-magnitude #(properties/scale-and-round % (.getX delta)))]
     {:manip/tx-data (g/set-property node-id :magnitude new-magnitude)}))
 
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::EmitterNode [initial-evaluation-context node-id ^Vector3d delta]
+(defmethod scene-tools/manip-scale ::EmitterNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  ;; TODO: Implementing the :manip-phase/preview code path for ParticleFX is tricky. Maybe some day!
   (let [old-x (g/node-value node-id :emitter-key-size-x initial-evaluation-context)
         old-y (g/node-value node-id :emitter-key-size-y initial-evaluation-context)
         old-z (g/node-value node-id :emitter-key-size-z initial-evaluation-context)

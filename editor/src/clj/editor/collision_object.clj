@@ -286,7 +286,8 @@
 
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::SphereShape [initial-evaluation-context node-id ^Vector3d delta]
+(defmethod scene-tools/manip-scale ::SphereShape [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  ;; TODO(drag-perf): Implement :manip-phase/preview code path.
   (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))]
     {:manip/tx-data (g/set-property node-id :diameter new-diameter)}))
@@ -321,7 +322,8 @@
 
 (defmethod scene-tools/manip-scalable? ::BoxShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::BoxShape [initial-evaluation-context node-id ^Vector3d delta]
+(defmethod scene-tools/manip-scale ::BoxShape [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  ;; TODO(drag-perf): Implement :manip-phase/preview code path.
   (let [old-dimensions (g/node-value node-id :dimensions initial-evaluation-context)
         new-dimensions (math/zip-clj-v3 old-dimensions delta properties/scale-by-absolute-value-and-round)]
     {:manip/tx-data (g/set-property node-id :dimensions new-dimensions)}))
@@ -351,7 +353,8 @@
 
 (defmethod scene-tools/manip-scalable? ::CapsuleShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::CapsuleShape [initial-evaluation-context node-id ^Vector3d delta]
+(defmethod scene-tools/manip-scale ::CapsuleShape [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  ;; TODO(drag-perf): Implement :manip-phase/preview code path.
   (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
         old-height (g/node-value node-id :height initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))

@@ -72,7 +72,7 @@
            [editor.gl.texture TextureLifecycle]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
-           [javax.vecmath Quat4d]
+           [javax.vecmath Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -1417,17 +1417,18 @@
   ;; from disk during resource-sync. The id must be unique within the gui scene.
   (g/node-value node-id :id evaluation-context))
 
-(defn- manip-gui-node [initial-evaluation-context node-id prop-kw update-fn & args]
-  {:manip/tx-data (apply basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw update-fn args)})
+(defn- manip-gui-node [node-id prop-kw apply-delta-fn vecmath-delta manip-phase initial-evaluation-context]
+  ;; TODO(drag-perf): Implement :manip-phase/preview code path.
+  {:manip/tx-data (basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw apply-delta-fn vecmath-delta)})
 
-(defmethod scene-tools/manip-move ::GuiNode [initial-evaluation-context node-id delta]
-  (manip-gui-node initial-evaluation-context node-id :position scene/apply-move-delta delta))
+(defmethod scene-tools/manip-move ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :position scene/apply-move-delta delta manip-phase initial-evaluation-context))
 
-(defmethod scene-tools/manip-rotate ::GuiNode [initial-evaluation-context node-id delta]
-  (manip-gui-node initial-evaluation-context node-id :rotation scene/apply-rotate-delta delta))
+(defmethod scene-tools/manip-rotate ::GuiNode [node-id ^Quat4d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :rotation scene/apply-rotate-delta delta manip-phase initial-evaluation-context))
 
-(defmethod scene-tools/manip-scale ::GuiNode [initial-evaluation-context node-id delta]
-  (manip-gui-node initial-evaluation-context node-id :scale scene/apply-scale-delta delta))
+(defmethod scene-tools/manip-scale ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :scale scene/apply-scale-delta delta manip-phase initial-evaluation-context))
 
 (defn- transfer-overrides-target-properties
   [target-node-id target-layout-name evaluation-context]
