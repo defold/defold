@@ -1418,8 +1418,14 @@
   (g/node-value node-id :id evaluation-context))
 
 (defn- manip-gui-node [node-id prop-kw apply-delta-fn vecmath-delta manip-phase initial-evaluation-context]
-  ;; TODO(drag-perf): Implement :manip-phase/preview code path.
-  {:manip/tx-data (basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw apply-delta-fn vecmath-delta)})
+  (case manip-phase
+    :manip-phase/commit
+    {:manip/tx-data (basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw apply-delta-fn vecmath-delta)}
+
+    :manip-phase/preview
+    (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
+          new-value (apply-delta-fn old-value vecmath-delta)]
+      {:manip/prop-kw->override-value {prop-kw new-value}})))
 
 (defmethod scene-tools/manip-move ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
   (manip-gui-node node-id :position scene/apply-move-delta delta manip-phase initial-evaluation-context))
