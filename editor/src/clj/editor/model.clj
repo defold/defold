@@ -428,8 +428,10 @@
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:material-ids :mesh-material-ids]
                                             [:scene :scene])))
-            (dynamic error (g/fnk [_node-id mesh]
-                                  (prop-resource-error :fatal _node-id :mesh mesh mesh-message)))
+            (dynamic error (g/fnk [_node-id mesh ^:try scene]
+                             (if (g/error-value? scene)
+                               scene
+                               (prop-resource-error :fatal _node-id :mesh mesh mesh-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
             (dynamic label (properties/label-dynamic :model :mesh))
@@ -468,8 +470,10 @@
                                             [:resource :skeleton-resource]
                                             [:bones :skeleton-bones]
                                             [:skeleton-build-target :skeleton-build-target])))
-            (dynamic error (g/fnk [_node-id skeleton]
-                                  (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message)))
+            (dynamic error (g/fnk [_node-id skeleton ^:try skeleton-bones]
+                             (if (g/error-value? skeleton-bones)
+                               skeleton-bones
+                               (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
             (dynamic label (properties/label-dynamic :model :skeleton))
@@ -483,8 +487,10 @@
                                             [:animation-ids :animation-ids]
                                             [:animation-info :animation-infos]
                                             [:animation-set-build-target :animation-set-build-target])))
-            (dynamic error (g/fnk [_node-id animations]
-                                  (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)))
+            (dynamic error (g/fnk [_node-id animations ^:try animations-bones]
+                             (if (g/error-value? animations-bones)
+                               animations-bones
+                               (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types}))
             (dynamic label (properties/label-dynamic :model :animations))

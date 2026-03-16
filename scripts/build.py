@@ -195,7 +195,8 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -217,7 +218,8 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -255,7 +257,8 @@ PACKAGES_WIN32_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -278,7 +281,8 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -300,7 +304,8 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
     "protobuf-3.20.1",

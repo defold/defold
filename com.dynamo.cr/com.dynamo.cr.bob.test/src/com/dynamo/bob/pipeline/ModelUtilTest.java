@@ -476,7 +476,7 @@ public class ModelUtilTest {
     }
 
     /*
-     * Tests that an invalid collada file is handled
+     * Tests that an invalid gltf file is handled
      */
     @Test
     public void testInvalidFile() throws Exception {

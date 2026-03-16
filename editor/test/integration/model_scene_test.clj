@@ -42,3 +42,28 @@
           scene (log/without-logging
                   (g/node-value node-id :scene))]
       (is (g/error? scene)))))
+
+(deftest gltf-valid-scene
+  (test-util/with-loaded-project
+    ;; Valid .gltf should load successfully via model_loader and glTF validation.
+    (let [node-id (test-util/resource-node project "/mesh/triangle/gltf/Triangle.gltf")
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
+      (is (not (g/error? scene))))
+    ;; Valid .glb should load successfully via model_loader and glTF validation.
+    (let [node-id (test-util/resource-node project "/mesh/triangle/glb/valid.glb")
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
+      (is (not (g/error? scene))))))
+
+(deftest gltf-invalid-scene
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/accessor_element_out_of_max_bound.gltf")
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
+      (is (g/error? scene))
+      (let [errors (g/flatten-errors scene)
+            msg    (some-> errors g/error-message test-util/localization)]
+        (is (re-find #"glTF validation failed" msg))
+        (is (re-find #"ACCESSOR_MAX_MISMATCH" msg))
+        (is (re-find #"ACCESSOR_ELEMENT_OUT_OF_MAX_BOUND" msg))))))

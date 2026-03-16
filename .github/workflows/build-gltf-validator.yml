@@ -46,6 +46,45 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  build-linux-arm64:
+    strategy:
+      matrix:
+        platform: [arm64-linux]
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: KhronosGroup/glTF-Validator
+          ref: 2.0.0-dev.3.10
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6  # last stable before Dart 3
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build
+        run: dart run grinder exe-archive
+
+      - name: Create artifact archive
+        run: |
+          cd build/bin
+          tar -cJf "../gltf_validator-${{ matrix.platform }}.tar.xz" gltf_validator LICENSE NOTICES docs/
+
+      - name: Check artifact
+        run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
+
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gltf_validator-${{ matrix.platform }}
+          path: build/gltf_validator-${{ matrix.platform }}.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+
   build-macos-arm64:
     strategy:
       matrix:
