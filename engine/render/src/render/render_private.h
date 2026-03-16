@@ -162,7 +162,7 @@ namespace dmRender
         uint32_t            m_StringOffset;
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
-        uint16_t            m_RenderOrder;
+        uint32_t            m_RenderOrder;
         uint8_t             m_NumRenderConstants;
         bool                m_LineBreak;
         float               m_Width;
