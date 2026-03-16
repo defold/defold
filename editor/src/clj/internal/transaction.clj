@@ -29,6 +29,7 @@
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defonce/interface TransactionStep
   (step_type []) ; Returns a keyword uniquely identifying the type of transaction step.
@@ -52,7 +53,7 @@
 (defn- mark-input-activated
   [ctx node-id input-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if-not (:track-changes ctx)
+  (if (:full-invalidation ctx)
     ctx
     (let [basis (:basis ctx)
           dirty-deps (-> (gt/node-by-id-at basis node-id)
@@ -69,7 +70,7 @@
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if-not (:track-changes ctx)
+  (if (:full-invalidation ctx)
     ctx
     (let [nodes-affected (:nodes-affected ctx)]
       (assoc ctx
@@ -79,7 +80,7 @@
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if-not (:track-changes ctx)
+  (if (:full-invalidation ctx)
     ctx
     (let [nodes-affected (:nodes-affected ctx)]
       (assoc ctx
@@ -91,7 +92,7 @@
 (defn- mark-all-outputs-activated
   [ctx node-id]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if-not (:track-changes ctx)
+  (if (:full-invalidation ctx)
     ctx
     (let [basis (:basis ctx)
           output-labels (-> (gt/node-by-id-at basis node-id)
@@ -214,7 +215,7 @@
           "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
         ctx (assoc ctx :basis (gt/override-node basis original-node-id override-node-id))]
-    (if (:track-changes ctx)
+    (if-not (:full-invalidation ctx)
       (let [all-originals (ig/override-originals basis original-node-id)]
         (-> ctx
             ;; Any property, input or output on any original nodes must now take the
@@ -665,7 +666,7 @@
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
             (cond->
-              (:track-changes ctx)
+              (not (:full-invalidation ctx))
               ;; When updating the successors, we must also consider any override
               ;; nodes of the source node, since these will inherit an implicit
               ;; connection between them and the corresponding override nodes of
@@ -708,20 +709,21 @@
   (-> ctx
       (mark-input-activated target-id target-label)
       (update :basis gt/disconnect source-id source-label target-id target-label)
-      (cond-> (:track-changes ctx)
+      (cond-> (not (:full-invalidation ctx))
         ;; When updating the successors, we must also consider any override nodes
         ;; of the source node, since these will inherit an implicit connection
         ;; between them and the corresponding override nodes of the target node.
-        (flag-successors-changed (e/cons
-                                   (pair source-id source-label)
-                                   (e/map #(pair % source-label)
-                                          (ig/get-overrides (:basis ctx) source-id)))))
+        (flag-successors-changed
+          (e/cons
+            (pair source-id source-label)
+            (e/map #(pair % source-label)
+                   (ig/get-overrides (:basis ctx) source-id)))))
       (ctx-remove-overrides source-id source-label target-id target-label)))
 
 (defn- ctx-update-graph-value
   [ctx graph-id fn args]
   (cond-> (update-in ctx [:basis :graphs graph-id :graph-values] #(apply fn % args))
-          (:track-changes ctx) (update :graphs-modified conj graph-id)))
+          (not (:full-invalidation ctx)) (update :graphs-modified conj graph-id)))
 
 ;; ---------------------------------------------------------------------------
 ;; Transaction steps
@@ -1080,12 +1082,12 @@
 (defn finalize-update
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
-      (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
+      (assoc :status (if (zero? (long (:completed-action-count ctx))) :empty :ok)
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id) nodes-modified)
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector track-changes]
+  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
@@ -1103,7 +1105,7 @@
    :txid (new-txid)
    :tx-data-context (atom tx-data-context-map)
    :metrics metrics-collector
-   :track-changes track-changes})
+   :full-invalidation full-invalidation})
 
 (defn update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx}]
@@ -1113,17 +1115,17 @@
             override-nodes-affected-ordered)))
 
 (defn update-successors
-  [{:keys [completed-action-count successors-changed] :as ctx}]
+  [{:keys [^long completed-action-count successors-changed] :as ctx}]
   (du/measuring (:metrics ctx) :update-successors
     (cond
       (zero? completed-action-count)
       ctx
 
-      (:track-changes ctx)
-      (update ctx :basis ig/update-successors successors-changed)
+      (:full-invalidation ctx)
+      (update ctx :basis ig/invalidate-all-successors)
 
       :else
-      (update ctx :basis ig/invalidate-all-successors))))
+      (update ctx :basis ig/update-successors successors-changed))))
 
 (defn trace-dependencies
   [ctx]

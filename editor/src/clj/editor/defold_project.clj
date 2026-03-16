@@ -996,12 +996,12 @@
 
          total-progress (progress/advance total-progress read-progress-span)
 
-         ;; We can disable change tracking on the initial load since we have
+         ;; We can use full invalidation on the initial load since we have
          ;; nothing in the cache and will reset the undo history afterward.
-         change-tracked-transact false
+         full-invalidation-transact true
 
          transact-opts {:metrics transaction-metrics
-                        :track-changes change-tracked-transact}
+                        :full-invalidation full-invalidation-transact}
 
          prelude-tx-data
          (e/concat

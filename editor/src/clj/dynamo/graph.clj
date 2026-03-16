@@ -296,15 +296,15 @@
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
-        track-changes (:track-changes opts true)]
-    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector track-changes)))
+        full-invalidation (:full-invalidation opts)]
+    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
   [tx-result transact-opts]
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
     (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))
-    (when-not (:track-changes transact-opts true)
+    (when (:full-invalidation transact-opts)
       (clear-system-cache!))
     nil))
 
@@ -319,9 +319,9 @@
               :metrics
                 The metrics collector; results are returned in :metrics.
 
-              :track-changes
-                Defaults to true. When false, disables precise change tracking
-                and uses coarse cache invalidation instead of incremental
+              :full-invalidation
+                Defaults to false. When true, disables precise change
+                tracking and uses full invalidation instead of incremental
                 updates. The system cache is cleared automatically after
                 commit, but older evaluation contexts may still be stale and
                 must not be written back into the cache. Undo history is not
@@ -344,12 +344,14 @@
     :status                :empty if no transaction steps completed, otherwise
                            :ok
     :basis                 transaction basis after applying the transaction
-    :graphs-modified       modified graph ids, most useful when change tracking
-                           is enabled
+    :graphs-modified       modified graph ids, most useful when full
+                           invalidation is disabled
     :nodes-added           added node ids
-    :nodes-modified        modified node ids when change tracking is enabled
+    :nodes-modified        modified node ids when full invalidation is
+                           disabled
     :nodes-deleted         deleted nodes by node id
-    :outputs-modified      modified endpoints when change tracking is enabled
+    :outputs-modified      modified endpoints when full invalidation is
+                           disabled
     :label                 transaction label, if any
     :sequence-label        transaction sequence label, if any
     :tx-data-context-map   final transaction context map
