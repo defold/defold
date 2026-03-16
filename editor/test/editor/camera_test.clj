@@ -24,22 +24,22 @@
 
 (deftest frame-zero-aabb
   (testing "Framing an orthographic camera on a zero AABB should produce a valid projection matrix"
-           (let [camera (camera/make-camera :orthographic)
-                 viewport (t/->Region 0 10 0 10)
-                 zero-aabb (t/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
-                 camera (camera/camera-orthographic-frame-aabb camera viewport zero-aabb)
-                 proj (camera/camera-projection-matrix camera)]
-             ; Would fail for SingularMatrixException if the matrix could not be inverted
-             (is (doto proj (.invert))))))
+    (let [camera (camera/make-camera :orthographic)
+          viewport (t/->Region 0 10 0 10)
+          zero-aabb (t/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
+          camera (camera/camera-orthographic-frame-aabb camera viewport zero-aabb)
+          proj (camera/camera-projection-matrix camera)]
+      ;; Would fail for SingularMatrixException if the matrix could not be inverted
+      (is (doto proj (.invert))))))
 
 (deftest frame-null-aabb
   (testing "Framing an orthographic camera on a null AABB should not affect the projection matrix"
-           (let [camera (camera/make-camera :orthographic)
-                 viewport (t/->Region 0 10 0 10)
-                 proj-before (camera/camera-projection-matrix camera)
-                 framed-camera (camera/camera-orthographic-frame-aabb camera viewport geom/null-aabb)
-                 proj (camera/camera-projection-matrix framed-camera)]
-             (is (.epsilonEquals proj-before proj math/epsilon)))))
+    (let [camera (camera/make-camera :orthographic)
+          viewport (t/->Region 0 10 0 10)
+          proj-before (camera/camera-projection-matrix camera)
+          framed-camera (camera/camera-orthographic-frame-aabb camera viewport geom/null-aabb)
+          proj (camera/camera-projection-matrix framed-camera)]
+      (is (.epsilonEquals proj-before proj math/epsilon)))))
 
 (deftest mouse-button-interpretation
   (are [move button shift control alt meta]

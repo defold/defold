@@ -569,7 +569,6 @@
               h (- (.bottom viewport) (.top viewport))
               factor-x (/ proj-width w)
               factor-y (/ proj-height h)
-              ;; TODO JOE: This might be a good candidate for changing the camera to a normal record
               fov-x-prim  (* factor-x (.fov-x camera))
               fov-y-prim  (* factor-y (.fov-y camera))]
           [(* 1.1 fov-x-prim) (* 1.1 fov-y-prim)])))))
@@ -814,13 +813,15 @@
                                (recur (.getParent current)))))]
     (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
-(defn- look-delta! [camera-node current-camera dx dy look-sensitivity dt]
-  (let [{:keys [free-cam-pitch free-cam-yaw smooth-pitch smooth-yaw]} (g/user-data camera-node ::camera-state)
+(defn- look-delta [camera-state current-camera dx dy look-sensitivity dt]
+  (let [max-pitch 86.0
+        smoothing-rate -15.0
+        {:keys [^double free-cam-pitch ^double free-cam-yaw ^double smooth-pitch ^double smooth-yaw]} camera-state
         smooth-yaw (or smooth-yaw free-cam-yaw)
         smooth-pitch (or smooth-pitch free-cam-pitch)
-        target-yaw (+ free-cam-yaw (* dx look-sensitivity))
-        target-pitch (max -86.0 (min 86.0 (+ free-cam-pitch (* dy look-sensitivity))))
-        smoothing (- 1.0 (Math/pow 10.0 (* -15.0 dt)))
+        target-yaw (+ free-cam-yaw (* ^double dx ^double look-sensitivity))
+        target-pitch (max (- max-pitch) (min max-pitch (+ free-cam-pitch (* ^double dy ^double look-sensitivity))))
+        smoothing (- 1.0 (Math/pow 10.0 (* smoothing-rate ^double dt)))
         new-smooth-yaw (+ smooth-yaw (* smoothing (- target-yaw smooth-yaw)))
         new-smooth-pitch (+ smooth-pitch (* smoothing (- target-pitch smooth-pitch)))
         new-rotation (math/euler->quat [new-smooth-pitch new-smooth-yaw 0.0])
@@ -828,15 +829,13 @@
         new-camera (assoc current-camera :rotation new-rotation)
         new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
         new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
-    (g/user-data-swap! camera-node ::camera-state merge
-                       {:free-cam-pitch target-pitch
-                        :free-cam-yaw target-yaw
-                        :smooth-pitch new-smooth-pitch
-                        :smooth-yaw new-smooth-yaw})
-    (assoc new-camera :focus-point new-focus)))
+    [(assoc new-camera :focus-point new-focus)
+     {:free-cam-pitch target-pitch
+      :free-cam-yaw target-yaw
+      :smooth-pitch new-smooth-pitch
+      :smooth-yaw new-smooth-yaw}]))
 
-(defn- wasd-move
-  [camera-node camera ^Vector3d target-dir speed dt]
+(defn- wasd-move [camera-node camera ^Vector3d target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
@@ -846,7 +845,7 @@
 
     (let [vel ^Vector3d (:free-cam-velocity (g/user-data camera-node ::camera-state))
           diff (doto (Vector3d. target-dir) (.sub vel))
-          damping (double (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :move-damping]))]
+          damping 20.0]
       (.scale diff (* damping ^double dt))
       (.add vel diff)
       (when (= (.length target-dir) 0.0)
@@ -1119,14 +1118,14 @@
             up (if walking-mode
                  vector3-up
                  (camera-up-vector current-camera))
-            camera-after-look
-            (let [invert-y? (prefs/get prefs [:scene :perspective-camera :invert-y])
-                  look-sensitivity (prefs/get prefs [:scene :perspective-camera :look-sensitivity])
+            camera-state (g/user-data self ::camera-state)
+            [camera camera-state]
+            (let [look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
                   mouse-delta (i/poll-mouse-delta)
                   dx (- (if mouse-delta (.dx mouse-delta) 0.0))
                   dy (if mouse-delta (.dy mouse-delta) 0.0)
-                  dy (if invert-y? dy (- dy))] ;; It's already inverted
-              (look-delta! self current-camera dx dy look-sensitivity dt))
+                  dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))]
+              (look-delta camera-state current-camera dx dy look-sensitivity dt))
             key-for-command (fn [cmd] (some-> ^KeyCodeCombination (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
                                               (.getCode)))
             w-key (key-for-command :scene.camera-move-forward)
@@ -1135,7 +1134,7 @@
             d-key (key-for-command :scene.camera-move-right)
             q-key (key-for-command :scene.camera-move-down)
             e-key (key-for-command :scene.camera-move-up)
-            target-dir (Vector3d. 0.0 0.0 0.0)
+            target-dir (Vector3d.)
             _ (doseq [key pressed-keys]
                 (cond
                   (= key w-key) (.add target-dir forward)
@@ -1144,7 +1143,8 @@
                   (= key a-key) (.sub target-dir right)
                   (= key q-key) (.sub target-dir up)
                   (= key e-key) (.add target-dir up)))
-            final-camera (wasd-move self camera-after-look target-dir speed dt)]
+            final-camera (wasd-move self camera target-dir speed dt)]
+        (g/user-data-swap! self ::camera-state merge camera-state)
         (when (not= final-camera current-camera)
           (set-camera! self current-camera final-camera false)))
       (let [viewport (g/node-value self :viewport)
@@ -1231,17 +1231,9 @@
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting app-view prefs popup option prefs-path "Move Speed" 1.0 3.0))
 
-(defmethod popup/settings-row [:perspective-camera :move-damping]
-  [app-view prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting app-view prefs popup option prefs-path "Move Damping" 5.0 20.0))
-
 (defmethod popup/settings-row [:perspective-camera :look-sensitivity]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting app-view prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
-
-(defmethod popup/settings-row [:perspective-camera :mouse-smoothing]
-  [app-view prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting app-view prefs popup option prefs-path "Mouse Smoothing" 0.3 0.8))
 
 (defmethod popup/settings-row [:perspective-camera :invert-y]
   [app-view prefs prefs-path _popup [_ option]]
@@ -1253,4 +1245,4 @@
 
 (defn show-settings! [app-view ^Parent owner prefs]
   (popup/show-settings! app-view owner prefs 260 [:scene :perspective-camera]
-                        [[:speed] [:move-damping] [:mouse-smoothing] [:look-sensitivity] [:invert-y] [:walking-mode]]))
+                        [[:speed] [:look-sensitivity] [:invert-y] [:walking-mode]]))
