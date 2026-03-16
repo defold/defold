@@ -14,6 +14,7 @@
 
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
             [clojure.test.check.clojure-test]
@@ -793,23 +794,32 @@
 (defn manip-move! [scene-node-id offset-xyz]
   {:pre [(vector? offset-xyz)]}
   (g/transact
-    (:manip/tx-data
-      (g/with-auto-evaluation-context evaluation-context
-        (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz)))))))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [delta (doto (Vector3d.) (math/clj->vecmath offset-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-move scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
-    (:manip/tx-data
-      (g/with-auto-evaluation-context evaluation-context
-        (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz))))))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [delta (math/euler->quat euler-xyz)]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-rotate scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
-    (:manip/tx-data
-      (g/with-auto-evaluation-context evaluation-context
-        (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz)))))))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [delta (doto (Vector3d.) (math/clj->vecmath scale-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-scale scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]

@@ -253,29 +253,30 @@
 ;;
 ;; Here we delegate scaling to the embedded resource node. To support scaling,
 ;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
-;; TODO(drag-perf): This isn't true anymore since we've migrated these scale property to the ComponentNode now Remove this?
+;;
+;; TODO(drag-perf): This isn't true anymore since we've migrated these scale
+;;   property to the ComponentNode now. Remove this? We have a few components
+;;   with :tag-opts {:transform-properties #{:scale}}. What happens if you scale
+;;   these? Label in particular, seems like it would scale the resource node
+;;   instead of the EmbeddedComponent. We migrate the scale from the resource
+;;   node to the EmbeddedComponent when loading. Are we re-introducing resource
+;;   node scaling using the manipulator?
 
 (defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
-  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
-      (contains? (g/node-value node-id :transform-properties) :scale)))
+  (or (some-> (g/maybe-node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
+      (contains? (g/maybe-node-value node-id :transform-properties) :scale)))
 
-(defn- manip-transform-embedded-component-impl [transform-property-kw manip-self-fn manip-embed-fn initial-evaluation-context node-id delta]
-  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id initial-evaluation-context)]
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [embedded-resource-id (g/maybe-node-value node-id :embedded-resource-id initial-evaluation-context)]
     (cond
       (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (manip-embed-fn initial-evaluation-context embedded-resource-id delta)
+      (scene-tools/manip-scale embedded-resource-id delta manip-phase initial-evaluation-context)
 
-      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) transform-property-kw)
-      (manip-self-fn initial-evaluation-context node-id delta)
+      (contains? (g/maybe-node-value node-id :transform-properties initial-evaluation-context) :scale)
+      (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)
 
       :else
       nil)))
-
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [initial-evaluation-context node-id ^Vector3d delta]
-  (manip-transform-embedded-component-impl :scale scene/manip-scale-scene-node scene-tools/manip-scale initial-evaluation-context node-id delta))
-
-(defmethod scene-tools/manip-scale-preview ::EmbeddedComponent [initial-evaluation-context node-id ^Vector3d delta]
-  (manip-transform-embedded-component-impl :scale scene/manip-scale-preview-scene-node scene-tools/manip-scale-preview initial-evaluation-context node-id delta))
 
 ;; -----------------------------------------------------------------------------
 

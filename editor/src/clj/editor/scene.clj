@@ -17,6 +17,7 @@
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.text-area :as fx.text-area]
             [clojure.set :as set]
+            [clojure.spec.alpha :as s]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -1559,7 +1560,11 @@
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
       (for [node-id scene-node-ids]
-        (scene-tools/manip-move evaluation-context node-id (Vector3d. dx dy dz))))))
+        (let [delta (Vector3d. dx dy dz)]
+          (s/assert
+            :manip/tx-data
+            (:manip/tx-data
+              (scene-tools/manip-move node-id delta :manip-phase/commit evaluation-context))))))))
 
 (defn- selection->movable
   ([selection]
@@ -1982,15 +1987,15 @@
 (defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :scale))
 
-(defn- manip-scene-node [apply-delta-fn prop-kw initial-evaluation-context node-id vecmath-delta]
+(defn- manip-scene-node [node-id prop-kw apply-delta-fn vecmath-delta manip-phase initial-evaluation-context]
   (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
         new-value (apply-delta-fn old-value vecmath-delta)]
-    {:manip/tx-data (g/set-property node-id prop-kw new-value)}))
+    (case manip-phase
+      :manip-phase/commit
+      {:manip/tx-data (g/set-property node-id prop-kw new-value)}
 
-(defn- manip-preview-scene-node [apply-delta-fn prop-kw initial-evaluation-context node-id vecmath-delta]
-  (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
-        new-value (apply-delta-fn old-value vecmath-delta)]
-    {:manip/prop-kw->override-value {prop-kw new-value}}))
+      :manip-phase/preview
+      {:manip/prop-kw->override-value {prop-kw new-value}})))
 
 (defn apply-move-delta [old-clj-position vecmath-delta]
   (let [old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
@@ -2002,15 +2007,11 @@
           (map num-fn)
           (math/vecmath->clj new-vecmath-position))))
 
-(def manip-move-scene-node (partial manip-scene-node apply-move-delta :position))
+(defn manip-move-scene-node [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-scene-node node-id :position apply-move-delta delta manip-phase initial-evaluation-context))
 
-(defmethod scene-tools/manip-move ::SceneNode [initial-evaluation-context node-id delta]
-  (manip-move-scene-node initial-evaluation-context node-id delta))
-
-(def manip-move-preview-scene-node (partial manip-preview-scene-node apply-move-delta :position))
-
-(defmethod scene-tools/manip-move-preview ::SceneNode [initial-evaluation-context node-id delta]
-  (manip-move-preview-scene-node initial-evaluation-context node-id delta))
+(defmethod scene-tools/manip-move ::SceneNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-move-scene-node node-id delta manip-phase initial-evaluation-context))
 
 (defn apply-rotate-delta [old-clj-rotation vecmath-delta]
   ;; Note! The rotation is not rounded here like we do for apply-move-delta and
@@ -2024,25 +2025,17 @@
       (math/vecmath-into-clj new-vecmath-rotation
                              (coll/empty-with-meta old-clj-rotation)))))
 
-(def manip-rotate-scene-node (partial manip-scene-node apply-rotate-delta :rotation))
+(defn manip-rotate-scene-node [node-id ^Quat4d delta manip-phase initial-evaluation-context]
+  (manip-scene-node node-id :rotation apply-rotate-delta delta manip-phase initial-evaluation-context))
 
-(defmethod scene-tools/manip-rotate ::SceneNode [initial-evaluation-context node-id delta]
-  (manip-rotate-scene-node initial-evaluation-context node-id delta))
-
-(def manip-rotate-preview-scene-node (partial manip-preview-scene-node apply-rotate-delta :rotation))
-
-(defmethod scene-tools/manip-rotate-preview ::SceneNode [initial-evaluation-context node-id delta]
-  (manip-rotate-preview-scene-node initial-evaluation-context node-id delta))
+(defmethod scene-tools/manip-rotate ::SceneNode [node-id ^Quat4d delta manip-phase initial-evaluation-context]
+  (manip-rotate-scene-node node-id delta manip-phase initial-evaluation-context))
 
 (defn apply-scale-delta [old-scale vecmath-delta]
   (properties/scale-and-round-vec old-scale vecmath-delta))
 
-(def manip-scale-scene-node (partial manip-scene-node apply-scale-delta :scale))
+(defn manip-scale-scene-node [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-scene-node node-id :scale apply-scale-delta delta manip-phase initial-evaluation-context))
 
-(defmethod scene-tools/manip-scale ::SceneNode [initial-evaluation-context node-id delta]
-  (manip-scale-scene-node initial-evaluation-context node-id delta))
-
-(def manip-scale-preview-scene-node (partial manip-preview-scene-node apply-scale-delta :scale))
-
-(defmethod scene-tools/manip-scale-preview ::SceneNode [initial-evaluation-context node-id delta]
-  (manip-scale-preview-scene-node initial-evaluation-context node-id delta))
+(defmethod scene-tools/manip-scale ::SceneNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-scale-scene-node node-id delta manip-phase initial-evaluation-context))
