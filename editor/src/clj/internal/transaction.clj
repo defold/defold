@@ -215,7 +215,8 @@
           "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
         ctx (assoc ctx :basis (gt/override-node basis original-node-id override-node-id))]
-    (if-not (:full-invalidation ctx)
+    (if (:full-invalidation ctx)
+      ctx
       (let [all-originals (ig/override-originals basis original-node-id)]
         (-> ctx
             ;; Any property, input or output on any original nodes must now take the
@@ -224,8 +225,7 @@
 
             ;; Similarly, so must the source outputs of any arcs that target any of
             ;; the original nodes.
-            (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals))))
-      ctx)))
+            (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))))
 
 (defonce/type NewOverrideTXS [override-id root-id traverse-fn init-props-fn]
   TransactionStep
