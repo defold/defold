@@ -208,10 +208,7 @@ public class ShaderUtil {
             String source = os.toString().replace("\r", "");
 
             if (gles3Standard) {
-                String floatPrec = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                String intPrec = defaultIntPrecision == null ? "" :
-                        (defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump");
-                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures, splitTextureSamplers, floatPrec, intPrec);
+                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures, splitTextureSamplers, defaultFloatPrecision, defaultIntPrecision);
                 source = es3Result.output;
             }
             return source;
@@ -466,7 +463,7 @@ public class ShaderUtil {
 
 
 
-        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures, boolean splitTextureSamplers, String defaultFloatPrecision, String defaultIntPrecision) throws CompileExceptionError {
+        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures, boolean splitTextureSamplers, Shaderc.ShaderPrecision defaultFloatPrecision, Shaderc.ShaderPrecision defaultIntPrecision) throws CompileExceptionError {
             Result result = new Result();
 
             if(input.isEmpty()) {
@@ -650,11 +647,12 @@ public class ShaderUtil {
             if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
                 // if we have patched glFragColor
                 if(output_glFragColor || output_glFragData) {
-                    String floatPrecision = defaultFloatPrecision != null ? defaultFloatPrecision : "mediump";
+                    String floatPrecision = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
                     String floatPrecisionAttrRep = "precision " + floatPrecision + " float;\n";
                     String intPrecisionAttrRep = null;
-                    if (defaultIntPrecision != null && !defaultIntPrecision.isEmpty()) {
-                        intPrecisionAttrRep = "precision " + defaultIntPrecision + " int;\n";
+                    if (defaultIntPrecision != null) {
+                        String intPrecision = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                        intPrecisionAttrRep = "precision " + intPrecision + " int;\n";
                     }
                     // insert precision if not found, as it is mandatory for out attributes
                     if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {

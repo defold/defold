@@ -622,8 +622,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 140,
                 true,
                 false,
-                "mediump",
-                "highp");
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
 
         expected =
             "#version 140\n" +
@@ -964,11 +964,12 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(), spvReflection);
         long compiler = ShadercJni.NewShaderCompiler(ctx, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
 
+        // Test mediump
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
         opts.version = 100;
         opts.glslEs = 1;
         opts.entryPoint = "main";
-        opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         opts.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
 
         Shaderc.ShaderCompileResult result = ShadercJni.Compile(ctx, compiler, opts);
@@ -976,8 +977,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(result.data);
 
         String src = new String(result.data);
-        assertTrue(src.contains("precision highp float;"));
+        assertTrue(src.contains("precision mediump float;"));
         assertTrue(src.contains("precision mediump int;"));
+
+        // Test highp
+        opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        opts.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+
+        result = ShadercJni.Compile(ctx, compiler, opts);
+        assertNotNull(result);
+        assertNotNull(result.data);
+
+        src = new String(result.data);
+        assertTrue(src.contains("precision highp float;"));
+        assertTrue(src.contains("precision highp int;"));
 
         ShadercJni.DeleteShaderContext(ctx);
     }

@@ -70,12 +70,6 @@ public class ShaderProgramBuilderEditor {
     // fully transformed from source to context shaders based on a list of languages
     static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(
             String resourceOutputPath, ShaderCompilePipeline.ShaderModuleDesc[] shaderDescs,
-            Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
-        return makeShaderDescWithVariants(resourceOutputPath, shaderDescs, shaderLanguages, maxPageCount, Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP, Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
-    }
-
-    static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(
-            String resourceOutputPath, ShaderCompilePipeline.ShaderModuleDesc[] shaderDescs,
             Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount, Shaderc.ShaderPrecision floatPrecision, Shaderc.ShaderPrecision intPrecision) throws IOException, CompileExceptionError {
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();

@@ -119,15 +119,12 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static Shaderc.ShaderPrecision shaderPrecisionFromString(String value) {
+    static Shaderc.ShaderPrecision shaderPrecisionFromString(String value) throws CompileExceptionError {
         if (value.equals("highp"))
             return Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
         else if (value.equals("mediump"))
             return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
-        // Not implemented
-        assert false;
-        // Fallback to a sensible default to satisfy the compiler
-        return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        throw new CompileExceptionError("Unknown shader precision: " + value);
     }
 
     @Override
@@ -525,10 +522,7 @@ public class ShaderProgramBuilder extends Builder {
 
             ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
             for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
-                String floatPrec = options.glslEsDefaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                String intPrec = options.glslEsDefaultIntPrecision == null ? "" :
-                        (options.glslEsDefaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump");
-                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers, floatPrec, intPrec);
+                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers, options.glslEsDefaultFloatPrecision, options.glslEsDefaultIntPrecision);
                 ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;
