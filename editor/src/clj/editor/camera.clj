@@ -13,9 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.camera
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
-            [editor.colors :as colors]
+  (:require [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.graph-util :as gu]
             [editor.input :as i]
@@ -24,22 +22,13 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
-            [editor.prefs :as prefs]
-            [schema.core :as s]
-            [util.eduction :as e])
-  (:import [com.sun.javafx.util Utils]
-           [editor.types AABB Camera Frustum Rect Region]
-           [java.util List]
+            [editor.prefs :as prefs])
+  (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
-           [javafx.event ActionEvent]
-           [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Cursor Node Parent]
-           [javafx.scene.control Button Control CheckBox Label PopupControl Slider TextField ToggleButton ToggleGroup]
+           [javafx.scene.control PopupControl]
            [javafx.scene.image ImageView]
            [javafx.scene.input KeyCode KeyCodeCombination KeyCombination$ModifierValue]
-           [javafx.scene.layout HBox Priority StackPane VBox]
-           [javafx.scene.paint Color]
-           [javafx.stage PopupWindow$AnchorLocation]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -744,40 +733,40 @@
 
 (defn interpolate ^Camera [^Camera from ^Camera to ^double t]
   (let [filter-fn (or (:filter-fn from) identity)
-        ^Camera to (filter-fn to)]
-    (let [p (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
-          fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
-          at (doto (Vector3d. (.x fp) (.y fp) (.z fp))
-               (.sub p)
-               (.negate)
-               (.normalize))
-          up ^Vector3d (math/rotate ^Quat4d (:rotation from) vector3-up)
-          to-up ^Vector3d (math/rotate ^Quat4d (:rotation to) vector3-up)
-          up (doto up
-               (.interpolate ^Tuple3d to-up t)
-               (.normalize))
-          up (if (< 0.9999 (Math/abs (.dot up at)))
-               (Vector3d. 0.0 0.0 1.0)
-               up)
-          right (doto (Vector3d.)
-                  (.cross up at)
-                  (.normalize))
-          up (doto up
-               (.cross at right)
-               (.normalize))
-          r (doto (Quat4d.)
-              (.set (doto (Matrix3d.)
-                      (.setColumn 0 right)
-                      (.setColumn 1 up)
-                      (.setColumn 2 at))))]
-      (types/->Camera (:type to) p r
-                      (lerp (:z-near from) (:z-near to) t)
-                      (lerp (:z-far from) (:z-far to) t)
-                      (lerp (:fov-x from) (:fov-x to) t)
-                      (lerp (:fov-y from) (:fov-y to) t)
-                      fp
-                      (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
-                      filter-fn))))
+        ^Camera to (filter-fn to)
+        p (doto (Point3d.) (.interpolate ^Tuple3d (:position from) ^Tuple3d (:position to) t))
+        fp (doto (Vector4d.) (.interpolate ^Tuple4d (:focus-point from) ^Tuple4d (:focus-point to) t))
+        at (doto (Vector3d. (.x fp) (.y fp) (.z fp))
+             (.sub p)
+             (.negate)
+             (.normalize))
+        up ^Vector3d (math/rotate ^Quat4d (:rotation from) vector3-up)
+        to-up ^Vector3d (math/rotate ^Quat4d (:rotation to) vector3-up)
+        up (doto up
+             (.interpolate ^Tuple3d to-up t)
+             (.normalize))
+        up (if (< 0.9999 (Math/abs (.dot up at)))
+             (Vector3d. 0.0 0.0 1.0)
+             up)
+        right (doto (Vector3d.)
+                (.cross up at)
+                (.normalize))
+        up (doto up
+             (.cross at right)
+             (.normalize))
+        r (doto (Quat4d.)
+            (.set (doto (Matrix3d.)
+                    (.setColumn 0 right)
+                    (.setColumn 1 up)
+                    (.setColumn 2 at))))]
+    (types/->Camera (:type to) p r
+                    (lerp (:z-near from) (:z-near to) t)
+                    (lerp (:z-far from) (:z-far to) t)
+                    (lerp (:fov-x from) (:fov-x to) t)
+                    (lerp (:fov-y from) (:fov-y to) t)
+                    fp
+                    (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
+                    filter-fn)))
 
 (defn set-camera!
   ([camera-node start-camera end-camera animate?]
@@ -962,6 +951,12 @@
   (g/set-property! camera-id :cursor-type :default)
   (g/user-data-swap! camera-id ::camera-state update :free-cam-mode (constantly false)))
 
+(defn combo-active? [^KeyCodeCombination combo pressed-keys modifiers]
+  (and (contains? pressed-keys (.getCode combo))
+       (= (contains? modifiers :shift) (= (.getShift combo) KeyCombination$ModifierValue/DOWN))
+       (= (contains? modifiers :alt)   (= (.getAlt combo)   KeyCombination$ModifierValue/DOWN))
+       (= (contains? modifiers :ctrl)  (= (.getControl combo) KeyCombination$ModifierValue/DOWN))))
+
 (defn handle-input [self input-state action _user-data]
   (let [image-view (g/node-value self :image-view)
         camera-state (or (g/user-data self ::camera-state) {:movement :idle})
@@ -971,7 +966,6 @@
         {:keys [x y type button key-code]} action
         local-cam (g/node-value self :local-camera)
         is-secondary (= button :secondary)
-        is-perspective? (= :perspective (:type local-cam))
         movement (if (= type :mouse-pressed)
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement camera-state))
@@ -1073,19 +1067,12 @@
             (> cursor-y screen-h) [cursor-x padding]
             :else nil)]
       (if warp-x
-        (let [origin (.localToScreen image-view 0.0 0.0)
-              ;; NOTE: make-gl-pane! flips the ImageView's Y axis, so we have to flip back for the localToScreen to work
-              screen-abs-pos (.localToScreen image-view warp-x (- screen-h warp-y))]
+        ;; NOTE: make-gl-pane! flips the ImageView's Y axis, so we have to flip back for the localToScreen to work
+        (let [screen-abs-pos (.localToScreen image-view warp-x (- screen-h warp-y))]
           (i/warp-cursor (.getX screen-abs-pos) (.getY screen-abs-pos))
           [(double warp-x) (double warp-y) (double warp-x) (double warp-y)])
         [cursor-x cursor-y last-x last-y]))
     [cursor-x cursor-y last-x last-y]))
-
-(defn combo-active? [^KeyCodeCombination combo pressed-keys modifiers]
-  (and (contains? pressed-keys (.getCode combo))
-       (= (contains? modifiers :shift) (= (.getShift combo) KeyCombination$ModifierValue/DOWN))
-       (= (contains? modifiers :alt)   (= (.getAlt combo)   KeyCombination$ModifierValue/DOWN))
-       (= (contains? modifiers :ctrl)  (= (.getControl combo) KeyCombination$ModifierValue/DOWN))))
 
 (defn compute-target-dir [pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up]
   (let [target-dir (Vector3d.)
@@ -1103,8 +1090,7 @@
     (if free-cam-mode
       (let [current-camera (g/node-value self :local-camera)
             prefs (g/node-value self :prefs)
-            {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
-            is-secondary (contains? mouse-buttons :secondary)
+            {:keys [modifiers pressed-keys]} input-state
             shift (contains? modifiers :shift)
             alt (contains? modifiers :alt)
             speed (* ^double camera-speed
@@ -1136,15 +1122,10 @@
       (let [viewport (g/node-value self :viewport)
             {:keys [^double last-x ^double last-y ^double initial-x ^double initial-y movement]} camera-state
             camera (g/node-value self :camera)
-            is-mode-2d (mode-2d? camera)
             filter-fn (:filter-fn camera)
-            {:keys [mouse-buttons modifiers pressed-keys cursor-pos]} input-state
-            [cursor-x cursor-y] cursor-pos
+            {:keys [mouse-buttons]} input-state
             is-primary (contains? mouse-buttons :primary)
-            scroll-delta-y (double (second (:scroll-delta input-state [0.0 0.0])))
             [mouse-x mouse-y] (:view-pos input-state)
-            movements-enabled (g/node-value self :movements-enabled)
-            alt (contains? (:modifiers input-state) :alt)
             has-mouse-moved (and mouse-x mouse-y last-x last-y
                                  (not= :idle movement)
                                  (or (not= mouse-x last-x)
@@ -1214,21 +1195,21 @@
                                                 :all (into [] cat [forward left backward right down up])})))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
-  [app-view prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting app-view prefs popup option prefs-path "Move Speed" 1.0 3.0))
+  [prefs prefs-path ^PopupControl popup [_ option]]
+  (popup/slider-setting prefs popup option prefs-path "Move Speed" 1.0 3.0))
 
 (defmethod popup/settings-row [:perspective-camera :look-sensitivity]
-  [app-view prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting app-view prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
+  [prefs prefs-path ^PopupControl popup [_ option]]
+  (popup/slider-setting prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
 
 (defmethod popup/settings-row [:perspective-camera :invert-y]
-  [app-view prefs prefs-path _popup [_ option]]
-  (popup/toggle-setting app-view prefs _popup option prefs-path "Invert Y" nil))
+  [prefs prefs-path _popup [_ option]]
+  (popup/toggle-setting prefs _popup option prefs-path "Invert Y" nil))
 
 (defmethod popup/settings-row [:perspective-camera :walking-mode]
-  [app-view prefs prefs-path _popup [_ option]]
-  (popup/toggle-setting app-view prefs _popup option prefs-path "Walking Mode" nil))
+  [prefs prefs-path _popup [_ option]]
+  (popup/toggle-setting prefs _popup option prefs-path "Walking Mode" nil))
 
-(defn show-settings! [app-view ^Parent owner prefs]
-  (popup/show-settings! app-view owner prefs 260 [:scene :perspective-camera]
+(defn show-settings! [^Parent owner prefs]
+  (popup/show-settings! owner prefs 260 [:scene :perspective-camera]
                         [[:speed] [:look-sensitivity] [:invert-y] [:walking-mode]]))

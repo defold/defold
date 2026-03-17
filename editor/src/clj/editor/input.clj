@@ -13,18 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
-  (:require [schema.core :as s])
   (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
-           [com.sun.jna Library Memory Native Pointer]
-           [com.sun.jna.ptr PointerByReference]
            [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
 (set! *warn-on-reflection* true)
-
-(def ActionType (s/enum :scroll :mouse-pressed :mouse-released :mouse-clicked :mouse-moved :key-pressed :key-released :undefined))
-
-(def ButtonType (s/enum :none :primary :middle :secondary))
 
 (def action-map {ScrollEvent/SCROLL :scroll
                  MouseEvent/MOUSE_PRESSED :mouse-pressed
@@ -64,7 +57,7 @@
 
 (def ^:private cached-delta (atom (MouseCapture$MouseDelta.)))
 
-(defn ^MouseCapture$MouseDelta poll-mouse-delta []
+(defn poll-mouse-delta ^MouseCapture$MouseDelta []
   (when-let [context @mouse-capture-context]
     (let [delta @cached-delta]
       (when (MouseCapture/MouseCapture_PollDelta context delta)

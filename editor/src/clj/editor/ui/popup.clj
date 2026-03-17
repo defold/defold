@@ -14,7 +14,6 @@
 
 (ns editor.ui.popup
   (:require [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.colors :as colors]
             [editor.math :as math]
             [editor.prefs :as prefs]
@@ -51,7 +50,7 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
-(defmulti settings-row (fn [_app-view _prefs _prefs-path _popup option] option))
+(defmulti settings-row (fn [_prefs _prefs-path _popup option] option))
 
 (defn- ensure-focus-traversable! [^Control control]
   (ui/observe (.focusTraversableProperty control)
@@ -59,9 +58,9 @@
       (.setFocusTraversable control true))))
 
 (defn slider-setting
-  ([app-view prefs ^PopupControl popup option prefs-path label-text range-min range-max]
-   (slider-setting app-view prefs ^PopupControl popup option prefs-path label-text range-min range-max nil))
-  ([app-view prefs ^PopupControl popup option prefs-path label-text range-min range-max on-change-fn]
+  ([prefs ^PopupControl popup option prefs-path label-text range-min range-max]
+   (slider-setting prefs ^PopupControl popup option prefs-path label-text range-min range-max nil))
+  ([prefs ^PopupControl popup option prefs-path label-text range-min range-max on-change-fn]
    (let [prefs-path (conj prefs-path option)
          value (prefs/get prefs prefs-path)
          slider (Slider. range-min range-max value)
@@ -84,9 +83,9 @@
      [label slider])))
 
 (defn toggle-setting
-  ([app-view prefs _popup option prefs-path label-text]
-   (toggle-setting app-view prefs _popup option prefs-path label-text nil))
-  ([app-view prefs _popup option prefs-path label-text on-change-fn]
+  ([prefs _popup option prefs-path label-text]
+   (toggle-setting prefs _popup option prefs-path label-text nil))
+  ([prefs _popup option prefs-path label-text on-change-fn]
    (let [prefs-path (conj prefs-path option)
          value (prefs/get prefs prefs-path)
          check-box (CheckBox.)
@@ -104,7 +103,7 @@
      [label check-box])))
 
 (defn- vec3-group
-  [app-view prefs prefs-path on-change-fn axis]
+  [prefs prefs-path on-change-fn axis]
   (let [text-field (TextField.)
         label (Label. (string/upper-case (name axis)))
         size-val (str (get (prefs/get prefs prefs-path) axis))
@@ -124,10 +123,10 @@
       (ensure-focus-traversable!))
     [label text-field]))
 
-(defn vec3-floats-setting [app-view prefs prefs-path _popup option on-change-fn]
+(defn vec3-floats-setting [prefs prefs-path _popup option on-change-fn]
   (let [prefs-path (conj prefs-path option)]
     (into []
-          (comp (map (partial vec3-group app-view prefs prefs-path on-change-fn))
+          (comp (map (partial vec3-group prefs prefs-path on-change-fn))
                 (mapcat identity))
           axes)))
 
@@ -140,7 +139,7 @@
       (.setSelected (= plane active-plane))
       (ui/add-style! "plane-toggle"))))
 
-(defn vec3-toggle-setting [app-view prefs prefs-path _popup option label-text on-change-fn]
+(defn vec3-toggle-setting [prefs prefs-path _popup option label-text on-change-fn]
   (let [prefs-path (conj prefs-path option)
         plane-group (ToggleGroup.)
         buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
@@ -156,7 +155,7 @@
                     (.setSelected old-value true))))
     (concat [label] buttons)))
 
-(defn color-setting [app-view prefs prefs-path _popup option on-change-fn]
+(defn color-setting [prefs prefs-path _popup option on-change-fn]
   (let [prefs-path (conj prefs-path option)
         text-field (TextField.)
         [r g b a] (prefs/get prefs prefs-path)
@@ -178,7 +177,7 @@
 
 (declare settings)
 
-(defn- reset-button [app-view prefs ^PopupControl popup prefs-path settings-paths hidden-settings reset-callback]
+(defn- reset-button [prefs ^PopupControl popup prefs-path settings-paths hidden-settings reset-callback]
   (let [button (doto (Button. "Reset to Defaults")
                  (.setPrefWidth Double/MAX_VALUE))
         reset-fn
@@ -190,7 +189,7 @@
                 (prefs/set! prefs path (:default (prefs/schema prefs path)))))
             (when reset-callback (reset-callback))
             (doto parent
-              (ui/children! (ui/node-array (settings app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)))
+              (ui/children! (ui/node-array (settings prefs popup prefs-path settings-paths hidden-settings reset-callback)))
               (.requestFocus))))]
     (doto button
       (ui/on-action! reset-fn)
@@ -198,15 +197,15 @@
     button))
 
 (defn- settings
-  [app-view prefs popup prefs-path settings-paths hidden-settings reset-callback]
-  (let [reset-btn (reset-button app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)
+  [prefs popup prefs-path settings-paths hidden-settings reset-callback]
+  (let [reset-btn (reset-button prefs popup prefs-path settings-paths hidden-settings reset-callback)
         category (last prefs-path)]
     (->> settings-paths
          (e/map first)
          (e/distinct)
          (e/remove (partial contains? hidden-settings))
          (reduce (fn [rows setting]
-                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs prefs-path popup [category setting])))
+                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row prefs prefs-path popup [category setting])))
                                 (.setAlignment Pos/CENTER))))
                  [reset-btn]))))
 
@@ -215,9 +214,9 @@
   (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn show-settings!
-  ([app-view ^Parent owner prefs width prefs-path settings-paths]
-   (show-settings! app-view ^Parent owner prefs width prefs-path settings-paths nil nil))
-  ([app-view ^Parent owner prefs width prefs-path settings-paths hidden-settings reset-callback]
+  ([^Parent owner prefs width prefs-path settings-paths]
+   (show-settings! ^Parent owner prefs width prefs-path settings-paths nil nil))
+  ([^Parent owner prefs width prefs-path settings-paths hidden-settings reset-callback]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (.hide popup)
      (let [region (StackPane.)
@@ -226,7 +225,7 @@
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
-                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup prefs-path settings-paths hidden-settings reset-callback)))
+                             (doto (VBox. 10 (ui/node-array (settings prefs popup prefs-path settings-paths hidden-settings reset-callback)))
                                (.setFocusTraversable true)
                                (ensure-focus-traversable!)
                                (ui/add-style! "grid-settings"))])

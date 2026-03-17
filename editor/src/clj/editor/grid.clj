@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.grid
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
@@ -24,20 +23,12 @@
             [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
-            [editor.ui :as ui]
-            [editor.ui.popup :as popup]
-            [util.eduction :as e])
+            [editor.ui.popup :as popup])
   (:import com.jogamp.opengl.GL2
-           [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
            [java.util List]
-           [javafx.event ActionEvent]
-           [javafx.geometry HPos Point2D Pos VPos]
-           [javafx.scene Node Parent]
-           [javafx.scene.control Button Control Label Slider TextField ToggleButton ToggleGroup PopupControl]
-           [javafx.scene.layout HBox Region StackPane VBox]
-           [javafx.scene.paint Color]
-           [javafx.stage PopupWindow$AnchorLocation]
+           [javafx.scene Parent]
+           [javafx.scene.control PopupControl]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
@@ -284,25 +275,25 @@
 
 (defmethod popup/settings-row [:grid :opacity]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting app-view prefs popup option prefs-path "Opacity" 0.0 1.0 #(invalidate-grids! app-view)))
+  (popup/slider-setting prefs popup option prefs-path "Opacity" 0.0 1.0 #(invalidate-grids! app-view)))
 
 (defmethod popup/settings-row [:grid :size]
   [app-view prefs prefs-path _popup [_ option]]
-  (popup/vec3-floats-setting app-view prefs prefs-path _popup option #(invalidate-grids! app-view)))
+  (popup/vec3-floats-setting prefs prefs-path _popup option #(invalidate-grids! app-view)))
 
 (defmethod popup/settings-row [:grid :color]
   [app-view prefs prefs-path _popup [_ option]]
-  (popup/color-setting app-view prefs prefs-path _popup option #(invalidate-grids! app-view)))
+  (popup/color-setting prefs prefs-path _popup option #(invalidate-grids! app-view)))
 
 (defmethod popup/settings-row [:grid :active-plane]
   [app-view prefs prefs-path _popup [_ option]]
-  (popup/vec3-toggle-setting app-view prefs prefs-path _popup option "Plane" #(invalidate-grids! app-view)))
+  (popup/vec3-toggle-setting prefs prefs-path _popup option "Plane" #(invalidate-grids! app-view)))
 
 (defn show-settings! [app-view ^Parent owner prefs]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         ignore-options (g/node-value grid :options)]
-    (popup/show-settings! app-view owner prefs 220 [:scene :grid]
-                         [[:size :x] [:size :y] [:size :z] [:active-plane] [:color] [:opacity]]
-                         ignore-options
-                         #(invalidate-grids! app-view))))
+    (popup/show-settings! owner prefs 220 [:scene :grid]
+                          [[:size :x] [:size :y] [:size :z] [:active-plane] [:color] [:opacity]]
+                          ignore-options
+                          #(invalidate-grids! app-view))))

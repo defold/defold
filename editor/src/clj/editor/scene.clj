@@ -34,7 +34,6 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
-            [editor.prefs :as prefs]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -67,15 +66,14 @@
            [java.awt.image BufferedImage]
            [java.lang Math Runnable]
            [java.nio IntBuffer]
-           [javafx.css PseudoClass]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent]
            [javafx.geometry HPos VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.image ImageView WritableImage]
-           [javafx.scene.input KeyCode KeyCodeCombination KeyEvent]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
-           [javax.vecmath AxisAngle4d Matrix4d Point3d Quat4d Vector3d Vector4d]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
@@ -1565,7 +1563,7 @@
           (c/stop-free-cam-mode! image-view camera-id))))
     (doto parent
       ;; TODO: Why did we add this this? This fixed something...
-      (ui/on-mouse! (fn [type e]
+      (ui/on-mouse! (fn [type _]
                       (cond (= type :exit)
                             (g/set-property! view-id :cursor-pos [0.0 0.0]))))
       (.setOnMousePressed event-handler)
