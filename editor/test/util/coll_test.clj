@@ -1966,7 +1966,7 @@
                                 (recur)))))
                         (range task-count))))
       (is (= true (.await all-started 1 TimeUnit/SECONDS)))
-      (dotimes [_ 100]
+      (dotimes [_ 1000]
         (when (< ^long @cancellation-count (dec task-count))
           (Thread/sleep 10)))
       (is (= (dec task-count) @cancellation-count)))))
