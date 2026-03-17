@@ -196,7 +196,7 @@
 (defn make-camera
   (^Camera [] (make-camera :perspective))
   ([t]
-    (make-camera t identity))
+   (make-camera t identity))
   (^Camera [t filter-fn]
    (make-camera t filter-fn nil))
   (^Camera [t filter-fn opts]
@@ -294,11 +294,11 @@
         ty (/ (+ (.bottom viewport)
                  (* 2.0 (- (.top viewport) (- (.bottom viewport) (double (.y pick-rect))))))
               (double (.height pick-rect)))]
-  (doto (Matrix4d.)
-    (.set (double-array [sx  0.0 0.0 tx
-                         0.0 sy  0.0 ty
-                         0.0 0.0 1.0 0.0
-                         0.0 0.0 0.0 1.0])))))
+    (doto (Matrix4d.)
+      (.set (double-array [sx  0.0 0.0 tx
+                           0.0 sy  0.0 ty
+                           0.0 0.0 1.0 0.0
+                           0.0 0.0 0.0 1.0])))))
 
 
 (defmacro normalize-to-bipolar [x x-min x-max]
@@ -510,11 +510,11 @@
                           (.set delta))
         r ^Quat4d (Quat4d. ^Quat4d (:rotation camera))
         inv-r ^Quat4d (doto (Quat4d. r)
-                     (.conjugate))
+                        (.conjugate))
         m ^Matrix4d (doto (Matrix4d.)
-                    (.setIdentity)
-                    (.set r)
-                    (.transpose))
+                      (.setIdentity)
+                      (.set r)
+                      (.transpose))
         q2 ^Quat4d (doto (Quat4d.)
                      (.set (AxisAngle4d. 1.0 0.0 0.0 (* dy rate))))
         y-axis ^Vector4d (doto (Vector4d.))
@@ -526,14 +526,14 @@
     (.mul q1 q2)
     (.normalize q1)
     (.mul r q1)
-    ; rotation is now in r
+    ;; rotation is now in r
     (.conjugate inv-r r)
 
     (.mul q-delta r q-delta)
     (.mul q-delta inv-r)
     (.set delta q-delta)
     (.add delta focus)
-    ; position is now in delta
+    ;; position is now in delta
     (assoc camera
            :position (Point3d. (.x delta) (.y delta) (.z delta))
            :rotation r)))
@@ -547,10 +547,10 @@
 
 (defn camera-movement
   ([action]
-    (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
+   (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
   ([button shift ctrl alt meta]
-    (let [key [button shift ctrl alt meta]]
-      (button-interpretation key :idle))))
+   (let [key [button shift ctrl alt meta]]
+     (button-interpretation key :idle))))
 
 (defn camera-orthographic-fov-from-aabb [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [camera aabb]}
@@ -640,9 +640,9 @@
         [_ ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
         filter-fn (or (:filter-fn camera) identity)]
     (-> camera
-      (camera-set-center aabb)
-      (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
-      filter-fn)))
+        (camera-set-center aabb)
+        (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
+        filter-fn)))
 
 (defn camera-orthographic->perspective
   ^Camera [^Camera camera ^double fov-y-deg]
@@ -725,7 +725,7 @@
 (defn significant-drag?
   [[^double cx ^double cy] [^double px ^double py]]
   (< 2.0 (max (Math/abs (- cx px))
-               (Math/abs (- cy py)))))
+              (Math/abs (- cy py)))))
 
 (defn- lerp [^double a ^double b ^double t]
   (let [d (- b a)]
@@ -943,14 +943,14 @@
           (g/set-property camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
           (g/set-property camera-id :cursor-type :none)))
       (g/user-data-swap! camera-id ::camera-state merge
-        {:free-cam-mode true
-         :free-cam-cursor-start-pos current-cursor-pos
-         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
-         :free-cam-pitch pitch
-         :free-cam-yaw yaw
-         :smooth-pitch pitch
-         :smooth-yaw yaw
-         :free-cam-smoothed-look-delta [0.0 0.0]}))))
+                         {:free-cam-mode true
+                          :free-cam-cursor-start-pos current-cursor-pos
+                          :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
+                          :free-cam-pitch pitch
+                          :free-cam-yaw yaw
+                          :smooth-pitch pitch
+                          :smooth-yaw yaw
+                          :free-cam-smoothed-look-delta [0.0 0.0]}))))
 
 (defn stop-free-cam-mode! [image-view camera-id]
   (ui/set-cursor image-view Cursor/DEFAULT)
@@ -1126,12 +1126,12 @@
             walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
             camera-forward (camera-forward-vector current-camera)
             camera-forward (if walking-mode
-                      (Vector3d. (.x camera-forward) 0.0 (.z camera-forward))
-                      camera-forward)
+                             (Vector3d. (.x camera-forward) 0.0 (.z camera-forward))
+                             camera-forward)
             camera-right (camera-right-vector current-camera)
             camera-up (if walking-mode
-                 vector3-up
-                 (camera-up-vector current-camera))
+                        vector3-up
+                        (camera-up-vector current-camera))
             camera-state (g/user-data self ::camera-state)
             look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
             mouse-delta (i/poll-mouse-delta)
@@ -1216,15 +1216,12 @@
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
   (output free-cam-shortcuts g/Any :cached (g/fnk [keymap]
-                                           {:forward  (keymap/shortcuts keymap :scene.free-camera.forward)
-                                            :left     (keymap/shortcuts keymap :scene.free-camera.left)
-                                            :backward (keymap/shortcuts keymap :scene.free-camera.backward)
-                                            :right    (keymap/shortcuts keymap :scene.free-camera.right)
-                                            :down     (keymap/shortcuts keymap :scene.free-camera.down)
-                                            :up       (keymap/shortcuts keymap :scene.free-camera.up)}))
-
-  (output input-handler Runnable :cached (g/constantly handle-input))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
+                                             {:forward  (keymap/shortcuts keymap :scene.free-camera.forward)
+                                              :left     (keymap/shortcuts keymap :scene.free-camera.left)
+                                              :backward (keymap/shortcuts keymap :scene.free-camera.backward)
+                                              :right    (keymap/shortcuts keymap :scene.free-camera.right)
+                                              :down     (keymap/shortcuts keymap :scene.free-camera.down)
+                                              :up       (keymap/shortcuts keymap :scene.free-camera.up)}))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
