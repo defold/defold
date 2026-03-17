@@ -1,5 +1,6 @@
 #include "mouse_capture.h"
 #include <windows.h>
+#include <malloc.h>
 
 #ifndef QWORD
 typedef unsigned __int64 QWORD;
