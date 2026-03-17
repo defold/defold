@@ -1438,7 +1438,6 @@
         (dispatch-update-tick update-tick-handlers input-state dt)))
     (when (seq action-queue)
       (g/user-data! view-id ::input-action-queue [])
-      ;; TODO: WHy did we add this?
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
     (when has-active-updatables
       (g/set-property! view-id :updatable-states new-updatable-states))
@@ -1562,7 +1561,6 @@
                    (c/free-cam-mode-active? camera-id))
           (c/stop-free-cam-mode! image-view camera-id))))
     (doto parent
-      ;; TODO: Why did we add this this? This fixed something...
       (ui/on-mouse! (fn [type _]
                       (cond (= type :exit)
                             (g/set-property! view-id :cursor-pos [0.0 0.0]))))

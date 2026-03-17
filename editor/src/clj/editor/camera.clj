@@ -393,62 +393,44 @@
 
 (def ^:private zoom-inertia 0.04)
 
-(defn- apply-dolly-interpolation-perspective [self camera ^double dt]
-  (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
-    (if (nil? target-camera)
-      camera
-      (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
-            current-pos (types/position camera)
-            target-pos (types/position target-camera)
-            new-pos (Point3d. current-pos)
-            _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
-            current-fp ^Vector4d (:focus-point camera)
-            target-fp ^Vector4d (:focus-point target-camera)
-            new-fp (Vector4d. (.x current-fp) (.y current-fp) (.z current-fp) (.w current-fp))
-            _ (.interpolate ^Tuple4d new-fp ^Tuple4d target-fp factor)
-            distance (.distance ^Point3d new-pos target-pos)
-            fp-point (Point3d. (.x new-fp) (.y new-fp) (.z new-fp))
-            focus-point-distance (.distance fp-point new-pos)]
-        (if (< distance (* focus-point-distance 0.002))
-          (do
-            (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
-            target-camera)
-          (assoc camera
-                 :position new-pos
-                 :focus-point new-fp))))))
-
-(defn- apply-dolly-interpolation-orthographic [self camera ^double dt]
-  (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
-    (if (nil? target-camera)
-      camera
-      (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
-            new-fov-x (+ (* (- 1.0 factor) (double (:fov-x camera)))
-                         (* factor (double (:fov-x target-camera))))
-            new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
-                         (* factor (double (:fov-y target-camera))))
-            current-pos (types/position camera)
-            target-pos (types/position target-camera)
-            new-pos (Point3d. current-pos)
-            _ (.interpolate ^Tuple3d new-pos ^Tuple3d target-pos factor)
-            current-fp ^Vector4d (:focus-point camera)
-            target-fp ^Vector4d (:focus-point target-camera)
-            new-fp (Vector4d. (.x current-fp) (.y current-fp) (.z current-fp) (.w current-fp))
-            _ (.interpolate ^Tuple4d new-fp ^Tuple4d target-fp factor)
-            threshold (* ^double (:fov-x camera) 0.008)]
-        (if (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) threshold)
-          (do
-            (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
-            target-camera)
-          (assoc camera
-                 :fov-x new-fov-x
-                 :fov-y new-fov-y
-                 :position new-pos
-                 :focus-point new-fp))))))
+(defn- interpolate-position-and-focus-point [camera target-camera ^double factor]
+  (let [current-pos (types/position camera)
+        target-pos (types/position target-camera)
+        new-pos (Point3d. current-pos)
+        current-fp ^Vector4d (:focus-point camera)
+        target-fp (:focus-point target-camera)
+        new-fp (Vector4d. (.x current-fp) (.y current-fp) (.z current-fp) (.w current-fp))]
+    (.interpolate new-pos ^Tuple3d target-pos factor)
+    (.interpolate new-fp ^Tuple4d target-fp factor)
+    [new-pos new-fp]))
 
 (defn- apply-dolly-interpolation [self camera ^double dt]
-  (case (:type camera)
-    :perspective (apply-dolly-interpolation-perspective self camera dt)
-    :orthographic (apply-dolly-interpolation-orthographic self camera dt)))
+  (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
+    (if (nil? target-camera)
+      camera
+      (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
+            [new-pos ^Vector4d new-fp] (interpolate-position-and-focus-point camera target-camera factor)]
+        (case (:type camera)
+          :perspective
+          (let [distance (.distance ^Point3d new-pos (types/position target-camera))
+                fp-point (Point3d. (.x new-fp) (.y new-fp) (.z new-fp))
+                focus-point-distance (.distance fp-point new-pos)]
+            (if (< distance (* focus-point-distance 0.002))
+              (do
+                (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
+                target-camera)
+              (assoc camera :position new-pos :focus-point new-fp)))
+          :orthographic
+          (let [new-fov-x (+ (* (- 1.0 factor) (double (:fov-x camera)))
+                             (* factor (double (:fov-x target-camera))))
+                new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
+                             (* factor (double (:fov-y target-camera))))
+                threshold (* ^double (:fov-x camera) 0.008)]
+            (if (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) threshold)
+              (do
+                (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
+                target-camera)
+              (assoc camera :fov-x new-fov-x :fov-y new-fov-y :position new-pos :focus-point new-fp))))))))
 
 (defn pan-at-pointer-position
   "Pans the camera so that the focus point is at the same position as it was before `dolly`."
