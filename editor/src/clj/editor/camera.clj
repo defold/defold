@@ -685,7 +685,7 @@
         fov-y (double (:fov-y local-camera))
         fov-x (* aspect fov-y)
         [z-near z-far] (if (nil? scene-aabb)
-                         [0.1 100.0]
+                         [1.0 10000.0]
                          (find-z-extents (types/position local-camera)
                                          (camera-forward-vector local-camera)
                                          scene-aabb))]
