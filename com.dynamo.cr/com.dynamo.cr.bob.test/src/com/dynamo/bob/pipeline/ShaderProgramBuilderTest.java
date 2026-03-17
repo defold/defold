@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
@@ -895,6 +894,32 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(3, res_position.location);
         assertEquals(4, res_normal.location);
         assertEquals(5, res_tex_coord.location);
+
+        ShadercJni.DeleteShaderContext(ctx);
+    }
+
+    @Test
+    public void testGlslEsPrecisionOptions() throws Exception {
+        byte[] spvReflection = getFile("simple.spv");
+        assertNotNull(spvReflection);
+
+        long ctx = ShadercJni.NewShaderContext(Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(), spvReflection);
+        long compiler = ShadercJni.NewShaderCompiler(ctx, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
+
+        Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+        opts.version = 100;
+        opts.glslEs = 1;
+        opts.entryPoint = "main";
+        opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        opts.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+
+        Shaderc.ShaderCompileResult result = ShadercJni.Compile(ctx, compiler, opts);
+        assertNotNull(result);
+        assertNotNull(result.data);
+
+        String src = new String(result.data);
+        assertTrue(src.contains("precision highp float;"));
+        assertTrue(src.contains("precision mediump int;"));
 
         ShadercJni.DeleteShaderContext(ctx);
     }
