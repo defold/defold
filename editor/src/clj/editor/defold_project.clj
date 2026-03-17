@@ -54,6 +54,7 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
@@ -352,16 +353,17 @@
           (fn progress-fn [progress-message ^long node-index]
             (progress/make progress-message progress-size (inc node-index)))
           (fn indeterminate-progress-fn [progress-message ^long _node-index]
-            (progress/make-indeterminate progress-message)))]
-    (->> node-id+resource-pairs
-         (map-indexed vector)
-         (pmap (fn [[node-index [node-id resource]]]
-                 (let [proj-path (resource/proj-path resource)
-                       progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
-                       progress (progress-fn progress-message node-index)]
-                   (render-progress! progress)
-                   (read-node-load-info node-id resource resource-metrics))))
-         (into []))))
+            (progress/make-indeterminate progress-message)))
+        progress-counter-atom (atom 0)]
+    (coll/pmapv
+      (fn [[node-id resource]]
+        (let [proj-path (resource/proj-path resource)
+              progress-message (localization/message "progress.reading-resource" {"resource" proj-path})
+              progress-index (dec (swap! progress-counter-atom inc))
+              progress (progress-fn progress-message progress-index)]
+          (render-progress! progress)
+          (read-node-load-info node-id resource resource-metrics)))
+      node-id+resource-pairs)))
 
 (defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
@@ -1774,7 +1776,7 @@
                     load-tx-data
                     (gu/connect-existing-outputs node-type node-id consumer-node connections)))})))
 
-(deftype ProjectResourceListener [project-id]
+(defonce/type ProjectResourceListener [project-id]
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))

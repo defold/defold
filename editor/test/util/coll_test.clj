@@ -18,8 +18,9 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.fn :as fn])
-  (:import [clojure.lang IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
-           [java.util Hashtable]))
+  (:import [clojure.lang ExceptionInfo IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
+           [java.util Hashtable]
+           [java.util.concurrent CountDownLatch TimeUnit]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -27,6 +28,8 @@
 (defonce/record Nothing [])
 (defonce/record JustA [a])
 (defonce/record PairAB [a b])
+
+(def ^:dynamic *pmapv-binding-test-value* nil)
 
 (defn- java-map
   ^Hashtable [& key-vals]
@@ -1905,3 +1908,65 @@
   (is (nil? (coll/primitive-vector-type (Object.))))
   (doseq [primitive-type [:boolean :char :byte :short :int :long :float :double]]
     (is (= primitive-type (coll/primitive-vector-type (vector-of primitive-type))))))
+
+(deftest pmapv-test
+  (testing "Single collection."
+    (is (= [] (coll/pmapv inc nil)))
+    (is (= [] (coll/pmapv inc [])))
+    (is (= [1 2 3] (coll/pmapv inc [0 1 2])))
+    (is (= [1 2 3] (coll/pmapv inc '(0 1 2)))))
+
+  (testing "Multiple collections."
+    (is (= [11 22 33]
+           (coll/pmapv + [1 2 3] [10 20 30])))
+    (is (= [11 22]
+           (coll/pmapv + [1 2 3] [10 20]))))
+
+  (testing "Preserves order."
+    (is (= (range 32)
+           (coll/pmapv (fn [^long value]
+                         (Thread/sleep ^long (- 31 value))
+                         value)
+                       (range 32)))))
+
+  (testing "Propagates thread bindings."
+    (binding [*pmapv-binding-test-value* :bound]
+      (is (= [[:bound 0] [:bound 1] [:bound 2] [:bound 3]]
+             (coll/pmapv (fn [value]
+                           [*pmapv-binding-test-value* value])
+                         (range 4))))))
+
+  (testing "Rethrows task failure."
+    (is (thrown-with-msg?
+          ExceptionInfo
+          #"boom 2"
+          (coll/pmapv (fn [value]
+                        (if (= 2 value)
+                          (throw (ex-info (str "boom " value) {:value value}))
+                          value))
+                      (range 4)))))
+
+  (testing "Cancels remaining tasks on failure."
+    (let [task-count 4
+          all-started (CountDownLatch. task-count)
+          cancellation-count (atom 0)]
+      (is (thrown-with-msg?
+            ExceptionInfo
+            #"boom"
+            (coll/pmapv (fn [^long value]
+                          (.countDown all-started)
+                          (.await all-started)
+                          (if (zero? value)
+                            (throw (ex-info "boom" {}))
+                            (loop []
+                              (if (.isInterrupted (Thread/currentThread))
+                                (do
+                                  (swap! cancellation-count inc)
+                                  :interrupted)
+                                (recur)))))
+                        (range task-count))))
+      (is (= true (.await all-started 1 TimeUnit/SECONDS)))
+      (dotimes [_ 100]
+        (when (< ^long @cancellation-count (dec task-count))
+          (Thread/sleep 10)))
+      (is (= (dec task-count) @cancellation-count)))))
