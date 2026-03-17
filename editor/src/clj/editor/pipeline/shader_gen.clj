@@ -139,9 +139,9 @@
   "Maps game.project precision string to Shaderc.ShaderPrecision. default-enum used when s is nil."
   ^Shaderc$ShaderPrecision [s default-enum]
   (cond
-    (nil? s) default-enum
     (= "highp" (str s)) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
-    :else Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP))
+    (= "mediump" (str s)) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
+    :else default-enum))
 
 (defonce ^{:private true :tag 'byte} vertex-shader-stage-flag (byte (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX)))
 
@@ -150,19 +150,19 @@
                  vertex-shader-stage-flag)))
 
 (defn transpile-shader-source
-  "Compiles a single shader source file, for example, a .vp or a .fp file into a
+  "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
-  reflection info. When settings (map) is provided, reads shader.glsl_es_default_precision_float
-  and shader.glsl_es_default_precision_int; otherwise uses mediump float and highp int."
-  [^String shader-path ^String shader-source max-page-count & [settings]]
+  reflection info. The precision strings should be either \"highp\" or \"mediump\";
+  when nil, mediump float and highp int are used."
+  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
          (string? shader-source)
          (pos? (count shader-source))]}
   (let [shader-type (graphics.types/filename-shader-type shader-path)
         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
-        float-precision (precision-string->enum (get settings ["shader" "glsl_es_default_precision_float"]) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
-        int-precision (precision-string->enum (get settings ["shader" "glsl_es_default_precision_int"]) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
+        float-precision (precision-string->enum float-precision-str Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
+        int-precision (precision-string->enum int-precision-str Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
