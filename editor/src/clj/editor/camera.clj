@@ -1176,6 +1176,9 @@
                                                {:forward forward :left left :backward backward :right right :down down :up up
                                                 :all (into [] cat [forward left backward right down up])})))
 
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
+
 (defmethod popup/settings-row [:perspective-camera :speed]
   [prefs prefs-path ^PopupControl popup [_ option]]
   (popup/slider-setting prefs popup option prefs-path "Move Speed" 1.0 3.0))
