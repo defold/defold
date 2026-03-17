@@ -161,8 +161,8 @@
          (pos? (count shader-source))]}
   (let [shader-type (graphics.types/filename-shader-type shader-path)
         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
-        float-precision (precision-string->enum (get-in settings ["shader" "glsl_es_default_precision_float"]) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
-        int-precision (precision-string->enum (get-in settings ["shader" "glsl_es_default_precision_int"]) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
+        float-precision (precision-string->enum (get settings ["shader" "glsl_es_default_precision_float"]) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
+        int-precision (precision-string->enum (get settings ["shader" "glsl_es_default_precision_int"]) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try

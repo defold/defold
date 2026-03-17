@@ -642,6 +642,64 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         testOutput(expected, res.output);
     }
 
+    @Test
+    public void testLegacyPipelinePrecisionOptions() throws Exception {
+        String source =
+            "#extension GL_OES_standard_derivatives : enable\n" +
+            "void main() {\n" +
+            "    gl_FragColor = vec4(1.0);\n" +
+            "}";
+
+        // GLES 100 profile with non-default precisions
+        String es100 = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP);
+
+        String expectedEs100 =
+            "#extension GL_OES_standard_derivatives : enable\n" +
+            "\n" +
+            "precision highp float;\n" +
+            "precision mediump int;\n" +
+            "#line 1\n" +
+            "void main() {\n" +
+            "    gl_FragColor = vec4(1.0);\n" +
+            "}\n";
+
+        testOutput(expectedEs100, es100);
+
+        // GLES 300 es profile (legacy ES2 source goes through ES2ToES3Converter internally)
+        String es300 = ShaderUtil.Common.compileGLSL(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                true,
+                false,
+                false,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP,
+                Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP);
+
+        String expectedEs300 =
+            "#version 300 es\n" +
+            "#extension GL_OES_standard_derivatives : enable\n" +
+            "\n" +
+            "precision highp float;\n" +
+            "precision mediump int;\n" +
+            "\n" +
+            "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
+            "#line 1\n" +
+            "void main() {\n" +
+            "    _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
+            "}\n";
+
+        testOutput(expectedEs300, es300);
+    }
+
     private static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
         for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
             if (shader.getLanguage() == language) {

@@ -103,10 +103,8 @@
         pb-shader-languages (if exclude-gles-sm100
                               pb-shader-languages-without-gles-sm100
                               pb-default-shader-languages)
-
-        float-precision (precision-string->enum (get-in settings ["shader" "glsl_es_default_precision_float"]) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
-        int-precision (precision-string->enum (get-in settings ["shader" "glsl_es_default_precision_int"]) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
-
+        float-precision (precision-string->enum (get settings ["shader" "glsl_es_default_precision_float"]) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
+        int-precision (precision-string->enum (get settings ["shader" "glsl_es_default_precision_int"]) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
         shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count) float-precision int-precision)
         shader-desc (.-shaderDesc shader-desc-build-result)]
     (bt/with-content-hash

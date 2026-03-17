@@ -141,12 +141,12 @@ namespace dmShaderc
         ShaderCompilerOptions()
         : m_Version(330)
         , m_EntryPoint("main")
+        , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
+        , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
         , m_GlslEs(false)
-        , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
-        , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
         {}
 
         uint32_t        m_Version;
