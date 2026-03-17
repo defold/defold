@@ -42,10 +42,11 @@
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.array :as array]
+            [util.coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [com.jogamp.opengl GL2]
-           [javax.vecmath Matrix4d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -163,163 +164,200 @@
 
 (def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
 
-(defn- preview-sphere-shape-renderable-user-data
-  [user-data prop-kw->override-value]
-  (let [point-scale-override
-        (when-some [diameter (:diameter prop-kw->override-value)]
-          (let [radius (float (* 0.5 (double diameter)))
+(defn- preview-sphere-shape-renderable
+  [local-aabb user-data prop-kw->override-value]
+  (let [^Point3d ext-override
+        (when-some [diameter-override (:diameter prop-kw->override-value)]
+          (let [radius (* 0.5 (double diameter-override))
                 ext-z (if (:is-2d user-data) 0.0 radius)]
-            (array/of-floats radius radius ext-z)))]
+            (Point3d. radius radius ext-z)))
 
-    ;; TODO(drag-perf): Update the resulting AABB as well.
-    (cond-> user-data
-            point-scale-override (assoc :point-scale point-scale-override))))
+        point-scale-override
+        (when ext-override
+          (array/of-floats (.x ext-override) (.y ext-override) (.z ext-override)))
+
+        local-aabb
+        (if ext-override
+          (geom/mirrored-point->aabb ext-override)
+          local-aabb)
+
+        user-data
+        (cond-> user-data
+                point-scale-override (assoc :point-scale point-scale-override))]
+
+    (pair local-aabb user-data)))
 
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
-  (let [radius (* 0.5 (double diameter))
-        is-2d (= "2D" project-physics-type)
-        ext-z (if is-2d 0.0 radius)
-        ext [radius radius ext-z]
-        neg-ext [(- radius) (- radius) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)
-        point-scale (float-array ext)]
+  (let [is-2d (= "2D" project-physics-type)
+
+        [local-aabb user-data]
+        (preview-sphere-shape-renderable
+          geom/null-aabb
+          {:is-2d is-2d}
+          {:diameter diameter})]
+
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
-     :aabb aabb
+     :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
-                  :preview-fn preview-sphere-shape-renderable-user-data
+                  :preview-fn preview-sphere-shape-renderable
                   :tags #{:collision-shape}
                   :passes [pass/transparent pass/selection]
-                  :user-data {:color color
-                              :double-sided is-2d
-                              :is-2d is-2d
-                              :point-scale point-scale
-                              :geometry (if is-2d
-                                          scene-shapes/disc-triangles
-                                          scene-shapes/capsule-triangles)}}
+                  :user-data (assoc user-data
+                               :color color
+                               :double-sided is-2d
+                               :geometry (if is-2d
+                                           scene-shapes/disc-triangles
+                                           scene-shapes/capsule-triangles))}
      :children [{:node-id _node-id
-                 :aabb aabb
+                 :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
-                              :preview-fn preview-sphere-shape-renderable-user-data
+                              :preview-fn preview-sphere-shape-renderable
                               :tags #{:collision-shape :outline}
                               :passes [pass/outline]
-                              :user-data {:color color
-                                          :is-2d is-2d
-                                          :point-scale point-scale
-                                          :geometry (if is-2d
-                                                      scene-shapes/disc-lines
-                                                      scene-shapes/capsule-lines)}}}]}))
+                              :user-data (assoc user-data
+                                           :color color
+                                           :geometry (if is-2d
+                                                       scene-shapes/disc-lines
+                                                       scene-shapes/capsule-lines))}}]}))
 
-(defn- preview-box-shape-renderable-user-data
-  [user-data prop-kw->override-value]
-  (let [point-scale-override
-        (when-some [dimensions (:dimensions prop-kw->override-value)]
-          (let [[^double w ^double h ^double d] dimensions
+
+(defn- preview-box-shape-renderable
+  [local-aabb user-data prop-kw->override-value]
+  (let [^Point3d ext-override
+        (when-some [dimensions-override (:dimensions prop-kw->override-value)]
+          (let [[^double w ^double h ^double d] dimensions-override
                 ext-x (* 0.5 w)
                 ext-y (* 0.5 h)
                 ext-z (if (:is-2d user-data) 0.0 (* 0.5 d))]
-            (array/of-floats ext-x ext-y ext-z)))]
+            (Point3d. ext-x ext-y ext-z)))
 
-    (cond-> user-data
-            point-scale-override (assoc :point-scale point-scale-override))))
+        point-scale-override
+        (when ext-override
+          (array/of-floats (.x ext-override) (.y ext-override) (.z ext-override)))
+
+        local-aabb
+        (if ext-override
+          (geom/mirrored-point->aabb ext-override)
+          local-aabb)
+
+        user-data
+        (cond-> user-data
+                point-scale-override (assoc :point-scale point-scale-override))]
+
+    (pair local-aabb user-data)))
 
 (g/defnk produce-box-shape-scene
   [_node-id transform dimensions color node-outline-key project-physics-type]
-  (let [[^double w ^double h ^double d] dimensions
-        is-2d (= "2D" project-physics-type)
-        ext-x (* 0.5 w)
-        ext-y (* 0.5 h)
-        ext-z (if is-2d 0.0 (* 0.5 d))
-        ext [ext-x ext-y ext-z]
-        neg-ext [(- ext-x) (- ext-y) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)
-        point-scale (float-array ext)]
+  (let [is-2d (= "2D" project-physics-type)
+
+        [local-aabb user-data]
+        (preview-box-shape-renderable
+          geom/null-aabb
+          {:is-2d is-2d}
+          {:dimensions dimensions})]
+
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
-     :aabb aabb
+     :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
-                  :preview-fn preview-box-shape-renderable-user-data
+                  :preview-fn preview-box-shape-renderable
                   :tags #{:collision-shape}
                   :passes [pass/transparent pass/selection]
-                  :user-data (cond-> {:color color
-                                      :is-2d is-2d
-                                      :point-scale point-scale
-                                      :geometry scene-shapes/box-triangles}
+                  :user-data (cond-> (assoc user-data
+                                       :color color
+                                       :geometry scene-shapes/box-triangles)
 
                                      is-2d
                                      (assoc :double-sided true
                                             :point-count 6))}
      :children [{:node-id _node-id
-                 :aabb aabb
+                 :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
-                              :preview-fn preview-box-shape-renderable-user-data
+                              :preview-fn preview-box-shape-renderable
                               :tags #{:collision-shape :outline}
                               :passes [pass/outline]
-                              :user-data (cond-> {:color color
-                                                  :is-2d is-2d
-                                                  :point-scale point-scale
-                                                  :geometry scene-shapes/box-lines}
+                              :user-data (cond-> (assoc user-data
+                                                   :color color
+                                                   :geometry scene-shapes/box-lines)
 
                                                  is-2d
                                                  (assoc :point-count 8))}}]}))
 
-(defn- preview-capsule-shape-renderable-user-data
-  [user-data prop-kw->override-value]
-  (let [point-scale-override
-        (when-some [diameter (:diameter prop-kw->override-value)]
-          (let [radius (float (* 0.5 (double diameter)))
+(defn- preview-capsule-shape-renderable
+  [local-aabb user-data prop-kw->override-value]
+  (let [radius-override
+        (when-some [diameter-override (:diameter prop-kw->override-value)]
+          (* 0.5 (double diameter-override)))
+
+        half-height-override
+        (when-some [height-override (:height prop-kw->override-value)]
+          (* 0.5 (double height-override)))
+
+        ^Point3d ext-override
+        (when (or radius-override half-height-override)
+          (let [^double radius (or radius-override (first (:point-scale user-data)))
+                ^double half-height (or half-height-override (second (:point-offset-by-w user-data)))
+                ext-y (+ half-height radius)
                 ext-z (if (:is-2d user-data) 0.0 radius)]
-            (array/of-floats radius radius ext-z)))
+            (Point3d. radius ext-y ext-z)))
+
+        point-scale-override
+        (when ext-override
+          ;; Note: X is repeated for Y in the point-scale.
+          (array/of-floats (.x ext-override) (.x ext-override) (.z ext-override)))
 
         point-offset-by-w-override
-        (when-some [height (:height prop-kw->override-value)]
-          (let [half-height (float (* 0.5 (double height)))]
-            (array/of-floats 0.0 half-height 0.0)))]
+        (when half-height-override
+          (array/of-floats 0.0 half-height-override 0.0))
 
-    (cond-> user-data
-            point-scale-override (assoc :point-scale point-scale-override)
-            point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))))
+        local-aabb
+        (if ext-override
+          (geom/mirrored-point->aabb ext-override)
+          local-aabb)
+
+        user-data
+        (cond-> user-data
+                point-scale-override (assoc :point-scale point-scale-override)
+                point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
+
+    (pair local-aabb user-data)))
 
 (g/defnk produce-capsule-shape-scene
   [_node-id transform diameter height color node-outline-key project-physics-type]
   ;; NOTE: Capsules are currently only supported when physics type is 3D.
-  (let [radius (* 0.5 (double diameter))
-        half-height (* 0.5 (double height))
-        is-2d (= "2D" project-physics-type)
-        ext-y (+ half-height radius)
-        ext-z (if is-2d 0.0 radius)
-        ext [radius ext-y ext-z]
-        neg-ext [(- radius) (- ext-y) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)
-        point-scale (float-array [radius radius ext-z])
-        point-offset-by-w (float-array [0.0 half-height 0.0])]
+  (let [is-2d (= "2D" project-physics-type)
+
+        [local-aabb user-data]
+        (preview-capsule-shape-renderable
+          geom/null-aabb
+          {:is-2d is-2d}
+          {:diameter diameter
+           :height height})]
+
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
-     :aabb aabb
+     :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
-                  :preview-fn preview-capsule-shape-renderable-user-data
+                  :preview-fn preview-capsule-shape-renderable
                   :tags #{:collision-shape}
                   :passes [pass/transparent pass/selection]
-                  :user-data {:color color
-                              :is-2d is-2d
-                              :point-scale point-scale
-                              :point-offset-by-w point-offset-by-w
-                              :geometry scene-shapes/capsule-triangles}}
+                  :user-data (assoc user-data
+                               :color color
+                               :geometry scene-shapes/capsule-triangles)}
      :children [{:node-id _node-id
-                 :aabb aabb
+                 :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
-                              :preview-fn preview-capsule-shape-renderable-user-data
+                              :preview-fn preview-capsule-shape-renderable
                               :tags #{:collision-shape :outline}
                               :passes [pass/outline]
-                              :user-data {:color color
-                                          :is-2d is-2d
-                                          :point-scale point-scale
-                                          :point-offset-by-w point-offset-by-w
-                                          :geometry scene-shapes/capsule-lines}}}]}))
+                              :user-data (assoc user-data
+                                           :color color
+                                           :geometry scene-shapes/capsule-lines)}}]}))
 
 (g/defnode SphereShape
   (inherits Shape)

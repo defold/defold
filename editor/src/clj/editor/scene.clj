@@ -56,7 +56,6 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [internal.util :as util]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.profiler :as profiler])
@@ -420,10 +419,12 @@
           (dissoc preview-overrides node-id-path)
           (assoc preview-overrides node-id-path override-value-by-prop-kw))
 
-        user-data
-        (cond-> (:user-data renderable)
-                (and preview-fn override-value-by-prop-kw)
-                (preview-fn override-value-by-prop-kw))
+        [local-aabb user-data]
+        (let [local-aabb (:aabb scene geom/null-aabb)
+              user-data (:user-data renderable)]
+          (if (and preview-fn override-value-by-prop-kw)
+            (preview-fn local-aabb user-data override-value-by-prop-kw)
+            (pair local-aabb user-data)))
 
         local-transform (math/->mat4-non-uniform local-translation local-rotation local-scale)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
@@ -434,11 +435,13 @@
         selection-state (cond
                           (contains? selection-set node-id) :self-selected ; This node is selected.
                           (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
-        visible? (and parent-shows-children
-                      (:visible-self? renderable true)
-                      (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
-                      (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
-        aabb ^AABB (if visible? (:aabb scene geom/null-aabb) geom/null-aabb)
+        is-visible (and parent-shows-children
+                        (:visible-self? renderable true)
+                        (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
+                        (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
+        world-aabb (if is-visible
+                     (geom/aabb-transform local-aabb world-transform)
+                     geom/null-aabb)
         flat-renderable (-> scene
                             (dissoc :children :renderable)
                             (assoc :node-id-path node-id-path
@@ -455,15 +458,15 @@
                                    :selected selection-state
                                    :user-data user-data
                                    :batch-key (:batch-key renderable)
-                                   :aabb (geom/aabb-transform aabb world-transform)
+                                   :aabb world-aabb
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) selection-state)}}))
-        flat-renderable (if visible?
+        flat-renderable (if is-visible
                           flat-renderable
                           (dissoc flat-renderable :updatable))
         drawn-passes (cond
                        ;; Draw to all passes unless hidden.
-                       visible?
+                       is-visible
                        (:passes renderable)
 
                        ;; For selected objects, we always draw the outline and
