@@ -50,21 +50,18 @@
           result (i/update-input-state state {:type :mouse-released :button :primary})]
       (is (empty? (:mouse-buttons result)))))
 
-(testing "Letter key press adds to pressed-keys"
+  (testing "Key press adds to pressed-keys"
     (let [state (i/make-input-state)
-          action-a {:type :key-pressed :key-code KeyCode/A :alt false :shift false :meta false :control false}
-          action-1 {:type :key-pressed :key-code KeyCode/DIGIT1 :alt false :shift false :meta false :control false}
+          action-a  {:type :key-pressed :key-code KeyCode/A :alt false :shift false :meta false :control false}
+          action-1  {:type :key-pressed :key-code KeyCode/DIGIT1 :alt false :shift false :meta false :control false}
+          action-up {:type :key-pressed :key-code KeyCode/UP :alt false :shift false :meta false :control false}
           result (-> state
                      (i/update-input-state action-a)
-                     (i/update-input-state action-1))]
+                     (i/update-input-state action-1)
+                     (i/update-input-state action-up))]
       (is (contains? (:pressed-keys result) KeyCode/A))
-      (is (contains? (:pressed-keys result) KeyCode/DIGIT1))))
-
-  (testing "Non-letter/digit key press does not add to pressed-keys"
-    (let [state (i/make-input-state)
-          action {:type :key-pressed :key-code KeyCode/ESCAPE :alt false :shift false :meta false :control false}
-          result (i/update-input-state state action)]
-      (is (empty? (:pressed-keys result)))))
+      (is (contains? (:pressed-keys result) KeyCode/DIGIT1))
+      (is (contains? (:pressed-keys result) KeyCode/UP))))
 
   (testing "Key release updates modifiers"
     (let [state (i/make-input-state)
