@@ -282,6 +282,8 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
+glsl_es_default_precision_float = highp
+glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
