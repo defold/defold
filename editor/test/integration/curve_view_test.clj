@@ -88,12 +88,11 @@
         0.11 0.99 [modifier] [1]))))
 
 (defn- cp [nid property idx]
-  (let [c (g/node-value nid property)]
-    (some-> (g/node-value nid property)
-      (types/geom-aabbs [idx])
-      (get idx)
-      first
-      (subvec 0 2))))
+  (some-> (g/node-value nid property)
+          (types/geom-aabbs [idx])
+          (get idx)
+          first
+          (subvec 0 2)))
 
 (defn- cp? [exp act]
   (if act
@@ -136,28 +135,27 @@
              (first (cp emitter :particle-key-alpha 2))))
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
 
-;; TODO JOE: Fix the failing test
-;; (deftest add-delete-control-point
-;;   (test-util/with-loaded-project
-;;     (let [curve-view (make-curve-view! app-view 800 400)
-;;           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
-;;           emitter (:node-id (test-util/outline node-id [0]))
-;;           context (handler/->context :curve-view {} (SubSelectionProvider. app-view))
-;;           original-curve (g/node-value emitter :particle-key-alpha)]
-;;       (app-view/select! app-view [emitter])
-;;       ; First control point can't be deleted
-;;       (mouse-dbl-click! curve-view 0.0 0.0)
-;;       (is (cp? [0.0 0.0] (cp emitter :particle-key-alpha 1)))
-;;       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-;;       ; But second can
-;;       (mouse-dbl-click! curve-view 0.05 0.5)
-;;       (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
-;;       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-;;       (mouse-dbl-click! curve-view 0.05 0.62)
-;;       (is (nil? (cp emitter :particle-key-alpha 9)))
-;;       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-;;       ; Delete through handler
-;;       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
-;;       (test-util/handler-run :edit.delete [context] {})
-;;       (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6)))
-;;       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
+(deftest add-delete-control-point
+  (test-util/with-loaded-project
+    (let [curve-view (make-curve-view! app-view 800 400)
+          node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
+          emitter (:node-id (test-util/outline node-id [0]))
+          context (handler/->context :curve-view {} (SubSelectionProvider. app-view))
+          original-curve (g/node-value emitter :particle-key-alpha)]
+      (app-view/select! app-view [emitter])
+      ; First control point can't be deleted
+      (mouse-dbl-click! curve-view 0.0 0.0)
+      (is (cp? [0.0 0.0] (cp emitter :particle-key-alpha 1)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      ; But second can
+      (mouse-dbl-click! curve-view 0.05 0.5)
+      (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (mouse-dbl-click! curve-view 0.05 0.62)
+      (is (nil? (cp emitter :particle-key-alpha 9)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      ; Delete through handler
+      (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
+      (test-util/handler-run :edit.delete [context] {})
+      (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6)))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))

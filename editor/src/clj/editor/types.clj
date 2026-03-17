@@ -294,7 +294,7 @@
     (or (<= (.right this) (.left this))
         (<= (.bottom this) (.top this)))))
 
-(defrecord Camera
+(defonce/record Camera
   [type ;; :perspective or :orthographic
    ^Point3d position
    ^Quat4d rotation
