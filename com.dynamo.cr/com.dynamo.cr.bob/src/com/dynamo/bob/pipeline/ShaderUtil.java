@@ -647,18 +647,18 @@ public class ShaderUtil {
             if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
                 // if we have patched glFragColor
                 if(output_glFragColor || output_glFragData) {
-                    String floatPrecision = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                    String floatPrecisionAttrRep = "precision " + floatPrecision + " float;\n";
-                    String intPrecisionAttrRep = null;
-                    if (defaultIntPrecision != null) {
-                        String intPrecision = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                        intPrecisionAttrRep = "precision " + intPrecision + " int;\n";
-                    }
+
+                    boolean isEsTargetProfile = targetProfile.equals("es");
+
                     // insert precision if not found, as it is mandatory for out attributes
-                    if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {
+                    if(floatPrecisionIndex < 0 && isEsTargetProfile) {
+                        String floatPrecision = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                        String floatPrecisionAttrRep = "precision " + floatPrecision + " float;\n";
                         output.add(patchLineIndex++, floatPrecisionAttrRep);
                     }
-                    if(intPrecisionAttrRep != null && intPrecisionIndex < 0 && targetProfile.equals("es")) {
+                    if(intPrecisionIndex < 0 && isEsTargetProfile) {
+                        String intPrecision = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                        String intPrecisionAttrRep = "precision " + intPrecision + " int;\n";
                         output.add(patchLineIndex++, intPrecisionAttrRep);
                     }
 
@@ -666,7 +666,7 @@ public class ShaderUtil {
                     for (int i = 0; i < maxColorOutputs; i++) {
                         String colorOutputLayoutPrefix = "";
                         // For ES targets we need to add a layout specification for the outputs
-                        if (targetProfile.equals("es") && maxColorOutputs > 1)
+                        if (isEsTargetProfile && maxColorOutputs > 1)
                         {
                             colorOutputLayoutPrefix = String.format(glFragColorAttrLayoutPrefix, i);
                         }
