@@ -404,8 +404,8 @@
     (.interpolate new-fp ^Tuple4d target-fp factor)
     [new-pos new-fp]))
 
-(defn- apply-dolly-interpolation [self camera ^double dt]
-  (let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
+(defn- apply-dolly-interpolation [camera-node camera ^double dt]
+  (let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (if (nil? target-camera)
       camera
       (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
@@ -417,7 +417,7 @@
                 focus-point-distance (.distance fp-point new-pos)]
             (if (< distance (* focus-point-distance 0.002))
               (do
-                (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
+                (g/user-data-swap! camera-node ::camera-state dissoc :dolly-target-camera)
                 target-camera)
               (assoc camera :position new-pos :focus-point new-fp)))
           :orthographic
@@ -428,7 +428,7 @@
                 threshold (* ^double (:fov-x camera) 0.008)]
             (if (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) threshold)
               (do
-                (g/user-data-swap! self ::camera-state dissoc :dolly-target-camera)
+                (g/user-data-swap! camera-node ::camera-state dissoc :dolly-target-camera)
                 target-camera)
               (assoc camera :fov-x new-fov-x :fov-y new-fov-y :position new-pos :focus-point new-fp))))))))
 
@@ -446,21 +446,21 @@
            :focus-point (doto focus (.add delta)))))
 
 (defn- set-dolly-target!
-  ([self ^double delta]
-   (set-dolly-target! self delta nil [nil nil]))
-  ([self ^double delta viewport [mouse-x mouse-y]]
-   (let [current-target (or (:dolly-target-camera (g/user-data self ::camera-state))
-                            (g/node-value self :local-camera))
+  ([camera-node ^double delta]
+   (set-dolly-target! camera-node delta nil [nil nil]))
+  ([camera-node ^double delta viewport [mouse-x mouse-y]]
+   (let [current-target (or (:dolly-target-camera (g/user-data camera-node ::camera-state))
+                            (g/node-value camera-node :local-camera))
          new-target (dolly current-target delta)
          new-target (if (and viewport mouse-x mouse-y)
                       (pan-at-pointer-position new-target current-target viewport [mouse-x mouse-y])
                       new-target)]
-     (g/user-data-swap! self ::camera-state assoc :dolly-target-camera new-target))))
+     (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera new-target))))
 
-(defn- reset-dolly! [self]
-  (when-let [target-camera (:dolly-target-camera (g/user-data self ::camera-state))]
-    (g/user-data-swap! self ::camera-state assoc :dolly-target-camera nil)
-    (g/set-property! self :local-camera target-camera)))
+(defn- reset-dolly! [camera-node]
+  (when-let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
+    (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)
+    (g/set-property! camera-node :local-camera target-camera)))
 
 (defn track [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
   (let [focus ^Vector4d (:focus-point camera)
@@ -888,15 +888,15 @@
                        is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
 
-(defn free-cam-mode-active? [camera-id]
-  (some-> camera-id (g/user-data ::camera-state) :free-cam-mode))
+(defn free-cam-mode-active? [camera-node]
+  (some-> camera-node (g/user-data ::camera-state) :free-cam-mode))
 
-(defn start-free-cam-mode! [^ImageView image-view camera-id current-cursor-pos]
-  (when (and (not (:free-cam-mode (g/user-data camera-id ::camera-state)))
-             (not (g/node-value camera-id :animating)))
+(defn start-free-cam-mode! [^ImageView image-view camera-node current-cursor-pos]
+  (when (and (not (:free-cam-mode (g/user-data camera-node ::camera-state)))
+             (not (g/node-value camera-node :animating)))
     ;; NOTE: If the dolly is animating, this prevents funkiness
-    (reset-dolly! camera-id)
-    (let [local-camera (g/node-value camera-id :local-camera)
+    (reset-dolly! camera-node)
+    (let [local-camera (g/node-value camera-node :local-camera)
           current-camera (cond-> local-camera
                            (= :orthographic (:type local-camera))
                            (camera-orthographic->perspective fov-y-35mm-full-frame))
@@ -911,9 +911,9 @@
       (i/start-mouse-capture center-x center-y)
       (g/transact
         (concat
-          (g/set-property camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
-          (g/set-property camera-id :cursor-type :none)))
-      (g/user-data-swap! camera-id ::camera-state assoc
+          (g/set-property camera-node :local-camera (assoc current-camera :focus-distance focus-distance))
+          (g/set-property camera-node :cursor-type :none)))
+      (g/user-data-swap! camera-node ::camera-state assoc
         :free-cam-mode true
         :free-cam-cursor-start-pos current-cursor-pos
         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
@@ -923,15 +923,15 @@
         :smooth-yaw yaw
         :free-cam-smoothed-look-delta [0.0 0.0]))))
 
-(defn stop-free-cam-mode! [image-view camera-id]
+(defn stop-free-cam-mode! [image-view camera-node]
   (ui/set-cursor image-view Cursor/DEFAULT)
   (toggle-free-cam-css image-view false)
   (i/stop-mouse-capture)
-  (let [[x y] (:free-cam-cursor-start-pos (g/user-data camera-id ::camera-state))]
+  (let [[x y] (:free-cam-cursor-start-pos (g/user-data camera-node ::camera-state))]
     (when (and x y)
       (i/warp-cursor x y)))
-  (g/set-property! camera-id :cursor-type :default)
-  (g/user-data-swap! camera-id ::camera-state update :free-cam-mode (constantly false)))
+  (g/set-property! camera-node :cursor-type :default)
+  (g/user-data-swap! camera-node ::camera-state update :free-cam-mode (constantly false)))
 
 (defn combo-active? [^KeyCodeCombination combo pressed-keys modifiers]
   (and (contains? pressed-keys (.getCode combo))
