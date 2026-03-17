@@ -714,7 +714,7 @@
         fov-y (double (:fov-y local-camera))
         fov-x (* aspect fov-y)
         [z-near z-far] (if (nil? scene-aabb)
-                         [0.01 100.0]
+                         [0.1 100.0]
                          (find-z-extents (types/position local-camera)
                                          (camera-forward-vector local-camera)
                                          scene-aabb))]
@@ -942,15 +942,15 @@
         (concat
           (g/set-property camera-id :local-camera (assoc current-camera :focus-distance focus-distance))
           (g/set-property camera-id :cursor-type :none)))
-      (g/user-data-swap! camera-id ::camera-state merge
-                         {:free-cam-mode true
-                          :free-cam-cursor-start-pos current-cursor-pos
-                          :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
-                          :free-cam-pitch pitch
-                          :free-cam-yaw yaw
-                          :smooth-pitch pitch
-                          :smooth-yaw yaw
-                          :free-cam-smoothed-look-delta [0.0 0.0]}))))
+      (g/user-data-swap! camera-id ::camera-state assoc
+        :free-cam-mode true
+        :free-cam-cursor-start-pos current-cursor-pos
+        :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
+        :free-cam-pitch pitch
+        :free-cam-yaw yaw
+        :smooth-pitch pitch
+        :smooth-yaw yaw
+        :free-cam-smoothed-look-delta [0.0 0.0]))))
 
 (defn stop-free-cam-mode! [image-view camera-id]
   (ui/set-cursor image-view Cursor/DEFAULT)
@@ -961,19 +961,6 @@
       (i/warp-cursor x y)))
   (g/set-property! camera-id :cursor-type :default)
   (g/user-data-swap! camera-id ::camera-state update :free-cam-mode (constantly false)))
-
-(defn- free-cam-movement-keys [prefs]
-  (let [key-for-command (fn [cmd]
-                          (some-> ^KeyCodeCombination
-                                  (first (keymap/shortcuts (keymap/from-prefs prefs) cmd))
-                                  (.getCode)))]
-    (into #{} (keep key-for-command)
-          [:scene.camera-move-forward
-           :scene.camera-move-backward
-           :scene.camera-move-left
-           :scene.camera-move-right
-           :scene.camera-move-up
-           :scene.camera-move-down])))
 
 (defn handle-input [self input-state action _user-data]
   (let [image-view (g/node-value self :image-view)
@@ -1058,7 +1045,9 @@
 
         (and (contains? (:mouse-buttons input-state) :secondary)
              (not free-cam-mode)
-             (contains? (free-cam-movement-keys (g/node-value self :prefs)) key-code))
+             (let [shortcuts (g/node-value self :free-cam-shortcuts)]
+               (some #(combo-active? % (:pressed-keys input-state) (:modifiers input-state))
+                     (into [] cat (vals shortcuts)))))
         (start-free-cam-mode! image-view self (:cursor-pos input-state)))
 
       ;; NOTE: Don't let other handlers receive input if we're in free camera mode
@@ -1132,7 +1121,6 @@
             camera-up (if walking-mode
                         vector3-up
                         (camera-up-vector current-camera))
-            camera-state (g/user-data self ::camera-state)
             look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
             mouse-delta (i/poll-mouse-delta)
             dx (- (if mouse-delta (.dx mouse-delta) 0.0))
@@ -1216,12 +1204,14 @@
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
   (output free-cam-shortcuts g/Any :cached (g/fnk [keymap]
-                                             {:forward  (keymap/shortcuts keymap :scene.free-camera.forward)
-                                              :left     (keymap/shortcuts keymap :scene.free-camera.left)
-                                              :backward (keymap/shortcuts keymap :scene.free-camera.backward)
-                                              :right    (keymap/shortcuts keymap :scene.free-camera.right)
-                                              :down     (keymap/shortcuts keymap :scene.free-camera.down)
-                                              :up       (keymap/shortcuts keymap :scene.free-camera.up)}))
+                                             (let [forward  (keymap/shortcuts keymap :scene.free-camera.forward)
+                                                   left     (keymap/shortcuts keymap :scene.free-camera.left)
+                                                   backward (keymap/shortcuts keymap :scene.free-camera.backward)
+                                                   right    (keymap/shortcuts keymap :scene.free-camera.right)
+                                                   down     (keymap/shortcuts keymap :scene.free-camera.down)
+                                                   up       (keymap/shortcuts keymap :scene.free-camera.up)]
+                                               {:forward forward :left left :backward backward :right right :down down :up up
+                                                :all (into [] cat [forward left backward right down up])})))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
   [app-view prefs prefs-path ^PopupControl popup [_ option]]
