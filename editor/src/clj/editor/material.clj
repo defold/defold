@@ -175,7 +175,7 @@
     :constant-type-worldviewproj :world-view-proj))
 
 (defn- transpile-shader-source
-  [shader-resource-node-id shader-resource ^String shader-source ^long max-page-count settings]
+  [shader-resource-node-id shader-resource ^String shader-source max-page-count settings]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
   ;; lines from include directives, so we do not report the correct source paths
   ;; and line numbers here.

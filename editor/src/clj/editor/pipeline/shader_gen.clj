@@ -154,7 +154,7 @@
   augmented-shader-info map with the transpiled shader source and various
   reflection info. When settings (map) is provided, reads shader.glsl_es_default_precision_float
   and shader.glsl_es_default_precision_int; otherwise uses mediump float and highp int."
-  [^String shader-path ^String shader-source ^long max-page-count & [settings]]
+  [^String shader-path ^String shader-source max-page-count & [settings]]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
          (string? shader-source)
