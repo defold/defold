@@ -614,7 +614,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_FragColor = my_uniform + my_varying;\n" +
             "}\n";
 
-        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, "", 140, true, false);
+        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(
+                source,
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                "",
+                140,
+                true,
+                false,
+                "mediump",
+                "highp");
 
         expected =
             "#version 140\n" +

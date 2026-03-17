@@ -125,7 +125,9 @@ public class ShaderProgramBuilder extends Builder {
         else if (value.equals("mediump"))
             return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         // Not implemented
-        assert null;
+        assert false;
+        // Fallback to a sensible default to satisfy the compiler
+        return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
     }
 
     @Override
@@ -523,7 +525,10 @@ public class ShaderProgramBuilder extends Builder {
 
             ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
             for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
-                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers);
+                String floatPrec = options.glslEsDefaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                String intPrec = options.glslEsDefaultIntPrecision == null ? "" :
+                        (options.glslEsDefaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump");
+                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers, floatPrec, intPrec);
                 ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;

@@ -96,11 +96,15 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         String shaderSource = moduleLegacy.desc.source;
         ShaderDesc.ShaderType shaderType = moduleLegacy.desc.type;
 
+        String floatPrec = this.options.glslEsDefaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+        String intPrec = this.options.glslEsDefaultIntPrecision == null ? "" :
+                (this.options.glslEsDefaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump");
+
         if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
 
             int version = 430;
 
-            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
+            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers, floatPrec, intPrec);
 
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
             FileUtil.deleteOnExit(file_in_compute);
@@ -130,7 +134,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             // If the shader already has a version, we expect it to be already written in valid GLSL for that version
             if (shaderInfo == null) {
                 // Convert to ES3 (or GL 140+)
-                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
+                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers, floatPrec, intPrec);
 
                 // Update version for SPIR-V (GLES >= 310, Core >= 140)
                 es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;

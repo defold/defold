@@ -682,12 +682,13 @@ These forms should be quoted, as if they came from a macro."
 
 (defn read-combined-shader-info [shader-paths opts shader-path->source]
   (let [max-page-count (long (or (:max-page-count opts) 0))
+        settings (:settings opts)
 
         augmented-shader-infos
         (coll/into-> shader-paths []
           (map (fn [^String shader-path]
                  (let [shader-source (shader-path->source shader-path)]
-                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count)))))]
+                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count settings)))))]
 
     (shader-gen/combined-shader-info augmented-shader-infos)))
 

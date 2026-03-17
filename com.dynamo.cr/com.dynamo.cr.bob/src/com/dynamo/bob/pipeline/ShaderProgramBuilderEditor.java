@@ -27,7 +27,16 @@ import java.util.HashMap;
 import static com.dynamo.bob.pipeline.ShaderProgramBuilder.buildResultsToShaderDescBuildResults;
 
 public class ShaderProgramBuilderEditor {
+    static private void applyEditorShaderPrecision(ShaderCompilePipeline.Options options, Shaderc.ShaderPrecision floatPrecision, Shaderc.ShaderPrecision intPrecision) {
+        options.glslEsDefaultFloatPrecision = floatPrecision;
+        options.glslEsDefaultIntPrecision = intPrecision;
+    }
+
     static public ShaderUtil.Common.GLSLCompileResult buildGLSLVariantTextureArray(String resourcePath, String source, Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage, int maxPageCount) throws IOException, CompileExceptionError {
+        return buildGLSLVariantTextureArray(resourcePath, source, shaderType, shaderLanguage, maxPageCount, Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP, Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
+    }
+
+    static public ShaderUtil.Common.GLSLCompileResult buildGLSLVariantTextureArray(String resourcePath, String source, Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage, int maxPageCount, Shaderc.ShaderPrecision floatPrecision, Shaderc.ShaderPrecision intPrecision) throws IOException, CompileExceptionError {
         ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
         module.source = source;
         module.type = shaderType;
@@ -37,6 +46,7 @@ public class ShaderProgramBuilderEditor {
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         options.defines.add("EDITOR");
+        applyEditorShaderPrecision(options, floatPrecision, intPrecision);
 
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
         Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage);
@@ -69,8 +79,15 @@ public class ShaderProgramBuilderEditor {
     static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(
             String resourceOutputPath, ShaderCompilePipeline.ShaderModuleDesc[] shaderDescs,
             Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
+        return makeShaderDescWithVariants(resourceOutputPath, shaderDescs, shaderLanguages, maxPageCount, Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP, Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP);
+    }
+
+    static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(
+            String resourceOutputPath, ShaderCompilePipeline.ShaderModuleDesc[] shaderDescs,
+            Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount, Shaderc.ShaderPrecision floatPrecision, Shaderc.ShaderPrecision intPrecision) throws IOException, CompileExceptionError {
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        applyEditorShaderPrecision(options, floatPrecision, intPrecision);
         ShaderCompilePipeline pipeline;
 
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescsArrayList = new ArrayList<>(Arrays.asList(shaderDescs));

@@ -23,7 +23,7 @@
             [editor.workspace :as workspace]
             [util.array :as array]
             [util.eduction :as e])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor Shaderc$ShaderPrecision]
            [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]
            [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
 
@@ -59,6 +59,13 @@
     (set! (. shader-module-desc type) pb-shader-type)
     shader-module-desc))
 
+(defn- precision-string->enum
+  ^Shaderc$ShaderPrecision [s default-enum]
+  (cond
+    (nil? s) default-enum
+    (= "highp" (str s)) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
+    :else Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP))
+
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
 
@@ -70,7 +77,7 @@
       {:resource build-resource
        :content (protobuf/pb->bytes shader-desc)})))
 
-(defn make-shader-build-target [node-id shader-source-infos max-page-count exclude-gles-sm100]
+(defn make-shader-build-target [node-id shader-source-infos max-page-count exclude-gles-sm100 & [settings]]
   {:pre [(g/node-id? node-id)
          (vector? shader-source-infos)
          (pos? (count shader-source-infos))
@@ -97,7 +104,10 @@
                               pb-shader-languages-without-gles-sm100
                               pb-default-shader-languages)
 
-        shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count))
+        float-precision (precision-string->enum (get-in settings ["shader" "glsl_es_default_precision_float"]) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
+        int-precision (precision-string->enum (get-in settings ["shader" "glsl_es_default_precision_int"]) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
+
+        shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count) float-precision int-precision)
         shader-desc (.-shaderDesc shader-desc-build-result)]
     (bt/with-content-hash
       {:node-id node-id
