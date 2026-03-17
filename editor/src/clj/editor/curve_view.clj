@@ -481,7 +481,7 @@
   (inherits scene/SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (types/->Region 0 0 0 0)))
+  (property viewport Region (default (Region. 0 0 0 0)))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)

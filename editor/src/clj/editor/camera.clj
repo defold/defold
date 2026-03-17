@@ -192,12 +192,12 @@
    (let [distance 5000.0
          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
          rotation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))]
-     (types/->Camera t position rotation
-                     1.0 10000.0
-                     (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
-                     (Vector4d. 0.0 0.0 0.0 1.0)
-                     0.0
-                     filter-fn))))
+     (Camera. t position rotation
+              1.0 10000.0
+              (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
+              (Vector4d. 0.0 0.0 0.0 1.0)
+              0.0
+              filter-fn))))
 
 (defn- set-extents
   ^Camera [^Camera camera fov-x fov-y z-near z-far]
