@@ -543,9 +543,6 @@
   {[:primary   false true  false false] :tumble
    [:primary   false false true  false] :track
    [:primary   false true  true  false] :dolly
-   [:secondary false false false false] :look
-   [:secondary true  false false false] :look
-   [:secondary false false true  false] :look
    [:middle    false false false false] :track})
 
 (defn camera-movement
@@ -1193,7 +1190,7 @@
                              :last-y mouse-y
                              :is-dragging (or (:is-dragging camera-state) is-significant-drag))
           (when (and is-significant-drag
-                     is-primary
+                     (not (contains? mouse-buttons :secondary))
                      (not (g/node-value self :animating)))
             (g/set-property! self :cursor-type
                              (if (or (not= :perspective (:type (g/node-value self :local-camera)))
@@ -1208,7 +1205,7 @@
   (property local-camera Camera)
   (property cached-3d-camera Camera)
   (property animating g/Bool)
-  (property movements-enabled g/Any (default #{:dolly :track :tumble :look}))
+  (property movements-enabled g/Any (default #{:dolly :track :tumble}))
   (property cursor-type g/Keyword)
 
   (input scene-aabb AABB)
