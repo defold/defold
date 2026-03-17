@@ -566,6 +566,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
+                    "precision highp int;\n" +
                     "#line 1\n" +
                     "void main() {\n" +
                     "    gl_FragColor = vec4(1.0);\n" +
@@ -589,6 +590,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
+                    "precision highp int;\n" +
                     "\n" +
                     "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
                     "#line 1\n" +
