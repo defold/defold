@@ -1053,15 +1053,16 @@
   ([f coll]
    (let [items (if (vector? coll) coll (vec coll))
          item-count (count items)]
-     (if (zero? item-count)
-       []
+     (case item-count
+       0 []
+       1 [(f (items 0))]
        (let [binding-frame (Var/cloneThreadBindingFrame)
              results (object-array item-count)
              next-index (AtomicInteger. 0)
              worker-count (-> (.availableProcessors (Runtime/getRuntime))
                               (* 2)
-                              (min (long item-count))
-                              (max 4))]
+                              (max 4)
+                              (min item-count))]
          (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
            (dotimes [_ worker-count]
              (.fork
@@ -1074,7 +1075,7 @@
                      (when-not (.isInterrupted (Thread/currentThread))
                        (let [index (.getAndIncrement next-index)]
                          (when (< index item-count)
-                           (aset results index (f (nth items index)))
+                           (aset results index (f (items index)))
                            (recur)))))))))
            (try
              (.join scope)
