@@ -126,11 +126,10 @@
 }
 
 .tab-content-area {
-    -fx-border-width: 0;
-    -fx-border-color: -df-background-lighter;
+    -fx-border-width: 1;
+    -fx-border-color: transparent;
     -fx-padding: 0;
     &:free-cam-mode-active {
-        -fx-border-width: 1;
         -fx-border-color: -df-defold-orange;
     }
 }
