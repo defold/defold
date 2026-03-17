@@ -2,7 +2,7 @@
 #include <windows.h>
 
 #ifndef QWORD
-typedef unsigned __int64 QWORD
+typedef unsigned __int64 QWORD;
 #endif
 
 namespace dmMouseCapture
