@@ -1037,7 +1037,8 @@
 
 (defn- warp-mouse-around-edges
   [^ImageView image-view [^double cursor-x ^double cursor-y] [last-x last-y]]
-  (if (and cursor-x last-x)
+  ;; TODO: We shouldn't have to check for image-view here, we shold be doing git before
+  (if (and image-view cursor-x last-x)
     (let [screen-w (.getFitWidth image-view)
           screen-h (.getFitHeight image-view)
           padding 1
