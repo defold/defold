@@ -1,9 +1,8 @@
 #include "mouse_capture.h"
 #include <windows.h>
-#include <iostream>
 
 #ifndef QWORD
-typedef unsigned __int64 QWORD;
+typedef unsigned __int64 QWORD
 #endif
 
 namespace dmMouseCapture
