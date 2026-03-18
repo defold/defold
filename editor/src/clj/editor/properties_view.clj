@@ -810,6 +810,5 @@
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
-          (g/connect app-view :selected-node-properties view :selected-node-properties)
           (g/connect search-results-view :_node-id view :search-results-view)
           (g/connect color-dropper-view :_node-id view :color-dropper-view))))))

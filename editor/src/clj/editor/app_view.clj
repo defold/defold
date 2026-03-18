@@ -369,6 +369,7 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input active-outline g/Any)
   (input active-scene g/Any)
+  (input properties-view g/NodeID :substitute nil)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
@@ -474,7 +475,9 @@
              ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
+             properties-view (g/node-value app-view :properties-view evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
+             new-view-id (some-> new-active-tab editor-tab/view-node-id)
 
              tx-data
              (when (and is-in-active-tab-pane
@@ -483,6 +486,8 @@
                  (concat
                    (g/set-property app-view :active-tab new-active-tab)
                    (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
+                   (when properties-view
+                     (replace-connection basis new-view-id :displayed-node-properties properties-view :selected-node-properties))
                    (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
                      (replace-connection basis new-resource-node-id :scene app-view :active-scene)
                      (disconnect-sources basis app-view :active-scene)))))]
@@ -2279,6 +2284,7 @@
     (g/transact
       (concat
         (view/connect-resource-node view resource-node)
+        (g/connect app-view :selected-node-properties view :selected-node-properties)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))

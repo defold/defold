@@ -105,6 +105,43 @@
     (throw (ex-info "Unsupported scale value."
                     {:value value}))))
 
+(defn collapse-property-preview-overrides [preview-overrides]
+  (reduce-kv
+    (fn [overrides-by-node-id node-id-path prop-kw->override-value]
+      (let [node-id (peek node-id-path)]
+        (assert (some? node-id) "Expected non-empty node-id-path in preview override.")
+        (reduce-kv
+          (fn [overrides-by-node-id prop-kw override-value]
+            (let [existing-override-value (get-in overrides-by-node-id [node-id prop-kw] ::missing)]
+              (assert (or (= ::missing existing-override-value)
+                          (= existing-override-value override-value))
+                      (format "Conflicting preview override for node-id %s property %s." node-id prop-kw))
+              (assoc-in overrides-by-node-id [node-id prop-kw] override-value)))
+          overrides-by-node-id
+          prop-kw->override-value)))
+    {}
+    (or preview-overrides {})))
+
+(defn overlay-selected-node-properties [selected-node-properties preview-overrides]
+  (if (or (nil? selected-node-properties)
+          (coll/empty? preview-overrides))
+    selected-node-properties
+    (mapv (fn [selected-node-property]
+            (let [node-id (:node-id selected-node-property)
+                  override-values (get preview-overrides node-id)]
+              (if (coll/empty? override-values)
+                selected-node-property
+                (update selected-node-property :properties
+                        (fn [properties]
+                          (reduce-kv
+                            (fn [properties prop-kw override-value]
+                              (if (contains? properties prop-kw)
+                                (assoc-in properties [prop-kw :value] override-value)
+                                properties))
+                            properties
+                            override-values))))))
+          selected-node-properties)))
+
 (defn- get-resource-name [node-id]
   (when-let [resource (some-> node-id resource-node/owner-resource)]
     (resource/resource-name resource)))
@@ -1066,6 +1103,10 @@
                                              {:renderables (reduce (partial merge-with into)
                                                                    {}
                                                                    tool-renderables)})))
+  (output displayed-node-properties g/Any :cached
+          (g/fnk [selected-node-properties preview-overrides]
+            (overlay-selected-node-properties selected-node-properties
+                                              (collapse-property-preview-overrides preview-overrides))))
 
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
@@ -1794,6 +1835,10 @@
   (output manip-space g/Keyword (gu/passthrough manip-space))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output selection g/Any (gu/passthrough selection))
+  (output displayed-node-properties g/Any :cached
+          (g/fnk [selected-node-properties preview-overrides]
+            (overlay-selected-node-properties selected-node-properties
+                                              (collapse-property-preview-overrides preview-overrides))))
   (output picking-selection g/Any :cached produce-selection) ; PreviewView is used for click-driven tests, so must support regular selection/picking.
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
