@@ -686,7 +686,7 @@ These forms should be quoted, as if they came from a macro."
         (coll/into-> shader-paths []
           (map (fn [^String shader-path]
                  (let [shader-source (shader-path->source shader-path)]
-                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count nil nil)))))]
+                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count "mediump" "highp")))))]
 
     (shader-gen/combined-shader-info augmented-shader-infos)))
 

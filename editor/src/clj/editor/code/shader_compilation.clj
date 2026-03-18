@@ -64,7 +64,9 @@
   (case s
     "highp" Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
     "mediump" Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
-    nil))
+    (throw (IllegalArgumentException.
+             (format "Invalid shader precision '%s'. Expected \"highp\" or \"mediump\"."
+                     (str s))))))
 
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))

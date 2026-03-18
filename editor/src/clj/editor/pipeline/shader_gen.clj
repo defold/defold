@@ -136,12 +136,14 @@
     false))
 
 (defn- precision-string->enum
-  "Maps game.project precision string to Shaderc.ShaderPrecision. default-enum used when s is nil."
-  ^Shaderc$ShaderPrecision [s default-enum]
-  (cond
-    (= "highp" (str s)) Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
-    (= "mediump" (str s)) Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
-    :else default-enum))
+  "Maps game.project precision string to Shaderc.ShaderPrecision."
+  ^Shaderc$ShaderPrecision [s]
+  (case s
+    "highp" Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
+    "mediump" Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
+    (throw (IllegalArgumentException.
+             (format "Invalid shader precision '%s'. Expected \"highp\" or \"mediump\"."
+                     (str s))))))
 
 (defonce ^{:private true :tag 'byte} vertex-shader-stage-flag (byte (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX)))
 
@@ -161,8 +163,8 @@
          (pos? (count shader-source))]}
   (let [shader-type (graphics.types/filename-shader-type shader-path)
         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
-        float-precision (precision-string->enum float-precision-str Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP)
-        int-precision (precision-string->enum int-precision-str Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP)
+        float-precision (precision-string->enum float-precision-str)
+        int-precision (precision-string->enum int-precision-str)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
