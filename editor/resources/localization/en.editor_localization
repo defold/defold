@@ -2260,7 +2260,7 @@ error.property-must-be-between = "{property}" must be between {min} and {max}.
 error.attribute-components-must-be-between = Components in vertex attribute "{attribute}" must be between {min} and {max}.
 error.vertex-attribute = Vertex attribute "{attribute}": {error}
 error.vertex-attribute-normalize-float-data-type = Vertex attribute "{attribute}" uses Normalize with Float data type.
-error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas.
+error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas. GLES 2.0 support must be excluded in game.project > Runtime > Shader settings
 error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right_size}\n{left} = {left_size}\n{top} = {top_size}\n{bottom} = {bottom_size}\n{front} = {front_size}\n{back} = {back_size}.
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.transpiler-compilation-failed = Compilation failed: {error}
