@@ -1590,6 +1590,7 @@
               ;; Because of that, such key presses will not reach the workbench view and
               ;; will not trigger the commands as might be expected
               (when (or (c/free-cam-mode-active? camera-id)
+                        (contains? (:mouse-buttons (g/user-data view-id ::input-state)) :secondary)
                         (not= ::unhandled (attempt-handle-arrow-key-commands! e)))
                 (.consume e)))))))))
 

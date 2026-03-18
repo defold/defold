@@ -893,6 +893,8 @@
                        is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
       (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
 
+(defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
+
 (defn free-cam-mode-active? [camera-node]
   (some-> camera-node (g/user-data ::camera-state) :free-cam-mode))
 
@@ -1019,9 +1021,7 @@
 
         (and (contains? (:mouse-buttons input-state) :secondary)
              (not free-cam-mode)
-             (let [shortcuts (g/node-value self :free-cam-shortcuts)]
-               (some #(combo-active? % (:pressed-keys input-state) (:modifiers input-state))
-                     (into [] cat (vals shortcuts)))))
+             (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts))))
         (start-free-cam-mode! image-view self (:cursor-pos input-state)))
 
       ;; NOTE: Don't let other handlers receive input if we're in free camera mode
@@ -1054,8 +1054,6 @@
           [(double warp-x) (double warp-y) (double warp-x) (double warp-y)])
         [cursor-x cursor-y last-x last-y]))
     [cursor-x cursor-y last-x last-y]))
-
-(defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
 
 (defn- compute-target-dir [pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up]
   (let [target-dir (Vector3d.)
