@@ -19,6 +19,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
@@ -273,27 +274,14 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defmethod popup/settings-row [:grid :opacity]
-  [app-view prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting prefs popup option prefs-path "Opacity" 0.0 1.0 #(invalidate-grids! app-view)))
-
-(defmethod popup/settings-row [:grid :size]
-  [app-view prefs prefs-path _popup [_ option]]
-  (popup/vec3-floats-setting prefs prefs-path _popup option #(invalidate-grids! app-view)))
-
-(defmethod popup/settings-row [:grid :color]
-  [app-view prefs prefs-path _popup [_ option]]
-  (popup/color-setting prefs prefs-path _popup option #(invalidate-grids! app-view)))
-
-(defmethod popup/settings-row [:grid :active-plane]
-  [app-view prefs prefs-path _popup [_ option]]
-  (popup/vec3-toggle-setting prefs prefs-path _popup option "Plane" #(invalidate-grids! app-view)))
-
-(defn show-settings! [app-view ^Parent owner prefs]
+(defn show-settings! [^Parent owner app-view prefs localization app-view]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         ignore-options (g/node-value grid :options)]
-    (popup/show-settings! owner prefs 220 [:scene :grid]
-                          [[:size :x] [:size :y] [:size :z] [:active-plane] [:color] [:opacity]]
+    (popup/show-settings! owner prefs localization 220 [:scene :grid]
+                          [{:key :size :type :vec3-floats}
+                           {:key :active-plane :type :vec3-toggle :label "scene-popup.grid-plane"}
+                           {:key :color :type :color :label "scene-popup.opacity"}
+                           {:key :opacity :type :slider :label "scene-popup.opacity" :min 0.0 :max 1.0}]
                           ignore-options
                           #(invalidate-grids! app-view))))

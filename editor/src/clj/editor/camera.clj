@@ -18,6 +18,7 @@
             [editor.graph-util :as gu]
             [editor.input :as i]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -1179,22 +1180,9 @@
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
 
-(defmethod popup/settings-row [:perspective-camera :speed]
-  [prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting prefs popup option prefs-path "Move Speed" 1.0 3.0))
-
-(defmethod popup/settings-row [:perspective-camera :look-sensitivity]
-  [prefs prefs-path ^PopupControl popup [_ option]]
-  (popup/slider-setting prefs popup option prefs-path "Look Sensitivity" 0.02 0.5))
-
-(defmethod popup/settings-row [:perspective-camera :invert-y]
-  [prefs prefs-path _popup [_ option]]
-  (popup/toggle-setting prefs _popup option prefs-path "Invert Y" nil))
-
-(defmethod popup/settings-row [:perspective-camera :walking-mode]
-  [prefs prefs-path _popup [_ option]]
-  (popup/toggle-setting prefs _popup option prefs-path "Walking Mode" nil))
-
-(defn show-settings! [^Parent owner prefs]
-  (popup/show-settings! owner prefs 260 [:scene :perspective-camera]
-                        [[:speed] [:look-sensitivity] [:invert-y] [:walking-mode]]))
+(defn show-settings! [^Parent owner prefs localization]
+  (popup/show-settings! owner prefs localization 260 [:scene :perspective-camera]
+                        [{:key :speed :type :slider :label "scene-popup.move-speed" :min 1.0 :max 3.0}
+                         {:key :look-sensitivity :type :slider :label "scene-popup.look-sensitivity" :min 0.02 :max 0.5}
+                         {:key :invert-y :type :toggle :label "scene-popup.invert-y"}
+                         {:key :walking-mode :type :toggle :label "scene-popup.walking-mode"}]))

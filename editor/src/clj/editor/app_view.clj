@@ -537,25 +537,24 @@
           .getContent
           (.lookup button-id)))
 
-(defn- show-popup-settings [app-view scene-visibility prefs button-id show-fn]
-  (when-some [btn (some-> (g/node-value app-view :active-tab)
-                          (get-settings-button button-id))]
-    (show-fn btn prefs)))
-
 (defn- show-settings-state [app-view scene-visibility button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)
           (get-settings-button button-id)
           (scene-visibility/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
-  (run [app-view scene-visibility prefs]
-    (show-popup-settings app-view scene-visibility prefs "#show-grid-settings" grid/show-settings!))
+  (run [app-view scene-visibility prefs localization]
+    (when-some [btn (some-> (g/node-value app-view :active-tab)
+                            (get-settings-button "#show-grid-settings"))]
+      (grid/show-settings! btn app-view prefs localization app-view)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view scene-visibility "#show-grid-settings" evaluation-context)))
 
 (handler/defhandler :scene.perspective-camera.show-settings :workbench
-  (run [app-view scene-visibility prefs]
-    (show-popup-settings app-view scene-visibility prefs "#show-perspective-camera-settings" camera/show-settings!))
+  (run [app-view scene-visibility prefs localization]
+    (when-some [btn (some-> (g/node-value app-view :active-tab)
+                            (get-settings-button "#show-perspective-camera-settings"))]
+      (camera/show-settings! btn prefs localization)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view scene-visibility "#show-perspective-camera-settings" evaluation-context)))
 
