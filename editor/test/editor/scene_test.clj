@@ -14,27 +14,13 @@
 
 (ns editor.scene-test
   (:require [clojure.test :refer :all]
-            [editor.scene :as scene]))
+            [editor.geom :as geom]
+            [editor.gl.pass :as pass]
+            [editor.scene :as scene])
+  (:import [javax.vecmath Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(deftest collapse-property-preview-overrides-test
-  (testing "collapses node-id-path keyed overrides to node-id keyed overrides"
-    (is (= {1 {:position [1.0 2.0 3.0]}
-            2 {:scale [2.0 2.0 2.0]}}
-           (scene/collapse-property-preview-overrides {[7 1] {:position [1.0 2.0 3.0]}
-                                                       [8 2] {:scale [2.0 2.0 2.0]}}))))
-
-  (testing "preserves identical overrides that collapse onto the same node-id"
-    (is (= {1 {:position [1.0 2.0 3.0]}}
-           (scene/collapse-property-preview-overrides {[7 1] {:position [1.0 2.0 3.0]}
-                                                       [8 1] {:position [1.0 2.0 3.0]}}))))
-
-  (testing "fails fast on conflicting overrides for the same node-id/property"
-    (is (thrown? AssertionError
-                 (scene/collapse-property-preview-overrides {[7 1] {:position [1.0 2.0 3.0]}
-                                                             [8 1] {:position [4.0 5.0 6.0]}})))))
 
 (deftest overlay-selected-node-properties-test
   (let [selected-node-properties
@@ -67,3 +53,52 @@
     (testing "returns the original payload when preview overrides are absent"
       (is (= selected-node-properties
              (scene/overlay-selected-node-properties selected-node-properties nil))))))
+
+(deftest flatten-scene-renderables-same-node-id-preview-overrides-test
+  (let [preview-user-data (atom [])
+        scene {:node-id 0
+               :renderable {:passes [pass/transparent]
+                            :batch-key :batch
+                            :select-batch-key :batch}
+               :children [{:node-id 1
+                           :renderable {:passes [pass/transparent]
+                                        :batch-key :batch
+                                        :select-batch-key :batch}
+                           :children [{:node-id 1
+                                       :renderable {:passes [pass/transparent]
+                                                    :batch-key :batch
+                                                    :select-batch-key :batch
+                                                    :preview-fn (fn [local-aabb user-data override-value-by-prop-kw]
+                                                                  (swap! preview-user-data conj override-value-by-prop-kw)
+                                                                  [local-aabb user-data])}}]}]}
+        preview-overrides {1 {:position [1.0 2.0 3.0]
+                              :custom :value}}
+        renderables-by-pass (-> (#'scene/make-pass-renderables)
+                                (#'scene/flatten-scene-renderables!
+                                  true
+                                  true
+                                  scene
+                                  preview-overrides
+                                  #{}
+                                  #{}
+                                  #{}
+                                  geom/Identity4d
+                                  []
+                                  [(:node-id scene)]
+                                  geom/NoRotation
+                                  (Vector3d. 1.0 1.0 1.0)
+                                  geom/Identity4d
+                                  (fn [_node-id] 1))
+                                (#'scene/persist-pass-renderables!))
+        [_root-renderable parent-renderable child-renderable] (get renderables-by-pass pass/transparent)]
+    (testing "transform preview overrides are only applied once for repeated node ids"
+      (is (= [1.0 2.0 3.0]
+             [(.x ^Vector3d (:world-translation parent-renderable))
+              (.y ^Vector3d (:world-translation parent-renderable))
+              (.z ^Vector3d (:world-translation parent-renderable))]))
+      (is (= [1.0 2.0 3.0]
+             [(.x ^Vector3d (:world-translation child-renderable))
+              (.y ^Vector3d (:world-translation child-renderable))
+              (.z ^Vector3d (:world-translation child-renderable))])))
+    (testing "child preview-fn still receives non-transform overrides"
+      (is (= [{:custom :value}] @preview-user-data)))))
