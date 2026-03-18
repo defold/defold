@@ -529,6 +529,7 @@
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
+            (g/connect app-view :selected-node-properties view :selected-node-properties)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])

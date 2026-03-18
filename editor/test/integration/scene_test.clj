@@ -121,6 +121,11 @@
   ^Vector3d [node]
   (doto (Vector3d.) (math/clj->vecmath (g/node-value node :scale))))
 
+(defn- displayed-property-value [view node-id prop-kw]
+  (get-in (first (filter #(= node-id (:node-id %))
+                         (g/node-value view :displayed-node-properties)))
+          [:properties prop-kw :value]))
+
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"
            (test-util/with-loaded-project
@@ -150,6 +155,25 @@
                (is (= 1.0 (.x (scale go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 1.0 (.x (scale go-node))))))))
+
+(deftest displayed-node-properties-preview-overrides
+  (testing "Scene view shows preview overrides in displayed node properties during drag"
+    (test-util/with-loaded-project
+      (let [path "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))]
+        (test-util/mouse-click! view 64 64)
+        (is (test-util/selected? app-view go-node))
+        (test-util/set-active-tool! app-view :move)
+        (let [initial-position (displayed-property-value view go-node :position)]
+          (test-util/mouse-press! view 64 64)
+          (test-util/mouse-move! view 68 64)
+          (let [preview-position (displayed-property-value view go-node :position)]
+            (is (not= initial-position preview-position))
+            (is (not= (g/node-value go-node :position) preview-position)))
+          (test-util/mouse-release! view 68 64)
+          (is (= (g/node-value go-node :position)
+                 (displayed-property-value view go-node :position))))))))
 
 (deftest delete-undo-delete-selection
   (testing "Scene generation"
