@@ -2007,9 +2007,9 @@ form.help.project.shader.output_spirv = This setting is deprecated. Compile and 
 form.label.project.shader.exclude_gles_sm100 = Exclude GLES 2.0
 form.help.project.shader.exclude_gles_sm100 = Don't compile shaders for devices running OpenGLES 2.0 / WebGL 1.0
 form.label.project.shader.glsl_es_default_precision_float = GLSL ES float precision
-form.help.project.shader.glsl_es_default_precision_float = Default float precision to use in GLSL ES shaders when not explicitly specified
+form.help.project.shader.glsl_es_default_precision_float = Default global precision qualifier for floats (GLSL ES only)
 form.label.project.shader.glsl_es_default_precision_int = GLSL ES int precision
-form.help.project.shader.glsl_es_default_precision_int = Default int precision to use in GLSL ES shaders when not explicitly specified
+form.help.project.shader.glsl_es_default_precision_int = Default global precision qualifier for integers (GLSL ES only)
 
 form.label.project.library = Library
 form.help.project.library = Settings for when this project is used as a library by another project

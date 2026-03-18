@@ -165,10 +165,8 @@ public class ShaderUtil {
                     // Normally, the ES2ToES3Converter would do this
                     String floatPrec = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
                     writer.println("precision " + floatPrec + " float;");
-                    if (defaultIntPrecision != null) {
-                        String intPrec = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                        writer.println("precision " + intPrec + " int;");
-                    }
+                    String intPrec = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                    writer.println("precision " + intPrec + " int;");
                 }
 
                 if (!gles) {
