@@ -204,9 +204,30 @@ public class Shaderc {
         }
     };
 
+    public enum ShaderPrecision {
+        SHADER_PRECISION_MEDIUMP(0),
+        SHADER_PRECISION_HIGHP(1);
+        private final int value;
+        private ShaderPrecision(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ShaderPrecision fromValue(int value) throws IllegalArgumentException {
+            for (ShaderPrecision e : ShaderPrecision.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ShaderPrecision: %d", value) );
+        }
+    };
+
     public static class ShaderCompilerOptions {
         public int version = 0;
         public String entryPoint;
+        public ShaderPrecision glslEsDefaultFloatPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public ShaderPrecision glslEsDefaultIntPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public byte removeUnusedVariables = 0;
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
