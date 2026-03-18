@@ -166,18 +166,18 @@
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language max-page-count float-precision int-precision)
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count float-precision int-precision)
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
                                       shader-path)]
               (throw (decorate-transpile-error
-                       cause shader-type shader-path shader-source max-page-count
+                       cause shader-type shader-path shader-source ^long max-page-count
                        :error-line-number error-line-number
                        :error-proj-path error-proj-path))))
           (catch Exception cause
             (throw (decorate-transpile-error
-                     cause shader-type shader-path shader-source max-page-count))))
+                     cause shader-type shader-path shader-source ^long max-page-count))))
 
         transpiled-shader-source (.source glsl-compile-result)
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
@@ -190,7 +190,7 @@
           (map make-attribute-reflection-info))]
 
     {:shader-type shader-type
-     :max-page-count max-page-count
+     :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
      :array-sampler-names array-sampler-names

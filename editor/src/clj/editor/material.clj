@@ -181,7 +181,7 @@
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (shader-gen/transpile-shader-source shader-proj-path shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
+      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
