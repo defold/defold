@@ -299,6 +299,8 @@ namespace dmGameSystem
                 0, 0,
                 0);
 
+        // prio: 1000 comp_light.cpp
+
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate, CompSpriteGetComponent,

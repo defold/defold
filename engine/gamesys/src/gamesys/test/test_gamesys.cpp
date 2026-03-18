@@ -3868,6 +3868,23 @@ ResourceFailParams invalid_data_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_resources));
 
+/* Light */
+
+const char* valid_light_resources[] = {"/light/valid.lightc"};
+INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
+
+ResourceFailParams invalid_light_resources[] =
+{
+    {"/light/valid.lightc", "/light/missing.lightc"},
+};
+INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
+
+const char* valid_light_gos[] = {"/light/valid_light.goc"};
+INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));
+
+const char* invalid_light_gos[] = {"/light/invalid_light.goc"};
+INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, jc_test_values_in(invalid_light_gos));
+
 /* Script */
 
 const char* valid_script_resources[] = {"/script/valid.scriptc"};
@@ -4121,6 +4138,7 @@ ScriptComponentTestParams script_component_test_params[] =
     {"/camera/test_comp.goc",             "camerac",            "camera"},
     {"/factory/test_comp.goc",            "factoryc",           "factory"},
     {"/label/test_comp.goc",              "labelc",             "label"},
+    {"/light/test_comp.goc",              "lightc",             "light"},
     {"/mesh/test_comp.goc",               "meshc",              "mesh"},
     {"/model/test_comp.goc",              "modelc",             "model"},
     {"/particlefx/test_comp.goc",         "particlefxc",        "particlefx"},

@@ -446,5 +446,10 @@ public class ProtoBuilders {
     @BuilderParams(name="Data", inExts=".data", outExt=".datac")
     public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 
-
+    // .light is the same backing data type as the data resource.
+    // Using an alias approach hasmostly semantic value for users,
+    // as the intent is more clear.
+    @ProtoParams(srcClass = Data.class, messageClass = Data.class)
+    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
+    public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 }
