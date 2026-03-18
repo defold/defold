@@ -1462,7 +1462,7 @@ bail:
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
         assert(allocator);
-        delete[] allocator->m_DescriptorSets;
+        free(allocator->m_DescriptorSets);
         allocator->m_DescriptorSets = 0x0;
 
         for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
