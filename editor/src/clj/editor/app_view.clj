@@ -540,7 +540,7 @@
 (defn- show-popup-settings [app-view scene-visibility prefs button-id show-fn]
   (when-some [btn (some-> (g/node-value app-view :active-tab)
                           (get-settings-button button-id))]
-    (show-fn app-view btn prefs)))
+    (show-fn btn prefs)))
 
 (defn- show-settings-state [app-view scene-visibility button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)

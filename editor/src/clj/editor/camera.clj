@@ -935,12 +935,6 @@
   (g/set-property! camera-node :cursor-type :default)
   (g/user-data-swap! camera-node ::camera-state update :free-cam-mode (constantly false)))
 
-(defn combo-active? [^KeyCodeCombination combo pressed-keys modifiers]
-  (and (contains? pressed-keys (.getCode combo))
-       (= (contains? modifiers :shift) (= (.getShift combo) KeyCombination$ModifierValue/DOWN))
-       (= (contains? modifiers :alt)   (= (.getAlt combo)   KeyCombination$ModifierValue/DOWN))
-       (= (contains? modifiers :ctrl)  (= (.getControl combo) KeyCombination$ModifierValue/DOWN))))
-
 (defn handle-input [self input-state action _user-data]
   (let [image-view (g/node-value self :image-view)
         camera-state (or (g/user-data self ::camera-state) {:movement :idle})
@@ -1059,15 +1053,17 @@
         [cursor-x cursor-y last-x last-y]))
     [cursor-x cursor-y last-x last-y]))
 
-(defn compute-target-dir [pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up]
+(defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
+
+(defn- compute-target-dir [pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up]
   (let [target-dir (Vector3d.)
         {:keys [forward left backward right down up]} free-cam-shortcuts]
-    (when (some #(combo-active? % pressed-keys modifiers) forward)  (.add target-dir camera-forward))
-    (when (some #(combo-active? % pressed-keys modifiers) backward) (.sub target-dir camera-forward))
-    (when (some #(combo-active? % pressed-keys modifiers) right)    (.add target-dir camera-right))
-    (when (some #(combo-active? % pressed-keys modifiers) left)     (.sub target-dir camera-right))
-    (when (some #(combo-active? % pressed-keys modifiers) down)     (.sub target-dir camera-up))
-    (when (some #(combo-active? % pressed-keys modifiers) up)       (.add target-dir camera-up))
+    (when (contains-key-code? pressed-keys forward)  (.add target-dir camera-forward))
+    (when (contains-key-code? pressed-keys backward) (.sub target-dir camera-forward))
+    (when (contains-key-code? pressed-keys right)    (.add target-dir camera-right))
+    (when (contains-key-code? pressed-keys left)     (.sub target-dir camera-right))
+    (when (contains-key-code? pressed-keys down)     (.sub target-dir camera-up))
+    (when (contains-key-code? pressed-keys up)       (.add target-dir camera-up))
     target-dir))
 
 (defn- handle-update-tick [self input-state dt]
@@ -1170,12 +1166,12 @@
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
   (output free-cam-shortcuts g/Any :cached (g/fnk [keymap]
-                                             (let [forward  (keymap/shortcuts keymap :scene.free-camera.forward)
-                                                   left     (keymap/shortcuts keymap :scene.free-camera.left)
-                                                   backward (keymap/shortcuts keymap :scene.free-camera.backward)
-                                                   right    (keymap/shortcuts keymap :scene.free-camera.right)
-                                                   down     (keymap/shortcuts keymap :scene.free-camera.down)
-                                                   up       (keymap/shortcuts keymap :scene.free-camera.up)]
+                                             (let [forward  (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.forward))
+                                                   left     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.left))
+                                                   backward (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.backward))
+                                                   right    (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.right))
+                                                   down     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.down))
+                                                   up       (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.up))]
                                                {:forward forward :left left :backward backward :right right :down down :up up
                                                 :all (into [] cat [forward left backward right down up])})))
 

@@ -826,6 +826,11 @@
                          (.getName code)))))
      (.toString sb))))
 
+(defn shortcut-key-codes
+  "Returns a set of KeyCodes for a command's shortcuts, ignoring modifiers"
+  [keymap shortcuts]
+  (into #{} (map #(.getCode ^KeyCodeCombination %)) shortcuts))
+
 ;; TODO: remove migration from legacy keymap file after sufficient time has passed (e.g. after 2026-04-08)
 
 (defn migrate-from-file! [prefs]
