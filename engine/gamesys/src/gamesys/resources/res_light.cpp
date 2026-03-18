@@ -208,9 +208,14 @@ namespace dmGameSystem
 
     static inline void ReleaseResources(dmResource::HFactory factory, dmRender::HRenderContext render_context, LightResource* resource)
     {
+        if (!resource)
+            return;
+
         if (resource->m_LightPrototype)
         {
             dmRender::DeleteLightPrototype(render_context, resource->m_LightPrototype);
+            // Avoid double-deletion if recreate/destroy happens after a failed reload.
+            resource->m_LightPrototype = 0;
         }
     }
 
@@ -218,6 +223,8 @@ namespace dmGameSystem
     {
         LightResource* light_resource = (LightResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
+        if (!light_resource)
+            return dmResource::RESULT_OK;
         ReleaseResources(params->m_Factory, render_context, light_resource);
         delete light_resource;
         return dmResource::RESULT_OK;
@@ -240,6 +247,7 @@ namespace dmGameSystem
         dmRender::LightPrototypeParams light_params;
         if (DDFToLightParams(ddf, light_params) != LIGHT_PARSE_RESULT_OK)
         {
+            dmDDF::FreeMessage(ddf);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         light_resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, light_params);
