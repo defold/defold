@@ -41,13 +41,14 @@
 (s/def ::prop-value any?)
 (s/def ::tx-data g/tx-data?)
 (s/def ::prop-kw->override-value (s/map-of ::prop-kw ::prop-value))
-(s/def ::node-id-path->prop-kw->override-value (s/map-of ::node-id-path ::prop-kw->override-value))
+(s/def ::node-id->prop-kw->override-value (s/map-of ::node-id ::prop-kw->override-value))
 (s/def :manip/tx-data ::tx-data)
+(s/def :manip/node-id ::node-id)
 (s/def :manip/prop-kw->override-value ::prop-kw->override-value)
 (s/def ::manipulation (s/keys :req [(or :manip/tx-data
                                         :manip/prop-kw->override-value)]))
 (s/def ::manipulations (s/every ::manipulation))
-(s/def ::combined-manipulations (s/keys :opt-un [::tx-data ::node-id-path->prop-kw->override-value]))
+(s/def ::combined-manipulations (s/keys :opt-un [::tx-data ::node-id->prop-kw->override-value]))
 
 ;; TODO(drag-perf): `:default` implementation of `manip-*-preview` will always
 ;;   be ignored since there exists an implementation for the base SceneNode
@@ -514,15 +515,15 @@
   (coll/reduce-> manipulations {}
     (fn [combined-manipulations manipulation]
       {:pre [(s/assert ::manipulation manipulation)]}
-      (let [{:manip/keys [node-id-path tx-data prop-kw->override-value]} manipulation]
+      (let [{:manip/keys [node-id tx-data prop-kw->override-value]} manipulation]
         (cond-> combined-manipulations
 
                 (coll/not-empty tx-data)
                 (update :tx-data coll/into-vector tx-data)
 
                 (coll/not-empty prop-kw->override-value)
-                (update :node-id-path->prop-kw->override-value
-                        update (s/assert ::node-id-path node-id-path)
+                (update :node-id->prop-kw->override-value
+                        update (s/assert ::node-id node-id)
                         coll/merge prop-kw->override-value))))))
 
 (defn- apply-manipulator [manip-phase manip-opts original-values manip manip-space start-action action camera viewport initial-evaluation-context]
@@ -542,6 +543,7 @@
           {:pre [(ifn? manipulation-fn)]}
           (fn local-manipulation-fn [{:keys [node-id node-id-path]} local-delta]
             (-> (s/assert ::manipulation (manipulation-fn node-id local-delta manip-phase initial-evaluation-context))
+                (assoc :manip/node-id node-id)
                 (assoc :manip/node-id-path node-id-path))))
 
         manipulations-fn
@@ -623,7 +625,7 @@
                          initial-evaluation-context (g/node-value self :initial-evaluation-context)
                          combined-manipulations (apply-manipulator :manip-phase/preview manip-opts original-values manip manip-space start-action action camera viewport initial-evaluation-context)
                          preview-tx-data (:tx-data combined-manipulations)
-                         preview-overrides (:node-id-path->prop-kw->override-value combined-manipulations)]
+                         preview-overrides (:node-id->prop-kw->override-value combined-manipulations)]
                      ;; TODO(drag-perf): Show the preview-overrides in the property editor while dragging.
                      (when (or (not (coll/empty? preview-tx-data))
                                (not (coll/empty? preview-overrides)))

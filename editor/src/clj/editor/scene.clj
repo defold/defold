@@ -105,23 +105,6 @@
     (throw (ex-info "Unsupported scale value."
                     {:value value}))))
 
-(defn collapse-property-preview-overrides [preview-overrides]
-  (reduce-kv
-    (fn [overrides-by-node-id node-id-path prop-kw->override-value]
-      (let [node-id (peek node-id-path)]
-        (assert (some? node-id) "Expected non-empty node-id-path in preview override.")
-        (reduce-kv
-          (fn [overrides-by-node-id prop-kw override-value]
-            (let [existing-override-value (get-in overrides-by-node-id [node-id prop-kw] ::missing)]
-              (assert (or (= ::missing existing-override-value)
-                          (= existing-override-value override-value))
-                      (format "Conflicting preview override for node-id %s property %s." node-id prop-kw))
-              (assoc-in overrides-by-node-id [node-id prop-kw] override-value)))
-          overrides-by-node-id
-          prop-kw->override-value)))
-    {}
-    (or preview-overrides {})))
-
 (defn overlay-selected-node-properties [selected-node-properties preview-overrides]
   (if (or (nil? selected-node-properties)
           (coll/empty? preview-overrides))
@@ -409,6 +392,7 @@
 
 (defn- flatten-scene-renderables! [pass-renderables
                                    parent-shows-children
+                                   apply-transform-preview-overrides
                                    scene
                                    preview-overrides
                                    selection-set
@@ -428,33 +412,24 @@
         local-rotation (Quat4d. 0.0 0.0 0.0 1.0)
         local-scale (Vector3d. 1.0 1.0 1.0)
 
-        ;; Consume transform property overrides so they aren't applied to child
-        ;; scenes with the same node-id-path (common for parenting selection
-        ;; outlines). This also lets us know if we have any non-transform
-        ;; property overrides that should be passed on to the renderables
-        ;; associated :preview-fn, if present.
         override-value-by-prop-kw
-        (let [override-value-by-prop-kw (get preview-overrides node-id-path)
+        (let [override-value-by-prop-kw (get preview-overrides node-id)
               position-override (:position override-value-by-prop-kw)
               rotation-override (:rotation override-value-by-prop-kw)
               scale-override (:scale override-value-by-prop-kw)]
-          (when-not (and position-override rotation-override scale-override)
+          (when (or (not apply-transform-preview-overrides)
+                    (not (and position-override rotation-override scale-override)))
             (when-some [local-transform (:transform scene)]
               (math/split-mat4 local-transform local-translation local-rotation local-scale)))
-          (when position-override
+          (when (and apply-transform-preview-overrides position-override)
             (math/clj->vecmath local-translation position-override))
-          (when rotation-override
+          (when (and apply-transform-preview-overrides rotation-override)
             (math/clj->vecmath local-rotation rotation-override))
-          (when scale-override
+          (when (and apply-transform-preview-overrides scale-override)
             (math/clj->vecmath local-scale scale-override))
           (-> override-value-by-prop-kw
               (dissoc :position :rotation :scale)
               (coll/not-empty)))
-
-        child-preview-overrides
-        (if (nil? override-value-by-prop-kw)
-          (dissoc preview-overrides node-id-path)
-          (assoc preview-overrides node-id-path override-value-by-prop-kw))
 
         [local-aabb user-data]
         (let [local-aabb (:aabb scene geom/null-aabb)
@@ -531,8 +506,9 @@
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
                 (flatten-scene-renderables! pass-renderables
                                             (and parent-shows-children (:visible-children? renderable true))
+                                            (not is-child-node-same-as-parent)
                                             child-scene
-                                            child-preview-overrides
+                                            preview-overrides
                                             selection-set
                                             hidden-renderable-tags
                                             hidden-node-outline-key-paths
@@ -580,6 +556,7 @@
         parent-world-scale (Vector3d. 1 1 1)]
     (-> (make-pass-renderables)
         (flatten-scene-renderables! true
+                                    true
                                     scene
                                     preview-overrides
                                     selection-set
@@ -1105,8 +1082,7 @@
                                                                    tool-renderables)})))
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
-            (overlay-selected-node-properties selected-node-properties
-                                              (collapse-property-preview-overrides preview-overrides))))
+            (overlay-selected-node-properties selected-node-properties preview-overrides)))
 
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
@@ -1837,8 +1813,7 @@
   (output selection g/Any (gu/passthrough selection))
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
-            (overlay-selected-node-properties selected-node-properties
-                                              (collapse-property-preview-overrides preview-overrides))))
+            (overlay-selected-node-properties selected-node-properties preview-overrides)))
   (output picking-selection g/Any :cached produce-selection) ; PreviewView is used for click-driven tests, so must support regular selection/picking.
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
