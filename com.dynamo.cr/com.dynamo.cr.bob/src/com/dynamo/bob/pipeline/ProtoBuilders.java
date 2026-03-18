@@ -451,5 +451,5 @@ public class ProtoBuilders {
     // as the intent is more clear.
     @ProtoParams(srcClass = Data.class, messageClass = Data.class)
     @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
-    public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
+    public static class LightBuilder extends ProtoBuilder<Data.Builder> {}
 }
