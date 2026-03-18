@@ -19,7 +19,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.localization :as localization]
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
@@ -29,7 +28,6 @@
            [editor.types AABB Camera]
            [java.util List]
            [javafx.scene Parent]
-           [javafx.scene.control PopupControl]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
@@ -274,7 +272,7 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defn show-settings! [^Parent owner app-view prefs localization app-view]
+(defn show-settings! [^Parent owner app-view prefs localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         ignore-options (g/node-value grid :options)]

@@ -18,8 +18,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.ui :as ui]
-            [util.eduction :as e])
+            [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
            [javafx.css Styleable]

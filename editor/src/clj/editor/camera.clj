@@ -18,7 +18,6 @@
             [editor.graph-util :as gu]
             [editor.input :as i]
             [editor.keymap :as keymap]
-            [editor.localization :as localization]
             [editor.math :as math]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -27,9 +26,8 @@
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
            [javafx.scene Cursor Node Parent]
-           [javafx.scene.control PopupControl]
            [javafx.scene.image ImageView]
-           [javafx.scene.input KeyCode KeyCodeCombination KeyCombination$ModifierValue]
+           [javafx.scene.input KeyCode]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -744,14 +742,14 @@
                     (.setColumn 0 right)
                     (.setColumn 1 up)
                     (.setColumn 2 at))))]
-    (types/->Camera (:type to) p r
-                    (lerp (:z-near from) (:z-near to) t)
-                    (lerp (:z-far from) (:z-far to) t)
-                    (lerp (:fov-x from) (:fov-x to) t)
-                    (lerp (:fov-y from) (:fov-y to) t)
-                    fp
-                    (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
-                    filter-fn)))
+    (Camera. (:type to) p r
+             (lerp (:z-near from) (:z-near to) t)
+             (lerp (:z-far from) (:z-far to) t)
+             (lerp (:fov-x from) (:fov-x to) t)
+             (lerp (:fov-y from) (:fov-y to) t)
+             fp
+             (.distance p (Point3d. (.x fp) (.y fp) (.z fp)))
+             filter-fn)))
 
 (defn set-camera!
   ([camera-node start-camera end-camera animate?]
@@ -1056,7 +1054,7 @@
         [cursor-x cursor-y last-x last-y]))
     [cursor-x cursor-y last-x last-y]))
 
-(defn- compute-target-dir [pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up]
+(defn- compute-target-dir [pressed-keys free-cam-shortcuts camera-forward camera-right camera-up]
   (let [target-dir (Vector3d.)
         {:keys [forward left backward right down up]} free-cam-shortcuts]
     (when (contains-key-code? pressed-keys forward)  (.add target-dir camera-forward))
@@ -1096,7 +1094,7 @@
             dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))
             [camera camera-state] (look-rotation camera-state current-camera dx dy look-sensitivity dt)
             free-cam-shortcuts (g/node-value self :free-cam-shortcuts)
-            target-dir (compute-target-dir pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up)
+            target-dir (compute-target-dir pressed-keys free-cam-shortcuts camera-forward camera-right camera-up)
             final-camera (wasd-move (:free-cam-velocity camera-state) camera target-dir speed dt)]
         (g/user-data-swap! self ::camera-state merge camera-state)
         (when (not= final-camera current-camera)

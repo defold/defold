@@ -546,7 +546,7 @@
   (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
                             (get-settings-button "#show-grid-settings"))]
-      (grid/show-settings! btn app-view prefs localization app-view)))
+      (grid/show-settings! btn app-view prefs localization)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view scene-visibility "#show-grid-settings" evaluation-context)))
 
