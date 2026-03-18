@@ -3870,19 +3870,33 @@ INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_r
 
 /* Light */
 
-const char* valid_light_resources[] = {"/light/valid.lightc"};
+const char* valid_light_resources[] = {
+    "/light/valid_point.lightc",
+    "/light/valid_directional_light.lightc",
+    "/light/valid_spot_light.lightc"
+};
 INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
 
 ResourceFailParams invalid_light_resources[] =
 {
-    {"/light/valid.lightc", "/light/missing.lightc"},
+    {"/light/valid_point.lightc", "/light/invalid_point_missing_range.lightc"},
+    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_direction.lightc"},
+    {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"}
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
 
-const char* valid_light_gos[] = {"/light/valid_light.goc"};
+const char* valid_light_gos[] = {
+    "/light/valid_point_light.goc",
+    "/light/valid_directional_light.goc",
+    "/light/valid_spot_light.goc"
+};
 INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));
 
-const char* invalid_light_gos[] = {"/light/invalid_light.goc"};
+const char* invalid_light_gos[] = {
+    "/light/invalid_point_light.goc",
+    "/light/invalid_directional_light.goc",
+    "/light/invalid_spot_light.goc"
+};
 INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, jc_test_values_in(invalid_light_gos));
 
 /* Script */

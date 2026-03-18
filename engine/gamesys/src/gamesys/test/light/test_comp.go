@@ -1,6 +1,6 @@
 components {
   id: "light"
-  component: "/light/valid.light"
+  component: "/light/valid_point.light"
 }
 components {
   id: "script"
