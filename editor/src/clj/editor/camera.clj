@@ -425,8 +425,8 @@
                              (* factor (double (:fov-x target-camera))))
                 new-fov-y (+ (* (- 1.0 factor) (double (:fov-y camera)))
                              (* factor (double (:fov-y target-camera))))
-                threshold (* ^double (:fov-x camera) 0.008)]
-            (if (< (Math/abs (- new-fov-x (double (:fov-x target-camera)))) threshold)
+                threshold (* ^double (:fov-y camera) 0.008)]
+            (if (< (Math/abs (- new-fov-y (double (:fov-y target-camera)))) threshold)
               (do
                 (g/user-data-swap! camera-node ::camera-state dissoc :dolly-target-camera)
                 target-camera)
@@ -757,6 +757,9 @@
    (if animate?
      (let [duration 0.5]
        (g/transact (g/set-property camera-node :animating true))
+       ;; NOTE: If the user was dollying during an animation, cancel the dolly
+       (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
+         (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil))
        (ui/anim! duration
                  (fn [^double t]
                    (let [t (- (* t t 3) (* t t t 2))
