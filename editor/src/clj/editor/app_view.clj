@@ -369,7 +369,7 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input active-outline g/Any)
   (input active-scene g/Any)
-  (input properties-view g/NodeID :substitute nil)
+  (input properties-view g/NodeID)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
@@ -477,7 +477,7 @@
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
              properties-view (g/node-value app-view :properties-view evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
-             new-view-id (some-> new-active-tab editor-tab/view-node-id)
+             new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
 
              tx-data
              (when (and is-in-active-tab-pane
@@ -487,7 +487,7 @@
                    (g/set-property app-view :active-tab new-active-tab)
                    (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
                    (when properties-view
-                     (replace-connection basis new-view-id :displayed-node-properties properties-view :selected-node-properties))
+                     (replace-connection basis new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
                    (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
                      (replace-connection basis new-resource-node-id :scene app-view :active-scene)
                      (disconnect-sources basis app-view :active-scene)))))]
