@@ -102,7 +102,7 @@
   (let [camera (c/make-camera :perspective)
         camera (assoc camera :focus-distance 100.0)
         velocity (Vector3d. 0.0 0.0 0.0)
-        forward (Vector3d. 1.0 0.0 0.0) 
+        forward (Vector3d. 1.0 0.0 0.0)
         dt (/ 1.0 60.0)]
     (let [result (reduce
                    (fn [cam _]

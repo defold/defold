@@ -801,10 +801,11 @@
         new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)
         new-focus (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)]
     [(assoc new-camera :focus-point new-focus)
-     {:free-cam-pitch target-pitch
-      :free-cam-yaw target-yaw
-      :free-cam-smoothed-pitch new-smooth-pitch
-      :free-cam-smoothed-yaw new-smooth-yaw}]))
+     (assoc camera-state
+       :free-cam-pitch target-pitch
+       :free-cam-yaw target-yaw
+       :free-cam-smoothed-pitch new-smooth-pitch
+       :free-cam-smoothed-yaw new-smooth-yaw)]))
 
 (defn- wasd-move [^Vector3d free-cam-velocity camera ^Vector3d target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
