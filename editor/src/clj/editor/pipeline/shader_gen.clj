@@ -163,12 +163,10 @@
          (pos? (count shader-source))]}
   (let [shader-type (graphics.types/filename-shader-type shader-path)
         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
-        float-precision (precision-string->enum float-precision-str)
-        int-precision (precision-string->enum int-precision-str)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count float-precision int-precision)
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
