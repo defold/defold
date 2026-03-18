@@ -104,13 +104,21 @@
                               pb-shader-languages-without-gles-sm100
                               pb-default-shader-languages)
         float-precision (glsl-precision-string->enum glsl-es-default-precision-float)
-        int-precision (glsl-precision-string->enum glsl-es-default-precision-int)
-        shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count) float-precision int-precision)
-        shader-desc (.-shaderDesc shader-desc-build-result)]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource build-resource
-       :shader-reflection (when shader-desc (.getReflection shader-desc))
-       :build-fn build-shader
-       :user-data {:shader-desc shader-desc
-                   :compile-warning-messages (.buildWarnings shader-desc-build-result)}})))
+        int-precision (glsl-precision-string->enum glsl-es-default-precision-int)]
+    (cond
+      (g/error-value? float-precision)
+      float-precision
+
+      (g/error-value? int-precision)
+      int-precision
+
+      :else
+      (let [shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count) float-precision int-precision)
+            shader-desc (.-shaderDesc shader-desc-build-result)]
+        (bt/with-content-hash
+          {:node-id node-id
+           :resource build-resource
+           :shader-reflection (when shader-desc (.getReflection shader-desc))
+           :build-fn build-shader
+           :user-data {:shader-desc shader-desc
+                       :compile-warning-messages (.buildWarnings shader-desc-build-result)}})))))
