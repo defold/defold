@@ -781,12 +781,12 @@
                                (recur (.getParent current)))))]
     (.pseudoClassStateChanged ^Node tab-content (PseudoClass/getPseudoClass "free-cam-mode-active") active)))
 
-(defn- look-delta [camera-state current-camera dx dy look-sensitivity dt]
+(defn- look-rotation [camera-state current-camera dx dy look-sensitivity dt]
   (let [max-pitch 86.0
         smoothing-rate -15.0
-        {:keys [^double free-cam-pitch ^double free-cam-yaw ^double smooth-pitch ^double smooth-yaw]} camera-state
-        smooth-yaw (or smooth-yaw free-cam-yaw)
-        smooth-pitch (or smooth-pitch free-cam-pitch)
+        {:keys [^double free-cam-pitch ^double free-cam-yaw ^double free-cam-smoothed-pitch ^double free-cam-smoothed-yaw]} camera-state
+        smooth-yaw (or free-cam-smoothed-yaw free-cam-yaw)
+        smooth-pitch (or free-cam-smoothed-pitch free-cam-pitch)
         target-yaw (+ free-cam-yaw (* ^double dx ^double look-sensitivity))
         target-pitch (max (- max-pitch) (min max-pitch (+ free-cam-pitch (* ^double dy ^double look-sensitivity))))
         smoothing (- 1.0 (Math/pow 10.0 (* smoothing-rate ^double dt)))
@@ -800,10 +800,10 @@
     [(assoc new-camera :focus-point new-focus)
      {:free-cam-pitch target-pitch
       :free-cam-yaw target-yaw
-      :smooth-pitch new-smooth-pitch
-      :smooth-yaw new-smooth-yaw}]))
+      :free-cam-smoothed-pitch new-smooth-pitch
+      :free-cam-smoothed-yaw new-smooth-yaw}]))
 
-(defn- wasd-move [camera-node camera ^Vector3d target-dir speed dt]
+(defn- wasd-move [^Vector3d free-cam-velocity camera ^Vector3d target-dir speed dt]
   (when (not= (.length target-dir) 0.0)
     (.normalize target-dir))
 
@@ -811,16 +811,15 @@
         final-speed (* ^double speed ^double focus-distance 0.1)]
     (.scale target-dir final-speed)
 
-    (let [vel ^Vector3d (:free-cam-velocity (g/user-data camera-node ::camera-state))
-          diff (doto (Vector3d. target-dir) (.sub vel))
+    (let [diff (doto (Vector3d. target-dir) (.sub free-cam-velocity))
           damping 20.0]
       (.scale diff (* damping ^double dt))
-      (.add vel diff)
+      (.add free-cam-velocity diff)
       (when (= (.length target-dir) 0.0)
-        (.scale vel (Math/exp (* (- damping) ^double dt))))
+        (.scale free-cam-velocity (Math/exp (* (- damping) ^double dt))))
 
-      (if (> (.length vel) 0.001)
-        (let [offset (doto (Vector3d. vel) (.scale dt))
+      (if (> (.length free-cam-velocity) 0.001)
+        (let [offset (doto (Vector3d. free-cam-velocity) (.scale dt))
               new-camera (camera-move camera (.x offset) (.y offset) (.z offset))
               new-focus ^Point3d (math/offset-scaled (:position new-camera) (camera-forward-vector new-camera) focus-distance)]
           (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
@@ -919,9 +918,8 @@
         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
         :free-cam-pitch pitch
         :free-cam-yaw yaw
-        :smooth-pitch pitch
-        :smooth-yaw yaw
-        :free-cam-smoothed-look-delta [0.0 0.0]))))
+        :free-cam-smoothed-pitch pitch
+        :free-cam-smoothed-yaw yaw))))
 
 (defn stop-free-cam-mode! [image-view camera-node]
   (ui/set-cursor image-view Cursor/DEFAULT)
@@ -1095,10 +1093,10 @@
             dx (- (if mouse-delta (.dx mouse-delta) 0.0))
             dy (if mouse-delta (.dy mouse-delta) 0.0)
             dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))
-            [camera camera-state] (look-delta camera-state current-camera dx dy look-sensitivity dt)
+            [camera camera-state] (look-rotation camera-state current-camera dx dy look-sensitivity dt)
             free-cam-shortcuts (g/node-value self :free-cam-shortcuts)
             target-dir (compute-target-dir pressed-keys modifiers free-cam-shortcuts camera-forward camera-right camera-up)
-            final-camera (wasd-move self camera target-dir speed dt)]
+            final-camera (wasd-move (:free-cam-velocity camera-state) camera target-dir speed dt)]
         (g/user-data-swap! self ::camera-state merge camera-state)
         (when (not= final-camera current-camera)
           (set-camera! self current-camera final-camera false)))
