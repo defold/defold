@@ -1165,18 +1165,16 @@
   (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
-  (output free-cam-shortcuts g/Any :cached (g/fnk [keymap]
-                                             (let [forward  (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.forward))
-                                                   left     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.left))
-                                                   backward (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.backward))
-                                                   right    (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.right))
-                                                   down     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.down))
-                                                   up       (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.up))]
-                                               {:forward forward :left left :backward backward :right right :down down :up up
-                                                :all (into [] cat [forward left backward right down up])})))
-
-  (output input-handler Runnable :cached (g/constantly handle-input))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
+  (output free-cam-shortcuts g/Any :cached
+          (g/fnk [keymap]
+            (let [forward  (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.forward))
+                  left     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.left))
+                  backward (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.backward))
+                  right    (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.right))
+                  down     (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.down))
+                  up       (keymap/shortcut-key-codes keymap (keymap/shortcuts keymap :scene.free-camera.up))]
+              {:forward forward :left left :backward backward :right right :down down :up up
+               :all (into [] cat [forward left backward right down up])})))
 
 (defmethod popup/settings-row [:perspective-camera :speed]
   [prefs prefs-path ^PopupControl popup [_ option]]
