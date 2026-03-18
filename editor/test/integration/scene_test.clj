@@ -24,6 +24,7 @@
             [editor.system :as system]
             [editor.types :as types]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [editor.types AABB]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
@@ -121,10 +122,12 @@
   ^Vector3d [node]
   (doto (Vector3d.) (math/clj->vecmath (g/node-value node :scale))))
 
-(defn- displayed-property-value [view node-id prop-kw]
-  (get-in (first (filter #(= node-id (:node-id %))
-                         (g/node-value view :displayed-node-properties)))
-          [:properties prop-kw :value]))
+(defn- displayed-property-value [view-node-id node-id prop-kw]
+  (->> (g/node-value view-node-id :displayed-node-properties)
+       (coll/first-where #(= node-id (:node-id %)))
+       :properties
+       prop-kw
+       :value))
 
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"

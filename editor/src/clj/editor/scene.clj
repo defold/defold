@@ -105,25 +105,24 @@
     (throw (ex-info "Unsupported scale value."
                     {:value value}))))
 
-(defn overlay-selected-node-properties [selected-node-properties preview-overrides]
-  (if (or (nil? selected-node-properties)
+(defn displayed-node-properties [selected-node-properties preview-overrides]
+  (if (or (coll/empty? selected-node-properties)
           (coll/empty? preview-overrides))
     selected-node-properties
-    (mapv (fn [selected-node-property]
-            (let [node-id (:node-id selected-node-property)
-                  override-values (get preview-overrides node-id)]
-              (if (coll/empty? override-values)
-                selected-node-property
-                (update selected-node-property :properties
-                        (fn [properties]
-                          (reduce-kv
-                            (fn [properties prop-kw override-value]
-                              (if (contains? properties prop-kw)
-                                (assoc-in properties [prop-kw :value] override-value)
-                                properties))
-                            properties
-                            override-values))))))
-          selected-node-properties)))
+    (coll/into-> selected-node-properties []
+      (map (fn [selected-node-property]
+             (let [node-id (:node-id selected-node-property)
+                   prop-kw->override-value (get preview-overrides node-id)]
+               (if (coll/empty? prop-kw->override-value)
+                 selected-node-property
+                 (update
+                   selected-node-property :properties
+                   (fn [prop-kw->prop-info]
+                     (coll/reduce-kv-> prop-kw->override-value prop-kw->prop-info
+                       (fn [prop-kw->prop-info prop-kw override-value]
+                         (if (contains? prop-kw->prop-info prop-kw)
+                           (assoc-in prop-kw->prop-info [prop-kw :value] override-value)
+                           prop-kw->prop-info))))))))))))
 
 (defn- get-resource-name [node-id]
   (when-let [resource (some-> node-id resource-node/owner-resource)]
@@ -412,30 +411,45 @@
         local-rotation (Quat4d. 0.0 0.0 0.0 1.0)
         local-scale (Vector3d. 1.0 1.0 1.0)
 
-        override-value-by-prop-kw
-        (let [override-value-by-prop-kw (get preview-overrides node-id)
-              position-override (:position override-value-by-prop-kw)
-              rotation-override (:rotation override-value-by-prop-kw)
-              scale-override (:scale override-value-by-prop-kw)]
-          (when (or (not apply-transform-preview-overrides)
-                    (not (and position-override rotation-override scale-override)))
+        prop-kw->override-value
+        (let [prop-kw->override-value (get preview-overrides node-id)]
+          (if apply-transform-preview-overrides
+            ;; Apply transform property overrides, if present.
+            (let [position-override (:position prop-kw->override-value)
+                  rotation-override (:rotation prop-kw->override-value)
+                  scale-override (:scale prop-kw->override-value)]
+              ;; No need to extract non-overridden values from the local
+              ;; transform if all the transform properties are overridden.
+              (when-not (and position-override rotation-override scale-override)
+                (when-some [local-transform (:transform scene)]
+                  (math/split-mat4 local-transform local-translation local-rotation local-scale)))
+
+              ;; Apply transform property overrides. The clj->vecmath function
+              ;; writes directly to the supplied vecmath object.
+              (when position-override
+                (math/clj->vecmath local-translation position-override))
+              (when rotation-override
+                (math/clj->vecmath local-rotation rotation-override))
+              (when scale-override
+                (math/clj->vecmath local-scale scale-override)))
+
+            ;; We're not applying transform property preview overrides. Simply
+            ;; use the local transform, if present.
             (when-some [local-transform (:transform scene)]
               (math/split-mat4 local-transform local-translation local-rotation local-scale)))
-          (when (and apply-transform-preview-overrides position-override)
-            (math/clj->vecmath local-translation position-override))
-          (when (and apply-transform-preview-overrides rotation-override)
-            (math/clj->vecmath local-rotation rotation-override))
-          (when (and apply-transform-preview-overrides scale-override)
-            (math/clj->vecmath local-scale scale-override))
-          (-> override-value-by-prop-kw
+
+          ;; Consume the transform properties to determine if there are
+          ;; additional non-transform preview overrides, and we need to invoke
+          ;; the preview-fn associated with the renderable, if any.
+          (-> prop-kw->override-value
               (dissoc :position :rotation :scale)
               (coll/not-empty)))
 
         [local-aabb user-data]
         (let [local-aabb (:aabb scene geom/null-aabb)
               user-data (:user-data renderable)]
-          (if (and preview-fn override-value-by-prop-kw)
-            (preview-fn local-aabb user-data override-value-by-prop-kw)
+          (if (and preview-fn prop-kw->override-value)
+            (preview-fn local-aabb user-data prop-kw->override-value)
             (pair local-aabb user-data)))
 
         local-transform (math/->mat4-non-uniform local-translation local-rotation local-scale)
@@ -1082,7 +1096,7 @@
                                                                    tool-renderables)})))
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
-            (overlay-selected-node-properties selected-node-properties preview-overrides)))
+            (displayed-node-properties selected-node-properties preview-overrides)))
 
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
@@ -1813,7 +1827,7 @@
   (output selection g/Any (gu/passthrough selection))
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
-            (overlay-selected-node-properties selected-node-properties preview-overrides)))
+            (displayed-node-properties selected-node-properties preview-overrides)))
   (output picking-selection g/Any :cached produce-selection) ; PreviewView is used for click-driven tests, so must support regular selection/picking.
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)

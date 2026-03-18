@@ -616,6 +616,8 @@
                  1.0)
         fov-y (:fov-y local-camera)
         fov-x (* aspect fov-y)
+
+        ;; TODO(drag-perf): The clip planes need to update while dragging.
         [z-near z-far] (if (nil? scene-aabb)
                          [1.0 10000.0]
                          (find-z-extents (types/position local-camera)

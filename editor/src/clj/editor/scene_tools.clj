@@ -50,10 +50,6 @@
 (s/def ::manipulations (s/every ::manipulation))
 (s/def ::combined-manipulations (s/keys :opt-un [::tx-data ::node-id->prop-kw->override-value]))
 
-;; TODO(drag-perf): `:default` implementation of `manip-*-preview` will always
-;;   be ignored since there exists an implementation for the base SceneNode
-;;   node-type. Instead, merge `manip-*-preview` multimethod into `manip-*` with
-;;   a `:preview` or `:commit` mode argument.
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
@@ -626,7 +622,6 @@
                          combined-manipulations (apply-manipulator :manip-phase/preview manip-opts original-values manip manip-space start-action action camera viewport initial-evaluation-context)
                          preview-tx-data (:tx-data combined-manipulations)
                          preview-overrides (:node-id->prop-kw->override-value combined-manipulations)]
-                     ;; TODO(drag-perf): Show the preview-overrides in the property editor while dragging.
                      (when (or (not (coll/empty? preview-tx-data))
                                (not (coll/empty? preview-overrides)))
                        (g/transact
