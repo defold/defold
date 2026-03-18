@@ -1356,6 +1356,9 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
+            DeleteRenderTarget(_context, context->m_MainRenderTarget);
+            DeleteTexture(_context, context->m_CurrentSwapchainTexture);
+
             if (context->m_Instance != VK_NULL_HANDLE)
             {
                 vkDestroyInstance(context->m_Instance, 0);
@@ -1368,6 +1371,12 @@ bail:
             }
 
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
+                delete context->m_MainResourcesToDestroy[i];
+            }
 
             delete context;
             g_VulkanContext = 0x0;
@@ -3017,6 +3026,9 @@ bail:
         DestroyShader(context, program_ptr->m_VertexModule);
         DestroyShader(context, program_ptr->m_FragmentModule);
         DestroyShader(context, program_ptr->m_ComputeModule);
+        delete program_ptr->m_VertexModule;
+        delete program_ptr->m_FragmentModule;
+        delete program_ptr->m_ComputeModule;
 
         delete program_ptr;
     }
@@ -4305,14 +4317,19 @@ bail:
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        delete context->m_DefaultTexture2D;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        delete context->m_DefaultTexture2DArray;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+        delete context->m_DefaultTextureCubeMap;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
+        delete context->m_DefaultTexture2D32UI;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
+        delete context->m_DefaultStorageImage2D;
 
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
