@@ -364,6 +364,8 @@
         far-br (clip->world inv-view-proj clip-br 1.0)]
     (geom/corners->frustum near-tl near-tr near-bl near-br far-tl far-tr far-bl far-br)))
 
+(def ^:private dolly-delta-scale 0.0015)
+
 (defn- dolly-orthographic [camera ^double delta]
   (let [dolly-fn (fn [^double fov]
                    (min 1000000.0
@@ -959,7 +961,7 @@
                       alt (contains? (:modifiers input-state) :alt)
                       pan (or (and is-mode-2d (not alt))
                               (and (not is-mode-2d) alt))
-                      delta (* 0.002 (double (:delta-y action)))]
+                      delta (* ^double dolly-delta-scale (double (:delta-y action)))]
                   (if pan
                     (set-dolly-target! self delta (g/node-value self :viewport) (:view-pos input-state))
                     (set-dolly-target! self delta))
@@ -1033,7 +1035,7 @@
 
 (defn- warp-mouse-around-edges
   [^ImageView image-view [^double cursor-x ^double cursor-y] [last-x last-y]]
-  ;; TODO: We shouldn't have to check for image-view here, we shold be doing git before
+  ;; TODO: We shouldn't have to check for image-view here, we shold be doing it before
   (if (and image-view cursor-x last-x)
     (let [screen-w (.getFitWidth image-view)
           screen-h (.getFitHeight image-view)
@@ -1132,7 +1134,7 @@
                      filter-fn)
             camera (apply-dolly-interpolation self camera dt)]
         (when (and has-mouse-moved (= :dolly movement))
-          (set-dolly-target! self (* 0.002 (- mouse-y last-y))))
+          (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
         (g/set-property! self :local-camera camera)
         (when has-mouse-moved
           (g/user-data-swap! self ::camera-state assoc
