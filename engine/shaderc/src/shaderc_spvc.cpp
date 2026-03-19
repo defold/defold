@@ -14,10 +14,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include <spirv/spirv_cross_c.h>
 
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/dstrings.h>
 
 #include "shaderc_private.h"
 
@@ -514,6 +514,65 @@ namespace dmShaderc
     }
     #undef MAX_BINDINGS
 
+    template <typename T>
+    static void EnsureSize(dmArray<T>& array, uint32_t size)
+    {
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
+        }
+        array.SetSize(size);
+    }
+
+    static bool ReplaceString(const char *src, const char* search_str, const char *replacement, dmArray<char>* result_buf)
+    {
+        const char* found = strstr(src, search_str);
+        if (!found)
+        {
+            return false;
+        }
+
+        const char *line_end = found + strlen(search_str);
+        while (*line_end != '\n' && *line_end != '\0')
+        {
+            line_end++;
+        }
+
+        uint32_t prefix_len      = found - src;
+        uint32_t replacement_len = strlen(replacement);
+        uint32_t suffix_len      = strlen(line_end);
+        uint32_t total           = prefix_len + replacement_len + suffix_len + 1;
+
+        EnsureSize(*result_buf, total);
+
+        char* dst = result_buf->Begin();
+        memcpy(dst, src, prefix_len);
+        memcpy(dst + prefix_len, replacement, replacement_len);
+        memcpy(dst + prefix_len + replacement_len, line_end, suffix_len);
+        dst[total - 1] = '\0';
+
+        return true;
+    }
+
+    static bool ApplyHighpWorkaround(const char* src, dmArray<char>* result_buf, bool is_float_type)
+    {
+        const char* type_str = is_float_type ? "float" : "int";
+
+        char precision_buf[32] = {};
+        dmSnPrintf(precision_buf, sizeof(precision_buf), "precision highp %s;", type_str);
+
+        const char* replace_template =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+            "    precision highp %s;\n"
+            "#else\n"
+            "    precision mediump %s;\n"
+            "#endif";
+
+        char replace_buf[256] = {};
+        dmSnPrintf(replace_buf, sizeof(replace_buf), replace_template, type_str, type_str);
+
+        return ReplaceString(src, precision_buf, replace_buf, result_buf);
+    }
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
@@ -618,16 +677,46 @@ namespace dmShaderc
             compile_result_size = strlen(compile_result);
         }
 
+        const char* final_compile_result = compile_result;
+        uint32_t final_compile_result_size = compile_result_size;
+
+        dmArray<char> transform_buffer;
+
+        // highp qualifier might not be supported on ES2, so we need to apply a workaround.
+        if (compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
+        {
+            EnsureSize(transform_buffer, compile_result_size);
+            memcpy(transform_buffer.Begin(), compile_result, compile_result_size);
+
+            dmArray<char> tmp_buffer;
+
+            if (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP &&
+                ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, true))
+            {
+                EnsureSize(transform_buffer, tmp_buffer.Size());
+                memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
+            }
+            if (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP &&
+                ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, false))
+            {
+                EnsureSize(transform_buffer, tmp_buffer.Size());
+                memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
+            }
+
+            final_compile_result = transform_buffer.Begin();
+            final_compile_result_size = transform_buffer.Size();
+        }
+
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
         memset(result, 0, sizeof(ShaderCompileResult));
-        result->m_Data.SetCapacity(compile_result_size);
-        result->m_Data.SetSize(compile_result_size);
+        result->m_Data.SetCapacity(final_compile_result_size);
+        result->m_Data.SetSize(final_compile_result_size);
         result->m_LastError = "";
         result->m_HLSLNumWorkGroupsId = hlsl_num_workgroups_id_binding;
 
-        if (compile_result)
+        if (final_compile_result)
         {
-            memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
+            memcpy(result->m_Data.Begin(), final_compile_result, result->m_Data.Size());
         }
         else
         {

@@ -565,7 +565,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
-                    "precision highp int;\n" +
+                    "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                    "    precision highp int;\n" +
+                    "#else\n" +
+                    "    precision mediump int;\n" +
+                    "#endif\n" +
                     "#line 1\n" +
                     "void main() {\n" +
                     "    gl_FragColor = vec4(1.0);\n" +
@@ -664,7 +668,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String expectedEs100 =
             "#extension GL_OES_standard_derivatives : enable\n" +
             "\n" +
-            "precision highp float;\n" +
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+            "    precision highp float;\n" +
+            "#else\n" +
+            "    precision mediump float;\n" +
+            "#endif\n" +
             "precision mediump int;\n" +
             "#line 1\n" +
             "void main() {\n" +
@@ -979,6 +987,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String src = new String(result.data);
         assertTrue(src.contains("precision mediump float;"));
         assertTrue(src.contains("precision mediump int;"));
+        assertFalse(src.contains("GL_FRAGMENT_PRECISION_HIGH"));
 
         // Test highp
         opts.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
@@ -989,6 +998,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(result.data);
 
         src = new String(result.data);
+        assertTrue(src.contains("#ifdef GL_FRAGMENT_PRECISION_HIGH"));
         assertTrue(src.contains("precision highp float;"));
         assertTrue(src.contains("precision highp int;"));
 
