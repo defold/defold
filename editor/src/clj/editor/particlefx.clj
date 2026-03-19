@@ -922,7 +922,7 @@
                                   :ext ["material"]}))
             (dynamic error (g/fnk [_node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count]
                              (prop-resource-error :fatal _node-id :material material material-message)
-                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
+                             (validate-material _node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count))))
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
             (dynamic tooltip (validation/blend-mode-tip blend-mode Particle$BlendMode))
