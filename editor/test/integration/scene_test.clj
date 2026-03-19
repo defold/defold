@@ -73,6 +73,19 @@
                    renderables   (g/node-value view :all-renderables)]
                (is (reduce fn/and (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
+(deftest scene-aabb-matches-recursive-scene-bounds
+  (testing "Scene view scene-aabb matches recursive scene bounds for non-sprite resources"
+    (test-util/with-loaded-project
+      (doseq [path ["/label/test.label"
+                    "/label/embedded_label.go"
+                    "/label/embedded_label.collection"
+                    "/collision_object/three_shapes.collisionobject"
+                    "/game_object/sprite_with_collision.go"]]
+        (let [[resource-node view] (test-util/open-scene-view! project app-view path 128 128)]
+          (is (= (node-union-aabb resource-node)
+                 (g/node-value view :scene-aabb))
+              path))))))
+
 (deftest scene-selection
   (testing "Scene selection"
            (test-util/with-loaded-project
@@ -177,6 +190,22 @@
           (test-util/mouse-release! view 68 64)
           (is (= (g/node-value go-node :position)
                  (displayed-property-value view go-node :position))))))))
+
+(deftest scene-camera-clip-planes-follow-preview-overrides
+  (testing "Scene view camera clip planes respond to preview overrides before commit"
+    (test-util/with-loaded-project
+      (let [path "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            tool-controller (ffirst (g/sources-of view :preview-overrides))
+            initial-position (g/node-value go-node :position)
+            initial-camera (g/node-value view :camera)]
+        (g/set-property! tool-controller :preview-overrides {go-node {:position [0.0 0.0 -1000.0]}})
+        (let [preview-camera (g/node-value view :camera)]
+          (is (> (:z-far preview-camera) (:z-far initial-camera)))
+          (is (= initial-position (g/node-value go-node :position))))
+        (g/set-property! tool-controller :preview-overrides nil)
+        (is (= initial-position (g/node-value go-node :position)))))))
 
 (deftest delete-undo-delete-selection
   (testing "Scene generation"
@@ -371,7 +400,7 @@
        (every? output-renderable? coll)))
 
 (defn- produce-render-data [scene selection aux-renderables camera]
-  (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
+  (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-tags #{} :hidden-node-outline-key-paths #{} :local-camera camera})
         aux-render-data (scene/produce-aux-render-data {:aux-renderables aux-renderables :internal-renderables {} :hidden-renderable-tags []})]
     (scene/merge-render-datas aux-render-data {} scene-render-data)))
 

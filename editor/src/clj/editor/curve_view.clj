@@ -640,6 +640,7 @@
 
                                    (g/connect camera :_node-id view-id :camera-id)
                                    (g/connect grid :_node-id view-id :grid-id)
+                                   (g/connect camera :local-camera view-id :local-camera)
                                    (g/connect camera :camera view-id :camera)
                                    (g/connect camera :camera grid :camera)
                                    (g/connect camera :input-handler view-id :input-handlers)

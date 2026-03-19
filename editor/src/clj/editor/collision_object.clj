@@ -165,7 +165,7 @@
 (def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
 
 (defn- preview-sphere-shape-renderable
-  [local-aabb user-data prop-kw->override-value]
+  [visibility-aabb user-data prop-kw->override-value]
   (let [^Point3d ext-override
         (when-some [diameter-override (:diameter prop-kw->override-value)]
           (let [radius (* 0.5 (double diameter-override))
@@ -176,16 +176,16 @@
         (when ext-override
           (array/of-floats (.x ext-override) (.y ext-override) (.z ext-override)))
 
-        local-aabb
+        visibility-aabb
         (if ext-override
           (geom/mirrored-point->aabb ext-override)
-          local-aabb)
+          visibility-aabb)
 
         user-data
         (cond-> user-data
                 point-scale-override (assoc :point-scale point-scale-override))]
 
-    (pair local-aabb user-data)))
+    (pair visibility-aabb user-data)))
 
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
@@ -225,7 +225,7 @@
 
 
 (defn- preview-box-shape-renderable
-  [local-aabb user-data prop-kw->override-value]
+  [visibility-aabb user-data prop-kw->override-value]
   (let [^Point3d ext-override
         (when-some [dimensions-override (:dimensions prop-kw->override-value)]
           (let [[^double w ^double h ^double d] dimensions-override
@@ -238,16 +238,16 @@
         (when ext-override
           (array/of-floats (.x ext-override) (.y ext-override) (.z ext-override)))
 
-        local-aabb
+        visibility-aabb
         (if ext-override
           (geom/mirrored-point->aabb ext-override)
-          local-aabb)
+          visibility-aabb)
 
         user-data
         (cond-> user-data
                 point-scale-override (assoc :point-scale point-scale-override))]
 
-    (pair local-aabb user-data)))
+    (pair visibility-aabb user-data)))
 
 (g/defnk produce-box-shape-scene
   [_node-id transform dimensions color node-outline-key project-physics-type]
@@ -288,7 +288,7 @@
                                                  (assoc :point-count 8))}}]}))
 
 (defn- preview-capsule-shape-renderable
-  [local-aabb user-data prop-kw->override-value]
+  [visibility-aabb user-data prop-kw->override-value]
   (let [radius-override
         (when-some [diameter-override (:diameter prop-kw->override-value)]
           (* 0.5 (double diameter-override)))
@@ -314,17 +314,17 @@
         (when half-height-override
           (array/of-floats 0.0 half-height-override 0.0))
 
-        local-aabb
+        visibility-aabb
         (if ext-override
           (geom/mirrored-point->aabb ext-override)
-          local-aabb)
+          visibility-aabb)
 
         user-data
         (cond-> user-data
                 point-scale-override (assoc :point-scale point-scale-override)
                 point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
 
-    (pair local-aabb user-data)))
+    (pair visibility-aabb user-data)))
 
 (g/defnk produce-capsule-shape-scene
   [_node-id transform diameter height color node-outline-key project-physics-type]
