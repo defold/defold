@@ -43,9 +43,8 @@
   (conj PersistentQueue/EMPTY item))
 
 (defn- openable-resource [evaluation-context node-id]
-  (let [basis (:basis evaluation-context)
-        owner-resource-node-id (resource-node/owner-resource-node-id basis node-id)]
-    (when (g/node-instance? basis resource/ResourceNode owner-resource-node-id)
+  (let [basis (:basis evaluation-context)]
+    (when-let [owner-resource-node-id (resource-node/owner-resource-node-id basis node-id)]
       (when-some [resource (g/node-value owner-resource-node-id :resource evaluation-context)]
         (when (resource/openable-resource? resource)
           {:node-id owner-resource-node-id
