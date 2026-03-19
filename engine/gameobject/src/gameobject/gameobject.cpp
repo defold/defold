@@ -577,13 +577,18 @@ namespace dmGameObject
         HCollection hcollection = collection->m_HCollection;
         DetachCollection(collection);
         DeallocCollection(collection);
-        delete hcollection;
+        hcollection->m_Deleted = 1;
     }
 
     // Really should be renamed "DelayDelete"
     void DeleteCollection(HCollection hcollection)
     {
         hcollection->m_Collection->m_ToBeDeleted = 1;
+    }
+
+    bool IsCollectionDeleted(HCollection hcollection)
+    {
+        return hcollection->m_Deleted == 1;
     }
 
     uint32_t GetComponentTypeIndex(HCollection hcollection, dmhash_t type_hash)

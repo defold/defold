@@ -294,6 +294,7 @@ namespace dmGameObject
     struct CollectionHandle
     {
         Collection* m_Collection;
+        uint32_t    m_Deleted : 1;
     };
 
     // Used by res_collection.cpp
