@@ -1341,8 +1341,10 @@ bail:
         extensionNameCount         = 1;
     #endif
 
+        uint32_t vk_api_version = VK_MAKE_API_VERSION(0, 1, 0, 0);
+
         VkInstance inst;
-        VkResult res = CreateInstance(&inst, extensionNames, extensionNameCount, 0, 0, 0, 0);
+        VkResult res = CreateInstance(&inst, vk_api_version, extensionNames, extensionNameCount, 0, 0, 0, 0);
 
         if (res == VK_SUCCESS)
         {
@@ -1372,8 +1374,11 @@ bail:
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
+            uint32_t vk_api_version = VK_MAKE_API_VERSION(0, params.m_GraphicsApiVersionMajorHint, params.m_GraphicsApiVersionMinorHint, 0);
+
             VkInstance vk_instance;
             if (CreateInstance(&vk_instance,
+                                vk_api_version,
                                 extension_names, extension_names_count,
                                 validation_layers, validation_layers_count,
                                 validation_layers_ext, validation_layers_ext_count) != VK_SUCCESS)

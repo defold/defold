@@ -1569,6 +1569,8 @@ namespace dmGraphics
      * @member m_Height [type:uint32_t] Initial height of the rendering surface
      * @member m_GraphicsMemorySize [type:uint32_t] Maximum allowed graphics memory in bytes (0 for default/unlimited) (Switch)
      * @member m_SwapInterval [type:uint32_t] Vertical synchronization interval (1 for 60Hz, 2 for 30Hz, etc.) (Default = 1)
+     * @member m_GraphicsApiVersionMajorHint [type:uint16_t] Requested graphics API major version hint. A value of 0 lets the platform use its default.
+     * @member m_GraphicsApiVersionMinorHint [type:uint16_t] Requested graphics API minor version hint.
      * @member m_VerifyGraphicsCalls [type:bool] Enable API call verification for debugging
      * @member m_PrintDeviceInfo [type:bool] Print graphics device information at startup
      * @member m_UseValidationLayers [type:bool] Enable validation layers for debugging (Vulkan/DirectX 12 only)
@@ -1585,6 +1587,8 @@ namespace dmGraphics
         uint32_t              m_Height;
         uint32_t              m_GraphicsMemorySize;
         uint32_t              m_SwapInterval;
+        uint16_t              m_GraphicsApiVersionMajorHint;
+        uint16_t              m_GraphicsApiVersionMinorHint;
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
         uint8_t               m_UseValidationLayers : 1;
