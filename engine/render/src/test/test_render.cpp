@@ -1538,7 +1538,8 @@ TEST_F(dmRenderTest, TextAlignment)
 {
     dmRender::TextMetrics metrics = {0};
 
-    const int charwidth     = 2;
+    const int advance       = 2;
+    const int charwidth     = 1;
     const int ascent        = 2;
     const int descent       = 1;
     const int lineheight    = ascent + descent;
@@ -1556,7 +1557,7 @@ TEST_F(dmRenderTest, TextAlignment)
         numlines = 3;
 
         TextLayoutSettings settings = {0};
-        settings.m_Width        = 8*charwidth;
+        settings.m_Width        = 8*advance;
         settings.m_Leading      = leading;
         settings.m_Tracking     = tracking;
         settings.m_LineBreak    = true;
@@ -1564,7 +1565,7 @@ TEST_F(dmRenderTest, TextAlignment)
         dmRender::GetTextMetrics(font_backend, m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
         ASSERT_EQ(ascent, metrics.m_MaxAscent);
         ASSERT_EQ(descent, metrics.m_MaxDescent);
-        ASSERT_EQ(charwidth*7, metrics.m_Width);
+        ASSERT_EQ(advance*6+charwidth*1, metrics.m_Width);
         ASSERT_EQ(ExpectedHeight(lineheight, numlines, leading), metrics.m_Height);
 
 
@@ -1597,7 +1598,8 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     dmRender::TextMetrics metrics = {0};
 
-    const int charwidth     = 2;
+    const int advance       = 2;
+    const int charwidth     = 1;
     const int ascent        = 2;
     const int descent       = 1;
     const int lineheight    = ascent + descent;
@@ -1612,13 +1614,13 @@ TEST_F(dmRenderTest, GetTextMetrics)
     GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*11, metrics.m_Width);
+    ASSERT_EQ(advance*10+charwidth*1, metrics.m_Width);
     ASSERT_EQ(lineheight*1, metrics.m_Height);
 
     // line break in the middle of the sentence
     int numlines = 2;
 
-    settings.m_Width = 8*charwidth;
+    settings.m_Width = 8*advance;
     settings.m_Leading = 1.0f;
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
@@ -1626,11 +1628,11 @@ TEST_F(dmRenderTest, GetTextMetrics)
     GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*5, metrics.m_Width);
+    ASSERT_EQ(advance*4+charwidth*1, metrics.m_Width);
     ASSERT_EQ(lineheight*numlines, metrics.m_Height);
 
 
-    settings.m_Width = 8*charwidth;
+    settings.m_Width = 8*advance;
     settings.m_Leading = 2.0f;
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
@@ -1638,10 +1640,10 @@ TEST_F(dmRenderTest, GetTextMetrics)
     GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*5, metrics.m_Width);
+    ASSERT_EQ(advance*4+charwidth*1, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
 
-    settings.m_Width = 8*charwidth;
+    settings.m_Width = 8*advance;
     settings.m_Leading = 0.0f;
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
@@ -1649,10 +1651,10 @@ TEST_F(dmRenderTest, GetTextMetrics)
     GetTextMetrics(font_backend, m_SystemFontMap, "Hello World", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*5, metrics.m_Width);
+    ASSERT_EQ(advance*4+charwidth*1, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
 
-    settings.m_Width = 8*charwidth;
+    settings.m_Width = 8*advance;
     settings.m_Leading = 1.0f;
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
@@ -1661,7 +1663,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     GetTextMetrics(font_backend, m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
-    ASSERT_EQ(charwidth*7, metrics.m_Width);
+    ASSERT_EQ(advance*6+charwidth*1, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, settings.m_Leading), metrics.m_Height);
     ASSERT_EQ(numlines, metrics.m_LineCount);
 
