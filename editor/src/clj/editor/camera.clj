@@ -409,7 +409,7 @@
   (let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (if (nil? target-camera)
       camera
-      (let [factor (min 1.0 (* dt (/ 1.0 ^double zoom-inertia)))
+      (let [factor (- 1.0 (Math/exp (- (/ dt ^double zoom-inertia))))
             [new-pos ^Vector4d new-fp] (interpolate-position-and-focus-point camera target-camera factor)]
         (case (:type camera)
           :perspective
@@ -817,8 +817,9 @@
     (.scale target-dir final-speed)
 
     (let [diff (doto (Vector3d. target-dir) (.sub free-cam-velocity))
-          damping 20.0]
-      (.scale diff (* damping ^double dt))
+          damping 20.0
+          factor (- 1.0 (Math/exp (* (- damping) ^double dt)))]
+      (.scale diff factor)
       (.add free-cam-velocity diff)
       (when (= (.length target-dir) 0.0)
         (.scale free-cam-velocity (Math/exp (* (- damping) ^double dt))))
