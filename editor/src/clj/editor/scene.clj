@@ -201,28 +201,26 @@
 (defn vp-not-empty? [^Region viewport]
   (not (types/empty-space? viewport)))
 
-(defn z-distance [^Matrix4d view-proj ^Matrix4d world-transform]
+(defn z-distance [^Matrix4d view-matrix ^Matrix4d world-transform]
   (let [^Matrix4d t (or world-transform geom/Identity4d)
         tmp-v4d (Vector4d.)]
     (.getColumn t 3 tmp-v4d)
-    (.transform view-proj tmp-v4d)
-    (let [ndc-z (/ (.z tmp-v4d) (.w tmp-v4d))
-          wz (min 1.0 (max 0.0 (* (+ ndc-z 1.0) 0.5)))]
-      (long (* Integer/MAX_VALUE (max 0.0 wz))))))
+    (.transform view-matrix tmp-v4d)
+    (max 0.0 (- (.z tmp-v4d)))))
 
-(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost?]
+(defn- render-key [^Matrix4d view-matrix ^Matrix4d world-transform index topmost?]
   [(boolean topmost?)
-   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
+   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-matrix world-transform)))
    (or index 0)])
 
-(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selection-state]
+(defn- outline-render-key [^Matrix4d view-matrix ^Matrix4d world-transform index topmost? selection-state]
   ;; Draw selection outlines on top of other outlines.
   [(case selection-state
      :self-selected 2
      :parent-selected 1
      0)
    (boolean topmost?)
-   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
+   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-matrix world-transform)))
    (or index 0)])
 
 (defn gl-viewport [^GL2 gl ^Region viewport]
@@ -389,7 +387,7 @@
           pass-renderables
           passes))
 
-(defn- flatten-scene-renderables! [pass-renderables
+(defn- flatten-scene-renderables! [flattened-scene
                                    parent-shows-children
                                    apply-transform-preview-overrides
                                    scene
@@ -397,7 +395,7 @@
                                    selection-set
                                    hidden-renderable-tags
                                    hidden-node-outline-key-paths
-                                   view-proj
+                                   view-matrix
                                    node-id-path
                                    node-outline-key-path
                                    ^Quat4d parent-world-rotation
@@ -445,12 +443,14 @@
               (dissoc :position :rotation :scale)
               (coll/not-empty)))
 
-        [local-aabb user-data]
-        (let [local-aabb (:aabb scene geom/null-aabb)
+        [visibility-aabb user-data]
+        (let [visibility-aabb (or (:visibility-aabb scene)
+                                  (:aabb scene)
+                                  geom/null-aabb)
               user-data (:user-data renderable)]
           (if (and preview-fn prop-kw->override-value)
-            (preview-fn local-aabb user-data prop-kw->override-value)
-            (pair local-aabb user-data)))
+            (preview-fn visibility-aabb user-data prop-kw->override-value)
+            (pair visibility-aabb user-data)))
 
         local-transform (math/->mat4-non-uniform local-translation local-rotation local-scale)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
@@ -465,8 +465,14 @@
                         (:visible-self? renderable true)
                         (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
                         (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
+        scene-local-aabb visibility-aabb
+        scene-world-aabb (if (or (nil? scene-local-aabb)
+                                 (geom/null-aabb? scene-local-aabb)
+                                 (geom/empty-aabb? scene-local-aabb))
+                           geom/null-aabb
+                           (geom/aabb-transform scene-local-aabb world-transform))
         world-aabb (if is-visible
-                     (geom/aabb-transform local-aabb world-transform)
+                     (geom/aabb-transform visibility-aabb world-transform)
                      geom/null-aabb)
         flat-renderable (-> scene
                             (dissoc :children :renderable)
@@ -485,8 +491,8 @@
                                    :user-data user-data
                                    :batch-key (:batch-key renderable)
                                    :aabb world-aabb
-                                   :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
-                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) selection-state)}}))
+                                   :render-key (render-key view-matrix world-transform (:index renderable) (:topmost? renderable))
+                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-matrix world-transform (:index renderable) (:topmost? renderable) selection-state)}}))
         flat-renderable (if is-visible
                           flat-renderable
                           (dissoc flat-renderable :updatable))
@@ -507,8 +513,9 @@
                        (filterv #(or (= pass/outline %)
                                      (= pass/selection %))
                                 (:passes renderable)))
-        pass-renderables (update-pass-renderables! pass-renderables drawn-passes flat-renderable)]
-    (reduce (fn [pass-renderables child-scene]
+        pass-renderables (update-pass-renderables! (:renderables flattened-scene) drawn-passes flat-renderable)
+        scene-aabb (geom/aabb-union (:scene-aabb flattened-scene) scene-world-aabb)]
+    (reduce (fn [flattened-scene child-scene]
               (let [parent-node-id (:node-id scene)
                     child-node-id (:node-id child-scene)
                     is-child-node-same-as-parent (= parent-node-id child-node-id)
@@ -518,7 +525,7 @@
                     child-node-outline-key-path (if is-child-node-same-as-parent
                                                   node-outline-key-path
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
-                (flatten-scene-renderables! pass-renderables
+                (flatten-scene-renderables! flattened-scene
                                             (and parent-shows-children (:visible-children? renderable true))
                                             (not is-child-node-same-as-parent)
                                             child-scene
@@ -526,14 +533,15 @@
                                             selection-set
                                             hidden-renderable-tags
                                             hidden-node-outline-key-paths
-                                            view-proj
+                                            view-matrix
                                             child-node-id-path
                                             child-node-outline-key-path
                                             world-rotation
                                             world-scale
                                             world-transform
                                             alloc-picking-id!)))
-            pass-renderables
+            {:renderables pass-renderables
+             :scene-aabb scene-aabb}
             (:children scene))))
 
 ;; Picking id's are in the range 1..2^24-1. To more easily distinguish
@@ -560,7 +568,7 @@
                     (assoc node-id->picking-id node-id picking-id))))
          node-id)))
 
-(defn- flatten-scene [scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj]
+(defn- flatten-scene [scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix]
   (let [node-id->picking-id-atom (atom {})
         alloc-picking-id! (partial alloc-picking-id! node-id->picking-id-atom)
         node-id-path []
@@ -568,22 +576,27 @@
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d
         parent-world-scale (Vector3d. 1 1 1)]
-    (-> (make-pass-renderables)
-        (flatten-scene-renderables! true
-                                    true
-                                    scene
-                                    preview-overrides
-                                    selection-set
-                                    hidden-renderable-tags
-                                    hidden-node-outline-key-paths
-                                    view-proj
-                                    node-id-path
-                                    node-outline-key-path
-                                    parent-world-rotation
-                                    parent-world-scale
-                                    parent-world-transform
-                                    alloc-picking-id!)
-        (persist-pass-renderables!))))
+    (let [{:keys [renderables scene-aabb]}
+          (flatten-scene-renderables! {:renderables (make-pass-renderables)
+                                       :scene-aabb geom/null-aabb}
+                                      true
+                                      true
+                                      scene
+                                      preview-overrides
+                                      selection-set
+                                      hidden-renderable-tags
+                                      hidden-node-outline-key-paths
+                                      view-matrix
+                                      node-id-path
+                                      node-outline-key-path
+                                      parent-world-rotation
+                                      parent-world-scale
+                                      parent-world-transform
+                                      alloc-picking-id!)]
+      {:renderables (persist-pass-renderables! renderables)
+       :scene-aabb (if (geom/null-aabb? scene-aabb)
+                     geom/empty-bounding-box
+                     scene-aabb)})))
 
 (defn- get-selection-pass-renderables-by-node-id
   "Returns a map of renderables that were in a selection pass by their node id.
@@ -599,18 +612,18 @@
                              renderables))))
         renderables-by-pass))
 
-(g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths camera]
+(g/defnk produce-scene-render-data [scene preview-overrides selection hidden-renderable-tags hidden-node-outline-key-paths local-camera]
   (if-let [error (:error scene)]
     {:error error
      :renderables {}
-     :selected-renderables []}
+     :selected-renderables []
+     :scene-aabb geom/empty-bounding-box}
     (let [selection-set (set selection)
-          view-proj (c/camera-view-proj-matrix camera)
-          scene-renderables-by-pass (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj)
-          selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
+          view-matrix (c/camera-view-matrix local-camera)
+          {:keys [renderables scene-aabb] :as flattened-scene} (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix)
+          selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id renderables)
           selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
-      {:renderables scene-renderables-by-pass
-       :selected-renderables selected-renderables})))
+      (assoc flattened-scene :selected-renderables selected-renderables))))
 
 (defn- make-aabb-renderables-by-pass [^AABB aabb color renderable-tag]
   (assert (keyword? renderable-tag))
@@ -642,8 +655,8 @@
                    :point-scale point-scale
                    :geometry scene-shapes/box-lines}}]}))
 
-(g/defnk produce-internal-renderables [^AABB scene-aabb]
-  (make-aabb-renderables-by-pass scene-aabb colors/bright-grey-light :dev-visibility-bounds))
+(g/defnk produce-internal-renderables [scene-render-data]
+  (make-aabb-renderables-by-pass (:scene-aabb scene-render-data) colors/bright-grey-light :dev-visibility-bounds))
 
 (g/defnk produce-aux-render-data [aux-renderables internal-renderables hidden-renderable-tags]
   (assert (map? internal-renderables))
@@ -703,6 +716,7 @@
   (input preview-overrides g/Any)
   (input drag-active g/Bool)
   (input selection g/Any)
+  (input local-camera Camera)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
   (input hidden-renderable-tags types/RenderableTags)
@@ -718,19 +732,15 @@
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
   (output selected-renderables g/Any (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
-  (output selected-aabb AABB :cached (g/fnk [scene-render-data scene-aabb]
+  (output scene-aabb AABB :cached (g/fnk [scene-render-data] (:scene-aabb scene-render-data)))
+  (output selected-aabb AABB :cached (g/fnk [scene-render-data]
                                        (let [selected-aabbs (sequence (comp (mapcat val)
                                                                             (filter :selected)
                                                                             (map :aabb))
                                                                       (:renderables scene-render-data))]
                                          (if (seq selected-aabbs)
                                            (reduce geom/aabb-union geom/null-aabb selected-aabbs)
-                                           scene-aabb))))
-  (output scene-aabb AABB :cached (g/fnk [scene]
-                                    (let [scene-aabb (calculate-scene-aabb geom/null-aabb geom/Identity4d scene)]
-                                      (if (geom/null-aabb? scene-aabb)
-                                        geom/empty-bounding-box
-                                        scene-aabb))))
+                                           (:scene-aabb scene-render-data)))))
   (output renderables-aabb+picking-node-id g/Any :cached produce-renderables-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
@@ -1590,7 +1600,7 @@
 
             [scene-aabb reframing-info]
             (g/with-auto-evaluation-context evaluation-context
-              (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
+              (let [scene-aabb (get (g/node-value view-id :scene-render-data evaluation-context) :scene-aabb)
                     reframing-info (when (and prev-aabb
                                               (geom/predefined-aabb? prev-aabb)
                                               (not (geom/predefined-aabb? scene-aabb)))
@@ -1888,6 +1898,7 @@
 
                   (g/connect background      :renderable                    view-id         :aux-renderables)
 
+                  (g/connect camera          :local-camera                  view-id         :local-camera)
                   (g/connect camera          :camera                        view-id         :camera)
                   (g/connect camera          :input-handler                 view-id         :input-handlers)
                   (g/connect camera          :cursor-type                   view-id         :cursor-type)
