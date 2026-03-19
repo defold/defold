@@ -55,7 +55,7 @@ RUN \
 #
 # llvm
 #
-ENV CLANG_VERSION=17
+ENV CLANG_VERSION=19
 RUN \
   echo "LLVM + CLANG ${CLANG_VERSION}" && \
   wget https://apt.llvm.org/llvm.sh && \
