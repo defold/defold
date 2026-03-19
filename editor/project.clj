@@ -91,7 +91,8 @@
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]
 
-                     [net.objecthunter/exp4j "0.4.8"]]
+                     [net.objecthunter/exp4j "0.4.8"]
+                     [io.github.CDAGaming/DiscordIPC "0.10.2"]]
 
   :icu4j {:version "77.1"}
 
