@@ -1111,7 +1111,7 @@ namespace dmEngine
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
         {
             graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
-            graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 1);
+            graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
