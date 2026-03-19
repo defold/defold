@@ -1107,6 +1107,7 @@
                       [:build-targets :dep-build-targets]]]
        (g/connect emitter-id from self-id to))
      (for [[from to] [[:default-tex-params :default-tex-params]
+                      [:exclude-gles-sm100 :exclude-gles-sm100]
                       [:emitter-indices :emitter-indices]]]
        (g/connect self-id from emitter-id to)))))
 
@@ -1115,6 +1116,7 @@
 
   (input project-settings g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
   (input dep-build-targets g/Any :array)
   (input emitter-msgs g/Any :array)
   (input modifier-msgs g/Any :array)
