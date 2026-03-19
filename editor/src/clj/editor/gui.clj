@@ -3768,7 +3768,7 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts texture-resource-names exclude-gles-sm100 spine-scene-element-ids]
+          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts exclude-gles-sm100 texture-resource-names spine-scene-element-ids]
             {:font-names font-names
              :layer->index layer->index
              :layer-names layer-names
@@ -3786,7 +3786,7 @@
             (coll/merge-with-kv
               (fn [key aux-value own-value]
                 (case key
-                  (:layer->index :layer-names) aux-value ; Replaced, not merged.
+                  (:layer->index :layer-names :exclude-gles-sm100) aux-value ; Replaced, not merged.
                   (coll/merge aux-value own-value)))
               aux-basic-gui-scene-info
               own-basic-gui-scene-info)))

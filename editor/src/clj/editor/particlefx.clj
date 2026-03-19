@@ -1125,6 +1125,7 @@
   (input ids g/Str :array)
 
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
+  (output exclude-gles-sm100 g/Any (gu/passthrough exclude-gles-sm100))
   (output save-value g/Any :cached (g/fnk [pb-data] (select-attribute-values pb-data :attributes-save-values)))
   (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
                           (protobuf/make-map-without-defaults Particle$ParticleFX
