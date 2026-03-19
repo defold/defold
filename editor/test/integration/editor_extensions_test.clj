@@ -352,7 +352,20 @@
                 @(handler/run handler+context)
                 nil
                 (catch Throwable e e))))
-        (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
+        (is (= [2 2 2] (test-util/prop sprite-node-id :scale))))
+      (let [handler+context (handler/active
+                              (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                              (eval-handler-contexts :global [sprite-node-id])
+                              {})]
+        (is (some? handler+context))
+        (is (handler/enabled? handler+context))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
+        (is (= [3 3 3] (test-util/prop sprite-node-id :position)))
+        (is (= 4 (test-util/prop sprite-node-id :playback-rate)))))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
