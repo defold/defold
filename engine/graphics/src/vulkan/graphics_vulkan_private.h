@@ -460,6 +460,7 @@ namespace dmGraphics
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
+        uint32_t                        m_PrintDeviceInfo      : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;

@@ -109,6 +109,47 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STR_CASE
 
+    static const char* VkPhysicalDeviceTypeToStr(VkPhysicalDeviceType device_type)
+    {
+        switch (device_type)
+        {
+            case VK_PHYSICAL_DEVICE_TYPE_OTHER:          return "other";
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "integrated_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   return "discrete_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    return "virtual_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:            return "cpu";
+            default:                                     return "unknown";
+        }
+    }
+
+    static const char* VkVendorIdToStr(uint32_t vendor_id)
+    {
+        switch (vendor_id)
+        {
+            case 0x1002: return "AMD";
+            case 0x1010: return "Imagination Technologies";
+            case 0x10DE: return "NVIDIA";
+            case 0x13B5: return "ARM";
+            case 0x5143: return "Qualcomm";
+            case 0x8086: return "Intel";
+            default:     return "Unknown";
+        }
+    }
+
+    static void VulkanPrintDeviceInfo(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        const VkPhysicalDeviceProperties& properties = context->m_PhysicalDevice.m_Properties;
+
+        dmLogInfo("Device: Vulkan %u.%u.%u  %s",
+            VK_VERSION_MAJOR(properties.apiVersion),
+            VK_VERSION_MINOR(properties.apiVersion),
+            VK_VERSION_PATCH(properties.apiVersion),
+            properties.deviceName);
+        dmLogInfo("Device ID: 0x%04x  Type: %s", properties.deviceID, VkPhysicalDeviceTypeToStr(properties.deviceType));
+        dmLogInfo("Vendor: %s (0x%04x) driver version: 0x%08x", VkVendorIdToStr(properties.vendorID), properties.vendorID, properties.driverVersion);
+    }
+
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
     {
         memset(this, 0, sizeof(*this));
@@ -117,6 +158,7 @@ namespace dmGraphics
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
@@ -1162,6 +1204,11 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
+        if (context->m_PrintDeviceInfo)
+        {
+            VulkanPrintDeviceInfo(context);
+        }
+
         SetupSupportedTextureFormats(context);
 
     #if defined(__MACH__)
@@ -1356,6 +1403,12 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
+                delete context->m_MainResourcesToDestroy[i];
+            }
+
             DeleteRenderTarget(_context, context->m_MainRenderTarget);
             DeleteTexture(_context, context->m_CurrentSwapchainTexture);
 
@@ -1371,12 +1424,6 @@ bail:
             }
 
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
-
-            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
-            {
-                FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
-                delete context->m_MainResourcesToDestroy[i];
-            }
 
             delete context;
             g_VulkanContext = 0x0;
