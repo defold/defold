@@ -128,12 +128,17 @@ def build(bld):
 
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
-                     includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
+                     includes = ['.', './mbedtls/include'],
                      target   = 'dlib',
                      defines  = ['VALGRIND'] + extra_defines)
 
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
+    dlib_fat = bld.stlib(features = 'c cxx',
+                     source   = [x for x in dlib.source],
+                     includes = ['.', './mbedtls/include'],
+                     target   = 'dlib_fat',
+                     defines  = ['VALGRIND', 'DEFOLD_MBEDTLS_FAT'] + extra_defines)
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -148,8 +153,14 @@ def build(bld):
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
+    dlib_fat_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
+                          source      = [x for x in dlib_noasan.source],
+                          includes    = dlib.includes,
+                          defines     = dlib.defines + ['DEFOLD_MBEDTLS_FAT'],
+                          target      = 'dlib_fat_noasan')
 
-    mbedtls_dirs = 'mbedtls/crypto/library/**/*.c mbedtls/library/**/*.c'.split()
+
+    mbedtls_dirs = 'mbedtls/library/**/*.c'.split()
     if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
         mbedtls_dirs = 'mbedtls_stub/**/*.c'.split()
 
@@ -170,9 +181,9 @@ def build(bld):
         extra_defines += ['MBEDTLS_ERROR_C']
 
     mbedtls = bld.stlib(features    = 'c cxx remove_flags',
-                  includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
+                  includes    = '. ./mbedtls/include',
                   target      = 'mbedtls',
-                  source      = bld.path.ant_glob(mbedtls_dirs),
+                  source      = bld.path.ant_glob(mbedtls_dirs) + ['mbedtls/defold_mbedtls_threading.cpp'],
                   remove_flags= remove_flags,
                   defines     = ['VALGRIND'] + extra_defines)
     if new_opt_level:
@@ -186,6 +197,23 @@ def build(bld):
                          target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+
+    # MbedTLS version with more options enabled
+    mbedtls_fat = bld.stlib(features    = mbedtls.features,
+                  includes    = mbedtls.includes,
+                  target      = 'mbedtls_fat',
+                  source      = [x for x in mbedtls.source],
+                  remove_flags= remove_flags,
+                  defines     = mbedtls.defines + ['DEFOLD_MBEDTLS_FAT'])
+
+    # Create a separate library, in order to separate it from the ASAN builds
+    mbedtls_fat_noasan = bld.stlib(features     = mbedtls_noasan.features,
+                         includes     = mbedtls_noasan.includes,
+                         source = [x for x in mbedtls_noasan.source],
+                         remove_flags = remove_flags,
+                         defines      = mbedtls_noasan.defines + ['DEFOLD_MBEDTLS_FAT'],
+                         target       = 'mbedtls_fat_noasan')
+    mbedtls_fat_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     libzip_dirs = ['zip/**/*.cpp']
     libzip = bld.stlib(features    = 'c cxx',
@@ -263,7 +291,7 @@ def build(bld):
 
     if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
-                                includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                includes = '. ./mbedtls/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])

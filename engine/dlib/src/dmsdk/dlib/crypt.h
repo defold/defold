@@ -46,11 +46,15 @@ namespace dmCrypt
      * @name Result
      * @member dmCrypt::RESULT_OK = 0
      * @member dmCrypt::RESULT_ERROR = 1
+     * @member dmCrypt::RESULT_INVALID_LENGTH = 2
+     * @member dmCrypt::RESULT_SIGNATURE_MISMATCH = 3
      */
     enum Result
     {
         RESULT_OK = 0,
         RESULT_ERROR = 1,
+        RESULT_INVALID_LENGTH = 2,
+        RESULT_SIGNATURE_MISMATCH = 3
     };
 
     /*# Encrypt data in place

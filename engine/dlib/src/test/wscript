@@ -180,11 +180,15 @@ def build(bld):
 
     if not skip_http:
         create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpclient', extra_libs = ['THREAD', 'dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpclient_fat_mbedtls')
         create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpserver', extra_libs = ['THREAD', 'dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpserver_fat_mbedtls')
         create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
                     extra_includes = ['.'], extra_defines = extra_defines)
+        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD', 'dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'],
+                    extra_includes = ['.'], extra_defines = extra_defines, target_name = 'test_connection_pool_fat_mbedtls')
 
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
@@ -244,6 +248,7 @@ def build(bld):
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
+    create_test(bld, 'test_crypt', extra_libs=['dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'], target_name = 'test_crypt_fat_mbedtls')
 
     if bld.env.DOTNET:
         b = bld.stlib(features= 'cs_stlib',
