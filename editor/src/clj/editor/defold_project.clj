@@ -1634,6 +1634,8 @@
   (output display-height g/Num (g/fnk [settings]
                                   (double (or (get settings ["display" "height"]) 0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
+  (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
+  (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output dependencies g/Any (gu/passthrough dependencies))

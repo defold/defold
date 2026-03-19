@@ -49,33 +49,6 @@ message SetTimeStep
     required TimeStepMode   mode    = 2;
 }
 
-enum LightType
-{
-    POINT   = 0;
-    SPOT    = 1;
-}
-
-message LightDesc
-{
-    required string         id              = 1;
-    required LightType      type            = 2;
-    required float          intensity       = 3;
-    required dmMath.Vector3 color           = 4;
-    required float          range           = 5;
-    required float          decay           = 6;
-    // Only applicable for spot-lights
-    optional float          cone_angle      = 7;
-    optional float          penumbra_angle  = 8;
-    optional float          drop_off        = 9;
-}
-
-message SetLight
-{
-    required dmMath.Point3  position    = 1;
-    required dmMath.Quat    rotation    = 2;
-    required LightDesc      light       = 3;
-}
-
 message SetViewProjection
 {
     required uint64         id          = 1;

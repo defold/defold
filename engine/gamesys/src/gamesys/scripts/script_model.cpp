@@ -428,7 +428,7 @@ namespace dmGameSystem
 
         AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
         callback_ctx->m_LuaCallback = 0;
-        callback_ctx->m_Listener = receiver;
+        callback_ctx->m_Listener = sender;
 
         if (top > 4)
         {

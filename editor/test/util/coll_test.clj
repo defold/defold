@@ -1949,24 +1949,29 @@
   (testing "Cancels remaining tasks on failure."
     (let [task-count 4
           all-started (CountDownLatch. task-count)
-          cancellation-count (atom 0)]
+          cancellation-count (atom 0)
+          completed-values (atom [])]
       (is (thrown-with-msg?
             ExceptionInfo
             #"boom"
             (coll/pmapv (fn [^long value]
                           (.countDown all-started)
-                          (.await all-started)
                           (if (zero? value)
-                            (throw (ex-info "boom" {}))
-                            (loop []
-                              (if (.isInterrupted (Thread/currentThread))
-                                (do
-                                  (swap! cancellation-count inc)
-                                  :interrupted)
-                                (recur)))))
+                            (do
+                              (when-not (.await all-started 1 TimeUnit/SECONDS)
+                                (throw (ex-info "timed out waiting for tasks to start" {})))
+                              (throw (ex-info "boom" {})))
+                            (try
+                              (Thread/sleep 10000)
+                              (swap! completed-values conj value)
+                              :completed
+                              (catch InterruptedException _
+                                (swap! cancellation-count inc)
+                                :interrupted))))
                         (range task-count))))
       (is (= true (.await all-started 1 TimeUnit/SECONDS)))
-      (dotimes [_ 1000]
+      (dotimes [_ 100]
         (when (< ^long @cancellation-count (dec task-count))
           (Thread/sleep 10)))
+      (is (empty? @completed-values))
       (is (= (dec task-count) @cancellation-count)))))

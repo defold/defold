@@ -516,6 +516,36 @@ TEST(Shaderc, TestMetal)
     free(data);
 }
 
+TEST(Shaderc, GlslEsPrecisionOptions)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version                     = 100;
+    options.m_GlslEs                      = 1;
+    options.m_EntryPoint                  = "main";
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_HIGHP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_MEDIUMP;
+
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    const char* src = (const char*) dst->m_Data.Begin();
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision highp float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+
+    dmShaderc::FreeShaderCompileResult(dst);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
 TEST(Shaderc, HLSLMergeRootSignatures)
 {
 #if !defined(DM_BINARY_HLSL_SUPPORTED)

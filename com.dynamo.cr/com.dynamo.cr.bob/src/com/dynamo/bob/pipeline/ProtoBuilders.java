@@ -42,7 +42,6 @@ import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
@@ -210,10 +209,6 @@ public class ProtoBuilders {
             return messageBuilder.setPrototype(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
         }
     }
-
-    @ProtoParams(srcClass = LightDesc.class, messageClass = LightDesc.class)
-    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
-    public static class LightBuilder extends ProtoBuilder<LightDesc.Builder> {}
 
     @ProtoParams(srcClass = RenderPrototypeDesc.class, messageClass = RenderPrototypeDesc.class)
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")

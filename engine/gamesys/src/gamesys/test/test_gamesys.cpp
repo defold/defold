@@ -3736,23 +3736,6 @@ ResourceFailParams invalid_input_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(InputBinding, ResourceFailTest, jc_test_values_in(invalid_input_resources));
 
-/* Light */
-
-const char* valid_light_resources[] = {"/light/valid.lightc"};
-INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
-
-ResourceFailParams invalid_light_resources[] =
-{
-    {"/light/valid.lightc", "/light/missing.lightc"},
-};
-INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
-
-const char* valid_light_gos[] = {"/light/valid_light.goc"};
-INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));
-
-const char* invalid_light_gos[] = {"/light/invalid_light.goc"};
-INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, jc_test_values_in(invalid_light_gos));
-
 /* Material */
 
 const char* valid_material_resources[] = {"/material/valid.materialc"};
@@ -4138,7 +4121,6 @@ ScriptComponentTestParams script_component_test_params[] =
     {"/camera/test_comp.goc",             "camerac",            "camera"},
     {"/factory/test_comp.goc",            "factoryc",           "factory"},
     {"/label/test_comp.goc",              "labelc",             "label"},
-    {"/light/test_comp.goc",              "lightc",             "light"},
     {"/mesh/test_comp.goc",               "meshc",              "mesh"},
     {"/model/test_comp.goc",              "modelc",             "model"},
     {"/particlefx/test_comp.goc",         "particlefxc",        "particlefx"},
@@ -6471,6 +6453,16 @@ TEST_F(ModelTest, PlayAnim)
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_done", 5));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ModelTest, PlayAnimMessage)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim_message.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "play_anim_message_done", 5));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
