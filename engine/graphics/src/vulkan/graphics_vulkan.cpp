@@ -1408,13 +1408,13 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
+            // context->m_MainRenderTarget is part of this
             for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
             {
                 FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
                 delete context->m_MainResourcesToDestroy[i];
             }
 
-            DeleteRenderTarget(_context, context->m_MainRenderTarget);
             DeleteTexture(_context, context->m_CurrentSwapchainTexture);
 
             if (context->m_Instance != VK_NULL_HANDLE)
