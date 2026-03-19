@@ -221,6 +221,11 @@ namespace dmGraphics
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
             DestroyVkSwapChain(vk_device, vk_old_swap_chain, swapChain->m_ImageViews);
+            for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
+            {
+                vkDestroySemaphore(vk_device, swapChain->m_RenderFinishedSemaphores[i], 0);
+            }
+            swapChain->m_RenderFinishedSemaphores.SetSize(0);
             DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
         }
 
@@ -236,6 +241,8 @@ namespace dmGraphics
 
         swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);
+        swapChain->m_RenderFinishedSemaphores.SetCapacity(swap_chain_image_count);
+        swapChain->m_RenderFinishedSemaphores.SetSize(swap_chain_image_count);
 
         if (swapChain->HasMultiSampling())
         {
@@ -292,6 +299,14 @@ namespace dmGraphics
             {
                 return res;
             }
+
+            VkSemaphoreCreateInfo semaphore_create_info = {};
+            semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            res = vkCreateSemaphore(vk_device, &semaphore_create_info, 0, &swapChain->m_RenderFinishedSemaphores[i]);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
         }
 
         return VK_SUCCESS;
@@ -301,6 +316,11 @@ namespace dmGraphics
     {
         assert(swapChain);
         DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
+        for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
+        {
+            vkDestroySemaphore(vk_device, swapChain->m_RenderFinishedSemaphores[i], 0);
+        }
+        swapChain->m_RenderFinishedSemaphores.SetSize(0);
         DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
 
         swapChain->m_SwapChain = VK_NULL_HANDLE;
