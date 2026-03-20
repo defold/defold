@@ -559,6 +559,10 @@ static void LogFrameBufferError(GLenum status)
         m_GLHandlesData.m_FreeIndexes.SetCapacity(256);
 
         // Default scissor to cover the entire viewport
+        m_ViewportRect[0] = 0;
+        m_ViewportRect[1] = 0;
+        m_ViewportRect[2] = (int32_t) m_Width;
+        m_ViewportRect[3] = (int32_t) m_Height;
         m_ScissorRect[0] = 0;
         m_ScissorRect[1] = 0;
         m_ScissorRect[2] = (int32_t) m_Width;
@@ -1203,11 +1207,23 @@ static void LogFrameBufferError(GLenum status)
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_handle, 0);
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
             {
-                GLint vp[4];
-                glGetIntegerv( GL_VIEWPORT, vp );
+                GLint vp[4] = {
+                    context->m_ViewportRect[0],
+                    context->m_ViewportRect[1],
+                    context->m_ViewportRect[2],
+                    context->m_ViewportRect[3]
+                };
+                context->m_ViewportRect[0] = 0;
+                context->m_ViewportRect[1] = 0;
+                context->m_ViewportRect[2] = tcp.m_Width;
+                context->m_ViewportRect[3] = tcp.m_Height;
                 glViewport(0, 0, tcp.m_Width, tcp.m_Height);
                 CHECK_GL_ERROR;
                 glReadPixels(0, 0, tcp.m_Width, tcp.m_Height, GL_RGBA, GL_UNSIGNED_BYTE, gpu_data);
+                context->m_ViewportRect[0] = vp[0];
+                context->m_ViewportRect[1] = vp[1];
+                context->m_ViewportRect[2] = vp[2];
+                context->m_ViewportRect[3] = vp[3];
                 glViewport(vp[0], vp[1], vp[2], vp[3]);
                 CHECK_GL_ERROR;
             }
@@ -3893,6 +3909,10 @@ static void LogFrameBufferError(GLenum status)
 
         glViewport(x, y, width, height);
         CHECK_GL_ERROR;
+        context->m_ViewportRect[0] = x;
+        context->m_ViewportRect[1] = y;
+        context->m_ViewportRect[2] = width;
+        context->m_ViewportRect[3] = height;
     }
 
     static void OpenGLSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -5500,9 +5520,10 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLint vp[4];
-        glGetIntegerv(GL_VIEWPORT, vp);
-        *x = vp[0], *y = vp[1], *width = vp[2], *height = vp[3];
+        *x = context->m_ViewportRect[0];
+        *y = context->m_ViewportRect[1];
+        *width = context->m_ViewportRect[2];
+        *height = context->m_ViewportRect[3];
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

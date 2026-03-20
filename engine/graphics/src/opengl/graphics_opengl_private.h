@@ -190,6 +190,7 @@ namespace dmGraphics
 
         PipelineState           m_PipelineState;      // Last applied pipeline state
         PipelineState           m_PipelineStateDirty; // Current dirty state
+        int32_t                 m_ViewportRect[4];
         int32_t                 m_ScissorRect[4];
         int32_t                 m_ScissorRectDirty[4];
         HOpenglID               m_GlobalVAO;
