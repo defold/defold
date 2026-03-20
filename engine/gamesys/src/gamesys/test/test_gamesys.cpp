@@ -478,6 +478,54 @@ TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ResourceTest, ReloadLightResourceTest)
+{
+    const char* valid_light_a = "/light/valid_point.lightc";
+    const char* valid_light_b = "/light/valid_directional_light.lightc";
+    const char* tmp_path      = "/light/tmp.lightc";
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64("/light_point"), 0, Point3(0,0,0), Quat(0,0,0,1), Vector3(1, 1, 1));
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("light"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    dmGameSystem::LightResource* resource = NULL;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, valid_light_a, (void**) &resource));
+    ASSERT_NE((void*)0, resource);
+
+    dmRender::LightPrototype* valid_light_prototype_a = dmGameSystem::GetLightPrototype(resource);
+    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.5, 0.25, 1.0), valid_light_prototype_a->m_Color);
+    ASSERT_NEAR(2.0, valid_light_prototype_a->m_Intensity, EPSILON);
+    ASSERT_NEAR(10.0, valid_light_prototype_a->m_Range, EPSILON);
+
+    ASSERT_TRUE(CopyResource(valid_light_a, tmp_path));
+    ASSERT_TRUE(CopyResource(valid_light_b, valid_light_a));
+    ASSERT_TRUE(CopyResource(tmp_path, valid_light_b));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, valid_light_a, 0));
+
+    // A reload will not create new internal pointers
+    dmRender::LightPrototype* valid_light_prototype_b = dmGameSystem::GetLightPrototype(resource);
+    ASSERT_EQ(valid_light_prototype_a, valid_light_prototype_b);
+
+    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.0, 0.0, 1.0), valid_light_prototype_b->m_Color);
+    ASSERT_NEAR(3.0, valid_light_prototype_b->m_Intensity, EPSILON);
+    ASSERT_VEC3(Vector3(1.0, 2.0, 3.0), valid_light_prototype_b->m_Direction);
+
+    dmResource::Release(m_Factory, (void**) resource);
+
+    ASSERT_TRUE(CopyResource(valid_light_a, tmp_path));
+    ASSERT_TRUE(CopyResource(valid_light_b, valid_light_a));
+    ASSERT_TRUE(CopyResource(tmp_path, valid_light_b));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 static bool UpdateAndWaitUntilDone(
     dmGameSystem::ScriptLibContext&    scriptlibcontext,
     dmGameObject::HCollection          collection,

@@ -216,26 +216,13 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static inline void ReleaseResources(dmResource::HFactory factory, dmRender::HRenderContext render_context, LightResource* resource)
-    {
-        if (!resource)
-            return;
-
-        if (resource->m_LightPrototype)
-        {
-            dmRender::DeleteLightPrototype(render_context, resource->m_LightPrototype);
-            // Avoid double-deletion if recreate/destroy happens after a failed reload.
-            resource->m_LightPrototype = 0;
-        }
-    }
-
     static dmResource::Result ResLightDestroy(const dmResource::ResourceDestroyParams* params)
     {
         LightResource* light_resource = (LightResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         if (!light_resource)
             return dmResource::RESULT_OK;
-        ReleaseResources(params->m_Factory, render_context, light_resource);
+        dmRender::DeleteLightPrototype(render_context, light_resource->m_LightPrototype);
         delete light_resource;
         return dmResource::RESULT_OK;
     }
@@ -260,8 +247,9 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        ReleaseResources(params->m_Factory, render_context, light_resource);
-        light_resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, light_params);
+        // No need to delete the prototype, we can just update its data. Otherwise, we would have to
+        // re-link all pointers in the light components to use the new pointer.
+        dmRender::SetLightPrototype(render_context, light_resource->m_LightPrototype, light_params);
 
         dmDDF::FreeMessage(ddf);
 
