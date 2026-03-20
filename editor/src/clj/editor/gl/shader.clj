@@ -755,7 +755,7 @@ These forms should be quoted, as if they came from a macro."
 (def vertex-shader-source (partial first-shader-source-of-type :shader-type-vertex))
 (def fragment-shader-source (partial first-shader-source-of-type :shader-type-fragment))
 
-(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count image-property-message]
+(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 image-property-message]
   (when (and (some? texture-page-count)
              (some? material-max-page-count))
     (let [texture-page-count (int texture-page-count)
@@ -769,7 +769,8 @@ These forms should be quoted, as if they came from a macro."
              (pos? texture-page-count))
         (localization/message "error.material-does-not-support-paged-atlases" {"property" image-property-message})
 
-        (< material-max-page-count texture-page-count)
+        (and (< material-max-page-count texture-page-count)
+             (not exclude-gles-sm100))
         (localization/message "error.material-max-page-count-insufficient" {"property" image-property-message})))))
 
 (def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))

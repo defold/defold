@@ -542,6 +542,7 @@
                                      (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
                                      (s/optional-key :spine-scene-names) TGuiResourceNames
                                      (s/optional-key :texture-page-counts) TGuiResourcePageCounts
+                                     (s/optional-key :exclude-gles-sm100) s/Any
                                      (s/optional-key :texture-resource-names) TGuiResourceNames})
 (s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
                                       (s/optional-key :font-shaders) TGuiResourceShaders
@@ -1519,13 +1520,13 @@
 
 (def ^:private validate-material-resource (partial validate-optional-gui-resource-localized error-gui-material-not-found-in-scene-message-fn :material))
 
-(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts texture]
+(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts exclude-gles-sm100 texture]
   (let [material-info (or (get material-infos material)
                           (get material-infos ""))
         is-paged-material (:paged material-info)
         material-max-page-count (:max-page-count material-info)
         texture-page-count (get texture-page-counts texture)]
-    (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count texture-message)))
+    (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 texture-message)))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg ^:raw visible ^:raw blend-mode ^:raw adjust-mode ^:raw material ^:raw pivot ^:raw x-anchor ^:raw y-anchor]
   (merge gui-base-node-msg
@@ -1805,9 +1806,10 @@
                                    (wrap-layout-property-edit-type material (optional-gui-resource-choicebox material-names)))))
             (dynamic error (g/fnk [_node-id basic-gui-scene-info material texture]
                              (let [material-infos (:material-infos basic-gui-scene-info)
-                                   texture-page-counts (:texture-page-counts basic-gui-scene-info)]
+                                   texture-page-counts (:texture-page-counts basic-gui-scene-info)
+                                   exclude-gles-sm100 (:exclude-gles-sm100 basic-gui-scene-info)]
                                (or (validate-material-resource _node-id material-infos material)
-                                   (validate-material-capabilities _node-id material-infos material texture-page-counts texture)))))
+                                   (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture)))))
             (value (layout-property-getter material))
             (set (layout-property-setter material)))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
@@ -1861,12 +1863,13 @@
   (output build-errors-shape-node g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node material texture]
             (let [material-infos (:material-infos basic-gui-scene-info)
-                  texture-page-counts (:texture-page-counts basic-gui-scene-info)]
+                  texture-page-counts (:texture-page-counts basic-gui-scene-info)
+                  exclude-gles-sm100 (:exclude-gles-sm100 basic-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node ; Validates material name.
                 (validate-texture-resource _node-id texture-page-counts texture)
-                (validate-material-capabilities _node-id material-infos material texture-page-counts texture)))))
+                (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -3621,6 +3624,7 @@
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (input display-profiles g/Any)
   (input node-msgs g/Any)
@@ -3764,7 +3768,7 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts texture-resource-names spine-scene-element-ids]
+          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts exclude-gles-sm100 texture-resource-names spine-scene-element-ids]
             {:font-names font-names
              :layer->index layer->index
              :layer-names layer-names
@@ -3773,6 +3777,7 @@
              :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
              :spine-scene-names spine-scene-names
              :texture-page-counts texture-page-counts
+             :exclude-gles-sm100 exclude-gles-sm100
              :texture-resource-names texture-resource-names}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
@@ -3781,7 +3786,7 @@
             (coll/merge-with-kv
               (fn [key aux-value own-value]
                 (case key
-                  (:layer->index :layer-names) aux-value ; Replaced, not merged.
+                  (:layer->index :layer-names :exclude-gles-sm100) aux-value ; Replaced, not merged.
                   (coll/merge aux-value own-value)))
               aux-basic-gui-scene-info
               own-basic-gui-scene-info)))
@@ -4039,6 +4044,7 @@
         max-dynamic-textures :max-dynamic-textures)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (g/connect project :display-profiles self :display-profiles)
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
