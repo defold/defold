@@ -39,7 +39,7 @@ namespace dmMouseCapture
 
         while (true)
         {
-            PRAWINPUT rawinput_buffer_ptr = reinterpret_cast<PRAWINPUT>(&raw_input_buffer);
+            PRAWINPUT rawinput_buffer_ptr = (PRAWINPUT)&raw_input_buffer;
             UINT      out_buffer_size = sizeof(raw_input_buffer);
             UINT      rawinput_count = 0;
             rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
@@ -82,7 +82,7 @@ namespace dmMouseCapture
     {
         if (msg == WM_INPUT)
         {
-            Context*  context = reinterpret_cast<Context*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            Context*  context = (Context*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
             UINT      size = sizeof(RAWINPUTHEADER) * 2;
             RAWINPUT* raw = (RAWINPUT*)_alloca(size);
             GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
@@ -152,7 +152,7 @@ namespace dmMouseCapture
 
         while (true)
         {
-            PRAWINPUT rawinput_buffer_ptr = reinterpret_cast<PRAWINPUT>(&raw_input_buffer);
+            PRAWINPUT rawinput_buffer_ptr = (PRAWINPUT)&raw_input_buffer;
             UINT      out_buffer_size = sizeof(raw_input_buffer);
             UINT      rawinput_count = 0;
             rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
