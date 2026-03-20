@@ -87,18 +87,20 @@
 
 (defmethod gen-selection-query :outline [q acc _]
   (gen-query acc [env cont]
-             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
-               (when-let [res (some-> (:selection env)
-                                      (coll/into-> []
-                                        (halt-when
-                                          (fn [selected-item]
-                                            (not (and (map? selected-item)
-                                                      (contains? selected-item :node-id)
-                                                      (contains? selected-item :node-id-path))))
-                                          fn/constantly-nil)
-                                        (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
-                                      coll/not-empty
-                                      (ensure-selection-cardinality q))]
+             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
+                   selection (:selection env)]
+               (when-let [res (if (coll/every? #(and (map? %)
+                                                     (contains? % :node-id)
+                                                     (contains? % :node-id-path))
+                                               selection)
+                                (some-> selection
+                                        (coll/into-> []
+                                          (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
+                                        coll/not-empty
+                                        (ensure-selection-cardinality q))
+                                (some-> selection
+                                        (handler/adapt-every Long evaluation-context)
+                                        (node-ids->lua-selection q)))]
                  (when-not (:evaluation-context env)
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
