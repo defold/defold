@@ -127,6 +127,17 @@ namespace dmMouseCapture
         return ctx;
     }
 
+    void DestroyContext(HContext context)
+    {
+        if (!context)
+            return;
+
+        if (context->m_Capturing)
+            StopCapture(context);
+
+        delete context;
+    }
+
     void WarpCursor(int x, int y)
     {
         SetCursorPos(x, y);
@@ -279,16 +290,5 @@ namespace dmMouseCapture
         context->m_AccumulatedDelta.dy = 0.0;
 
         return (out_delta->dx != 0.0 || out_delta->dy != 0.0);
-    }
-
-    void DestroyContext(HContext context)
-    {
-        if (!context)
-            return;
-
-        if (context->m_Capturing)
-            StopCapture(context);
-
-        delete context;
     }
 } // namespace dmMouseCapture

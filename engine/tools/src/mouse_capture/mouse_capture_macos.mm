@@ -43,6 +43,17 @@ namespace dmMouseCapture
         return ctx;
     }
 
+    void DestroyContext(HContext context)
+    {
+        if (!context)
+            return;
+
+        if (context->m_Capturing)
+            StopCapture(context);
+
+        delete context;
+    }
+
     void WarpCursor(int x, int y)
     {
         CGWarpMouseCursorPosition(CGPointMake(x, y));
@@ -113,16 +124,5 @@ namespace dmMouseCapture
         context->m_AccDy = 0.0;
 
         return had_motion;
-    }
-
-    void DestroyContext(HContext context)
-    {
-        if (!context)
-            return;
-
-        if (context->m_Capturing)
-            StopCapture(context);
-
-        delete context;
     }
 }

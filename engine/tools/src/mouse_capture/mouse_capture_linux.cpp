@@ -63,6 +63,18 @@ namespace dmMouseCapture
         return ctx;
     }
 
+    void DestroyContext(HContext context)
+    {
+        if (!context)
+            return;
+
+        if (context->m_Capturing)
+            StopCapture(context);
+
+        XCloseDisplay(context->m_Display);
+        delete context;
+    }
+
     void WarpCursor(int x, int y)
     {
         static Display* display = XOpenDisplay(NULL);
@@ -177,17 +189,5 @@ namespace dmMouseCapture
 
         return (context->m_AccumulatedDelta.dx != 0.0 ||
                 context->m_AccumulatedDelta.dy != 0.0);
-    }
-
-    void DestroyContext(HContext context)
-    {
-        if (!context)
-            return;
-
-        if (context->m_Capturing)
-            StopCapture(context);
-
-        XCloseDisplay(context->m_Display);
-        delete context;
     }
 } // namespace dmMouseCapture
