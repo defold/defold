@@ -23,25 +23,21 @@ def configure(conf):
 def build(bld):
     platform = bld.env.PLATFORM
 
-    if 'linux' in platform:
+    if platform == 'x86_64-linux':
         platform_source = 'mouse_capture_linux.cpp'
         platform_libs   = []
-    elif 'darwin' in platform or 'macos' in platform:
-        platform_source = 'mouse_capture_macos.mm'
-        platform_libs   = []
-    elif 'win' in platform:
+    elif platform == 'x86_64-win32':
         platform_source = 'mouse_capture_windows.cpp'
         platform_libs   = ['user32']
+    elif 'macos' in platform:
+        platform_source = 'mouse_capture_macos.mm'
+        platform_libs   = []
     else:
         return
-
-    bld.add_group()
 
     bld.shlib(features = 'cxx cshlib skip_asan',
               includes = ['.'],
               target   = 'mouse_capture_shared',
-              use      = 'DLIB_NOASAN SOCKET PLATFORM_NULL',
+              use      = 'DLIB_NOASAN SOCKET',
               lib      = platform_libs,
               source   = ['mouse_capture_exports.cpp', platform_source])
-
-    bld.install_files('${PREFIX}/include/mouse_capture', 'mouse_capture.h')
