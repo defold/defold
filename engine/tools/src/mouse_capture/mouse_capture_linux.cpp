@@ -90,7 +90,6 @@ namespace dmMouseCapture
         if (!context || context->m_Capturing)
             return false;
 
-
         Window       root = DefaultRootWindow(context->m_Display);
         Window       dummy;
         int          root_x, root_y, dummy_int;

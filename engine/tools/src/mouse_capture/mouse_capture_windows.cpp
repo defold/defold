@@ -15,6 +15,7 @@
 #include "mouse_capture.h"
 #include <windows.h>
 #include <malloc.h>
+#include <limits.h> // INT_MAX
 
 #ifndef QWORD
 typedef unsigned __int64 QWORD;
@@ -184,8 +185,7 @@ namespace dmMouseCapture
         POINT pt;
         GetCursorPos(&pt);
 
-        context->m_MessageWindow = CreateWindowEx(
-        0, TEXT("dmMouseCaptureRawInput"), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
+        context->m_MessageWindow = CreateWindowEx(0, TEXT("dmMouseCaptureRawInput"), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
 
         if (!context->m_MessageWindow)
             return false;
@@ -250,6 +250,12 @@ namespace dmMouseCapture
         context->m_Capturing = false;
     }
 
+    // In order to drain all messages from the queue while still keeping WM_INPUT, we call PeekMessage with PM_REMOVE,
+    // but we can only provide a min and max range of the kinds of messages we want to drain. so for the arguments to
+    // wMsgFilterMin and wMsgFilterMax we first provide 0 up to before WM_INPUT, and then from WM_INPUT + 1 . A small
+    // optimization here sets exhausted to true when the first range gets exhausted so we don't check that range again
+    // while clearing the second range. This might mean that messages can arrive in the first range while we're clearing
+    // the second range out, but those should be handled during the next PollDelta.
     static inline bool ClearNonWMInputMessages(MSG* msg, bool& exhausted, HContext context)
     {
         if (!exhausted)
@@ -260,7 +266,7 @@ namespace dmMouseCapture
             }
         }
         exhausted = true;
-        if (PeekMessage(msg, context->m_MessageWindow, WM_INPUT + 1, ~UINT(0), PM_REMOVE))
+        if (PeekMessage(msg, context->m_MessageWindow, WM_INPUT + 1, UINT_MAX, PM_REMOVE))
         {
             return true;
         }
