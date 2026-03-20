@@ -81,9 +81,11 @@ jobs:
           version: "4.0.6"
 
       - name: Install dependencies
+        shell: bash
         run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
 
       - name: Install externals
+        shell: bash
         run: ci/ci.sh install_ext
 
       - name: Build ${{ inputs.package_name }}
