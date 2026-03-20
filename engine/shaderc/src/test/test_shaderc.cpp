@@ -529,6 +529,8 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     options.m_Version                     = 100;
     options.m_GlslEs                      = 1;
     options.m_EntryPoint                  = "main";
+
+    // Case 1: highp float, mediump int
     options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_HIGHP;
     options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_MEDIUMP;
 
@@ -537,8 +539,36 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
     const char* src = (const char*) dst->m_Data.Begin();
-    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision highp float;"));
+    const char* float_highp_block =
+        "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+        "    precision highp float;\n"
+        "#else\n"
+        "    precision mediump float;\n"
+        "#endif";
+
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, float_highp_block));
     ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+
+    dmShaderc::FreeShaderCompileResult(dst);
+
+    // Case 2: mediump float, highp int
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_MEDIUMP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_HIGHP;
+
+    dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    src = (const char*) dst->m_Data.Begin();
+    const char* int_highp_block =
+        "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+        "    precision highp int;\n"
+        "#else\n"
+        "    precision mediump int;\n"
+        "#endif";
+
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, int_highp_block));
 
     dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
