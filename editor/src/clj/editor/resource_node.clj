@@ -213,14 +213,13 @@
   ([resource-node-id evaluation-context]
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
-(defn- make-ddf-dependencies-fn-raw [ddf-type]
-  (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-path-specs ddf-type))]
-    (fn [source-value]
-      (into []
-            (comp
-              (filter seq)
-              (distinct))
-            (get-fields source-value)))))
+(defn- make-ddf-dependencies-fn-raw [^Class pb-class]
+  (fn ddf-dependencies-fn [source-value]
+    (coll/into->
+      (protobuf/resource-field-value-paths pb-class source-value) []
+      (map second) ; => proj-paths
+      (remove coll/empty?)
+      (distinct))))
 
 (def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
 

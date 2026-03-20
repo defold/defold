@@ -142,6 +142,7 @@
   (coerce/regex :path coerce/string
                 :method :? request-method-coercer
                 :as :? (coerce/enum :string :json)
+                :openapi :? json-value-coercer
                 :handler coerce/function))
 
 (def ^:private reserved-path-param-names
@@ -154,7 +155,7 @@
 
 (def ^:private ext-route-fn
   (rt/varargs-lua-fn ext-route [{:keys [rt]} varargs]
-    (let [{:keys [path method as handler]
+    (let [{:keys [path method as openapi handler]
            :or {method "GET" as :discard}} (rt/->clj rt route-args-coercer varargs)
           {:keys [path-params]} (reitit.impl/parse path {:syntax :bracket})]
       (run!
@@ -164,29 +165,30 @@
         path-params)
       (-> {:path path
            :method method
-           :handler (bound-fn ext-http-request-handler [request]
-                      (let [request (-> request
-                                        (dissoc :path-params)
-                                        (coll/merge (:path-params request)))]
-                        (try
-                          (let [request (case as
-                                          :discard (do (.close ^InputStream (:body request))
-                                                       (dissoc request :body))
-                                          :string (update request :body slurp)
-                                          :json (with-open [r (io/reader (:body request))]
-                                                  (assoc request :body (json/read r))))]
-                            (-> (rt/invoke-suspending rt handler (rt/->lua request))
-                                (future/then
-                                  (fn [varargs]
-                                    (let [{:keys [status headers body]
-                                           :or {status 200}} (rt/->clj rt response-coercer varargs)]
-                                      (http-server/response status headers body))))
-                                (future/catch
-                                  (fn [e]
-                                    (.println (rt/stderr rt) (or (ex-message e) (.getSimpleName (class e))))
-                                    http-server/internal-server-error))))
-                          (catch Throwable e
-                            (http-server/response 400 (or (ex-message e) (.getSimpleName (class e))))))))}
+           :handler (cond-> (bound-fn ext-http-request-handler [request]
+                              (let [request (-> request
+                                                (dissoc :path-params :router)
+                                                (coll/merge (:path-params request)))]
+                                (try
+                                  (let [request (case as
+                                                  :discard (do (.close ^InputStream (:body request))
+                                                               (dissoc request :body))
+                                                  :string (update request :body slurp)
+                                                  :json (with-open [r (io/reader (:body request))]
+                                                          (assoc request :body (json/read r))))]
+                                    (-> (rt/invoke-suspending rt handler (rt/->lua request))
+                                        (future/then
+                                          (fn [varargs]
+                                            (let [{:keys [status headers body]
+                                                   :or {status 200}} (rt/->clj rt response-coercer varargs)]
+                                              (http-server/response status headers body))))
+                                        (future/catch
+                                          (fn [e]
+                                            (.println (rt/stderr rt) (or (ex-message e) (.getSimpleName (class e))))
+                                            http-server/internal-server-error))))
+                                  (catch Throwable e
+                                    (http-server/response 400 (or (ex-message e) (.getSimpleName (class e))))))))
+                            openapi (with-meta {:openapi openapi}))}
           (with-meta {:type :route})
           (rt/wrap-userdata "http.server.route(...)")))))
 

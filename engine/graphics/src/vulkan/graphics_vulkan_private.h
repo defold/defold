@@ -219,7 +219,6 @@ namespace dmGraphics
     struct FrameResource
     {
         VkSemaphore m_ImageAvailable;
-        VkSemaphore m_RenderFinished;
         VkFence     m_SubmitFence;
     };
 
@@ -375,10 +374,12 @@ namespace dmGraphics
             VkSampleCountFlagBits        vk_sample_flag,
             const SwapChainCapabilities& capabilities,
             const QueueFamily            queueFamily,
-            VulkanTexture*               resolveTexture);
+            VulkanTexture*               resolveTexture,
+            PFN_vkWaitForPresentKHR      wait_for_present);
 
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
+        dmArray<VkSemaphore>  m_RenderFinishedSemaphores;
         VulkanTexture*        m_ResolveTexture;
         const VkSurfaceKHR    m_Surface;
         const QueueFamily     m_QueueFamily;
@@ -386,6 +387,8 @@ namespace dmGraphics
         VkSwapchainKHR        m_SwapChain;
         VkExtent2D            m_ImageExtent;
         VkSampleCountFlagBits m_SampleCountFlag;
+        PFN_vkWaitForPresentKHR m_WaitForPresent;
+        uint64_t              m_LastPresentId;
         uint8_t               m_ImageIndex;
 
         VkResult Advance(VkDevice vk_device, VkSemaphore);
@@ -464,6 +467,7 @@ namespace dmGraphics
         VulkanTexture                   m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
         int32_atomic_t                  m_DeleteContextRequested;
+        PFN_vkWaitForPresentKHR         m_WaitForPresent;
 
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -475,6 +479,7 @@ namespace dmGraphics
         uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_RenderTargetBound    : 1;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
+        uint32_t                        m_PrintDeviceInfo      : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
@@ -488,6 +493,7 @@ namespace dmGraphics
 
     // Implemented in graphics_vulkan_context.cpp
     VkResult CreateInstance(VkInstance* vkInstanceOut,
+        uint32_t api_version,
         // Extension names, e.g. "VK_KHR_SURFACE_EXTENSION_NAME"
         const char** extensionNames, uint16_t extensionNameCount,
         // Validation Layer Names, i.e "VK_LAYER_LUNARG_standard_validation"

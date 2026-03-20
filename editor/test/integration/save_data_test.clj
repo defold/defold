@@ -85,7 +85,6 @@
   an enum field in the specified protobuf type."
   {'dmBufferDDF.StreamDesc "value_type"
    'dmGameObjectDDF.PropertyDesc "type"
-   'dmGameSystemDDF.LightDesc "type"
    'dmGraphics.VertexAttribute "data_type"
    'dmGuiDDF.NodeDesc "type"
    'dmInputDDF.GamepadMapEntry "type"
@@ -187,13 +186,6 @@
    'dmGameSystemDDF.LabelDesc
    {:default
     {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
-
-   ['dmGameSystemDDF.LightDesc "[POINT]"]
-   {:default
-    {"type" :allowed-default
-     "cone_angle" :unused
-     "drop_off" :unused
-     "penumbra_angle" :unused}}
 
    'dmGameSystemDDF.SpineSceneDesc
    {:default

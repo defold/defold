@@ -59,7 +59,8 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
-    static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
+    static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED   = 0xffff;
+    static const uint8_t ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS = 30;
 
     const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
     const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
@@ -102,7 +103,10 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer      m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         dmGraphics::HVertexDeclaration m_InstanceVertexDeclaration;
-        bool                           m_Initialized;
+        dmRender::HMaterial            m_Material;          // Material this was set up for; re-setup when effective material changes
+        uint16_t                       m_RenderItemIndex;   // Index into ModelComponent::m_RenderItems this data belongs to
+        uint8_t                        m_LastUsedFrame : 7; // Last frame (ModelWorld::m_CurrentFrameTick) this entry was used
+        uint8_t                        m_Initialized   : 1;
     };
 
     struct MeshRenderItem
@@ -293,6 +297,29 @@ namespace dmGameSystem
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
 
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    static void ReleaseMeshAttributeRenderData(MeshAttributeRenderData* rd)
+    {
+        if (rd->m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(rd->m_VertexBuffer);
+            rd->m_VertexBuffer = 0;
+        }
+        if (rd->m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(rd->m_VertexDeclaration);
+            rd->m_VertexDeclaration = 0;
+        }
+        if (rd->m_InstanceVertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(rd->m_InstanceVertexDeclaration);
+            rd->m_InstanceVertexDeclaration = 0;
+        }
+        rd->m_Material        = 0;
+        rd->m_RenderItemIndex = 0;
+        rd->m_LastUsedFrame   = 0;
+        rd->m_Initialized     = false;
     }
 
     dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
@@ -864,9 +891,6 @@ namespace dmGameSystem
 
     static void SetupMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, dmRender::HMaterial material, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
-        assert(!rd->m_VertexBuffer);
-        assert(!rd->m_VertexDeclaration);
-
         dmGraphics::HContext graphics_context       = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
         dmGraphics::HVertexDeclaration vx_decl_inst = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
@@ -896,7 +920,75 @@ namespace dmGameSystem
             SetMeshAttributeRenderData(world, component, render_context, &material_infos, attribute_infos, render_item, model_attributes, model_attribute_count, rd);
         }
 
-        rd->m_Initialized = true;
+        rd->m_Material     = material;
+        rd->m_Initialized  = true;
+
+        uint32_t render_item_index = (uint32_t)(render_item - component->m_RenderItems.Begin());
+        rd->m_RenderItemIndex = (uint16_t) render_item_index;
+    }
+
+    static MeshAttributeRenderData* GetOrCreateMeshAttributeRenderDataForMaterial(ModelWorld* world,
+        ModelComponent* component,
+        MeshRenderItem* render_item,
+        dmRender::HRenderContext render_context,
+        dmRender::HMaterial render_material,
+        dmGraphics::VertexAttribute* model_attributes,
+        uint32_t model_attribute_count,
+        MeshAttributeRenderData* attribute_rd)
+    {
+        uint32_t render_item_index = (uint32_t)(render_item - component->m_RenderItems.Begin());
+
+        // Fast path: current entry already matches this render item and material
+        if (attribute_rd && attribute_rd->m_Initialized &&
+            attribute_rd->m_Material == render_material &&
+            attribute_rd->m_RenderItemIndex == render_item_index)
+        {
+            attribute_rd->m_LastUsedFrame = world->m_CurrentFrameTick;
+            return attribute_rd;
+        }
+
+        // Look for an existing entry for this render item + material combination
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            MeshAttributeRenderData* rd = &component->m_MeshAttributeRenderDatas[i];
+            if (rd->m_Initialized &&
+                rd->m_Material == render_material &&
+                rd->m_RenderItemIndex == render_item_index)
+            {
+                rd->m_LastUsedFrame = world->m_CurrentFrameTick;
+                return rd;
+            }
+        }
+
+        // If we have an uninitialized primary slot for this render item, reuse it
+        MeshAttributeRenderData* rd = 0x0;
+        if (attribute_rd && !attribute_rd->m_Initialized)
+        {
+            rd = attribute_rd;
+        }
+        else
+        {
+            // Otherwise, allocate a new slot in the component pool
+            uint32_t new_index = component->m_MeshAttributeRenderDatas.Size();
+            component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
+            component->m_MeshAttributeRenderDatas.SetSize(component->m_MeshAttributeRenderDatas.Capacity());
+
+            rd = &component->m_MeshAttributeRenderDatas[new_index];
+            memset(rd, 0, sizeof(MeshAttributeRenderData));
+        }
+
+        // Initialize the backing storage
+        SetupMeshAttributeRenderData(world, component,
+            render_context,
+            render_material,
+            render_item,
+            model_attributes,
+            model_attribute_count,
+            rd);
+
+        rd->m_LastUsedFrame = world->m_CurrentFrameTick;
+
+        return rd;
     }
 
     static void SetupRequiresBindPoseCaching(ModelComponent* component)
@@ -1094,25 +1186,10 @@ namespace dmGameSystem
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
-        // Clean up custom vertex buffers
         for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
         {
             MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[i];
-            if (rd.m_VertexBuffer)
-            {
-                dmGraphics::DeleteVertexBuffer(rd.m_VertexBuffer);
-                rd.m_VertexBuffer = 0;
-            }
-            if (rd.m_VertexDeclaration)
-            {
-                dmGraphics::DeleteVertexDeclaration(rd.m_VertexDeclaration);
-                rd.m_VertexDeclaration = 0;
-            }
-            if (rd.m_InstanceVertexDeclaration)
-            {
-                dmGraphics::DeleteVertexDeclaration(rd.m_InstanceVertexDeclaration);
-                rd.m_InstanceVertexDeclaration = 0;
-            }
+            ReleaseMeshAttributeRenderData(&rd);
         }
 
         if (component->m_RigInstance)
@@ -1563,20 +1640,20 @@ namespace dmGameSystem
                     render_item->m_AttributeRenderDataIndex = component->m_MeshAttributeRenderDatas.Size();
                     component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
                     component->m_MeshAttributeRenderDatas.SetSize(component->m_MeshAttributeRenderDatas.Capacity());
+                    memset(&component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
                 }
 
                 attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
 
-                if (!attribute_rd->m_Initialized)
-                {
-                    SetupMeshAttributeRenderData(world, component,
+                // Reuse or create attribute render data for this render item + material combination
+                attribute_rd = GetOrCreateMeshAttributeRenderDataForMaterial(world,
+                        instance_component,
+                        instance_render_item,
                         render_context,
                         render_material,
-                        instance_render_item,
                         instance_component->m_Resource->m_Materials[material_index].m_Attributes,
                         instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
-                }
 
                 FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
 
@@ -1755,20 +1832,20 @@ namespace dmGameSystem
                     render_item->m_AttributeRenderDataIndex = component->m_MeshAttributeRenderDatas.Size();
                     component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
                     component->m_MeshAttributeRenderDatas.SetSize(component->m_MeshAttributeRenderDatas.Capacity());
+                    memset(&component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
                 }
 
                 attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
 
-                if (!attribute_rd->m_Initialized)
-                {
-                    SetupMeshAttributeRenderData(world, component,
+                // Reuse or create attribute render data for this render item + material combination
+                attribute_rd = GetOrCreateMeshAttributeRenderDataForMaterial(world,
+                        component,
+                        render_item,
                         render_context,
                         render_material,
-                        render_item,
                         component->m_Resource->m_Materials[material_index].m_Attributes,
                         component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
-                }
                 
                 if (render_item->m_DynamicVertexAttributesDirty)
                 {
@@ -2283,6 +2360,22 @@ namespace dmGameSystem
                 if (dmRig::AcquirePoseMatrixCacheEntry(world->m_RigContext, component.m_RigInstance) == dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     dmLogWarning("Model requires bind pose cache, but was not able to acquire a cache index. Consider increasing the cache size (model.max_bone_matrix_texture_width and model.max_bone_matrix_texture_height).");
+                }
+            }
+
+            // Purge old mesh attribute data
+            const uint8_t current_tick = world->m_CurrentFrameTick;
+            const uint32_t num_render_datas = component.m_MeshAttributeRenderDatas.Size();
+            for (uint32_t j = 0; j < num_render_datas; ++j)
+            {
+                MeshAttributeRenderData& rd = component.m_MeshAttributeRenderDatas[j];
+                if (!rd.m_Initialized)
+                {
+                    continue;
+                }
+                if ((current_tick - rd.m_LastUsedFrame) > ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS)
+                {
+                    ReleaseMeshAttributeRenderData(&rd);
                 }
             }
 

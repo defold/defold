@@ -141,7 +141,6 @@ namespace dmGraphics
                 free(context->m_DynamicOffsetBuffer);
             }
 
-            DestroyTexture(vk_device, &context->m_SwapChain->m_ResolveTexture->m_Handle);
             delete context->m_SwapChain;
         }
     }

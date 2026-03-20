@@ -220,7 +220,7 @@
 (def ^:private protobuf-animation-defaults
   "Default field values declared in the Tile$Animation protobuf message. Fields
   that match these values will be excluded from the saved project files."
-  (protobuf/default-value Tile$Animation))
+  (protobuf/optional-field-defaults Tile$Animation))
 
 (defn- animation-ddf-errors [tile-count node-id animation-ddf]
   {:pre [(g/node-id? node-id)

@@ -23,6 +23,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.render.proto.Compute.ComputeDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
@@ -47,7 +48,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
     }
 
     private IResource getShaderProgram(ComputeDesc.Builder fromBuilder) {
-        String shaderPath = BuilderUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
+        String shaderPath = ResourceUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
         return this.project.getResource(shaderPath);
     }
 
@@ -82,7 +83,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
         IResource shaderResourceOut = getShaderProgram(computeBuilder);
 
-        computeBuilder.setComputeProgram("/" + BuilderUtil.replaceExt(shaderResourceOut.getPath(), ".spc"));
+        computeBuilder.setComputeProgram(ResourceUtil.minifyPathAndChangeExt(shaderResourceOut.getPath(), ".spc"));
 
         buildSamplers(computeBuilder);
 

@@ -121,7 +121,6 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
-    "protobuf-java-3.20.1",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
@@ -196,7 +195,8 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -218,7 +218,8 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -256,7 +257,8 @@ PACKAGES_WIN32_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -279,7 +281,8 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -301,7 +304,8 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
     "protobuf-3.20.1",
@@ -1040,10 +1044,11 @@ class Configuration(object):
         # .. so we stick with the old version of prewarming
 
         # Compile a file warm up the emscripten caches (libc etc)
-        c_file = tempfile.mktemp(suffix='.c')
-        exe_file = tempfile.mktemp(suffix='.js')
-        with open(c_file, 'w') as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
+            c_file = f.name
             f.write('int main() { return 0; }')
+        with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
+            exe_file = f.name
         run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):

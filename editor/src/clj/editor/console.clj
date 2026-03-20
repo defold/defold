@@ -527,7 +527,7 @@
   (gutter-metrics [_this _lines _regions _glyph-metrics]
     (gutter-metrics))
 
-  (draw-gutter! [_this gc gutter-rect layout _hovered-ui-element font color-scheme lines regions _visible-cursor-ranges _focus-state _hovered-row]
+  (draw-gutter! [_this gc gutter-rect layout _hovered-element font color-scheme lines regions _visible-cursor-ranges _focus-state]
     (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
@@ -806,5 +806,34 @@
 (defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    {"/console" {"GET" (bound-fn [_]
-                         (g/node-value console-node :request-response))}}))
+    {"/console"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (g/node-value console-node :request-response))
+              {:openapi
+               {:summary "Read console output"
+                :responses
+                {"200"
+                 {:description "Console lines and regions"
+                  :content
+                  {"application/json"
+                   {:schema
+                    {:type "object"
+                     :required ["lines" "regions"]
+                     :properties
+                     {:lines {:type "array"
+                              :items {:type "string"}}
+                      :regions {:type "array"
+                                :items {:type "object"
+                                        :required ["from" "to" "type"]
+                                        :properties
+                                        {:from {:type "object"
+                                                :required ["row" "col"]
+                                                :properties {:row {:type "integer"}
+                                                             :col {:type "integer"}}}
+                                         :to {:type "object"
+                                              :required ["row" "col"]
+                                              :properties {:row {:type "integer"}
+                                                           :col {:type "integer"}}}
+                                         :type {:type "string"
+                                                :description "Region type, e.g. extension-output, extension-error, resource-reference, repeat, eval-expression, eval-result, or eval-error."}}}}}}}}}}}})}}))

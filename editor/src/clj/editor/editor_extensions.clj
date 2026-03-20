@@ -134,39 +134,39 @@
 
 (defn- make-ext-get-fn [project]
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id-or-resource property project evaluation-context)]
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)
+          getter (graph/ext-value-getter editor-lookup property project evaluation-context)]
       (if getter
         (getter)
-        (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
-                                 (resource/proj-path node-id-or-resource)
-                                 (name (graph/node-id->type-keyword node-id-or-resource evaluation-context)))
+        (throw (LuaError. (str (if (resource/resource? editor-lookup)
+                                 (resource/proj-path editor-lookup)
+                                 (name (graph/node-id->type-keyword (graph/editor-lookup->node-id editor-lookup) evaluation-context)))
                                " has no \""
                                property
                                "\" property")))))))
 
 (defn- make-ext-can-get-fn [project]
   (rt/lua-fn ext-can-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id-or-resource property project evaluation-context)))))
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+      (some? (graph/ext-value-getter editor-lookup property project evaluation-context)))))
 
 (defn- make-ext-properties-fn [project]
   (rt/lua-fn ext-properties [{:keys [rt evaluation-context]} lua-node-id-or-path]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (graph/ext-readable-properties node-id-or-resource project evaluation-context))))
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+      (graph/ext-readable-properties editor-lookup project evaluation-context))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (and (not (resource/resource? node-id-or-resource))
-           (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+      (and (not (resource/resource? editor-lookup))
+           (some? (graph/ext-lua-value-setter (graph/editor-lookup->node-id editor-lookup) property rt project evaluation-context))))))
 
 (def ^:private created-resources-coercer
   (coerce/vector-of
@@ -414,8 +414,8 @@
 
 (defn- make-ext-tx-set-fn [project]
   (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
-    (let [node-id (graph/node-id-or-path->node-id
-                    (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [node-id (graph/unresolved-editor-lookup->node-id
+                    (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
                     project
                     evaluation-context)
           property (rt/->clj rt coerce/string lua-property)
@@ -733,7 +733,7 @@
            (fn [acc [path method :as path+method] routes]
              (if (= 1 (count routes))
                (let [{:keys [handler proj-path]} (routes 0)]
-                 (assoc-in acc path+method (with-meta handler {:proj-path proj-path})))
+                 (assoc-in acc path+method (vary-meta handler assoc :proj-path proj-path)))
                (do
                  (display-output! :err (str "Omitting conflicting routes for '"
                                             method " " path "' defined in "

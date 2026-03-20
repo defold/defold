@@ -126,6 +126,7 @@ protected:
         params.m_MaxDebugVertexCount = 256;
         params.m_MaxCharacters = 256;
         params.m_MaxBatches = 128;
+        params.m_MaxLights = 32;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
@@ -1806,6 +1807,140 @@ TEST_F(dmRenderTest, FontMapSetup)
     dmRender::DeleteFontMap(font);
 }
 
+TEST_F(dmRenderTest, LightBufferTestSimple)
+{
+    // Default params (point light, white, intensity 1, range 10, etc.)
+    dmRender::LightPrototypeParams light_params;
+    dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(m_Context, light_params);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+
+    {
+        dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
+        ASSERT_NE((dmRender::HLightInstance)0, light0);
+
+        dmVMath::Point3 p0;
+        dmVMath::Quat r0;
+        dmRender::SetLightInstance(m_Context, light0, p0, r0);
+        dmRender::DeleteLightInstance(m_Context, light0);
+    }
+
+    dmRender::DeleteLightPrototype(m_Context, light_prototype);
+}
+
+TEST_F(dmRenderTest, LightBufferTestAllTypes)
+{
+    dmRender::LightPrototypeParams params;
+
+    params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
+    params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+    params.m_Direction = dmVMath::Vector3(0.0f, -1.0f, 0.0f);
+    params.m_Intensity = 2.0f;
+    dmRender::HLightPrototype proto_dir = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_dir);
+    dmRender::HLightInstance inst_dir = dmRender::NewLightInstance(m_Context, proto_dir);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_dir);
+    dmRender::SetLightInstance(m_Context, inst_dir, dmVMath::Point3(0, 10, 0), dmVMath::Quat::identity());
+    dmRender::DeleteLightInstance(m_Context, inst_dir);
+    dmRender::DeleteLightPrototype(m_Context, proto_dir);
+
+    params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    params.m_Color = dmVMath::Vector4(0.0f, 1.0f, 0.0f, 1.0f);
+    params.m_Range = 25.0f;
+    params.m_Intensity = 0.5f;
+    dmRender::HLightPrototype proto_point = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_point);
+    dmRender::HLightInstance inst_point = dmRender::NewLightInstance(m_Context, proto_point);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_point);
+    dmRender::SetLightInstance(m_Context, inst_point, dmVMath::Point3(5.0f, 0.0f, -3.0f), dmVMath::Quat::identity());
+    dmRender::DeleteLightInstance(m_Context, inst_point);
+    dmRender::DeleteLightPrototype(m_Context, proto_point);
+
+    params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    params.m_Color = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+    params.m_InnerConeAngle = 0.2f;
+    params.m_OuterConeAngle = 0.8f;
+    params.m_Range = 15.0f;
+    dmRender::HLightPrototype proto_spot = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_spot);
+    dmRender::HLightInstance inst_spot = dmRender::NewLightInstance(m_Context, proto_spot);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_spot);
+    dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity());
+    dmRender::DeleteLightInstance(m_Context, inst_spot);
+    dmRender::DeleteLightPrototype(m_Context, proto_spot);
+}
+
+TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    params.m_Intensity = 1.0f;
+    params.m_Range = 10.0f;
+
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, prototype);
+
+    dmRender::HLightInstance lights[4];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        lights[i] = dmRender::NewLightInstance(m_Context, prototype);
+        ASSERT_NE((dmRender::HLightInstance)0, lights[i]);
+        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, (float)i * 2.0f, (float)i * -1.0f), dmVMath::Quat::identity());
+    }
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmRender::DeleteLightInstance(m_Context, lights[i]);
+    }
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
+TEST_F(dmRenderTest, LightBufferTestIndexReuse)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_POINT;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, prototype);
+
+    dmRender::HLightInstance a = dmRender::NewLightInstance(m_Context, prototype);
+    dmRender::HLightInstance b = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, a);
+    ASSERT_NE((dmRender::HLightInstance)0, b);
+
+    dmRender::DeleteLightInstance(m_Context, a);
+    dmRender::HLightInstance c = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, c);
+
+    dmRender::SetLightInstance(m_Context, b, dmVMath::Point3(1, 0, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, c, dmVMath::Point3(2, 0, 0), dmVMath::Quat::identity());
+
+    dmRender::DeleteLightInstance(m_Context, b);
+    dmRender::DeleteLightInstance(m_Context, c);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
+TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
+{
+    dmRender::LightPrototypeParams params;
+    params.m_Type = dmRender::LIGHT_TYPE_SPOT;
+    params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, prototype);
+
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity());
+    // Z rotation by 45 degrees: quat (0, 0, sin(θ/2), cos(θ/2))
+    const float half = 3.14159265f / 8.0f;
+    dmVMath::Quat rot_z(0.0f, 0.0f, sinf(half), cosf(half));
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_z);
+
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
+}
+
 TEST(Constants, Constant)
 {
     dmhash_t original_name_hash = dmHashString64("test_constant");
@@ -1836,7 +1971,72 @@ TEST(Constants, Constant)
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL, dmRender::GetConstantType(constant));
 
     ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
+    dmRender::SetConstantType(constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME);
+    ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME, dmRender::GetConstantType(constant));
+
+    ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);
+}
+
+TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
+{
+    // Build a simple shader with a single vec4 uniform "time" backed by a uniform buffer.
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddTypeMember("time", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader_desc_builder.AddUniformBuffer("time", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
+
+    const char* vertex_data   = "";
+    const char* fragment_data = "";
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader, 0, 0);
+
+    const dmGraphics::Uniform* time_uniform = dmGraphics::GetUniform(program, dmHashString64("time"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, time_uniform->m_Location);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+
+    uint32_t set           = UNIFORM_LOCATION_GET_OP0(time_uniform->m_Location);
+    uint32_t binding       = UNIFORM_LOCATION_GET_OP1(time_uniform->m_Location);
+    uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(time_uniform->m_Location);
+
+    dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+
+    // Set frame time values on the render context.
+    float time = 123.0f;
+    float dt   = 1.0f / 60.0f;
+    dmRender::SetFrameTime(m_Context, time, dt);
+
+    // Enable the program so constants can be written to its uniform buffer.
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+
+    dmVMath::Matrix4 identity = dmVMath::Matrix4::identity();
+    dmRender::SetProgramConstant(m_Context,
+                                 m_GraphicsContext,
+                                 identity,
+                                 identity,
+                                 dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                                 dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME,
+                                 program,
+                                 time_uniform->m_Location,
+                                 0);
+
+    // Verify that the written uniform data matches (time, dt, 0, 0).
+    float* written = (float*) (null_program->m_UniformData + uniform_offset);
+    ASSERT_NEAR(time, written[0], EPSILON);
+    ASSERT_NEAR(dt,   written[1], EPSILON);
+    ASSERT_NEAR(0.0f, written[2], EPSILON);
+    ASSERT_NEAR(0.0f, written[3], EPSILON);
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 struct IterConstantContext

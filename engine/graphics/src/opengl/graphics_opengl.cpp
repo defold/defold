@@ -558,62 +558,351 @@ static void LogFrameBufferError(GLenum status)
         m_GLHandlesData.m_AllGLHandles.SetCapacity(1024);
         m_GLHandlesData.m_FreeIndexes.SetCapacity(256);
 
+        // Default scissor to cover the entire viewport
+        m_ViewportRect[0] = 0;
+        m_ViewportRect[1] = 0;
+        m_ViewportRect[2] = (int32_t) m_Width;
+        m_ViewportRect[3] = (int32_t) m_Height;
+        m_ScissorRect[0] = 0;
+        m_ScissorRect[1] = 0;
+        m_ScissorRect[2] = (int32_t) m_Width;
+        m_ScissorRect[3] = (int32_t) m_Height;
+        memcpy(m_ScissorRectDirty, m_ScissorRect, sizeof(m_ScissorRect));
+
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
-    static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
+    static inline GLenum GetOpenGLCompareFunc(CompareFunc func)
     {
-        const GLenum primitive_type_lut[] = {
-            GL_LINES,
-            GL_TRIANGLES,
-            GL_TRIANGLE_STRIP
-        };
-        return primitive_type_lut[prim_type];
+        switch (func)
+        {
+            case COMPARE_FUNC_NEVER:    return GL_NEVER;
+            case COMPARE_FUNC_LESS:     return GL_LESS;
+            case COMPARE_FUNC_LEQUAL:   return GL_LEQUAL;
+            case COMPARE_FUNC_GREATER:  return GL_GREATER;
+            case COMPARE_FUNC_GEQUAL:   return GL_GEQUAL;
+            case COMPARE_FUNC_EQUAL:    return GL_EQUAL;
+            case COMPARE_FUNC_NOTEQUAL: return GL_NOTEQUAL;
+            case COMPARE_FUNC_ALWAYS:   return GL_ALWAYS;
+            default:
+                assert(0 && "Unsupported compare func");
+                return GL_ALWAYS;
+        }
     }
 
-    static GLenum GetOpenGLState(State state)
+    static inline GLenum GetOpenGLState(State state)
     {
-        GLenum state_lut[] = {
-            GL_DEPTH_TEST,
-            GL_SCISSOR_TEST,
-            GL_STENCIL_TEST,
-        #if !defined(GL_ES_VERSION_2_0)
-            GL_ALPHA_TEST,
-        #else
-            0x0BC0,
-        #endif
-            GL_BLEND,
-            GL_CULL_FACE,
-            GL_POLYGON_OFFSET_FILL,
-            // Alpha test enabled
-        #if !defined(GL_ES_VERSION_2_0)
-            1,
-        #else
-            0,
-        #endif
-        };
-
-        return state_lut[state];
+        switch (state)
+        {
+            case STATE_DEPTH_TEST:   return GL_DEPTH_TEST;
+            case STATE_SCISSOR_TEST: return GL_SCISSOR_TEST;
+            case STATE_STENCIL_TEST: return GL_STENCIL_TEST;
+            case STATE_ALPHA_TEST:
+            #if !defined(GL_ES_VERSION_2_0)
+                return GL_ALPHA_TEST;
+            #else
+                return 0x0BC0;
+            #endif
+            case STATE_BLEND:               return GL_BLEND;
+            case STATE_CULL_FACE:           return GL_CULL_FACE;
+            case STATE_POLYGON_OFFSET_FILL: return GL_POLYGON_OFFSET_FILL;
+            case STATE_ALPHA_TEST_SUPPORTED:
+            #if !defined(GL_ES_VERSION_2_0)
+                return 1;
+            #else
+                return 0;
+            #endif
+            default:
+                assert(0 && "Unsupported GL state");
+                return 0;
+        }
     }
 
-    static GLenum GetOpenGLType(Type type)
+    static inline GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
     {
-        const GLenum type_lut[] = {
-            GL_BYTE,
-            GL_UNSIGNED_BYTE,
-            GL_SHORT,
-            GL_UNSIGNED_SHORT,
-            GL_INT,
-            GL_UNSIGNED_INT,
-            GL_FLOAT,
-            GL_FLOAT_VEC4,
-            GL_FLOAT_MAT4,
-            GL_SAMPLER_2D,
-            GL_SAMPLER_CUBE,
-            DMGRAPHICS_SAMPLER_2D_ARRAY,
-            DMGRAPHICS_IMAGE_2D,
-        };
-        return type_lut[type];
+        switch (face_type)
+        {
+            case FACE_TYPE_FRONT:          return GL_FRONT;
+            case FACE_TYPE_BACK:           return GL_BACK;
+            case FACE_TYPE_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
+            default:
+                assert(0 && "Unsupported face type");
+                return GL_FRONT;
+        }
+    }
+
+    static inline GLenum GetOpenGLFaceWinding(FaceWinding winding)
+    {
+        switch (winding)
+        {
+            case FACE_WINDING_CCW: return GL_CCW;
+            case FACE_WINDING_CW:  return GL_CW;
+            default:
+                assert(0 && "Unsupported face winding");
+                return GL_CCW;
+        }
+    }
+
+    static inline GLenum GetOpenGLStencilOp(StencilOp op)
+    {
+        switch (op)
+        {
+            case STENCIL_OP_KEEP:      return GL_KEEP;
+            case STENCIL_OP_ZERO:      return GL_ZERO;
+            case STENCIL_OP_REPLACE:   return GL_REPLACE;
+            case STENCIL_OP_INCR:      return GL_INCR;
+            case STENCIL_OP_INCR_WRAP: return GL_INCR_WRAP;
+            case STENCIL_OP_DECR:      return GL_DECR;
+            case STENCIL_OP_DECR_WRAP: return GL_DECR_WRAP;
+            case STENCIL_OP_INVERT:    return GL_INVERT;
+            default:
+                assert(0 && "Unsupported stencil op");
+                return GL_KEEP;
+        }
+    }
+
+    static inline GLenum GetOpenGLBlendFactor(BlendFactor factor)
+    {
+        switch (factor)
+        {
+            case BLEND_FACTOR_ZERO:                     return GL_ZERO;
+            case BLEND_FACTOR_ONE:                      return GL_ONE;
+            case BLEND_FACTOR_SRC_COLOR:                return GL_SRC_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_SRC_COLOR:      return GL_ONE_MINUS_SRC_COLOR;
+            case BLEND_FACTOR_DST_COLOR:                return GL_DST_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_DST_COLOR:      return GL_ONE_MINUS_DST_COLOR;
+            case BLEND_FACTOR_SRC_ALPHA:                return GL_SRC_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:      return GL_ONE_MINUS_SRC_ALPHA;
+            case BLEND_FACTOR_DST_ALPHA:                return GL_DST_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_DST_ALPHA:      return GL_ONE_MINUS_DST_ALPHA;
+            case BLEND_FACTOR_SRC_ALPHA_SATURATE:       return GL_SRC_ALPHA_SATURATE;
+        #if !defined (GL_ARB_imaging)
+            case BLEND_FACTOR_CONSTANT_COLOR:           return 0x8001;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return 0x8002;
+            case BLEND_FACTOR_CONSTANT_ALPHA:           return 0x8003;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: return 0x8004;
+        #else
+            case BLEND_FACTOR_CONSTANT_COLOR:           return GL_CONSTANT_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return GL_ONE_MINUS_CONSTANT_COLOR;
+            case BLEND_FACTOR_CONSTANT_ALPHA:           return GL_CONSTANT_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: return GL_ONE_MINUS_CONSTANT_ALPHA;
+        #endif
+            default:
+                assert(0 && "Unsupported blend factor");
+                return GL_ONE;
+        }
+    }
+
+    static void ApplyPipelineState(OpenGLContext* context)
+    {
+        PipelineState& ps_applied = context->m_PipelineState;
+        PipelineState& ps_dirty   = context->m_PipelineStateDirty;
+
+        #define HAS_CHANGED(name) (ps_applied.name != ps_dirty.name)
+
+        // Enable/disable fixed pipeline states that are tracked in PipelineState
+        if (HAS_CHANGED(m_DepthTestEnabled))
+        {
+            if (ps_dirty.m_DepthTestEnabled)
+                glEnable(GetOpenGLState(STATE_DEPTH_TEST));
+            else
+                glDisable(GetOpenGLState(STATE_DEPTH_TEST));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_ScissorTestEnabled))
+        {
+            if (ps_dirty.m_ScissorTestEnabled)
+                glEnable(GetOpenGLState(STATE_SCISSOR_TEST));
+            else
+                glDisable(GetOpenGLState(STATE_SCISSOR_TEST));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_StencilEnabled))
+        {
+            if (ps_dirty.m_StencilEnabled)
+                glEnable(GetOpenGLState(STATE_STENCIL_TEST));
+            else
+                glDisable(GetOpenGLState(STATE_STENCIL_TEST));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_BlendEnabled))
+        {
+            if (ps_dirty.m_BlendEnabled)
+                glEnable(GetOpenGLState(STATE_BLEND));
+            else
+                glDisable(GetOpenGLState(STATE_BLEND));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_CullFaceEnabled))
+        {
+            if (ps_dirty.m_CullFaceEnabled)
+                glEnable(GetOpenGLState(STATE_CULL_FACE));
+            else
+                glDisable(GetOpenGLState(STATE_CULL_FACE));
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_PolygonOffsetFillEnabled))
+        {
+            if (ps_dirty.m_PolygonOffsetFillEnabled)
+                glEnable(GetOpenGLState(STATE_POLYGON_OFFSET_FILL));
+            else
+                glDisable(GetOpenGLState(STATE_POLYGON_OFFSET_FILL));
+            CHECK_GL_ERROR;
+        }
+
+        // Color write mask
+        if (HAS_CHANGED(m_WriteColorMask))
+        {
+            GLboolean red   = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_R) != 0;
+            GLboolean green = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_G) != 0;
+            GLboolean blue  = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_B) != 0;
+            GLboolean alpha = (ps_dirty.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_A) != 0;
+
+            glColorMask(red, green, blue, alpha);
+            CHECK_GL_ERROR;
+        }
+
+        // Depth write mask
+        if (HAS_CHANGED(m_WriteDepth))
+        {
+            glDepthMask(ps_dirty.m_WriteDepth ? GL_TRUE : GL_FALSE);
+            CHECK_GL_ERROR;
+        }
+
+        // Depth test function
+        if (HAS_CHANGED(m_DepthTestFunc))
+        {
+            glDepthFunc(GetOpenGLCompareFunc((CompareFunc) ps_dirty.m_DepthTestFunc));
+            CHECK_GL_ERROR;
+        }
+
+        // Blend factors
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        {
+            glBlendFunc(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
+                        GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor));
+            CHECK_GL_ERROR;
+        }
+
+        // Stencil write mask
+        if (HAS_CHANGED(m_StencilWriteMask))
+        {
+            glStencilMask((GLuint) ps_dirty.m_StencilWriteMask);
+            CHECK_GL_ERROR;
+        }
+
+        // Stencil funcs (front/back share reference and compare mask)
+        if (HAS_CHANGED(m_StencilFrontTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            glStencilFuncSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_FRONT),
+                                  GetOpenGLCompareFunc((CompareFunc) ps_dirty.m_StencilFrontTestFunc),
+                                  ps_dirty.m_StencilReference,
+                                  ps_dirty.m_StencilCompareMask);
+            CHECK_GL_ERROR;
+        }
+
+        if (HAS_CHANGED(m_StencilBackTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            glStencilFuncSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_BACK),
+                                  GetOpenGLCompareFunc((CompareFunc) ps_dirty.m_StencilBackTestFunc),
+                                  ps_dirty.m_StencilReference,
+                                  ps_dirty.m_StencilCompareMask);
+            CHECK_GL_ERROR;
+        }
+
+        // Stencil ops
+        if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass)
+            || HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
+        {
+            if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass))
+            {
+                glStencilOpSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_FRONT),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilFrontOpFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilFrontOpDepthFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilFrontOpPass));
+                CHECK_GL_ERROR;
+            }
+
+            if (HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
+            {
+                glStencilOpSeparate(GetOpenGLFaceTypeFunc(FACE_TYPE_BACK),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilBackOpFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilBackOpDepthFail),
+                                    GetOpenGLStencilOp((StencilOp) ps_dirty.m_StencilBackOpPass));
+                CHECK_GL_ERROR;
+            }
+        }
+
+        // Cull face type
+        if (HAS_CHANGED(m_CullFaceType))
+        {
+            glCullFace(GetOpenGLFaceTypeFunc((FaceType) ps_dirty.m_CullFaceType));
+            CHECK_GL_ERROR;
+        }
+
+        // Face winding
+        if (HAS_CHANGED(m_FaceWinding))
+        {
+            glFrontFace(GetOpenGLFaceWinding((FaceWinding) ps_dirty.m_FaceWinding));
+            CHECK_GL_ERROR;
+        }
+
+        // Scissor rectangle
+        if (memcmp(context->m_ScissorRect, context->m_ScissorRectDirty, sizeof(context->m_ScissorRect)) != 0)
+        {
+            glScissor((GLint) context->m_ScissorRectDirty[0],
+                      (GLint) context->m_ScissorRectDirty[1],
+                      (GLint) context->m_ScissorRectDirty[2],
+                      (GLint) context->m_ScissorRectDirty[3]);
+            CHECK_GL_ERROR;
+
+            memcpy(context->m_ScissorRect, context->m_ScissorRectDirty, sizeof(context->m_ScissorRect));
+        }
+
+        ps_applied = ps_dirty;
+
+        #undef HAS_CHANGED
+    }
+
+    static inline GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
+    {
+        switch (prim_type)
+        {
+            case PRIMITIVE_LINES:          return GL_LINES;
+            case PRIMITIVE_TRIANGLES:      return GL_TRIANGLES;
+            case PRIMITIVE_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+            default:
+                assert(0 && "Unsupported primitive type");
+                return GL_TRIANGLES;
+        }
+    }
+
+    static inline GLenum GetOpenGLType(Type type)
+    {
+        switch (type)
+        {
+            case TYPE_BYTE:             return GL_BYTE;
+            case TYPE_UNSIGNED_BYTE:    return GL_UNSIGNED_BYTE;
+            case TYPE_SHORT:            return GL_SHORT;
+            case TYPE_UNSIGNED_SHORT:   return GL_UNSIGNED_SHORT;
+            case TYPE_INT:              return GL_INT;
+            case TYPE_UNSIGNED_INT:     return GL_UNSIGNED_INT;
+            case TYPE_FLOAT:            return GL_FLOAT;
+            case TYPE_FLOAT_VEC4:       return GL_FLOAT_VEC4;
+            case TYPE_FLOAT_MAT4:       return GL_FLOAT_MAT4;
+            case TYPE_SAMPLER_2D:       return GL_SAMPLER_2D;
+            case TYPE_SAMPLER_CUBE:     return GL_SAMPLER_CUBE;
+            case TYPE_SAMPLER_2D_ARRAY: return DMGRAPHICS_SAMPLER_2D_ARRAY;
+            case TYPE_IMAGE_2D:         return DMGRAPHICS_IMAGE_2D;
+            default:
+                assert(0 && "Unsupported graphics type");
+                return 0;
+        }
     }
 
     static Type GetGraphicsType(GLenum type)
@@ -918,11 +1207,23 @@ static void LogFrameBufferError(GLenum status)
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_handle, 0);
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
             {
-                GLint vp[4];
-                glGetIntegerv( GL_VIEWPORT, vp );
+                GLint vp[4] = {
+                    context->m_ViewportRect[0],
+                    context->m_ViewportRect[1],
+                    context->m_ViewportRect[2],
+                    context->m_ViewportRect[3]
+                };
+                context->m_ViewportRect[0] = 0;
+                context->m_ViewportRect[1] = 0;
+                context->m_ViewportRect[2] = tcp.m_Width;
+                context->m_ViewportRect[3] = tcp.m_Height;
                 glViewport(0, 0, tcp.m_Width, tcp.m_Height);
                 CHECK_GL_ERROR;
                 glReadPixels(0, 0, tcp.m_Width, tcp.m_Height, GL_RGBA, GL_UNSIGNED_BYTE, gpu_data);
+                context->m_ViewportRect[0] = vp[0];
+                context->m_ViewportRect[1] = vp[1];
+                context->m_ViewportRect[2] = vp[2];
+                context->m_ViewportRect[3] = vp[3];
                 glViewport(vp[0], vp[1], vp[2], vp[3]);
                 CHECK_GL_ERROR;
             }
@@ -1079,8 +1380,9 @@ static void LogFrameBufferError(GLenum status)
     #undef GET_PROC_ADDRESS
 #endif
 
-        context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
-        context->m_PipelineState  = GetDefaultPipelineState();
+        context->m_IsGles3Version   = 1; // 0 == gles 2, 1 == gles 3
+        context->m_PipelineState    = GetDefaultPipelineState();
+        context->m_PipelineStateDirty = context->m_PipelineState;
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES)
         context->m_IsShaderLanguageGles = 1;
@@ -1599,7 +1901,7 @@ static void LogFrameBufferError(GLenum status)
     static PipelineState OpenGLGetPipelineState(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        return context->m_PipelineState;
+        return context->m_PipelineStateDirty;
     }
 
     static uint32_t OpenGLGetDisplayDpi(HContext _context)
@@ -1658,6 +1960,8 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         DM_PROFILE(__FUNCTION__);
 
+        ApplyPipelineState(context);
+
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
         float b = ((float)blue)/255.0f;
@@ -1697,21 +2001,32 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
+    static inline GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
     {
-        const GLenum buffer_usage_lut[] = {
-        #if !defined (GL_ARB_vertex_buffer_object)
-            0x88E0,
-            0x88E4,
-            0x88E8,
-        #else
-            GL_STREAM_DRAW,
-            GL_STATIC_DRAW,
-            GL_DYNAMIC_DRAW,
-        #endif
-        };
-
-        return buffer_usage_lut[buffer_usage];
+        switch (buffer_usage)
+        {
+            case BUFFER_USAGE_STREAM_DRAW:
+            #if !defined (GL_ARB_vertex_buffer_object)
+                return 0x88E0;
+            #else
+                return GL_STREAM_DRAW;
+            #endif
+            case BUFFER_USAGE_DYNAMIC_DRAW:
+            #if !defined (GL_ARB_vertex_buffer_object)
+                return 0x88E4;
+            #else
+                return GL_DYNAMIC_DRAW;
+            #endif
+            case BUFFER_USAGE_STATIC_DRAW:
+            #if !defined (GL_ARB_vertex_buffer_object)
+                return 0x88E8;
+            #else
+                return GL_STATIC_DRAW;
+            #endif
+            default:
+                assert(0 && "Unsupported buffer usage");
+                return 0;
+        }
     }
 
     static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
@@ -1734,6 +2049,9 @@ static void LogFrameBufferError(GLenum status)
         ubo->m_Id = AddNewGLHandle(context, buffer_handle);
         CHECK_GL_ERROR;
 
+        // Clear out UBO first
+        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, layout.m_Size, 0);
+
         return (HUniformBuffer) ubo;
     }
 
@@ -1746,11 +2064,15 @@ static void LogFrameBufferError(GLenum status)
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        if (offset != 0)
+        if (size < ubo->m_BaseUniformBuffer.m_Layout.m_Size)
         {
             glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+            CHECK_GL_ERROR;
         }
-        glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
+        else
+        {
+            glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
+        }
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
@@ -2144,55 +2466,429 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static inline GLint GetDepthBufferFormat(OpenGLContext* context)
+    {
+         return context->m_DepthBufferBits == 16 ?
+            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 :
+            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
+    }
+
+    static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
+    {
+        #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
+
+    #ifdef __EMSCRIPTEN__
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+    #ifdef __ANDROID__
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+
+        switch (format)
+        {
+        case TEXTURE_FORMAT_LUMINANCE:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            break;
+        case TEXTURE_FORMAT_RGB:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_RGB_16BPP:
+            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA_16BPP:
+            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
+        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
+        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
+
+        case TEXTURE_FORMAT_RGBA_ASTC_4X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
+
+        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
+        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
+        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
+        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
+        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
+
+        // Float formats
+        case TEXTURE_FORMAT_RGB16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RGB32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            break;
+        case TEXTURE_FORMAT_RGBA16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RGBA32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            break;
+        case TEXTURE_FORMAT_R16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_R32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
+            break;
+        case TEXTURE_FORMAT_RG16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RG32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
+            break;
+        case TEXTURE_FORMAT_DEPTH:
+            gl_type            = GL_FLOAT;
+            gl_format          = GL_DEPTH_COMPONENT;
+            gl_internal_format = GetDepthBufferFormat(context);
+        #ifdef __EMSCRIPTEN__
+            gl_type            = GL_UNSIGNED_INT;
+            gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
+        #endif
+            break;
+
+        default:
+            assert(0);
+            dmLogError("Texture format %s is not a valid format.", GetTextureFormatLiteral(format));
+            break;
+        }
+
+    #undef ES2_ENUM_WORKAROUND
+    #undef EMSCRIPTEN_ES2_BACKWARDS_COMPAT
+    #undef ANDROID_ES2_BACKWARDS_COMPAT
+    }
+
+#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+    static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
+    {
+        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
+        uint32_t texture_unit = 0;
+        for (int i = 0; i < num_uniforms; ++i)
+        {
+            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
+            {
+                if (texture_unit == unit)
+                {
+                    *index = i;
+                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
+                    return true;
+                }
+                texture_unit++;
+            }
+        }
+        return false;
+    }
+#endif
+
+    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
+    {
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        if (!context->m_ComputeSupport)
+            return false;
+
+        int32_t uniform_index;
+        Type type;
+
+        if (GetTextureUniform(context, unit, &uniform_index, &type))
+        {
+            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
+            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
+            {
+                GLenum access            = DMGRAPHICS_READ_ONLY;
+                GLenum gl_format         = 0;
+                GLenum gl_type           = GL_UNSIGNED_BYTE;
+                GLint gl_internal_format = 0;
+                GLuint id                = 0;
+                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
+
+                // We need a valid texture regardless of bind/unbind
+                if (!do_unbind)
+                {
+                    id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
+                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
+                }
+                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
+                CHECK_GL_ERROR;
+
+                return true;
+            }
+        }
+    #endif
+        return false;
+    }
+
+    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter)
+    {
+        switch(texture_filter)
+        {
+            case TEXTURE_FILTER_DEFAULT:
+                return 0;
+            case TEXTURE_FILTER_NEAREST:
+                return GL_NEAREST;
+            case TEXTURE_FILTER_LINEAR:
+                return GL_LINEAR;
+            case TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+                return GL_NEAREST_MIPMAP_NEAREST;
+            case TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+                return GL_NEAREST_MIPMAP_LINEAR;
+            case TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+                return GL_LINEAR_MIPMAP_NEAREST;
+            case TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+                return GL_LINEAR_MIPMAP_LINEAR;
+            default:
+                assert("Unsupported texture filter!");
+                return 0;
+        }
+    }
+
+    static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter)
+    {
+        switch (filter)
+        {
+            case GL_NEAREST:
+            case GL_NEAREST_MIPMAP_NEAREST:
+            case GL_NEAREST_MIPMAP_LINEAR:
+                return GL_NEAREST;
+            default:
+                return GL_LINEAR;
+        }
+    }
+
+    static inline GLenum GetOpenGLTextureWrap(TextureWrap wrap)
+    {
+        switch (wrap)
+        {
+            case TEXTURE_WRAP_CLAMP_TO_BORDER:
+            #ifndef GL_ARB_multitexture
+                return 0x812D;
+            #else
+                return GL_CLAMP_TO_BORDER;
+            #endif
+            case TEXTURE_WRAP_CLAMP_TO_EDGE:
+            #ifndef GL_ARB_multitexture
+                return 0x812F;
+            #else
+                return GL_CLAMP_TO_EDGE;
+            #endif
+            case TEXTURE_WRAP_MIRRORED_REPEAT:
+            #ifndef GL_ARB_multitexture
+                return 0x8370;
+            #else
+                return GL_MIRRORED_REPEAT;
+            #endif
+            case TEXTURE_WRAP_REPEAT:
+                return GL_REPEAT;
+            default:
+                assert(0 && "Unsupported texture wrap");
+                return GL_REPEAT;
+        }
+    }
+
     static void DrawSetup(OpenGLContext* context)
     {
+        ApplyPipelineState(context);
+
         OpenGLProgram* program = context->m_CurrentProgram;
 
-        if (!context->m_IsGles3Version)
-            return;
-
-        for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        // Uniform buffers only supported on ES3
+        if (context->m_IsGles3Version)
         {
-            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
-            OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
-
-            if (bound_ubo)
+            for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
             {
-                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
-                UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+                OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
+                OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
 
-                if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                if (bound_ubo)
                 {
-                    dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                        bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
-                        pgm_res.m_Res->m_Name,
-                        pgm_layout->m_Hash);
+                    ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
+                    UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
 
-                    // Fallback to the scratch buffer uniform setup
-                    bound_ubo = 0;
+                    if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                    {
+                        dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                            pgm_res.m_Res->m_Name,
+                            pgm_layout->m_Hash);
+
+                        // Fallback to the scratch buffer uniform setup
+                        bound_ubo = 0;
+                    }
+                }
+
+                if (bound_ubo)
+                {
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
+                    CHECK_GL_ERROR;
+                }
+                else
+                {
+                    if (ubo.m_ActiveUniforms > 0)
+                    {
+                        glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
+                        CHECK_GL_ERROR;
+
+                        if (ubo.m_Dirty > 0)
+                        {
+                            glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo.m_Id));
+                            CHECK_GL_ERROR;
+                            glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                            CHECK_GL_ERROR;
+                            ubo.m_Dirty = false;
+                        }
+                    }
                 }
             }
+        }
 
-            if (bound_ubo)
+    #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
+        glEnable(GL_TEXTURE_2D);
+        CHECK_GL_ERROR;
+    #endif
+
+        for (int unit = 0; unit < DM_MAX_TEXTURE_UNITS; ++unit)
+        {
+            if (context->m_CurrentTextures[unit].m_Texture)
             {
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
-                CHECK_GL_ERROR;
-            }
-            else
-            {
-                if (ubo.m_ActiveUniforms > 0)
+                OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+                OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, binding.m_Texture);
+                if (!tex)
                 {
-                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
+                    continue;
+                }
+
+                glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
+                CHECK_GL_ERROR;
+
+                uint8_t id_index = binding.m_TextureIdIndex;
+
+                bool bind_as_texture = true;
+                if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
+                {
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
+                }
+
+                if (bind_as_texture)
+                {
+                    glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
                     CHECK_GL_ERROR;
 
-                    if (ubo.m_Dirty > 0)
+                    GLenum gl_type = GetOpenGLTextureType(tex->m_Type);
+
+                    if (tex->m_Sampler.m_MinFilter != tex->m_SamplerDirty.m_MinFilter)
                     {
-                        glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo.m_Id));
+                        TextureFilter minfilter = tex->m_SamplerDirty.m_MinFilter;
+                        if (minfilter == TEXTURE_FILTER_DEFAULT)
+                        {
+                            minfilter = context->m_DefaultTextureMinFilter;
+                        }
+
+                        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
+
+                        // Using a mipmapped min filter without any mipmaps will break the sampler
+                        if (tex->m_MipMapCount <= 1)
+                        {
+                            gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
+                        }
+
+                        glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
                         CHECK_GL_ERROR;
-                        glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
-                        CHECK_GL_ERROR;
-                        ubo.m_Dirty = false;
                     }
+
+                    if (tex->m_Sampler.m_MagFilter != tex->m_SamplerDirty.m_MagFilter)
+                    {
+                        TextureFilter magfilter = tex->m_SamplerDirty.m_MagFilter;
+                        if (magfilter == TEXTURE_FILTER_DEFAULT)
+                        {
+                            magfilter = context->m_DefaultTextureMagFilter;
+                        }
+
+                        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
+                        glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+                        CHECK_GL_ERROR;
+                    }
+
+                    if (tex->m_Sampler.m_AddressModeU != tex->m_SamplerDirty.m_AddressModeU)
+                    {
+                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeU));
+                        CHECK_GL_ERROR;
+                    }
+
+                    if (tex->m_Sampler.m_AddressModeV != tex->m_SamplerDirty.m_AddressModeV)
+                    {
+                        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeV));
+                        CHECK_GL_ERROR;
+                    }
+
+                    if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy && tex->m_SamplerDirty.m_MaxAnisotropy > 1.0)
+                    {
+                        glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, tex->m_SamplerDirty.m_MaxAnisotropy);
+                        CHECK_GL_ERROR;
+                    }
+
+                    tex->m_Sampler = tex->m_SamplerDirty;
                 }
             }
         }
@@ -3213,6 +3909,10 @@ static void LogFrameBufferError(GLenum status)
 
         glViewport(x, y, width, height);
         CHECK_GL_ERROR;
+        context->m_ViewportRect[0] = x;
+        context->m_ViewportRect[1] = y;
+        context->m_ViewportRect[2] = width;
+        context->m_ViewportRect[3] = height;
     }
 
     static void OpenGLSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -3265,13 +3965,6 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         glUniform1i(location, unit);
         CHECK_GL_ERROR;
-    }
-
-    static inline GLint GetDepthBufferFormat(OpenGLContext* context)
-    {
-         return context->m_DepthBufferBits == 16 ?
-            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 :
-            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
     }
 
 #if __EMSCRIPTEN__
@@ -3834,6 +4527,80 @@ static void LogFrameBufferError(GLenum status)
         return context->m_MaxTextureSize;
     }
 
+    static inline void SetSampler(OpenGLContext* context, OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, float max_anisotropy)
+    {
+        sampler->m_MinFilter = min_filter;
+        sampler->m_MagFilter = mag_Filter;
+        sampler->m_AddressModeU = wrap_u;
+        sampler->m_AddressModeV = wrap_v;
+        sampler->m_MaxAnisotropy = dmMath::Min(max_anisotropy, context->m_MaxAnisotropy);
+    }
+
+    static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture)
+    {
+        if (!texture || texture->m_NumTextureIds == 0)
+        {
+            return;
+        }
+
+        // Pure compute/storage textures that are never sampled don't need sampler state
+        if ((texture->m_Type == TEXTURE_TYPE_IMAGE_2D || texture->m_Type == TEXTURE_TYPE_IMAGE_3D) &&
+            !(texture->m_UsageHintFlags & TEXTURE_USAGE_FLAG_SAMPLE))
+        {
+            return;
+        }
+
+        GLenum gl_type = GetOpenGLTextureType(texture->m_Type);
+
+        for (uint16_t idx = 0; idx < texture->m_NumTextureIds; ++idx)
+        {
+            GLuint gl_id = GetGLHandle(context, texture->m_TextureIds[idx]);
+
+            glBindTexture(gl_type, gl_id);
+            CHECK_GL_ERROR;
+
+            TextureFilter min_filter = texture->m_Sampler.m_MinFilter;
+            TextureFilter mag_filter = texture->m_Sampler.m_MagFilter;
+
+            if (min_filter == TEXTURE_FILTER_DEFAULT)
+            {
+                min_filter = context->m_DefaultTextureMinFilter;
+            }
+            if (mag_filter == TEXTURE_FILTER_DEFAULT)
+            {
+                mag_filter = context->m_DefaultTextureMagFilter;
+            }
+
+            GLenum gl_min_filter = GetOpenGLTextureFilter(min_filter);
+            GLenum gl_mag_filter = GetOpenGLTextureFilter(mag_filter);
+
+            // Using a mipmapped min filter without any mipmaps will break the sampler
+            if (texture->m_MipMapCount <= 1)
+            {
+                gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
+            }
+
+            glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+            CHECK_GL_ERROR;
+
+            glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+            CHECK_GL_ERROR;
+
+            glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeU));
+            CHECK_GL_ERROR;
+
+            glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeV));
+            CHECK_GL_ERROR;
+
+            if (context->m_AnisotropySupport && texture->m_Sampler.m_MaxAnisotropy > 1.0f)
+            {
+                glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                    dmMath::Min(texture->m_Sampler.m_MaxAnisotropy, context->m_MaxAnisotropy));
+                CHECK_GL_ERROR;
+            }
+        }
+    }
+
     static HTexture OpenGLNewTexture(HContext _context, const TextureCreationParams& params)
     {
         uint16_t num_texture_ids = 1;
@@ -3883,6 +4650,11 @@ static void LogFrameBufferError(GLenum status)
         tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
+
+        SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+        tex->m_SamplerDirty = tex->m_Sampler;
+
+        ApplySamplerState(context, tex);
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
@@ -3991,55 +4763,10 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
-    {
-        GLenum texture_wrap_lut[] = {
-        #ifndef GL_ARB_multitexture
-            0x812D,
-            0x812F,
-            0x8370,
-        #else
-            GL_CLAMP_TO_BORDER,
-            GL_CLAMP_TO_EDGE,
-            GL_MIRRORED_REPEAT,
-        #endif
-            GL_REPEAT,
-        };
-        return texture_wrap_lut[wrap];
-    }
-
-    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter)
-    {
-        const GLenum texture_filter_lut[] = {
-            0,
-            GL_NEAREST,
-            GL_LINEAR,
-            GL_NEAREST_MIPMAP_NEAREST,
-            GL_NEAREST_MIPMAP_LINEAR,
-            GL_LINEAR_MIPMAP_NEAREST,
-            GL_LINEAR_MIPMAP_LINEAR,
-        };
-
-        return texture_filter_lut[texture_filter];
-    }
-
-    static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter)
-    {
-        switch (filter)
-        {
-            case GL_NEAREST:
-            case GL_NEAREST_MIPMAP_NEAREST:
-            case GL_NEAREST_MIPMAP_LINEAR:
-                return GL_NEAREST;
-            default:
-                return GL_LINEAR;
-        }
-    }
-
-
     static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
+
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         if (tex == 0x0)
@@ -4047,33 +4774,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
 
-        GLenum gl_type       = GetOpenGLTextureType(tex->m_Type);
-        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMinFilter : minfilter);
-        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? context->m_DefaultTextureMagFilter : magfilter);
-
-        // Using a mipmapped min filter without any mipmaps will break the sampler
-        if (tex->m_MipMapCount <= 1)
-        {
-            gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
-        }
-
-        glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
-        CHECK_GL_ERROR;
-
-        glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
-        CHECK_GL_ERROR;
-
-        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
-        CHECK_GL_ERROR
-
-        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
-        CHECK_GL_ERROR
-
-        if (context->m_AnisotropySupport && max_anisotropy > 1.0f)
-        {
-            glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, context->m_MaxAnisotropy));
-            CHECK_GL_ERROR
-        }
+        SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
     static uint8_t OpenGLGetNumTextureHandles(HContext _context, HTexture texture)
@@ -4197,152 +4898,6 @@ static void LogFrameBufferError(GLenum status)
         *out_handle = GetGLHandlePointer(g_Context, tex->m_TextureIds[0]);
 
         return HANDLE_RESULT_OK;
-    }
-
-    static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
-    {
-        #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
-
-    #ifdef __EMSCRIPTEN__
-        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
-    #else
-        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value)
-    #endif
-    #ifdef __ANDROID__
-        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
-    #else
-        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value)
-    #endif
-
-        switch (format)
-        {
-        case TEXTURE_FORMAT_LUMINANCE:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            break;
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            break;
-        case TEXTURE_FORMAT_RGB:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA:
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
-        case TEXTURE_FORMAT_RGB_16BPP:
-            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA_16BPP:
-            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
-
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
-        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
-        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
-        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
-
-        case TEXTURE_FORMAT_RGBA_ASTC_4X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_5X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_5X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_6X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_6X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_8X8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_10X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_12X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_12X12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
-
-        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
-        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
-        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
-        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
-        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
-
-        // Float formats
-        case TEXTURE_FORMAT_RGB16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_RGB32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
-            break;
-        case TEXTURE_FORMAT_RGBA16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_RGBA32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
-            break;
-        case TEXTURE_FORMAT_R16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_R32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
-            break;
-        case TEXTURE_FORMAT_RG16F:
-            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
-            break;
-        case TEXTURE_FORMAT_RG32F:
-            gl_type            = GL_FLOAT;
-            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
-            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
-            break;
-        case TEXTURE_FORMAT_DEPTH:
-            gl_type            = GL_FLOAT;
-            gl_format          = GL_DEPTH_COMPONENT;
-            gl_internal_format = GetDepthBufferFormat(context);
-        #ifdef __EMSCRIPTEN__
-            gl_type            = GL_UNSIGNED_INT;
-            gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
-        #endif
-            break;
-
-        default:
-            assert(0);
-            dmLogError("Texture format %s is not a valid format.", GetTextureFormatLiteral(format));
-            break;
-        }
-
-    #undef ES2_ENUM_WORKAROUND
-    #undef EMSCRIPTEN_ES2_BACKWARDS_COMPAT
-    #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
     static void OpenGLSetTexture(HContext _context, HTexture texture, const TextureParams& params)
@@ -4716,132 +5271,29 @@ static void LogFrameBufferError(GLenum status)
         return tex ? tex->m_MipMapCount : 0;
     }
 
-#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-    static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
-    {
-        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
-        uint32_t texture_unit = 0;
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
-            {
-                if (texture_unit == unit)
-                {
-                    *index = i;
-                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
-                    return true;
-                }
-                texture_unit++;
-            }
-        }
-        return false;
-    }
-#endif
-
-    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
-    {
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        if (!context->m_ComputeSupport)
-            return false;
-
-        int32_t uniform_index;
-        Type type;
-
-        if (GetTextureUniform(context, unit, &uniform_index, &type))
-        {
-            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
-            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
-            {
-                GLenum access            = DMGRAPHICS_READ_ONLY;
-                GLenum gl_format         = 0;
-                GLenum gl_type           = GL_UNSIGNED_BYTE;
-                GLint gl_internal_format = 0;
-                GLuint id                = 0;
-                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
-
-                // We need a valid texture regardless of bind/unbind
-                if (!do_unbind)
-                {
-                    id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
-                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
-                }
-                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
-                CHECK_GL_ERROR;
-
-                return true;
-            }
-        }
-    #endif
-        return false;
-    }
-
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
+        assert(unit < DM_MAX_TEXTURE_UNITS);
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return;
-        }
-
-        assert(id_index < tex->m_NumTextureIds);
-
-#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
-        glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR;
-#endif
-
-        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR;
-
-        bool bind_as_texture = true;
-        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
-        {
-            bind_as_texture = !BindComputeImage(context, tex, unit, id_index);
-        }
-
-        if (bind_as_texture)
-        {
-            glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
-            CHECK_GL_ERROR;
-            OpenGLSetTextureParams(_context, texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
-        }
+        // Note: We just store the binding here. Binding the actual gl handle is done before rendering!
+        OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+        binding.m_Texture = texture;
+        binding.m_TextureIdIndex = id_index;
     }
 
     static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
     {
-#if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
-        glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR;
-#endif
-
         OpenGLContext* context = (OpenGLContext*) _context;
+        assert(unit < DM_MAX_TEXTURE_UNITS);
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-
-        if (!tex)
-        {
-            return;
-        }
-
-        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR;
-
-        bool unbind_as_texture = true;
-        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
-        {
-            unbind_as_texture = !BindComputeImage(context, tex, unit, 0, true);
-        }
-
-        if (unbind_as_texture)
-        {
-            glBindTexture(GetOpenGLTextureType(tex->m_Type), 0);
-            CHECK_GL_ERROR;
-        }
+        // Note: We don't really need to unbind the gl handle here. The only thing that can happen
+        //       is that if the render state is incorrectly set up from the engine, we might sample 
+        //       from the wrong texture (which all other adapters also do).
+        OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
+        binding.m_Texture = 0x0;
+        binding.m_TextureIdIndex = 0;
     }
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
@@ -4880,10 +5332,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
     #endif
-        glEnable(GetOpenGLState(state));
-        CHECK_GL_ERROR
-
-        SetPipelineStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(context->m_PipelineStateDirty, state, 1);
     }
 
     static void OpenGLDisableState(HContext _context, State state)
@@ -4897,214 +5346,114 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
     #endif
-        glDisable(GetOpenGLState(state));
-        CHECK_GL_ERROR
-
-        SetPipelineStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(context->m_PipelineStateDirty, state, 0);
     }
 
     static void OpenGLSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(_context);
-        GLenum blend_factor_lut[] = {
-            GL_ZERO,
-            GL_ONE,
-            GL_SRC_COLOR,
-            GL_ONE_MINUS_SRC_COLOR,
-            GL_DST_COLOR,
-            GL_ONE_MINUS_DST_COLOR,
-            GL_SRC_ALPHA,
-            GL_ONE_MINUS_SRC_ALPHA,
-            GL_DST_ALPHA,
-            GL_ONE_MINUS_DST_ALPHA,
-            GL_SRC_ALPHA_SATURATE,
-        #if !defined (GL_ARB_imaging)
-            0x8001,
-            0x8002,
-            0x8003,
-            0x8004,
-        #else
-            GL_CONSTANT_COLOR,
-            GL_ONE_MINUS_CONSTANT_COLOR,
-            GL_CONSTANT_ALPHA,
-            GL_ONE_MINUS_CONSTANT_ALPHA,
-        #endif
-        };
-
-        glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
-        CHECK_GL_ERROR
-
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactor = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactor = destinaton_factor;
     }
 
     static void OpenGLSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
     {
-        assert(_context);
-        glColorMask(red, green, blue, alpha);
-        CHECK_GL_ERROR;
-
         OpenGLContext* context = (OpenGLContext*) _context;
+        assert(context);
 
         uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
         write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
         write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
         write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
-        context->m_PipelineState.m_WriteColorMask = write_mask;
+        context->m_PipelineStateDirty.m_WriteColorMask = write_mask;
     }
 
     static void OpenGLSetDepthMask(HContext _context, bool enable_mask)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glDepthMask(enable_mask);
-        CHECK_GL_ERROR;
-
-        context->m_PipelineState.m_WriteDepth = enable_mask;
-    }
-
-    static GLenum GetOpenGLCompareFunc(CompareFunc func)
-    {
-        GLenum func_lut[] = {
-            GL_NEVER,
-            GL_LESS,
-            GL_LEQUAL,
-            GL_GREATER,
-            GL_GEQUAL,
-            GL_EQUAL,
-            GL_NOTEQUAL,
-            GL_ALWAYS,
-        };
-
-        return func_lut[func];
-    }
-
-    static GLenum GetOpenGLFaceTypeFunc(FaceType face_type)
-    {
-        const GLenum face_type_lut[] = {
-            GL_FRONT,
-            GL_BACK,
-            GL_FRONT_AND_BACK,
-        };
-
-        return face_type_lut[face_type];
+        context->m_PipelineStateDirty.m_WriteDepth = enable_mask;
     }
 
     static void OpenGLSetDepthFunc(HContext _context, CompareFunc func)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glDepthFunc(GetOpenGLCompareFunc(func));
-        CHECK_GL_ERROR
-        context->m_PipelineState.m_DepthTestFunc = func;
+        context->m_PipelineStateDirty.m_DepthTestFunc = func;
     }
 
     static void OpenGLSetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glScissor((GLint)x, (GLint)y, (GLint)width, (GLint)height);
-        CHECK_GL_ERROR;
+        context->m_ScissorRectDirty[0] = x;
+        context->m_ScissorRectDirty[1] = y;
+        context->m_ScissorRectDirty[2] = width;
+        context->m_ScissorRectDirty[3] = height;
     }
 
     static void OpenGLSetStencilMask(HContext _context, uint32_t mask)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glStencilMask(mask);
-        CHECK_GL_ERROR;
-        context->m_PipelineState.m_StencilWriteMask = mask;
+        context->m_PipelineStateDirty.m_StencilWriteMask = mask;
     }
 
     static void OpenGLSetStencilFunc(HContext _context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(_context);
-        glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
-        CHECK_GL_ERROR
-
         OpenGLContext* context = (OpenGLContext*) _context;
-        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
-        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
+        context->m_PipelineStateDirty.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineStateDirty.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineStateDirty.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineStateDirty.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilFuncSeparate(HContext _context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(_context);
-        glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
-        CHECK_GL_ERROR
-
         OpenGLContext* context = (OpenGLContext*) _context;
         if (face_type == FACE_TYPE_BACK)
         {
-            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+            context->m_PipelineStateDirty.m_StencilBackTestFunc = (uint8_t) func;
         }
         else
         {
-            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+            context->m_PipelineStateDirty.m_StencilFrontTestFunc = (uint8_t) func;
         }
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        context->m_PipelineStateDirty.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineStateDirty.m_StencilCompareMask = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilOp(HContext _context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(_context);
-        const GLenum stencil_op_lut[] = {
-            GL_KEEP,
-            GL_ZERO,
-            GL_REPLACE,
-            GL_INCR,
-            GL_INCR_WRAP,
-            GL_DECR,
-            GL_DECR_WRAP,
-            GL_INVERT,
-        };
-
-        glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
-        CHECK_GL_ERROR;
-
         OpenGLContext* context = (OpenGLContext*) _context;
-        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
-        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
-        context->m_PipelineState.m_StencilBackOpFail       = sfail;
-        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
-        context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        context->m_PipelineStateDirty.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineStateDirty.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineStateDirty.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineStateDirty.m_StencilBackOpFail       = sfail;
+        context->m_PipelineStateDirty.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineStateDirty.m_StencilBackOpPass       = dppass;
     }
 
     static void OpenGLSetStencilOpSeparate(HContext _context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(_context);
-        const GLenum stencil_op_lut[] = {
-            GL_KEEP,
-            GL_ZERO,
-            GL_REPLACE,
-            GL_INCR,
-            GL_INCR_WRAP,
-            GL_DECR,
-            GL_DECR_WRAP,
-            GL_INVERT,
-        };
-
-        glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
-        CHECK_GL_ERROR;
-
         OpenGLContext* context = (OpenGLContext*) _context;
         if (face_type == FACE_TYPE_BACK)
         {
-            context->m_PipelineState.m_StencilBackOpFail       = sfail;
-            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
-            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+            context->m_PipelineStateDirty.m_StencilBackOpFail       = sfail;
+            context->m_PipelineStateDirty.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineStateDirty.m_StencilBackOpPass       = dppass;
         }
         else
         {
-            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
-            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+            context->m_PipelineStateDirty.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineStateDirty.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineStateDirty.m_StencilFrontOpPass      = dppass;
         }
     }
 
@@ -5112,25 +5461,14 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        glCullFace(GetOpenGLFaceTypeFunc(face_type));
-        CHECK_GL_ERROR
-
-        context->m_PipelineState.m_CullFaceType = face_type;
+        context->m_PipelineStateDirty.m_CullFaceType = face_type;
     }
 
     static void OpenGLSetFaceWinding(HContext _context, FaceWinding face_winding)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-
-        const GLenum face_winding_lut[] = {
-            GL_CCW,
-            GL_CW,
-        };
-
-        glFrontFace(face_winding_lut[face_winding]);
-
-        context->m_PipelineState.m_FaceWinding = face_winding;
+        context->m_PipelineStateDirty.m_FaceWinding = face_winding;
     }
 
     static void OpenGLSetPolygonOffset(HContext _context, float factor, float units)
@@ -5182,9 +5520,10 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLint vp[4];
-        glGetIntegerv(GL_VIEWPORT, vp);
-        *x = vp[0], *y = vp[1], *width = vp[2], *height = vp[3];
+        *x = context->m_ViewportRect[0];
+        *y = context->m_ViewportRect[1];
+        *width = context->m_ViewportRect[2];
+        *height = context->m_ViewportRect[3];
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

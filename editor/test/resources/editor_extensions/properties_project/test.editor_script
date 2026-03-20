@@ -195,6 +195,12 @@ local function print_targeted_editor_script_resource_checks()
                                {"path", "text"})
 end
 
+local function print_targeted_test_input_binding_checks()
+    print_targeted_node_checks("test.input_binding targeted checks:",
+                               "/test.input_binding",
+                               {"path", "text"})
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -209,6 +215,7 @@ function M.get_commands()
                 print_targeted_test_particlefx_checks()
                 print_targeted_test_tilemap_checks()
                 print_targeted_test_tilesource_checks()
+                print_targeted_test_input_binding_checks()
                 print_targeted_editor_script_resource_checks()
             end
         })

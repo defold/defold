@@ -23,6 +23,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
@@ -522,8 +523,8 @@
   (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
 
 (defn- texture-page-count-error-message [x]
-  (when (> x 8)
-    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" 8})))
+  (when (> x shader/max-array-samplers)
+    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" shader/max-array-samplers})))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
@@ -614,7 +615,7 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size]
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size texture-page-count]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (pmap (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
@@ -765,6 +766,7 @@
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
   (input build-settings g/Any)
+  (input exclude-gles-sm100 g/Any)
   (input texture-profiles g/Any)
   (input animations Animation :array)
   (input animation-ids g/Str :array)
@@ -789,12 +791,13 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size]
+  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
                                      (let [page-count (calculate-texture-page-count layout-data max-page-size)]
-                                       (or (validation/prop-error :fatal _node-id
-                                                                  :validate-texture-page-count
-                                                                  texture-page-count-error-message
-                                                                  page-count)
+                                       (or (when (not exclude-gles-sm100)
+                                             (validation/prop-error :fatal _node-id
+                                                                    :validate-texture-page-count
+                                                                    texture-page-count-error-message
+                                                                    page-count))
                                            page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
@@ -904,6 +907,7 @@
         image-msgs (resolve-image-msgs workspace (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (g/connect project :texture-profiles self :texture-profiles)
       (gu/set-properties-from-pb-map self AtlasProto$Atlas atlas
         margin :margin

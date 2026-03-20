@@ -1108,6 +1108,12 @@ namespace dmEngine
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
+        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+        {
+            graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
+            graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
+        }
+
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -1415,6 +1421,7 @@ namespace dmEngine
 #endif
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpriteContext.m_Factory = engine->m_Factory;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
@@ -2042,9 +2049,12 @@ bail:
                 dmSound::Update();
 
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
-                    && do_render)
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    // Update renderer with current time since engine start and frame delta-time.
+                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    dmRender::SetFrameTime(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
                     // if any extension wants to render on under of the game.

@@ -305,6 +305,8 @@ namespace dmGraphics
     , m_Height(0)
     , m_GraphicsMemorySize(0)
     , m_SwapInterval(1)
+    , m_GraphicsApiVersionMajorHint(0)
+    , m_GraphicsApiVersionMinorHint(0)
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
     , m_UseValidationLayers(0)
@@ -943,6 +945,7 @@ namespace dmGraphics
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
         ps.m_StencilEnabled           = 0;
+        ps.m_ScissorTestEnabled       = 0;
         ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpDepthFail  = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpPass       = STENCIL_OP_KEEP;
@@ -1051,6 +1054,9 @@ namespace dmGraphics
         {
             case STATE_DEPTH_TEST:
                 pipeline_state.m_DepthTestEnabled = value;
+            break;
+            case STATE_SCISSOR_TEST:
+                pipeline_state.m_ScissorTestEnabled = value;
             break;
             case STATE_STENCIL_TEST:
                 pipeline_state.m_StencilEnabled = value;
@@ -1181,7 +1187,7 @@ namespace dmGraphics
             free(meta.m_TypeInfos[i].m_Name);
             for (int j = 0; j < meta.m_TypeInfos[i].m_MemberCount; ++j)
             {
-                free(meta.m_TypeInfos[i].m_Members[j].m_Name);
+                free((char*) meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
 
             delete[] meta.m_TypeInfos[i].m_Members;
@@ -1343,6 +1349,31 @@ namespace dmGraphics
                 const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
                 VisitUniformLeafNodes(callback, user_data, next, type_infos, next->m_Res->m_Type, next->m_Res->m_Name, next->m_Res->m_InstanceName, &canonical_name_buffer, canonical_name_buffer_offset);
             }
+        }
+    }
+
+    void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data)
+    {
+        Program* program = (Program*) prog;
+        ProgramResourceBindingIterator it(program);
+
+        const ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            if (!binding->m_Res || binding->m_Res->m_BindingFamily != family)
+            {
+                continue;
+            }
+
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *binding->m_TypeInfos;
+            uint32_t root_type_index = binding->m_Res->m_Type.m_TypeIndex;
+            if (root_type_index >= (uint32_t) type_infos.Size())
+            {
+                continue;
+            }
+
+            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
         }
     }
 
@@ -1590,7 +1621,10 @@ namespace dmGraphics
             if (use_type_index)
             {
                 uint32_t child_type = member.m_Type.m_TypeIndex;
-                dmHashUpdateBuffer32(hash_state, &child_type, sizeof(child_type));
+                // Hash the type's name so the layout hash is independent of type array order
+                // (shader reflection may order types differently than manually built layouts).
+                dmhash_t child_name_hash = types[child_type].m_NameHash;
+                dmHashUpdateBuffer32(hash_state, &child_name_hash, sizeof(child_name_hash));
 
                 // Recurse into referenced type
                 HashTypeRecursive(child_type, types, num_types, hash_state, visited);
