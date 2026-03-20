@@ -1449,27 +1449,6 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
-            {
-                DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-
-                RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-                if (main_render_target)
-                {
-                    context->m_AssetHandleContainer.Release(context->m_MainRenderTarget);
-                    delete main_render_target;
-                    context->m_MainRenderTarget    = 0x0;
-                    context->m_CurrentRenderTarget = 0x0;
-                }
-
-                VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
-                if (current_swapchain_texture)
-                {
-                    context->m_AssetHandleContainer.Release(context->m_CurrentSwapchainTexture);
-                    delete current_swapchain_texture;
-                    context->m_CurrentSwapchainTexture = 0x0;
-                }
-            }
-
             for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
             {
                 delete context->m_MainResourcesToDestroy[i];
@@ -4483,6 +4462,18 @@ bail:
 
         FlushFenceResourcesToDestroy(context);
 
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+            if (main_render_target)
+            {
+                context->m_AssetHandleContainer.Release(context->m_MainRenderTarget);
+                delete main_render_target;
+                context->m_MainRenderTarget    = 0x0;
+                context->m_CurrentRenderTarget = 0x0;
+            }
+        }
+
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
             vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
@@ -4490,6 +4481,18 @@ bail:
         }
 
         DestroySwapChain(vk_device, context->m_SwapChain);
+
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            if (current_swapchain_texture)
+            {
+                context->m_AssetHandleContainer.Release(context->m_CurrentSwapchainTexture);
+                delete current_swapchain_texture;
+                context->m_CurrentSwapchainTexture = 0x0;
+            }
+        }
+
         DestroyLogicalDevice(&context->m_LogicalDevice);
         DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }
