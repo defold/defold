@@ -3907,12 +3907,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
 
+        glViewport(x, y, width, height);
+        CHECK_GL_ERROR;
         context->m_ViewportRect[0] = x;
         context->m_ViewportRect[1] = y;
         context->m_ViewportRect[2] = width;
         context->m_ViewportRect[3] = height;
-        glViewport(x, y, width, height);
-        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
