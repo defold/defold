@@ -1417,6 +1417,7 @@ resource.type.convexshape = Выпуклая форма
 resource.type.cp = Вычислительный шейдер
 resource.type.cpp = C++
 resource.type.custom = Ресурс
+resource.type.data = Данные
 resource.type.cubemap = Кубическая карта
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
@@ -1898,6 +1899,10 @@ form.label.project.graphics.opengl_version_hint = Версия OpenGL
 form.help.project.graphics.opengl_version_hint = Подсказка версии контекста OpenGL. Выбранная версия станет минимально допустимой (не для OpenGL ES). По умолчанию 3.3
 form.label.project.graphics.opengl_core_profile_hint = Core-профиль OpenGL
 form.help.project.graphics.opengl_core_profile_hint = Устанавливает подсказку core-профиля при создании контекста. Core убирает устаревшие возможности вроде immediate mode. Не для OpenGL ES.
+form.label.project.graphics.vulkan_version_major = Основная версия Vulkan
+form.help.project.graphics.vulkan_version_major = Подсказка основной версии контекста Vulkan. Применяется только при использовании графического бэкенда Vulkan.
+form.label.project.graphics.vulkan_version_minor = Минорная версия Vulkan
+form.help.project.graphics.vulkan_version_minor = Подсказка минорной версии контекста Vulkan. Применяется только при использовании графического бэкенда Vulkan.
 form.label.project.graphics.memory_size = Размер памяти
 form.help.project.graphics.memory_size = Сколько памяти может использовать драйвер (МБ)
 
@@ -2005,6 +2010,10 @@ form.label.project.shader.output_spirv = Вывод SPIR-V
 form.help.project.shader.output_spirv = Настройка устарела. Компилирует и выводит шейдеры SPIR-V для Metal или Vulkan
 form.label.project.shader.exclude_gles_sm100 = Исключить GLES 2.0
 form.help.project.shader.exclude_gles_sm100 = Не компилировать шейдеры для устройств с OpenGLES 2.0 / WebGL 1.0
+form.label.project.shader.glsl_es_default_precision_float = Точность float в GLSL ES
+form.help.project.shader.glsl_es_default_precision_float = Глобальный квалификатор точности по умолчанию для float (только GLSL ES)
+form.label.project.shader.glsl_es_default_precision_int = Точность int в GLSL ES
+form.help.project.shader.glsl_es_default_precision_int = Глобальный квалификатор точности по умолчанию для int (только GLSL ES)
 
 form.label.project.library = Библиотека
 form.help.project.library = Настройки при использовании проекта как библиотеки
@@ -2259,6 +2268,7 @@ error.property-must-be-between = Свойство «{property}» должно б
 error.attribute-components-must-be-between = Компоненты атрибута вершины «{attribute}» должны быть в диапазоне от {min} до {max}.
 error.vertex-attribute = Вершинный атрибут «{attribute}»\: {error}
 error.vertex-attribute-normalize-float-data-type = Вершинный атрибут «{attribute}» использует нормализацию с типом данных Float.
+error.atlas-page-count-cannot-exceed = Количество страниц атласа ({count}) не может превышать {max} на один атлас. Поддержка GLES 2.0 должна быть отключена в game.project → Среда выполнения → Шейдер
 error.cubemap-image-sizes-differ = Размеры изображений кубической карты различаются\:\n{right} \= {right_size}\n{left} \= {left_size}\n{top} \= {top_size}\n{bottom} \= {bottom_size}\n{front} \= {front_size}\n{back} \= {back_size}.
 error.lua-preprocessing-failed = Ошибка препроцессинга Lua.\n{error}
 error.transpiler-compilation-failed = Ошибка компиляции\: {error}
