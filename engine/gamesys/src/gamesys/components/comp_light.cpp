@@ -87,6 +87,12 @@ namespace dmGameSystem
         light->m_Instance      = params.m_Instance;
         light->m_LightResource = (LightResource*) params.m_Resource;
         light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, GetLightPrototype(light->m_LightResource));
+        if (light->m_LightInstance == 0)
+        {
+            ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
+            delete light;
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
 
         world->m_Components.Push(light);
         *params.m_UserData = (uintptr_t) light;

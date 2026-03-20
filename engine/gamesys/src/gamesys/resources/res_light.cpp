@@ -14,6 +14,7 @@
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_light.h>
 
+#include <ddf/ddf.h>
 #include <render/render.h>
 
 namespace dmGameSystem
@@ -201,6 +202,7 @@ namespace dmGameSystem
         dmRender::LightPrototypeParams prototype_params;
         if (DDFToLightParams(ddf, prototype_params) != LIGHT_PARSE_RESULT_OK)
         {
+            dmDDF::FreeMessage(ddf);
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
@@ -210,6 +212,7 @@ namespace dmGameSystem
         dmResource::SetResource(params->m_Resource, resource);
         dmResource::SetResourceSize(params->m_Resource, params->m_BufferSize);
 
+        dmDDF::FreeMessage(ddf);
         return dmResource::RESULT_OK;
     }
 
@@ -249,7 +252,6 @@ namespace dmGameSystem
 
         LightResource* light_resource = (LightResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
-        ReleaseResources(params->m_Factory, render_context, light_resource);
 
         dmRender::LightPrototypeParams light_params;
         if (DDFToLightParams(ddf, light_params) != LIGHT_PARSE_RESULT_OK)
@@ -257,6 +259,8 @@ namespace dmGameSystem
             dmDDF::FreeMessage(ddf);
             return dmResource::RESULT_FORMAT_ERROR;
         }
+
+        ReleaseResources(params->m_Factory, render_context, light_resource);
         light_resource->m_LightPrototype = dmRender::NewLightPrototype(render_context, light_params);
 
         dmDDF::FreeMessage(ddf);
