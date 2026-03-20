@@ -318,7 +318,6 @@ namespace dmRender
 
         if (font_map->m_Texture)
         {
-            DM_PROFILE("FontRenderBatch_GetTextureSize");
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
             float cache_width  = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
             float cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
@@ -353,20 +352,14 @@ namespace dmRender
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
 
-        {
-            DM_PROFILE("FontRenderBatch_Constants");
-            dmRender::ClearNamedConstantBuffer(constants_buffer);
-            dmRender::SetNamedConstants(constants_buffer, (HConstant*)first_te.m_RenderConstants, first_te.m_NumRenderConstants);
-            dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
-        }
+        dmRender::ClearNamedConstantBuffer(constants_buffer);
+        dmRender::SetNamedConstants(constants_buffer, (HConstant*)first_te.m_RenderConstants, first_te.m_NumRenderConstants);
+        dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
 
         ro->m_ConstantBuffer = constants_buffer;
 
         // The cache size may have changed, and we need to update the font map glyph texture
-        {
-            DM_PROFILE("FontRenderBatch_UpdateCacheTexture");
-            UpdateCacheTexture(font_map);
-        }
+        UpdateCacheTexture(font_map);
 
         bool calc_sdf_scale = font_map->m_IsSdf;
         Matrix4 sdf_view_proj;
@@ -379,10 +372,7 @@ namespace dmRender
             int32_t vp_y = 0;
             uint32_t vp_w = 0;
             uint32_t vp_h = 0;
-            {
-                DM_PROFILE("FontRenderBatch_GetViewport");
-                dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
-            }
+            dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
             (void)vp_x;
             (void)vp_y;
 
@@ -398,29 +388,23 @@ namespace dmRender
             }
         }
 
+        for (uint32_t *i = begin;i != end; ++i)
         {
-            DM_PROFILE("FontRenderBatch_CreateVertices");
-            for (uint32_t *i = begin;i != end; ++i)
-            {
-                const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
-                const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
+            const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
+            const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-                float sdf_scale = 0.0f;
-                if (calc_sdf_scale)
-                {
-                    sdf_scale = CalcSdfScale(sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
-                }
-                uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
-                text_context.m_VertexIndex += num_vertices;
+            float sdf_scale = 0.0f;
+            if (calc_sdf_scale)
+            {
+                sdf_scale = CalcSdfScale(sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
             }
+            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            text_context.m_VertexIndex += num_vertices;
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
 
-        {
-            DM_PROFILE("FontRenderBatch_AddToRender");
-            dmRender::AddToRender(render_context, ro);
-        }
+        dmRender::AddToRender(render_context, ro);
     }
 
     static void FontRenderListDispatch(dmRender::RenderListDispatchParams const &params)
