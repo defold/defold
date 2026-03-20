@@ -695,59 +695,26 @@ namespace dmSound
         if (!grow_decoder_buffers && !grow_temp_buffer)
             return RESULT_OK;
 
-        float* new_decoder_output[SOUND_MAX_DECODE_CHANNELS];
-        for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
-        {
-            new_decoder_output[c] = sound->m_DecoderOutput[c];
-        }
-        void* new_decoder_temp_output = sound->m_DecoderTempOutput;
-
         if (grow_decoder_buffers)
         {
             for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
             {
-                new_decoder_output[c] = (float*)malloc(required_frame_capacity * sizeof(float));
-                if (new_decoder_output[c] == 0)
+                float* new_decoder_output = (float*)realloc(sound->m_DecoderOutput[c], required_frame_capacity * sizeof(float));
+                if (new_decoder_output == 0)
                 {
-                    for (uint32_t j = 0; j < SOUND_MAX_DECODE_CHANNELS; ++j)
-                    {
-                        if (new_decoder_output[j] != sound->m_DecoderOutput[j])
-                            free(new_decoder_output[j]);
-                    }
                     return RESULT_OUT_OF_MEMORY;
                 }
-            }
-        }
-
-        if (grow_temp_buffer)
-        {
-            new_decoder_temp_output = malloc((size_t)required_temp_output_capacity);
-            if (new_decoder_temp_output == 0)
-            {
-                if (grow_decoder_buffers)
-                {
-                    for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
-                    {
-                        free(new_decoder_output[c]);
-                    }
-                }
-                return RESULT_OUT_OF_MEMORY;
-            }
-        }
-
-        if (grow_decoder_buffers)
-        {
-            for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
-            {
-                free(sound->m_DecoderOutput[c]);
-                sound->m_DecoderOutput[c] = new_decoder_output[c];
+                sound->m_DecoderOutput[c] = new_decoder_output;
             }
             sound->m_DecoderBufferFrameCapacity = required_frame_capacity;
         }
 
         if (grow_temp_buffer)
         {
-            free(sound->m_DecoderTempOutput);
+            void* new_decoder_temp_output = realloc(sound->m_DecoderTempOutput, (size_t)required_temp_output_capacity);
+            if (new_decoder_temp_output == 0)
+                return RESULT_OUT_OF_MEMORY;
+
             sound->m_DecoderTempOutput = new_decoder_temp_output;
             sound->m_DecoderTempOutputCapacity = (uint32_t)required_temp_output_capacity;
         }
@@ -762,26 +729,13 @@ namespace dmSound
         if (required_frame_capacity <= instance->m_FrameCapacity)
             return RESULT_OK;
 
-        float* new_frames[SOUND_MAX_DECODE_CHANNELS];
         for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
         {
-            new_frames[c] = (float*)malloc(required_frame_capacity * sizeof(float));
-            if (new_frames[c] == 0)
-            {
-                for (uint32_t j = 0; j < c; ++j)
-                {
-                    free(new_frames[j]);
-                }
+            float* new_frame_buffer = (float*)realloc(instance->m_Frames[c], required_frame_capacity * sizeof(float));
+            if (new_frame_buffer == 0)
                 return RESULT_OUT_OF_MEMORY;
-            }
 
-            memcpy(new_frames[c], instance->m_Frames[c], instance->m_FrameCapacity * sizeof(float));
-        }
-
-        for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
-        {
-            free(instance->m_Frames[c]);
-            instance->m_Frames[c] = new_frames[c];
+            instance->m_Frames[c] = new_frame_buffer;
         }
         DM_PROPERTY_ADD_U32(rmtp_InstanceBufferSize, (required_frame_capacity - instance->m_FrameCapacity) * sizeof(float) * SOUND_MAX_DECODE_CHANNELS);
         instance->m_FrameCapacity = required_frame_capacity;
