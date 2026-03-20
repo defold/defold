@@ -42,6 +42,7 @@
 #include <font/fontcollection.h>
 
 #include <ddf/ddf.h>
+#include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/lua_ddf.h>
 #include <gameobject/script.h>
@@ -418,6 +419,63 @@ TEST_F(ResourceTest, LightResourcePrototype)
     ASSERT_NEAR(30.0f, proto->m_OuterConeAngle, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
+}
+
+TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
+{
+    // CompLightLateUpdate calls dmRender::SetLightInstance, which commits into m_LightBufferScratch
+    // (same data ApplyMaterialProgramLightBuffers uploads to the GPU light uniform buffer).
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_NE((void*)0, render_ctx);
+    ASSERT_GE(render_ctx->m_MaxLightCount, 3u);
+
+    const Quat rot_id(0.0f, 0.0f, 0.0f, 1.0f);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const Point3 pos_point(4.0f, 5.0f, 6.0f);
+    const Point3 pos_dir(10.0f, 11.0f, 12.0f);
+    const Point3 pos_spot(-1.0f, 2.0f, -3.0f);
+
+    dmGameObject::HInstance go_point = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64("/light_point"), 0, pos_point, rot_id, Vector3(1, 1, 1));
+    dmGameObject::HInstance go_dir = Spawn(m_Factory, m_Collection, "/light/valid_directional_light.goc", dmHashString64("/light_dir"), 0, pos_dir, rot_id, Vector3(1, 1, 1));
+    dmGameObject::HInstance go_spot = Spawn(m_Factory, m_Collection, "/light/valid_spot_light.goc", dmHashString64("/light_spot"), 0, pos_spot, rot_id, Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go_point);
+    ASSERT_NE((dmGameObject::HInstance)0, go_dir);
+    ASSERT_NE((dmGameObject::HInstance)0, go_spot);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(3u, render_ctx->m_LightBufferScratch.Size());
+
+    // Creation order (point, directional, spot) matches CompLightWorld component order and light buffer indices 0..2
+    const dmRender::LightSTD140& L_point = render_ctx->m_LightBufferScratch[0];
+    ASSERT_VEC3(pos_point, L_point.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), L_point.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, 0.0f, 10.0f), L_point.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_POINT, 2.0f, 0.0f, 0.0f), L_point.m_Params);
+
+    const dmRender::LightSTD140& L_dir = render_ctx->m_LightBufferScratch[1];
+    ASSERT_VEC3(pos_dir, L_dir.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), L_dir.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 2.0f, 3.0f, 0.0f), L_dir.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_DIRECTIONAL, 3.0f, 0.0f, 0.0f), L_dir.m_Params);
+
+    const dmRender::LightSTD140& L_spot = render_ctx->m_LightBufferScratch[2];
+    ASSERT_VEC3(pos_spot, L_spot.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, 15.0f, 30.0f), L_spot.m_Params);
+
+    const Point3 pos_point_moved(7.0f, 8.0f, 9.0f);
+    dmGameObject::SetPosition(go_point, pos_point_moved);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_VEC3(pos_point_moved, render_ctx->m_LightBufferScratch[0].m_Position);
+    ASSERT_VEC3(pos_dir, render_ctx->m_LightBufferScratch[1].m_Position);
+    ASSERT_VEC3(pos_spot, render_ctx->m_LightBufferScratch[2].m_Position);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 static bool UpdateAndWaitUntilDone(
