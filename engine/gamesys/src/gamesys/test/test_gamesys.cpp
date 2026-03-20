@@ -31,7 +31,6 @@
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
-#include <string.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/time.h>

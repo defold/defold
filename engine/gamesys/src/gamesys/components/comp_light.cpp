@@ -27,7 +27,7 @@
 
 namespace dmGameSystem
 {
-    const char* LIGHT_MAX_COUNT_KEY = "light.max_count";
+    static const char* LIGHT_MAX_COUNT_KEY = "light.max_count";
 
     struct LightContext
     {
@@ -35,9 +35,9 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
-        dmRender::HRenderContext    m_RenderContext;
-        dmResource::HFactory        m_Factory;
-        uint32_t                    m_MaxLightCount;
+        dmRender::HRenderContext m_RenderContext;
+        dmResource::HFactory     m_Factory;
+        uint32_t                 m_MaxLightCount;
     };
 
     struct LightComponent
@@ -174,7 +174,6 @@ namespace dmGameSystem
         LightContext* light_context = (LightContext*)dmGameObject::ComponentTypeGetContext(type);
         if (!light_context)
         {
-            // if the initialization process failed (e.g. unit tests)
             return dmGameObject::RESULT_OK;
         }
 

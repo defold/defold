@@ -41,13 +41,12 @@ namespace dmGameSystem
 
     /*# Get the render light prototype for a loaded light resource
      *
-     * Returns the `dmRender::LightPrototype` created from the `.lightc` data.
+     * Returns the `dmRender::HLightPrototype` handle created from the `.lightc` data.
      * The pointer remains valid until the resource is released.
      *
      * @name GetLightPrototype
-     * @param res [type: LightResource*] Light resource handle
-     * @return prototype [type: dmRender::LightPrototype*] Prototype pointer, or
-     *         `0` if `res` is `0` or the prototype failed to create.
+     * @param res [type: LightResource*] Light resource
+     * @return prototype [type: dmRender::HLightPrototype*] Prototype pointer
      */
     dmRender::HLightPrototype GetLightPrototype(LightResource* res);
 }

@@ -308,6 +308,11 @@ namespace dmRender
     {
         render_context->m_MaxLightCount = max_light_count;
         render_context->m_LightUniformBuffer = 0;
+        render_context->m_LightBufferDirtyStart  = 0;
+        render_context->m_LightBufferDirtyEnd  = 0;
+        render_context->m_LightBufferDirtyCount  = 0;
+        render_context->m_LightBufferDataWriteStart  = 0;
+        render_context->m_LightBufferLastWrittenCount = 0;
 
         if (max_light_count > 0)
         {

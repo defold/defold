@@ -447,7 +447,7 @@ public class ProtoBuilders {
     public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 
     // .light is the same backing data type as the data resource.
-    // Using an alias approach hasmostly semantic value for users,
+    // Using an alias approach has mostly semantic value for users,
     // as the intent is more clear.
     @ProtoParams(srcClass = Data.class, messageClass = Data.class)
     @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
