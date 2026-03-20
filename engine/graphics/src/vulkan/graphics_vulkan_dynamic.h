@@ -57,8 +57,6 @@ extern PFN_vkCreateRenderPass vkCreateRenderPass;
 extern PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
 extern PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
 extern PFN_vkCmdNextSubpass vkCmdNextSubpass;
-extern PFN_vkCmdBeginRendering vkCmdBeginRendering;
-extern PFN_vkCmdEndRendering vkCmdEndRendering;
 extern PFN_vkCmdExecuteCommands vkCmdExecuteCommands;
 extern PFN_vkCreateImage vkCreateImage;
 extern PFN_vkGetImageMemoryRequirements vkGetImageMemoryRequirements;

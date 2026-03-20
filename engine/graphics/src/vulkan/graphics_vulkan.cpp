@@ -426,14 +426,6 @@ namespace dmGraphics
 
     static bool EndRenderPass(VulkanContext* context)
     {
-        if (context->m_UseDynamicRendering)
-        {
-            // TODO(DYNAMIC_RENDERING): Implement vkCmdEndRendering path here.
-            // This should end a dynamic rendering instance started from BeginRenderPass
-            // when m_UseDynamicRendering is enabled.
-            return false;
-        }
-
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
@@ -450,14 +442,6 @@ namespace dmGraphics
 
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
     {
-        if (context->m_UseDynamicRendering)
-        {
-            // TODO(DYNAMIC_RENDERING): Implement vkCmdBeginRendering path here.
-            // This should construct VkRenderingInfo(VkRenderingAttachmentInfo, etc)
-            // based on the current RenderTarget and call vkCmdBeginRendering.
-            return;
-        }
-
         // Lock-free fast path: avoid mutex when already bound to the same render target (common in heavy draw-call scenes)
         if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
         {
@@ -1307,16 +1291,6 @@ namespace dmGraphics
             device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
             device_pNext_chain = &context->m_FragmentShaderInterlockFeatures;
         }
-
-        // NOTE: VK_KHR_dynamic_rendering is not enabled yet.
-        // We started wiring it up, but the KHR extension path pulls in a long
-        // chain of additional required extensions (VK_KHR_depth_stencil_resolve,
-        // VK_KHR_create_renderpass2, VK_KHR_multiview, VK_KHR_maintenance2, ...)
-        // and we do not yet use dynamic rendering in the backend.
-        //
-        // To avoid vkCreateDevice validation failures and keep the current
-        // render-pass based path stable, we intentionally do NOT enable
-        // VK_KHR_dynamic_rendering here for now.
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),

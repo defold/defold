@@ -60,8 +60,6 @@ PFN_vkCreateRenderPass vkCreateRenderPass;
 PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
 PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
 PFN_vkCmdNextSubpass vkCmdNextSubpass;
-PFN_vkCmdBeginRendering vkCmdBeginRendering;
-PFN_vkCmdEndRendering vkCmdEndRendering;
 PFN_vkCmdExecuteCommands vkCmdExecuteCommands;
 PFN_vkCreateImage vkCreateImage;
 PFN_vkGetImageMemoryRequirements vkGetImageMemoryRequirements;
@@ -213,8 +211,6 @@ namespace dmGraphics
         vkCmdBeginRenderPass = (PFN_vkCmdBeginRenderPass) vkGetInstanceProcAddr(vk_instance, "vkCmdBeginRenderPass");
         vkCmdEndRenderPass = (PFN_vkCmdEndRenderPass) vkGetInstanceProcAddr(vk_instance, "vkCmdEndRenderPass");
         vkCmdNextSubpass = (PFN_vkCmdNextSubpass) vkGetInstanceProcAddr(vk_instance, "vkCmdNextSubpass");
-        vkCmdBeginRendering = (PFN_vkCmdBeginRendering) vkGetInstanceProcAddr(vk_instance, "vkCmdBeginRendering");
-        vkCmdEndRendering = (PFN_vkCmdEndRendering) vkGetInstanceProcAddr(vk_instance, "vkCmdEndRendering");
         vkCmdExecuteCommands = (PFN_vkCmdExecuteCommands) vkGetInstanceProcAddr(vk_instance, "vkCmdExecuteCommands");
         vkCreateImage = (PFN_vkCreateImage) vkGetInstanceProcAddr(vk_instance, "vkCreateImage");
         vkGetImageMemoryRequirements = (PFN_vkGetImageMemoryRequirements) vkGetInstanceProcAddr(vk_instance, "vkGetImageMemoryRequirements");
