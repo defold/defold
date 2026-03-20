@@ -10,6 +10,6 @@ jobs:
       package_name: 'harfbuzz'
       result_folder_name: 'harfbuzz'
       result_lib_name: 'libharfbuzz'
-      package_version: '11.3.2'
+      package_version: '13.2.1'
     secrets:
       dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}
