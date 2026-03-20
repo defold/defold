@@ -2535,9 +2535,8 @@
 (defn open-url [url]
   (or
     (when (some-> desktop (.isSupported Desktop$Action/BROWSE))
-      (do
-        (.start (Thread. #(.browse desktop (as-url url))))
-        true))
+      (.start (Thread. #(.browse desktop (as-url url))))
+      true)
     (when (os/is-linux?)
       (try
         (process/start! {:out :discard :err :discard} "xdg-open" (str url))
