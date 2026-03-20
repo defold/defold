@@ -685,9 +685,11 @@ namespace dmShaderc
         // highp qualifier might not be supported on ES2, so we need to apply a workaround.
         if (compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
         {
-            EnsureSize(transform_buffer, compile_result_size);
+            EnsureSize(transform_buffer, compile_result_size + 1);
             memcpy(transform_buffer.Begin(), compile_result, compile_result_size);
+            transform_buffer.Begin()[compile_result_size] = '\0';
 
+            uint32_t transform_content_size = compile_result_size;
             dmArray<char> tmp_buffer;
 
             if (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP &&
@@ -695,16 +697,18 @@ namespace dmShaderc
             {
                 EnsureSize(transform_buffer, tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
+                transform_content_size = tmp_buffer.Size() - 1;
             }
             if (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP &&
                 ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, false))
             {
                 EnsureSize(transform_buffer, tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
+                transform_content_size = tmp_buffer.Size() - 1;
             }
 
             final_compile_result = transform_buffer.Begin();
-            final_compile_result_size = transform_buffer.Size();
+            final_compile_result_size = transform_content_size;
         }
 
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
