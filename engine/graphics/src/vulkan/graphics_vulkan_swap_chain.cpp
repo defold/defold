@@ -81,14 +81,14 @@ namespace dmGraphics
     {
     }
 
-    static void WaitForLastPresent(const VkDevice vk_device, const SwapChain* swapChain)
+    static void WaitForLastPresent(const VkDevice vk_device, PFN_vkWaitForPresentKHR wait_for_present, VkSwapchainKHR vk_swap_chain, uint64_t last_present_id)
     {
-        if (swapChain->m_WaitForPresent == 0 || swapChain->m_SwapChain == VK_NULL_HANDLE || swapChain->m_LastPresentId == 0)
+        if (wait_for_present == 0 || vk_swap_chain == VK_NULL_HANDLE || last_present_id == 0)
         {
             return;
         }
 
-        VkResult res = swapChain->m_WaitForPresent(vk_device, swapChain->m_SwapChain, swapChain->m_LastPresentId, UINT64_MAX);
+        VkResult res = wait_for_present(vk_device, vk_swap_chain, last_present_id, UINT64_MAX);
         if (res != VK_SUCCESS)
         {
             dmLogWarning("vkWaitForPresentKHR failed while waiting for swapchain present completion: %d", res);
@@ -114,6 +114,7 @@ namespace dmGraphics
         bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
     {
         VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
+        uint64_t old_last_present_id        = swapChain->m_LastPresentId;
         VkDevice vk_device                  = logicalDevice->m_Device;
         VkPhysicalDevice vk_physical_device = physicalDevice->m_Device;
         VkPresentModeKHR vk_present_mode    = VK_PRESENT_MODE_FIFO_KHR;
@@ -238,7 +239,7 @@ namespace dmGraphics
 
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
-            WaitForLastPresent(vk_device, swapChain);
+            WaitForLastPresent(vk_device, swapChain->m_WaitForPresent, vk_old_swap_chain, old_last_present_id);
             DestroyVkSwapChain(vk_device, vk_old_swap_chain, swapChain->m_ImageViews);
             for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
             {
@@ -335,7 +336,7 @@ namespace dmGraphics
     void DestroySwapChain(VkDevice vk_device, SwapChain* swapChain)
     {
         assert(swapChain);
-        WaitForLastPresent(vk_device, swapChain);
+        WaitForLastPresent(vk_device, swapChain->m_WaitForPresent, swapChain->m_SwapChain, swapChain->m_LastPresentId);
         DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
         for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
         {
