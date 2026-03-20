@@ -305,6 +305,8 @@ namespace dmGraphics
     , m_Height(0)
     , m_GraphicsMemorySize(0)
     , m_SwapInterval(1)
+    , m_GraphicsApiVersionMajorHint(0)
+    , m_GraphicsApiVersionMinorHint(0)
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
     , m_UseValidationLayers(0)
