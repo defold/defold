@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
+#include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -67,14 +68,31 @@ namespace dmGraphics
     }
 
     SwapChain::SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
-        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, VulkanTexture* resolveTexture)
+        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, VulkanTexture* resolveTexture,
+        PFN_vkWaitForPresentKHR wait_for_present)
         : m_ResolveTexture(resolveTexture)
         , m_Surface(surface)
         , m_QueueFamily(queueFamily)
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
         , m_SwapChain(VK_NULL_HANDLE)
         , m_SampleCountFlag(vk_sample_flag)
+        , m_WaitForPresent(wait_for_present)
+        , m_LastPresentId(0)
     {
+    }
+
+    static void WaitForLastPresent(const VkDevice vk_device, const SwapChain* swapChain)
+    {
+        if (swapChain->m_WaitForPresent == 0 || swapChain->m_SwapChain == VK_NULL_HANDLE || swapChain->m_LastPresentId == 0)
+        {
+            return;
+        }
+
+        VkResult res = swapChain->m_WaitForPresent(vk_device, swapChain->m_SwapChain, swapChain->m_LastPresentId, UINT64_MAX);
+        if (res != VK_SUCCESS)
+        {
+            dmLogWarning("vkWaitForPresentKHR failed while waiting for swapchain present completion: %d", res);
+        }
     }
 
     VkResult SwapChain::Advance(VkDevice vk_device, VkSemaphore vk_image_available)
@@ -220,6 +238,7 @@ namespace dmGraphics
 
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
+            WaitForLastPresent(vk_device, swapChain);
             DestroyVkSwapChain(vk_device, vk_old_swap_chain, swapChain->m_ImageViews);
             for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
             {
@@ -238,6 +257,7 @@ namespace dmGraphics
 
         swapChain->m_ImageExtent = vk_extent;
         swapChain->m_ImageIndex  = 0;
+        swapChain->m_LastPresentId = 0;
 
         swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);
@@ -315,6 +335,7 @@ namespace dmGraphics
     void DestroySwapChain(VkDevice vk_device, SwapChain* swapChain)
     {
         assert(swapChain);
+        WaitForLastPresent(vk_device, swapChain);
         DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
         for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
         {
@@ -324,6 +345,7 @@ namespace dmGraphics
         DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
 
         swapChain->m_SwapChain = VK_NULL_HANDLE;
+        swapChain->m_LastPresentId = 0;
     }
 
     void GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
