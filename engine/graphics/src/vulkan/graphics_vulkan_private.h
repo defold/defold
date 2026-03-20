@@ -362,7 +362,8 @@ namespace dmGraphics
             VkSampleCountFlagBits        vk_sample_flag,
             const SwapChainCapabilities& capabilities,
             const QueueFamily            queueFamily,
-            VulkanTexture*               resolveTexture);
+            VulkanTexture*               resolveTexture,
+            PFN_vkWaitForPresentKHR      wait_for_present);
 
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
@@ -374,6 +375,8 @@ namespace dmGraphics
         VkSwapchainKHR        m_SwapChain;
         VkExtent2D            m_ImageExtent;
         VkSampleCountFlagBits m_SampleCountFlag;
+        PFN_vkWaitForPresentKHR m_WaitForPresent;
+        uint64_t              m_LastPresentId;
         uint8_t               m_ImageIndex;
 
         VkResult Advance(VkDevice vk_device, VkSemaphore);
@@ -450,6 +453,7 @@ namespace dmGraphics
         VulkanTexture                   m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
         int32_atomic_t                  m_DeleteContextRequested;
+        PFN_vkWaitForPresentKHR         m_WaitForPresent;
 
         uint32_t                        m_Width;
         uint32_t                        m_Height;
