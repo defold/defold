@@ -325,6 +325,12 @@
           sprite-outline (decorated-outline resource-node [0 0])
           sprite-node-id (:node-id sprite-outline)]
       (reload-editor-scripts! project)
+      ;; This test project defines two commands with the same label:
+      ;; - an outline command available from Outline and Edit that changes
+      ;;   position and playback rate
+      ;; - a scene command available from Scene that changes scale
+
+      ;; Run the outline command from the Outline context menu:
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (eval-handler-contexts :outline [sprite-outline])
@@ -340,19 +346,9 @@
                 (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-node-id :position)))
         (is (= 2.5 (test-util/prop sprite-node-id :playback-rate))))
-      (let [handler+context (handler/active
-                              (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                              (eval-handler-contexts :global [sprite-node-id])
-                              {})]
-        (is (= [1.0 1.0 1.0] (test-util/prop sprite-node-id :scale)))
-        (is (some? handler+context))
-        (is (handler/enabled? handler+context))
-        (is (nil?
-              (try
-                @(handler/run handler+context)
-                nil
-                (catch Throwable e e))))
-        (is (= [2 2 2] (test-util/prop sprite-node-id :scale))))
+      
+      ;; Reuse the same outline command from the Edit menu to verify that an
+      ;; outline selection query still works outside the Outline view:
       (let [handler+context (handler/active
                               (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                               (eval-handler-contexts :global [sprite-node-id])
@@ -365,7 +361,22 @@
                 nil
                 (catch Throwable e e))))
         (is (= [3 3 3] (test-util/prop sprite-node-id :position)))
-        (is (= 4 (test-util/prop sprite-node-id :playback-rate)))))))
+        (is (= 4 (test-util/prop sprite-node-id :playback-rate))))
+      
+      ;; Run the separate scene command from the Scene context menu.
+      (let [handler+context (handler/active
+                              (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
+                              (eval-handler-contexts :global [sprite-node-id])
+                              {})]
+        (is (= [1.0 1.0 1.0] (test-util/prop sprite-node-id :scale)))
+        (is (some? handler+context))
+        (is (handler/enabled? handler+context))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
+        (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
