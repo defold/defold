@@ -31,6 +31,11 @@ namespace dmGameSystem
         dmRender::HLightPrototype m_LightPrototype;
     };
 
+    dmRender::LightPrototype* GetLightPrototype(LightResource* res)
+    {
+        return res ? (dmRender::LightPrototype*)res->m_LightPrototype : (dmRender::LightPrototype*)0;
+    }
+
     static const char* ParseResultToStr(LightParseResult res)
     {
         switch(res)
@@ -127,6 +132,8 @@ namespace dmGameSystem
                 type = dmRender::LIGHT_TYPE_SPOT;
             }
         }
+
+        params.m_Type = type;
 
         // Parse the data from the ddf data field
         const dmStructDDF::Value* data = &ddf->m_Data;
@@ -259,9 +266,17 @@ namespace dmGameSystem
 
     static ResourceResult RegisterResourceType_Light(HResourceTypeContext ctx, HResourceType type)
     {
+        // Same pattern as fontc: engine.cpp maps extension hash -> shared context (see m_ResourceTypeContexts).
+        void* render_context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
+        if (render_context == 0)
+        {
+            dmLogError("Missing resource context for 'lightc' when registering resource type 'lightc' (add lightc to resource type contexts, e.g. next to fontc)");
+            return RESOURCE_RESULT_INVAL;
+        }
+
         return (ResourceResult) dmResource::SetupType(ctx,
                                                       type,
-                                                      0, // no shared context
+                                                      render_context,
                                                       ResLightPreload,
                                                       ResLightCreate,
                                                       0, // post create

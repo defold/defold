@@ -59,6 +59,7 @@
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/components/comp_gui.h>
 #include <dmsdk/gamesys/resources/res_data.h>
+#include <dmsdk/gamesys/resources/res_light.h>
 
 #include <sound/sound.h>
 
@@ -96,6 +97,11 @@ namespace dmGameSystem
     ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
     ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);\
     ASSERT_NEAR(exp.getW(), act.getW(), EPSILON);
+
+#define ASSERT_VEC3(exp, act)\
+    ASSERT_NEAR(exp.getX(), act.getX(), EPSILON);\
+    ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);
 
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
@@ -357,6 +363,61 @@ TEST_F(ResourceTest, DataResourceContents)
     EXPECT_STREQ("hello", ddf->m_Data.m_Kind.m_String);
 
     dmResource::Release(m_Factory, (void*)resource);
+}
+
+TEST_F(ResourceTest, LightResourcePrototype)
+{
+    /////////////////////////////////
+    // Test point light
+    /////////////////////////////////
+    dmGameSystem::LightResource* res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_point.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res); 
+
+    dmRender::HLightPrototype light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+
+    const dmRender::LightPrototype* proto = (const dmRender::LightPrototype*) light_prototype;
+    ASSERT_EQ(dmRender::LIGHT_TYPE_POINT, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(2.0f, proto->m_Intensity, EPSILON);
+    ASSERT_NEAR(10.0f, proto->m_Range, EPSILON);
+
+    dmResource::Release(m_Factory, (void*)res);
+
+    /////////////////////////////////
+    // Test directional light
+    /////////////////////////////////
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_directional_light.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res);
+
+    light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+    proto = (const dmRender::LightPrototype*)light_prototype;
+    ASSERT_EQ(dmRender::LIGHT_TYPE_DIRECTIONAL, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(3.0f, proto->m_Intensity, EPSILON);
+    ASSERT_VEC3(dmVMath::Vector3(1.0f, 2.0f, 3.0f), proto->m_Direction);
+
+    dmResource::Release(m_Factory, (void*)res);
+
+    /////////////////////////////////
+    // Test spot light
+    /////////////////////////////////
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_spot_light.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res);
+
+    light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+    proto = (const dmRender::LightPrototype*)light_prototype;
+    ASSERT_EQ(dmRender::LIGHT_TYPE_SPOT, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(4.0f, proto->m_Intensity, EPSILON);
+    ASSERT_NEAR(20.0f, proto->m_Range, EPSILON);
+    ASSERT_NEAR(15.0f, proto->m_InnerConeAngle, EPSILON);
+    ASSERT_NEAR(30.0f, proto->m_OuterConeAngle, EPSILON);
+
+    dmResource::Release(m_Factory, (void*)res);
 }
 
 static bool UpdateAndWaitUntilDone(

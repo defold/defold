@@ -16,14 +16,13 @@
 
 #include <gamesys/data_ddf.h>
 
+#include <dmsdk/render/render.h>
+
 namespace dmGameSystem
 {
     /*# Light resource access
      *
      * Helper types and accessors for the light resource type (`.lightc`).
-     *
-     * Currently, the light resource is an alias of the generic data protobuf
-     * message (`dmGameSystemDDF::Data`).
      *
      * @document
      * @namespace dmGameSystem
@@ -33,14 +32,24 @@ namespace dmGameSystem
 
     /*# Opaque handle to a loaded light resource
      *
-     * This struct is an opaque handle managed by the engine. Use
-     * `GetDDFData()` to access the underlying protobuf message for read-only
-     * inspection.
+     * This struct is an opaque handle managed by the engine.
      *
      * @struct
      * @name LightResource
      */
     struct LightResource;
+
+    /*# Get the render light prototype for a loaded light resource
+     *
+     * Returns the `dmRender::LightPrototype` created from the `.lightc` data.
+     * The pointer remains valid until the resource is released.
+     *
+     * @name GetLightPrototype
+     * @param res [type: LightResource*] Light resource handle
+     * @return prototype [type: dmRender::LightPrototype*] Prototype pointer, or
+     *         `0` if `res` is `0` or the prototype failed to create.
+     */
+    dmRender::HLightPrototype GetLightPrototype(LightResource* res);
 }
 
 #endif // DMSDK_GAMESYS_RES_LIGHT_H
