@@ -898,3 +898,15 @@
                   (tree-seq :causes :causes)
                   (keep :message)
                   first))))))
+
+(deftest build-process-handles-exclude-gles-sm100-skips-paged-material-validation
+  (with-loaded-project "test/resources/max_paged_count_project"
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (testing "paged atlas with 9 pages fails build when exclude_gles_sm100 is false"
+        (with-setting "shader/exclude_gles_sm100" false
+          (let [build-results (project-build project game-project (g/make-evaluation-context))]
+            (is (g/error? (:error build-results))))))
+      (testing "paged atlas with 9 pages passes build when exclude_gles_sm100 is true"
+        (with-setting "shader/exclude_gles_sm100" true
+          (let [build-results (project-build project game-project (g/make-evaluation-context))]
+            (is (not (g/error? (:error build-results))))))))))
