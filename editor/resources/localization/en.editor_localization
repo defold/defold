@@ -1899,6 +1899,10 @@ form.label.project.graphics.opengl_version_hint = OpenGL Version Hint
 form.help.project.graphics.opengl_version_hint = OpenGL context version hint. If a specific version is selected, this will be used as the minimum version required (does not apply to OpenGL ES). Defaults to OpenGL 3.3
 form.label.project.graphics.opengl_core_profile_hint = OpenGL Core Profile Hint
 form.help.project.graphics.opengl_core_profile_hint = Set the 'core' OpenGL profile hint when creating the context. The core profile removes deprecated OpenGL features such as immediate mode rendering. Does not apply to OpenGL ES.
+form.label.project.graphics.vulkan_version_major = Vulkan Version Major
+form.help.project.graphics.vulkan_version_major = Vulkan context major version hint. Only applies when using the Vulkan graphics backend.
+form.label.project.graphics.vulkan_version_minor = Vulkan Version Minor
+form.help.project.graphics.vulkan_version_minor = Vulkan context minor version hint. Only applies when using the Vulkan graphics backend.
 form.label.project.graphics.memory_size = Memory Size
 form.help.project.graphics.memory_size = How much memory the driver is allowed to use (MB)
 
