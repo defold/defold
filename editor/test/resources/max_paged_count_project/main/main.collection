@@ -28,24 +28,6 @@ embedded_instances {
   ""
 }
 embedded_instances {
-  id: "Camera"
-  data: "embedded_components {\n"
-  "  id: \"camera\"\n"
-  "  type: \"camera\"\n"
-  "  data: \"aspect_ratio: 1.0\\n"
-  "fov: 0.7854\\n"
-  "near_z: 0.1\\n"
-  "far_z: 1000.0\\n"
-  "\"\n"
-  "}\n"
-  ""
-  position {
-    x: 344.0
-    y: 280.0
-    z: 339.0
-  }
-}
-embedded_instances {
   id: "paged_gui"
   data: "components {\n"
   "  id: \"paged_gui\"\n"
