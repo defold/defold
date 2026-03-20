@@ -361,6 +361,7 @@
 
   (input outline-pane-desc g/Any)
   (input properties-pane-desc g/Any)
+  (input properties-view g/NodeID)
   (input open-sidebar-panes g/Any :array :substitute gu/array-subst-remove-errors)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -369,7 +370,6 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input active-outline g/Any)
   (input active-scene g/Any)
-  (input properties-view g/NodeID)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)

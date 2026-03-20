@@ -198,30 +198,23 @@
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
 
-(defn vp-not-empty? [^Region viewport]
-  (not (types/empty-space? viewport)))
+(defn- back-to-front-depth-sort-value [^Matrix4d view-matrix ^Vector3d world-translation]
+  (let [world-position (Point3d. world-translation)]
+    (.transform view-matrix world-position)
+    (.z world-position)))
 
-(defn z-distance [^Matrix4d view-matrix ^Matrix4d world-transform]
-  (let [^Matrix4d t (or world-transform geom/Identity4d)
-        tmp-v4d (Vector4d.)]
-    (.getColumn t 3 tmp-v4d)
-    (.transform view-matrix tmp-v4d)
-    (max 0.0 (- (.z tmp-v4d)))))
-
-(defn- render-key [^Matrix4d view-matrix ^Matrix4d world-transform index topmost?]
-  [(boolean topmost?)
-   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-matrix world-transform)))
+(defn- render-key [^Matrix4d view-matrix ^Vector3d world-translation index is-topmost]
+  [(boolean is-topmost)
+   (if is-topmost Double/POSITIVE_INFINITY (back-to-front-depth-sort-value view-matrix world-translation))
    (or index 0)])
 
-(defn- outline-render-key [^Matrix4d view-matrix ^Matrix4d world-transform index topmost? selection-state]
+(defn- outline-render-key [^Matrix4d view-matrix ^Vector3d world-translation index is-topmost selection-state]
   ;; Draw selection outlines on top of other outlines.
-  [(case selection-state
-     :self-selected 2
-     :parent-selected 1
-     0)
-   (boolean topmost?)
-   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-matrix world-transform)))
-   (or index 0)])
+  (into [(case selection-state
+           :self-selected 2
+           :parent-selected 1
+           0)]
+        (render-key view-matrix world-translation index is-topmost)))
 
 (defn gl-viewport [^GL2 gl ^Region viewport]
   (.glViewport gl (.left viewport) (.top viewport) (- (.right viewport) (.left viewport)) (- (.bottom viewport) (.top viewport))))
@@ -290,7 +283,7 @@
             (recur (subvec renderables batch-count) (long end) (inc batch-index) (conj! batches [offset end])))))
       (persistent! batches))))
 
-(defn- render-sort [renderables]
+(defn render-sort [renderables]
   (sort-by :render-key renderables))
 
 (defn pass-render-args [^Region viewport ^Camera camera pass]
@@ -412,10 +405,12 @@
         prop-kw->override-value
         (let [prop-kw->override-value (get preview-overrides node-id)]
           (if apply-transform-preview-overrides
+
             ;; Apply transform property overrides, if present.
             (let [position-override (:position prop-kw->override-value)
                   rotation-override (:rotation prop-kw->override-value)
                   scale-override (:scale prop-kw->override-value)]
+
               ;; No need to extract non-overridden values from the local
               ;; transform if all the transform properties are overridden.
               (when-not (and position-override rotation-override scale-override)
@@ -449,7 +444,11 @@
                                   geom/null-aabb)
               user-data (:user-data renderable)]
           (if (and preview-fn prop-kw->override-value)
-            (preview-fn visibility-aabb user-data prop-kw->override-value)
+            (let [result (preview-fn visibility-aabb user-data prop-kw->override-value)]
+              (assert (instance? AABB (first result)))
+              (when (some? user-data)
+                (assert (map? (second result))))
+              result)
             (pair visibility-aabb user-data)))
 
         local-transform (math/->mat4-non-uniform local-translation local-rotation local-scale)
@@ -465,14 +464,9 @@
                         (:visible-self? renderable true)
                         (not (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path))
                         (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
-        scene-local-aabb visibility-aabb
-        scene-world-aabb (if (or (nil? scene-local-aabb)
-                                 (geom/null-aabb? scene-local-aabb)
-                                 (geom/empty-aabb? scene-local-aabb))
-                           geom/null-aabb
-                           (geom/aabb-transform scene-local-aabb world-transform))
-        world-aabb (if is-visible
-                     (geom/aabb-transform visibility-aabb world-transform)
+        local-aabb (:aabb scene)
+        world-aabb (if (and local-aabb is-visible)
+                     (geom/aabb-transform local-aabb world-transform)
                      geom/null-aabb)
         flat-renderable (-> scene
                             (dissoc :children :renderable)
@@ -491,8 +485,8 @@
                                    :user-data user-data
                                    :batch-key (:batch-key renderable)
                                    :aabb world-aabb
-                                   :render-key (render-key view-matrix world-transform (:index renderable) (:topmost? renderable))
-                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-matrix world-transform (:index renderable) (:topmost? renderable) selection-state)}}))
+                                   :render-key (render-key view-matrix world-translation (:index renderable) (:topmost? renderable))
+                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-matrix world-translation (:index renderable) (:topmost? renderable) selection-state)}}))
         flat-renderable (if is-visible
                           flat-renderable
                           (dissoc flat-renderable :updatable))
@@ -514,7 +508,9 @@
                                      (= pass/selection %))
                                 (:passes renderable)))
         pass-renderables (update-pass-renderables! (:renderables flattened-scene) drawn-passes flat-renderable)
-        scene-aabb (geom/aabb-union (:scene-aabb flattened-scene) scene-world-aabb)]
+        scene-aabb (cond-> (:scene-aabb flattened-scene)
+                           (and is-visible (not (geom/empty-aabb? visibility-aabb)))
+                           (geom/aabb-union (geom/aabb-transform visibility-aabb world-transform)))]
     (reduce (fn [flattened-scene child-scene]
               (let [parent-node-id (:node-id scene)
                     child-node-id (:node-id child-scene)
@@ -620,7 +616,7 @@
      :scene-aabb geom/empty-bounding-box}
     (let [selection-set (set selection)
           view-matrix (c/camera-view-matrix local-camera)
-          {:keys [renderables scene-aabb] :as flattened-scene} (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix)
+          {:keys [renderables] :as flattened-scene} (flatten-scene scene preview-overrides selection-set hidden-renderable-tags hidden-node-outline-key-paths view-matrix)
           selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id renderables)
           selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)]
       (assoc flattened-scene :selected-renderables selected-renderables))))
@@ -655,8 +651,8 @@
                    :point-scale point-scale
                    :geometry scene-shapes/box-lines}}]}))
 
-(g/defnk produce-internal-renderables [scene-render-data]
-  (make-aabb-renderables-by-pass (:scene-aabb scene-render-data) colors/bright-grey-light :dev-visibility-bounds))
+(g/defnk produce-internal-renderables [^AABB scene-aabb]
+  (make-aabb-renderables-by-pass scene-aabb colors/bright-grey-light :dev-visibility-bounds))
 
 (g/defnk produce-aux-render-data [aux-renderables internal-renderables hidden-renderable-tags]
   (assert (map? internal-renderables))
@@ -686,27 +682,6 @@
           [(get renderables-by-pass pass/selection)
            (get renderables-by-pass pass/opaque-selection)])))
 
-(defn calculate-scene-aabb
-  ^AABB [^AABB union-aabb ^Matrix4d parent-world-transform scene]
-  (let [local-transform ^Matrix4d (:transform scene)
-        world-transform (if (nil? local-transform)
-                          parent-world-transform
-                          (doto (Matrix4d. parent-world-transform)
-                            (.mul local-transform)))
-        local-aabb (or (:visibility-aabb scene)
-                       (:aabb scene))
-        union-aabb (if (or (nil? local-aabb)
-                           (geom/null-aabb? local-aabb)
-                           (geom/empty-aabb? local-aabb))
-                     union-aabb
-                     (-> local-aabb
-                         (geom/aabb-transform world-transform)
-                         (geom/aabb-union union-aabb)))]
-    (reduce (fn [^AABB union-aabb child-scene]
-              (calculate-scene-aabb union-aabb world-transform child-scene))
-            union-aabb
-            (:children scene))))
-
 (g/defnode SceneRenderer
   (property overlay-anchor-pane AnchorPane (dynamic visible (g/constantly false)))
   (property render-mode g/Keyword (default :normal))
@@ -714,7 +689,6 @@
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
   (input preview-overrides g/Any)
-  (input drag-active g/Bool)
   (input selection g/Any)
   (input local-camera Camera)
   (input camera Camera)
@@ -732,7 +706,7 @@
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
   (output selected-renderables g/Any (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
-  (output scene-aabb AABB :cached (g/fnk [scene-render-data] (:scene-aabb scene-render-data)))
+  (output scene-aabb AABB (g/fnk [scene-render-data] (:scene-aabb scene-render-data)))
   (output selected-aabb AABB :cached (g/fnk [scene-render-data]
                                        (let [selected-aabbs (sequence (comp (mapcat val)
                                                                             (filter :selected)
@@ -1091,7 +1065,6 @@
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
-  (output drag-active g/Bool (gu/passthrough drag-active))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
                                                  (into [] (keep updatables) active-updatable-ids)))
 
@@ -1104,13 +1077,12 @@
                                              {:renderables (reduce (partial merge-with into)
                                                                    {}
                                                                    tool-renderables)})))
-  (output displayed-node-properties g/Any :cached
-          (g/fnk [selected-node-properties preview-overrides]
-            (displayed-node-properties selected-node-properties preview-overrides)))
-
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
-  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
+  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
+  (output displayed-node-properties g/Any :cached
+          (g/fnk [selected-node-properties preview-overrides]
+            (displayed-node-properties selected-node-properties preview-overrides))))
 
 (defn cursor
   "Maps inconsistent cursor types across platforms.
@@ -1548,17 +1520,14 @@
 
 (defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
-    (let [[action-queue render-mode drag-active play-mode active-updatables updatable-states]
+    (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
           (g/with-auto-evaluation-context evaluation-context
             [(g/node-value view-id :input-action-queue evaluation-context)
              (g/node-value view-id :render-mode evaluation-context)
-             (g/node-value view-id :drag-active evaluation-context)
+             (g/node-value view-id :selected-tool-renderables evaluation-context)
              (g/node-value view-id :play-mode evaluation-context)
              (g/node-value view-id :active-updatables evaluation-context)
              (g/node-value view-id :updatable-states evaluation-context)])
-          tool-user-data (if drag-active
-                           nil
-                           (g/node-value view-id :selected-tool-renderables))
 
           has-active-updatables (not (coll/empty? active-updatables))
           new-updatable-states (if has-active-updatables
@@ -1600,7 +1569,7 @@
 
             [scene-aabb reframing-info]
             (g/with-auto-evaluation-context evaluation-context
-              (let [scene-aabb (get (g/node-value view-id :scene-render-data evaluation-context) :scene-aabb)
+              (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
                     reframing-info (when (and prev-aabb
                                               (geom/predefined-aabb? prev-aabb)
                                               (not (geom/predefined-aabb? scene-aabb)))
@@ -1835,15 +1804,15 @@
   (output manip-space g/Keyword (gu/passthrough manip-space))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output selection g/Any (gu/passthrough selection))
-  (output displayed-node-properties g/Any :cached
-          (g/fnk [selected-node-properties preview-overrides]
-            (displayed-node-properties selected-node-properties preview-overrides)))
   (output picking-selection g/Any :cached produce-selection) ; PreviewView is used for click-driven tests, so must support regular selection/picking.
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
   (output frame BufferedImage produce-frame)
   (output all-renderables pass/RenderData :cached (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
-  (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil)))))
+  (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
+  (output displayed-node-properties g/Any :cached
+          (g/fnk [selected-node-properties preview-overrides]
+            (displayed-node-properties selected-node-properties preview-overrides))))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView
@@ -1918,7 +1887,6 @@
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                   (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                   (g/connect tool-controller :preview-overrides             view-id         :preview-overrides)
-                  (g/connect tool-controller :drag-active                   view-id         :drag-active)
                   (g/connect view-id         :active-tool                   tool-controller :active-tool)
                   (g/connect view-id         :manip-space                   tool-controller :manip-space)
                   (g/connect view-id         :viewport                      tool-controller :viewport)

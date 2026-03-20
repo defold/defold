@@ -244,42 +244,6 @@
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-targets g/Any produce-embedded-component-build-targets))
 
-;; -----------------------------------------------------------------------------
-;; Currently some source resources have scale properties. This was done so
-;; that particular component types such as the Label component could support
-;; scaling. This is not ideal, since the scaling cannot differ between
-;; instances of the component. We probably want to remove this and move the
-;; scale attribute to the Component instance in the future.
-;;
-;; Here we delegate scaling to the embedded resource node. To support scaling,
-;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
-;;
-;; TODO(drag-perf): This isn't true anymore since we've migrated these scale
-;;   property to the ComponentNode now. Remove this? We have a few components
-;;   with :tag-opts {:transform-properties #{:scale}}. What happens if you scale
-;;   these? Label in particular, seems like it would scale the resource node
-;;   instead of the EmbeddedComponent. We migrate the scale from the resource
-;;   node to the EmbeddedComponent when loading. Are we re-introducing resource
-;;   node scaling using the manipulator?
-
-(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
-  (or (some-> (g/maybe-node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
-      (contains? (g/maybe-node-value node-id :transform-properties) :scale)))
-
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [node-id ^Vector3d delta manip-phase initial-evaluation-context]
-  (let [embedded-resource-id (g/maybe-node-value node-id :embedded-resource-id initial-evaluation-context)]
-    (cond
-      (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale embedded-resource-id delta manip-phase initial-evaluation-context)
-
-      (contains? (g/maybe-node-value node-id :transform-properties initial-evaluation-context) :scale)
-      (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)
-
-      :else
-      nil)))
-
-;; -----------------------------------------------------------------------------
-
 (defn- get-all-comp-exts [workspace]
   (keep (fn [[ext {:keys [tags :as _resource-type]}]]
           (when (or (contains? tags :component)

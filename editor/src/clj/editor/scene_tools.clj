@@ -36,7 +36,6 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (s/def ::node-id g/node-id?)
-(s/def ::node-id-path (s/coll-of ::node-id :kind vector?))
 (s/def ::prop-kw keyword?)
 (s/def ::prop-value any?)
 (s/def ::tx-data g/tx-data?)
@@ -527,10 +526,9 @@
   (let [make-local-manipulation-fn
         (fn make-local-manipulation-fn [manipulation-fn]
           {:pre [(ifn? manipulation-fn)]}
-          (fn local-manipulation-fn [manip-phase {:keys [node-id node-id-path]} local-delta]
+          (fn local-manipulation-fn [manip-phase {:keys [node-id]} local-delta]
             (-> (s/assert ::manipulation (manipulation-fn node-id local-delta manip-phase initial-evaluation-context))
-                (assoc :manip/node-id node-id)
-                (assoc :manip/node-id-path node-id-path))))]
+                (assoc :manip/node-id node-id))))]
     (make-manipulations-fn
       manip-opts
       active-manip
@@ -568,7 +566,7 @@
         manipulations (manipulations-fn manip-phase start-pos pos)]
     (combine-manipulations manipulations)))
 
-(def ^:private original-values #(select-keys % [:node-id :node-id-path :world-rotation :world-transform :parent-world-transform]))
+(def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
@@ -615,8 +613,7 @@
                         nil)
                       action)
     :mouse-moved (if-let [drag-start-state (g/node-value self :drag-start-state)]
-                   (let [active-tool (g/node-value self :active-tool)
-                         op-seq (:op-seq drag-start-state)
+                   (let [op-seq (:op-seq drag-start-state)
                          combined-manipulations (apply-manipulator :manip-phase/preview drag-start-state action)
                          preview-tx-data (:tx-data combined-manipulations)
                          preview-overrides (:node-id->prop-kw->override-value combined-manipulations)]
@@ -624,10 +621,9 @@
                                (not (coll/empty? preview-overrides)))
                        (g/transact
                          (concat
-                           (g/operation-label (get-in transform-tools [active-tool :label]))
                            (g/operation-sequence op-seq)
-                           preview-tx-data
-                           (g/set-property self :preview-overrides preview-overrides))))
+                           (g/set-property self :preview-overrides preview-overrides)
+                           preview-tx-data)))
                      nil)
                    (let [manip (first (get selection-data self))]
                      (when (not= manip (g/node-value self :hot-manip))
@@ -660,7 +656,6 @@
   (property prefs g/Any)
   (property drag-start-state g/Any)
   (property preview-overrides g/Any)
-
   (property hot-manip g/Any)
 
   (input active-tool g/Keyword)
@@ -672,6 +667,5 @@
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/constantly nil))
-  (output drag-active g/Bool (g/fnk [drag-start-state] (some? drag-start-state)))
   (output manip-opts g/Any produce-manip-opts)
   (output manip-space g/Keyword produce-manip-space))

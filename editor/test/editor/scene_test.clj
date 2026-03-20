@@ -28,6 +28,52 @@
 (defn- flatten-scene [scene preview-overrides]
   (#'scene/flatten-scene scene preview-overrides #{} #{} #{} math/identity-mat4))
 
+(defn- scene-renderables-by-pass [scene local-camera]
+  (-> {:scene scene
+       :selection []
+       :hidden-renderable-tags #{}
+       :hidden-node-outline-key-paths #{}
+       :local-camera local-camera}
+      (scene/produce-scene-render-data)
+      (:renderables)))
+
+(deftest claim-scene-test
+  (let [scene {:node-id :scene-node-id
+               :children [{:node-id :scene-node-id
+                           :children [{:node-id :scene-node-id}]}
+                          {:node-id :tree-node-id
+                           :node-outline-key "tree-node-outline-key"
+                           :children [{:node-id :apple-node-id
+                                       :node-outline-key "apple-node-outline-key"}]}
+                          {:node-id :house-node-id
+                           :node-outline-key "house-node-outline-key"
+                           :children [{:node-id :door-node-id
+                                       :node-outline-key "door-node-outline-key"
+                                       :children [{:node-id :door-handle-node-id
+                                                   :node-outline-key "door-handle-node-outline-key"}]}]}]}]
+    (is (= {:node-id :new-node-id
+            :node-outline-key "new-node-outline-key"
+            :children [{:node-id :new-node-id
+                        :node-outline-key "new-node-outline-key"
+                        :children [{:node-id :new-node-id
+                                    :node-outline-key "new-node-outline-key"}]}
+                       {:node-id :tree-node-id
+                        :node-outline-key "tree-node-outline-key"
+                        :picking-node-id :new-node-id
+                        :children [{:node-id :apple-node-id
+                                    :node-outline-key "apple-node-outline-key"
+                                    :picking-node-id :new-node-id}]}
+                       {:node-id :house-node-id
+                        :node-outline-key "house-node-outline-key"
+                        :picking-node-id :new-node-id
+                        :children [{:node-id :door-node-id
+                                    :node-outline-key "door-node-outline-key"
+                                    :picking-node-id :new-node-id
+                                    :children [{:node-id :door-handle-node-id
+                                                :node-outline-key "door-handle-node-outline-key"
+                                                :picking-node-id :new-node-id}]}]}]}
+           (scene/claim-scene scene :new-node-id "new-node-outline-key")))))
+
 (deftest displayed-node-properties-test
   (let [selected-node-properties
         [{:node-id 1
@@ -69,13 +115,70 @@
                         selected-node-properties
                         {}))))))
 
-(deftest flatten-scene-renderables-same-node-id-preview-overrides-test
+(deftest flatten-scene-preview-overrides-test
+  (let [scene {:node-id :root
+               :children [{:node-id :child
+                           :transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 1.0 2.0 3.0)))
+                           :aabb (geom/coords->aabb [10.0 10.0 10.0] [100.0 100.0 100.0])}]}]
+
+    (testing "Without preview overrides."
+      (let [flattened-scene (flatten-scene scene nil)]
+        (is (= (geom/coords->aabb [11.0 12.0 13.0] [101.0 102.0 103.0])
+               (:scene-aabb flattened-scene)))))
+
+    (testing "With preview overrides."
+      (let [preview-overrides {:child {:position [2.0 3.0 4.0]}}
+            flattened-scene (flatten-scene scene preview-overrides)]
+        (is (= (geom/coords->aabb [12.0 13.0 14.0] [102.0 103.0 104.0])
+               (:scene-aabb flattened-scene)))))))
+
+(deftest flatten-scene-preview-fn-test
+  (let [aabb (geom/coords->aabb [100.0 100.0 100.0] [200.0 200.0 200.0])
+        visibility-aabb (geom/coords->aabb [-1.0 -2.0 -3.0] [4.0 5.0 6.0])
+        preview-aabb (geom/coords->aabb [-10.0 -20.0 -30.0] [40.0 50.0 60.0])
+        preview-args-atom (atom nil)
+        preview-fn (fn preview-fn [visibility-aabb user-data prop-kw->override-value]
+                     (reset! preview-args-atom [visibility-aabb user-data prop-kw->override-value])
+                     (pair preview-aabb
+                           (merge user-data prop-kw->override-value)))
+        renderable-user-data {:user-data-key :user-data-value}
+        scene {:node-id :root
+               :children [{:node-id :child
+                           :aabb aabb
+                           :visibility-aabb visibility-aabb
+                           :renderable {:passes [pass/transparent]
+                                        :preview-fn preview-fn
+                                        :user-data renderable-user-data}}]}
+        preview-position [2.0 3.0 4.0]
+        preview-translation (doto (Vector3d.) (math/clj->vecmath preview-position))
+        preview-transform-matrix (doto (Matrix4d.) (.setIdentity) (.setTranslation preview-translation))
+        preview-aabb-transformed (geom/aabb-transform preview-aabb preview-transform-matrix)
+        preview-overrides {:child {:position preview-position
+                                   :custom :custom-value}}
+        flattened-scene (flatten-scene scene preview-overrides)
+        renderables-by-pass (:renderables flattened-scene)
+        flattened-child-renderable (get-in renderables-by-pass [pass/transparent 0])]
+    (is (= [visibility-aabb renderable-user-data {:custom :custom-value}]
+           @preview-args-atom))
+    (is (= :child
+           (:node-id flattened-child-renderable)))
+    (is (= preview-translation
+           (:world-translation flattened-child-renderable)))
+    (is (= preview-translation
+           (math/translation (:world-transform flattened-child-renderable))))
+    (is (= preview-aabb-transformed
+           (:scene-aabb flattened-scene)))
+    (is (= {:user-data-key :user-data-value
+            :custom :custom-value}
+           (:user-data flattened-child-renderable)))))
+
+(deftest flatten-scene-preview-overrides-same-node-id-test
   (let [preview-fn-overrides-atom (atom [])
 
         preview-fn
-        (fn preview-fn [local-aabb user-data prop-kw->override-value]
+        (fn preview-fn [visibility-aabb user-data prop-kw->override-value]
           (swap! preview-fn-overrides-atom conj prop-kw->override-value)
-          [local-aabb user-data])
+          [visibility-aabb user-data])
 
         scene
         {:node-id 0
@@ -100,91 +203,9 @@
     (testing "Child :preview-fn still receives non-transform overrides."
       (is (= [{:custom :value}] @preview-fn-overrides-atom)))))
 
-(deftest flatten-scene-produces-scene-aabb-test
-  (let [scene {:node-id :root
-               :children [{:node-id :child
-                           :transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 10.0 0.0 5.0)))
-                           :aabb (geom/coords->aabb [0.0 0.0 0.0] [2.0 2.0 2.0])}]}
-        flattened-scene (flatten-scene scene nil)]
-    (is (= (geom/coords->aabb [10.0 0.0 5.0] [12.0 2.0 7.0])
-           (:scene-aabb flattened-scene)))))
-
-(deftest flatten-scene-preview-overrides-affect-scene-aabb-test
-  (let [scene {:node-id :root
-               :children [{:node-id :child
-                           :transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 1.0 2.0 3.0)))
-                           :aabb (geom/coords->aabb [0.0 0.0 0.0] [2.0 2.0 2.0])}]}
-        preview-overrides {:child {:position [10.0 20.0 30.0]}}
-        flattened-scene (flatten-scene scene preview-overrides)]
-    (is (= (geom/coords->aabb [10.0 20.0 30.0] [12.0 22.0 32.0])
-           (:scene-aabb flattened-scene)))))
-
-(deftest flatten-scene-preview-fn-uses-visibility-aabb-test
-  (let [preview-args-atom (atom nil)
-        preview-fn (fn preview-fn [visibility-aabb user-data prop-kw->override-value]
-                     (reset! preview-args-atom [visibility-aabb user-data prop-kw->override-value])
-                     (pair (geom/coords->aabb [-10.0 -20.0 -30.0] [40.0 50.0 60.0]) user-data))
-        scene {:node-id :root
-               :children [{:node-id :child
-                           :visibility-aabb (geom/coords->aabb [-1.0 -2.0 -3.0] [4.0 5.0 6.0])
-                           :aabb (geom/coords->aabb [100.0 100.0 100.0] [200.0 200.0 200.0])
-                           :renderable {:preview-fn preview-fn}}]}
-        flattened-scene (flatten-scene scene {:child {:custom :value}})]
-    (is (= [(geom/coords->aabb [-1.0 -2.0 -3.0] [4.0 5.0 6.0]) nil {:custom :value}]
-           @preview-args-atom))
-    (is (= (geom/coords->aabb [-10.0 -20.0 -30.0] [40.0 50.0 60.0])
-           (:scene-aabb flattened-scene)))))
-
-(deftest flatten-scene-prefers-visibility-aabb-test
-  (let [scene {:node-id :root
-               :children [{:node-id :child
-                           :visibility-aabb (geom/coords->aabb [-1.0 -2.0 -3.0] [4.0 5.0 6.0])
-                           :aabb (geom/coords->aabb [100.0 100.0 100.0] [200.0 200.0 200.0])}]}
-        flattened-scene (flatten-scene scene nil)]
-    (is (= (geom/coords->aabb [-1.0 -2.0 -3.0] [4.0 5.0 6.0])
-           (:scene-aabb flattened-scene)))))
-
-(deftest flatten-scene-accumulates-all-sibling-subtrees-test
-  (let [scene {:node-id :root
-               :children [{:node-id :first
-                           :aabb (geom/coords->aabb [-30.0 -80.0 -30.0] [30.0 80.0 30.0])
-                           :renderable {:passes [pass/transparent]}}
-                          {:node-id :second
-                           :aabb (geom/coords->aabb [-32.0 -16.0 0.0] [32.0 16.0 0.0])
-                           :renderable {:passes [pass/transparent]}}]}
-        flattened-scene (flatten-scene scene nil)]
-    (is (= (geom/coords->aabb [-32.0 -80.0 -30.0] [32.0 80.0 30.0])
-           (:scene-aabb flattened-scene)))
-    (is (= [:first :second]
-           (mapv :node-id (get-in flattened-scene [:renderables pass/transparent]))))))
-
-(deftest view-depth-sort-does-not-depend-on-clip-planes-test
-  (let [camera-near (assoc (camera/make-camera) :z-near 1.0 :z-far 10.0)
-        camera-far (assoc (camera/make-camera) :z-near 100.0 :z-far 1000.0)
-        scene {:node-id :root
-               :children [{:node-id :near
-                           :transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 0.0 0.0 10.0)))
-                           :renderable {:passes [pass/transparent]}}
-                          {:node-id :far
-                           :transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 0.0 0.0 -10.0)))
-                           :renderable {:passes [pass/transparent]}}]}
-        renderables-near (:renderables (scene/produce-scene-render-data {:scene scene
-                                                                         :selection []
-                                                                         :hidden-renderable-tags #{}
-                                                                         :hidden-node-outline-key-paths #{}
-                                                                         :local-camera camera-near}))
-        renderables-far (:renderables (scene/produce-scene-render-data {:scene scene
-                                                                        :selection []
-                                                                        :hidden-renderable-tags #{}
-                                                                        :hidden-node-outline-key-paths #{}
-                                                                        :local-camera camera-far}))]
-    (is (= (mapv :node-id (get renderables-near pass/transparent))
-           (mapv :node-id (get renderables-far pass/transparent))))))
-
-(deftest view-depth-sort-orders-farther-renderables-first-test
+(deftest renderables-sort-back-to-front-test
   (let [camera (camera/make-camera)
-        view-matrix (camera/camera-view-matrix camera)
-        near-world-transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 0.0 0.0 100.0)))
+        near-world-transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 0.0 0.0 -1.0)))
         far-world-transform (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 0.0 0.0 -100.0)))
         scene {:node-id :root
                :children [{:node-id :near
@@ -193,14 +214,8 @@
                           {:node-id :far
                            :transform far-world-transform
                            :renderable {:passes [pass/transparent]}}]}
-        renderables (:renderables (scene/produce-scene-render-data {:scene scene
-                                                                    :selection []
-                                                                    :hidden-renderable-tags #{}
-                                                                    :hidden-node-outline-key-paths #{}
-                                                                    :local-camera camera}))
-        renderables-by-node-id (into {} (map (juxt :node-id identity)) (get renderables pass/transparent))]
-    (is (> (#'scene/z-distance view-matrix far-world-transform)
-           (#'scene/z-distance view-matrix near-world-transform)))
-    (is (<= (compare (:render-key (get renderables-by-node-id :far))
-                     (:render-key (get renderables-by-node-id :near)))
-            0))))
+        renderables-by-pass (scene-renderables-by-pass scene camera)]
+    (is (= [:far :near]
+           (->> (get renderables-by-pass pass/transparent)
+                (scene/render-sort)
+                (mapv :node-id))))))

@@ -722,7 +722,6 @@
   (input viewport Region)
 
   (output viewport Region (gu/passthrough viewport))
-  (output local-camera Camera (gu/passthrough local-camera))
   (output camera Camera :cached produce-camera)
   (output cursor-type g/Keyword (gu/passthrough cursor-type))
 

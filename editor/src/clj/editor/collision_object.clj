@@ -191,6 +191,8 @@
   [_node-id transform diameter color node-outline-key project-physics-type]
   (let [is-2d (= "2D" project-physics-type)
 
+        ;; The preview-fn technically takes and returns a visibility-aabb, but
+        ;; we can also use it for our local-aabb.
         [local-aabb user-data]
         (preview-sphere-shape-renderable
           geom/null-aabb
@@ -253,6 +255,8 @@
   [_node-id transform dimensions color node-outline-key project-physics-type]
   (let [is-2d (= "2D" project-physics-type)
 
+        ;; The preview-fn technically takes and returns a visibility-aabb, but
+        ;; we can also use it for our local-aabb.
         [local-aabb user-data]
         (preview-box-shape-renderable
           geom/null-aabb
@@ -331,6 +335,8 @@
   ;; NOTE: Capsules are currently only supported when physics type is 3D.
   (let [is-2d (= "2D" project-physics-type)
 
+        ;; The preview-fn technically takes and returns a visibility-aabb, but
+        ;; we can also use it for our local-aabb.
         [local-aabb user-data]
         (preview-capsule-shape-renderable
           geom/null-aabb
