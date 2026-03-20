@@ -34,6 +34,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
+            [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
             [internal.util :as util]
@@ -2531,12 +2532,19 @@
   ^URI [url]
   (if (instance? URI url) url (URI. url)))
 
-(defn open-url
-  [url]
-  (if (some-> desktop (.isSupported Desktop$Action/BROWSE))
-    (do
-      (.start (Thread. #(.browse desktop (as-url url))))
-      true)
+(defn open-url [url]
+  (or
+    (when (some-> desktop (.isSupported Desktop$Action/BROWSE))
+      (do
+        (.start (Thread. #(.browse desktop (as-url url))))
+        true))
+    (when (os/is-linux?)
+      (try
+        (process/start! {:out :discard :err :discard} "xdg-open" (str url))
+        true
+        (catch Exception e
+          (log/warn :message (str "xdg-open failed: " (.getMessage e)))
+          false)))
     (do
       (log/warn :message (str "Cannot open browser." (when (os/is-linux?) " Installing gvfs may fix this.")))
       false)))
