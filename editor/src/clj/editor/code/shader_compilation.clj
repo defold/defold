@@ -23,7 +23,7 @@
             [editor.workspace :as workspace]
             [util.array :as array]
             [util.eduction :as e])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor Shaderc$ShaderPrecision]
            [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]
            [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
 
@@ -59,6 +59,13 @@
     (set! (. shader-module-desc type) pb-shader-type)
     shader-module-desc))
 
+(defn- glsl-precision-string->enum
+  ^Shaderc$ShaderPrecision [s]
+  (case s
+    "highp" Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
+    "mediump" Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
+    (g/error-fatal (format "Invalid shader precision '%s'. Expected \"highp\" or \"mediump\"." (str s)))))
+
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
 
@@ -70,7 +77,7 @@
       {:resource build-resource
        :content (protobuf/pb->bytes shader-desc)})))
 
-(defn make-shader-build-target [node-id shader-source-infos max-page-count exclude-gles-sm100]
+(defn make-shader-build-target [node-id shader-source-infos max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int]
   {:pre [(g/node-id? node-id)
          (vector? shader-source-infos)
          (pos? (count shader-source-infos))
@@ -96,13 +103,22 @@
         pb-shader-languages (if exclude-gles-sm100
                               pb-shader-languages-without-gles-sm100
                               pb-default-shader-languages)
+        float-precision (glsl-precision-string->enum glsl-es-default-precision-float)
+        int-precision (glsl-precision-string->enum glsl-es-default-precision-int)]
+    (cond
+      (g/error-value? float-precision)
+      float-precision
 
-        shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count))
-        shader-desc (.-shaderDesc shader-desc-build-result)]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource build-resource
-       :shader-reflection (when shader-desc (.getReflection shader-desc))
-       :build-fn build-shader
-       :user-data {:shader-desc shader-desc
-                   :compile-warning-messages (.buildWarnings shader-desc-build-result)}})))
+      (g/error-value? int-precision)
+      int-precision
+
+      :else
+      (let [shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count) float-precision int-precision)
+            shader-desc (.-shaderDesc shader-desc-build-result)]
+        (bt/with-content-hash
+          {:node-id node-id
+           :resource build-resource
+           :shader-reflection (when shader-desc (.getReflection shader-desc))
+           :build-fn build-shader
+           :user-data {:shader-desc shader-desc
+                       :compile-warning-messages (.buildWarnings shader-desc-build-result)}})))))
