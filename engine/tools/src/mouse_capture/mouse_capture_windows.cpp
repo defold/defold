@@ -116,27 +116,8 @@ namespace dmMouseCapture
         return registered;
     }
 
-    HContext CreateContext(int save_cursor_x, int save_cursor_y)
-    {
-        Context* ctx = new Context();
-        ctx->m_MessageWindow = NULL;
-        ctx->m_Capturing = false;
-        ctx->m_AccumulatedDelta.dx = 0.0;
-        ctx->m_AccumulatedDelta.dy = 0.0;
-        ctx->m_SavedCursorX = save_cursor_x;
-        ctx->m_SavedCursorY = save_cursor_y;
-        return ctx;
-    }
-
     void DestroyContext(HContext context)
     {
-        if (!context)
-            return;
-
-        if (context->m_Capturing)
-            StopCapture(context);
-
-        delete context;
     }
 
     void WarpCursor(int x, int y)
@@ -174,35 +155,37 @@ namespace dmMouseCapture
         }
     }
 
-    bool StartCapture(HContext context)
+    HContext StartCapture(int save_cursor_x, int save_cursor_y)
     {
-        if (!context || context->m_Capturing)
-            return false;
-
         if (!EnsureWindowClass())
-            return false;
+            return nullptr;
 
-        POINT pt;
-        GetCursorPos(&pt);
+        HWND hwnd = CreateWindowEx(0, TEXT("dmMouseCaptureRawInput"), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
 
-        context->m_MessageWindow = CreateWindowEx(0, TEXT("dmMouseCaptureRawInput"), NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
+        if (!hwnd)
+            return nullptr;
 
-        if (!context->m_MessageWindow)
-            return false;
+        Context* context = new Context();
+        context->m_MessageWindow = hwnd;
+        context->m_Capturing = true;
+        context->m_AccumulatedDelta.dx = 0.0;
+        context->m_AccumulatedDelta.dy = 0.0;
+        context->m_SavedCursorX = save_cursor_x;
+        context->m_SavedCursorY = save_cursor_y;
 
-        SetWindowLongPtr(context->m_MessageWindow, GWLP_USERDATA, (LONG_PTR)context);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)context);
 
         RAWINPUTDEVICE rid;
         rid.usUsagePage = 0x01;
         rid.usUsage = 0x02;
         rid.dwFlags = 0;
-        rid.hwndTarget = context->m_MessageWindow;
+        rid.hwndTarget = hwnd;
 
         if (!RegisterRawInputDevices(&rid, 1, sizeof(rid)))
         {
-            DestroyWindow(context->m_MessageWindow);
-            context->m_MessageWindow = NULL;
-            return false;
+            DestroyWindow(hwnd);
+            delete context;
+            return nullptr;
         }
 
         while (ShowCursor(FALSE) >= 0)
@@ -217,11 +200,7 @@ namespace dmMouseCapture
 
         DiscardRawInput();
 
-        context->m_Capturing = true;
-        context->m_AccumulatedDelta.dx = 0.0;
-        context->m_AccumulatedDelta.dy = 0.0;
-
-        return true;
+        return context;
     }
 
     void StopCapture(HContext context)
@@ -239,7 +218,6 @@ namespace dmMouseCapture
         if (context->m_MessageWindow)
         {
             DestroyWindow(context->m_MessageWindow);
-            context->m_MessageWindow = NULL;
         }
 
         ClipCursor(NULL);
@@ -247,7 +225,7 @@ namespace dmMouseCapture
         {
         }
 
-        context->m_Capturing = false;
+        delete context;
     }
 
     // In order to drain all messages from the queue while still keeping WM_INPUT, we call PeekMessage with PM_REMOVE,

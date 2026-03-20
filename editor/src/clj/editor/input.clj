@@ -43,15 +43,13 @@
 (defn warp-cursor [x y] (MouseCapture/MouseCapture_WarpCursor x y))
 
 (defn start-mouse-capture [view-center-x view-center-y]
-  (when-let [context (MouseCapture/MouseCapture_CreateContext view-center-x view-center-y)]
-    (when (MouseCapture/MouseCapture_StartCapture context)
-      (reset! mouse-capture-context context)
-      true)))
+  (when-let [context (MouseCapture/MouseCapture_StartCapture view-center-x view-center-y)]
+    (reset! mouse-capture-context context)
+    true))
 
 (defn stop-mouse-capture []
   (when-let [context @mouse-capture-context]
     (MouseCapture/MouseCapture_StopCapture context)
-    (MouseCapture/MouseCapture_DestroyContext context)
     (reset! mouse-capture-context nil)
     true))
 

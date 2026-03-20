@@ -32,28 +32,6 @@ namespace dmMouseCapture
         NSEventMaskRightMouseDragged |
         NSEventMaskOtherMouseDragged;
 
-    // We don't need to save the cursor positions because the cursor never moves
-    HContext CreateContext(int save_cursor_x, int save_cursor_y)
-    {
-        Context* ctx = new Context();
-        ctx->m_Capturing = false;
-        ctx->m_AccDx = 0.0;
-        ctx->m_AccDy = 0.0;
-        ctx->m_LocalMonitor = nil;
-        return ctx;
-    }
-
-    void DestroyContext(HContext context)
-    {
-        if (!context)
-            return;
-
-        if (context->m_Capturing)
-            StopCapture(context);
-
-        delete context;
-    }
-
     void WarpCursor(int x, int y)
     {
         CGWarpMouseCursorPosition(CGPointMake(x, y));
@@ -61,33 +39,29 @@ namespace dmMouseCapture
         CGAssociateMouseAndMouseCursorPosition(YES);
     }
 
-    bool StartCapture(HContext context)
+    HContext StartCapture(int save_cursor_x, int save_cursor_y)
     {
-        if (!context || context->m_Capturing)
-            return false;
+        Context* context = new Context();
+        context->m_Capturing = true;
+        context->m_AccDx = 0.0;
+        context->m_AccDy = 0.0;
 
         CGAssociateMouseAndMouseCursorPosition(NO);
 
-        Context* ctx = context;
-
-        ctx->m_AccDx = 0.0;
-        ctx->m_AccDy = 0.0;
-
-        ctx->m_LocalMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:kMotionMask
+        context->m_LocalMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:kMotionMask
             handler:^NSEvent*(NSEvent* event) {
-                ctx->m_AccDx += [event deltaX];
-                ctx->m_AccDy += [event deltaY];
+                context->m_AccDx += [event deltaX];
+                context->m_AccDy += [event deltaY];
                 return event;
             }];
 
-        if (!ctx->m_LocalMonitor)
+        if (!context->m_LocalMonitor)
         {
             CGAssociateMouseAndMouseCursorPosition(YES);
-            return false;
+            return nil;
         }
 
-        ctx->m_Capturing = true;
-        return true;
+        return context;
     }
 
     void StopCapture(HContext context)
@@ -103,7 +77,7 @@ namespace dmMouseCapture
 
         CGAssociateMouseAndMouseCursorPosition(YES);
 
-        context->m_Capturing = false;
+        delete context;
     }
 
     bool PollDelta(HContext context, MouseDelta* out_delta)
