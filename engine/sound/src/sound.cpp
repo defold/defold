@@ -228,9 +228,6 @@ namespace dmSound
         float*                  m_DecoderOutput[SOUND_MAX_DECODE_CHANNELS];
         uint32_t                m_DecoderBufferFrameCapacity;
         uint32_t                m_DecoderTempOutputCapacity;
-        uint32_t                m_ProfileSoundDataSize;
-        uint32_t                m_ProfileScratchBufferSize;
-        uint32_t                m_ProfileInstanceBufferSize;
 
         void*                   m_OutBuffers[SOUND_OUTBUFFER_MAX_COUNT];
         uint16_t                m_OutBufferCount;
@@ -499,8 +496,6 @@ namespace dmSound
             instance->m_FrameCount = 0;
             instance->m_Speed = 1.0f;
         }
-        sound->m_ProfileInstanceBufferSize = max_instances * initial_instance_frame_capacity * sizeof(float) * SOUND_MAX_DECODE_CHANNELS;
-
         sound->m_SoundData.SetCapacity(max_sound_data);
         sound->m_SoundData.SetSize(max_sound_data);
         sound->m_SoundDataPool.SetCapacity(max_sound_data);
@@ -516,14 +511,12 @@ namespace dmSound
         sound->m_DecoderTempOutput = 0;
         sound->m_DecoderBufferFrameCapacity = 0;
         sound->m_DecoderTempOutputCapacity = 0;
-        sound->m_ProfileSoundDataSize = 0;
-        sound->m_ProfileScratchBufferSize = 0;
 
         DM_PROPERTY_SET_U32(rmtp_InstanceCount, 0);
         DM_PROPERTY_SET_U32(rmtp_SoundDataCount, 0);
-        DM_PROPERTY_SET_U32(rmtp_SoundDataSize, sound->m_ProfileSoundDataSize);
-        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, sound->m_ProfileScratchBufferSize);
-        DM_PROPERTY_SET_U32(rmtp_InstanceBufferSize, sound->m_ProfileInstanceBufferSize);
+        DM_PROPERTY_SET_U32(rmtp_SoundDataSize, 0);
+        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, 0);
+        DM_PROPERTY_SET_U32(rmtp_InstanceBufferSize, max_instances * initial_instance_frame_capacity * sizeof(float) * SOUND_MAX_DECODE_CHANNELS);
 
         sound->m_UseFloatOutput = device_info.m_UseFloats;
         sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
@@ -759,8 +752,7 @@ namespace dmSound
             sound->m_DecoderTempOutputCapacity = (uint32_t)required_temp_output_capacity;
         }
 
-        sound->m_ProfileScratchBufferSize = sound->m_DecoderBufferFrameCapacity * sizeof(float) * SOUND_MAX_DECODE_CHANNELS + sound->m_DecoderTempOutputCapacity;
-        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, sound->m_ProfileScratchBufferSize);
+        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, sound->m_DecoderBufferFrameCapacity * sizeof(float) * SOUND_MAX_DECODE_CHANNELS + sound->m_DecoderTempOutputCapacity);
 
         return RESULT_OK;
     }
@@ -791,8 +783,7 @@ namespace dmSound
             free(instance->m_Frames[c]);
             instance->m_Frames[c] = new_frames[c];
         }
-        g_SoundSystem->m_ProfileInstanceBufferSize += (required_frame_capacity - instance->m_FrameCapacity) * sizeof(float) * SOUND_MAX_DECODE_CHANNELS;
-        DM_PROPERTY_SET_U32(rmtp_InstanceBufferSize, g_SoundSystem->m_ProfileInstanceBufferSize);
+        DM_PROPERTY_ADD_U32(rmtp_InstanceBufferSize, (required_frame_capacity - instance->m_FrameCapacity) * sizeof(float) * SOUND_MAX_DECODE_CHANNELS);
         instance->m_FrameCapacity = required_frame_capacity;
 
         return RESULT_OK;
@@ -813,13 +804,12 @@ namespace dmSound
 
     static Result SetSoundDataNoLock(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
-        g_SoundSystem->m_ProfileSoundDataSize -= sound_data->m_Size;
+        const uint32_t previous_sound_size = sound_data->m_Size;
         free(sound_data->m_Data);
         sound_data->m_Data = malloc(sound_buffer_size);
         sound_data->m_Size = sound_buffer_size;
         memcpy(sound_data->m_Data, sound_buffer, sound_buffer_size);
-        g_SoundSystem->m_ProfileSoundDataSize += sound_data->m_Size;
-        DM_PROPERTY_SET_U32(rmtp_SoundDataSize, g_SoundSystem->m_ProfileSoundDataSize);
+        DM_PROPERTY_ADD_U32(rmtp_SoundDataSize, (int32_t)sound_buffer_size - (int32_t)previous_sound_size);
         return RESULT_OK;
     }
 
@@ -852,8 +842,7 @@ namespace dmSound
         sd->m_DataCallbacks.m_Context = cbk_ctx;
         sd->m_DataCallbacks.m_GetData = cbk;
         sd->m_RefCount = 1;
-        sound->m_ProfileSoundDataSize += sizeof(SoundData);
-        DM_PROPERTY_SET_U32(rmtp_SoundDataSize, sound->m_ProfileSoundDataSize);
+        DM_PROPERTY_ADD_U32(rmtp_SoundDataSize, sizeof(SoundData));
 
         Result result = RESULT_OK;
         if (sound_buffer != 0)
@@ -923,10 +912,9 @@ namespace dmSound
             free((void*) sound_data->m_Data);
 
         SoundSystem* sound = g_SoundSystem;
-        sound->m_ProfileSoundDataSize -= GetSoundResourceSize(sound_data);
+        DM_PROPERTY_ADD_U32(rmtp_SoundDataSize, -((int32_t)sizeof(SoundData) + (int32_t)sound_data->m_Size));
         sound->m_SoundDataPool.Push(sound_data->m_Index);
         DM_PROPERTY_SET_U32(rmtp_SoundDataCount, sound->m_SoundDataPool.Size());
-        DM_PROPERTY_SET_U32(rmtp_SoundDataSize, sound->m_ProfileSoundDataSize);
         sound_data->m_Index = 0xffff;
 
         return RESULT_OK;
