@@ -53,6 +53,10 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private id-message (properties/label-message :id))
+(def ^:private name-message (properties/label-message :name))
+(def ^:private path-message (properties/label-message :path))
+
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
   (-> (protobuf/make-map-without-defaults GameObject$EmbeddedInstanceDesc
         :id id
@@ -85,7 +89,7 @@
                                    ;; creating nodes from editor scripts. At
                                    ;; that point, id-counts may be nil
                                    (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id))
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id id-message))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
@@ -213,8 +217,8 @@
    :label ""})
 
 (defn- path-error [node-id resource]
-  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
-      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
+  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource path-message)
+      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource path-message)))
 
 (defn- component-property-error [node-id ddf-message]
   (when-some [errors (not-empty (sequence (comp (mapcat :properties) ; Extract GameObject$PropertyDescs from GameObject$ComponentPropertyDescs.
@@ -508,7 +512,7 @@
 
   (property name g/Str
             (dynamic error (g/fnk [_node-id name]
-                             (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
+                             (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name name-message))))
 
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
@@ -845,6 +849,14 @@
                    select-fn (fn [node-ids] (app-view/select app-view node-ids))]
           (add-referenced-game-object! coll-node go-node resource select-fn))))))
 
+(defn- validate-child-references! [id->nid child->parent]
+  (run!
+    (fn [[child parent]]
+      (when (and parent (not (id->nid child)))
+        (throw (IllegalStateException.
+                 (format "Unresolved child id '%s' referenced by parent '%s'." child parent)))))
+    child->parent))
+
 (defn load-collection [project self resource collection]
   {:pre [(map? collection)]} ; GameObject$CollectionDesc in map format.
   (concat
@@ -881,6 +893,7 @@
                                                    children))))
                               (pair (:instances collection)
                                     (:embedded-instances collection))))]
+      (validate-child-references! id->nid child->parent)
       (concat
         tx-go-creation
         (for [[child parent] child->parent

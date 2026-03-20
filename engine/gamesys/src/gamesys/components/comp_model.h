@@ -16,6 +16,7 @@
 #define DM_GAMESYS_COMP_MODEL_H
 
 #include <gameobject/component.h>
+#include <dmsdk/gamesys/components/comp_model.h>
 
 // for scripting
 #include <stdint.h>

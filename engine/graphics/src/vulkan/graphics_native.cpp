@@ -56,7 +56,7 @@ namespace dmGraphics
         return g_extension_names;
     }
 
-    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_randerdoc)
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation)
     {
         uint16_t count = 0;
         if (use_validation)
@@ -124,7 +124,7 @@ namespace dmGraphics
     void VulkanCloseWindow(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
@@ -141,7 +141,6 @@ namespace dmGraphics
                 free(context->m_DynamicOffsetBuffer);
             }
 
-            DestroyTexture(vk_device, &context->m_SwapChain->m_ResolveTexture->m_Handle);
             delete context->m_SwapChain;
         }
     }
@@ -150,7 +149,7 @@ namespace dmGraphics
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             context->m_Width  = width;
             context->m_Height = height;
@@ -167,7 +166,7 @@ namespace dmGraphics
     void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             VulkanSetWindowSize(_context, width, height);
         }

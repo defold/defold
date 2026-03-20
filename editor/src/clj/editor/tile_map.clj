@@ -79,6 +79,9 @@
 
 (def tile-map-icon "icons/32/Icons_48-Tilemap.png")
 (def tile-map-layer-icon "icons/32/Icons_42-Layers.png")
+(def ^:private material-message (properties/label-message :material))
+(def ^:private tile-source-message (properties/label-message :tile-map :tile-source))
+(def ^:private z-message (properties/label-message :tile-map.layer :z))
 
 
 ;; manipulating cells
@@ -521,7 +524,8 @@
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
-            (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z))
+            (dynamic error (g/fnk [_node-id z]
+                             (validation/prop-error :warning _node-id :z validation/prop-1-1? z z-message)))
             (dynamic label (properties/label-dynamic :tile-map.layer :z))
             (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :z)))
 
@@ -628,12 +632,15 @@
   (validation/prop-error :fatal _node-id :tile-source
                          (fn [v name]
                            (when-not (< max-tile-index tile-count)
-                             (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
+                             (localization/message "error.tile-map.tiles-outside-tile-source-range"
+                                                   {"count" tile-count
+                                                    "index" max-tile-index})))
+                         tile-source tile-source-message))
 
 (g/defnk produce-build-targets
   [_node-id resource tile-source material save-value dep-build-targets tile-count max-tile-index]
   (g/precluding-errors
-    [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+    [(prop-resource-error :fatal _node-id :tile-source tile-source tile-source-message)
      (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
@@ -676,7 +683,7 @@
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
-                             (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+                             (or (prop-resource-error :fatal _node-id :tile-source tile-source tile-source-message)
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"}))
             (dynamic label (properties/label-dynamic :tile-map :tile-source))
@@ -692,7 +699,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers])))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material "Material")))
+                                  (prop-resource-error :fatal _node-id :material material material-message)))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
   (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))

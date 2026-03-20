@@ -603,6 +603,12 @@
         {}
         (keyword->name k)))))
 
+(defn label-message
+  "Return a (memoized) MessagePattern for a property label"
+  ([k] (label-message nil k))
+  ([domain k]
+   (memoized-label-message domain k)))
+
 (defn label-dynamic
   "Create a fnk that returns a memoized property label MessagePattern
 

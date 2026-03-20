@@ -23,7 +23,7 @@
 #include <dlib/thread.h>
 #include <dlib/hash.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
@@ -778,13 +778,29 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
 #endif
     desc.vertex.module            = context->m_CurrentProgram->m_VertexModule->m_Module;
 
-    WGPUVertexAttribute vertexAttributes[MAX_VERTEX_STREAM_COUNT];
+    // Build the vertex input layout dynamically based on the currently enabled
+    // vertex declarations. We first count how many attributes we need, then
+    // allocate a contiguous array and point each buffer layout into the correct
+    // slice of that array.
+    uint32_t total_attribute_count = 0;
+    for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+    {
+        if (context->m_CurrentVertexDeclaration[i])
+        {
+            total_attribute_count += context->m_CurrentVertexDeclaration[i]->m_StreamCount;
+        }
+    }
+
+    dmArray<WGPUVertexAttribute> vertexAttributes;
+    vertexAttributes.SetCapacity(total_attribute_count);
+    vertexAttributes.SetSize(total_attribute_count);
+
     WGPUVertexBufferLayout vertexBuffers[MAX_VERTEX_BUFFERS];
     for (int i = 0, attributes = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexBuffers[i])
         {
-            VertexDeclaration* declaration                     = context->m_CurrentVertexDeclaration[desc.vertex.bufferCount];
+            VertexDeclaration* declaration                     = context->m_CurrentVertexDeclaration[i];
             vertexBuffers[desc.vertex.bufferCount]             = {};
             vertexBuffers[desc.vertex.bufferCount].arrayStride = declaration->m_Stride;
             if (declaration->m_StepFunction == VERTEX_STEP_FUNCTION_VERTEX)
@@ -794,7 +810,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
             if (declaration->m_StreamCount)
             {
                 vertexBuffers[desc.vertex.bufferCount].attributeCount = declaration->m_StreamCount;
-                vertexBuffers[desc.vertex.bufferCount].attributes     = vertexAttributes + attributes;
+                vertexBuffers[desc.vertex.bufferCount].attributes     = vertexAttributes.Begin() + attributes;
                 for (uint16_t s = 0; s < declaration->m_StreamCount; ++s)
                 {
                     vertexAttributes[attributes]                = {};
@@ -968,7 +984,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
     if (!context->m_MainRenderTarget)
     {
         context->m_MainRenderTarget                = new WebGPURenderTarget();
-        context->m_MainRenderTarget->m_Multisample = dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT);
+        context->m_MainRenderTarget->m_Multisample = dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT);
         if (!context->m_MainRenderTarget->m_Multisample)
             context->m_MainRenderTarget->m_Multisample = 1;
         else if (context->m_MainRenderTarget->m_Multisample != 1)
@@ -1155,7 +1171,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 {
     TRACE_CALL;
     context->m_Window = params.m_Window;
-    assert(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED));
+    assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
     context->m_OriginalWidth   = params.m_Width;
     context->m_OriginalHeight  = params.m_Height;
     context->m_PrintDeviceInfo = params.m_PrintDeviceInfo;
@@ -1434,7 +1450,7 @@ static void WebGPURunApplicationLoop(void* user_data, WindowStepMethod step_meth
 #endif
 }
 
-static dmPlatform::HWindow WebGPUGetWindow(HContext _context)
+static HWindow WebGPUGetWindow(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
@@ -1467,7 +1483,7 @@ static void WebGPUSetWindowSize(HContext _context, uint32_t width, uint32_t heig
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
         context->m_Width  = width;
         context->m_Height = height;
@@ -1480,7 +1496,7 @@ static void WebGPUResizeWindow(HContext _context, uint32_t width, uint32_t heigh
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
         dmPlatform::SetWindowSize(context->m_Window, width, height);
         WebGPUConfigure(context, width, height);
@@ -2136,8 +2152,11 @@ static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVer
 {
     VertexDeclaration* vd = new VertexDeclaration();
     memset(vd, 0, sizeof(VertexDeclaration));
-    vd->m_StreamCount = stream_declaration->m_StreamCount;
-    for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+
+    uint32_t stream_count = stream_declaration->m_Streams.Size();
+    vd->m_StreamCount = stream_count;
+    vd->m_Streams = new VertexDeclaration::Stream[stream_count];
+    for (uint32_t i = 0; i < stream_count; ++i)
     {
         VertexStream& stream = stream_declaration->m_Streams[i];
         if ((stream.m_Type == TYPE_BYTE || stream.m_Type == TYPE_UNSIGNED_BYTE || stream.m_Type == TYPE_SHORT || stream.m_Type == TYPE_UNSIGNED_SHORT) && !stream.m_Normalize) // stolen from vulkan
@@ -3635,7 +3654,7 @@ static void WebGPUCloseWindow(HContext _context)
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+    if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
     {
         context->m_RenderPipelineCache.Iterate(WebGPUCleanupRenderPipelineCache, context);
         context->m_ComputePipelineCache.Iterate(WebGPUCleanupComputePipelineCache, context);

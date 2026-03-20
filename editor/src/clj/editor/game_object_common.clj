@@ -13,11 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.game-object-common
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.localization :as localization]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -130,7 +130,7 @@
 
 (defn maybe-duplicate-id-error [node-id duplicate-ids]
   (when (not-empty duplicate-ids)
-    (g/->error node-id :build-targets :fatal nil (format "The following ids are not unique: %s" (string/join ", " duplicate-ids)))))
+    (g/->error node-id :build-targets :fatal nil (localization/message "error.non-unique-ids" {"ids" (localization/and-list (vec duplicate-ids))}))))
 
 (defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->embedded-component-resource-type]
   ;; If sanitation failed (due to a corrupt file), the embedded data might still

@@ -12,6 +12,8 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+require "lua.test_resource_helpers"
+
 -- helper function for general tests in init() function
 -- does a pcall and verify that it fails
 local function assert_error(func)
@@ -22,74 +24,7 @@ local function assert_error(func)
     assert(not r)
 end
 
-local function make_anim(id, width, height, fstart, fend)
-    return {
-        id=id,
-        width=width,
-        height=height,
-        frame_start=fstart,
-        frame_end=fend
-    }
-end
-
-local function make_quad(w, h, x, y)
-    return {
-        vertices = {0, 0,
-                    0, h,
-                    w, h,
-                    w, 0},
-        uvs      = {x    , y,
-                    x    , y + h,
-                    x + w, x + h,
-                    x + w, y},
-        indices  = {0,1,2,0,2,3}
-    }
-end
-
-local function assert_anim(a, expected)
-    assert(a.id              == expected.id)
-    assert(a.width           == expected.width)
-    assert(a.height          == expected.height)
-    assert(a.frame_start     == expected.frame_start)
-    assert(a.frame_end       == expected.frame_end)
-
-    -- Optional entries, test only if required
-    if expected.fps ~= nil then
-        assert(a.fps == expected.fps)
-    end
-    if expected.playback ~= nil then
-        assert(a.playback == expected.playback)
-    end
-    if expected.flip_vertical ~= nil then
-        assert(a.flip_vertical == expected.flip_vertical)
-    end
-    if expected.flip_horizontal ~= nil then
-        assert(a.flip_horizontal == expected.flip_horizontal)
-    end
-end
-
-local function assert_near(exp, act)
-    local epsilon = 0.000001
-    assert(math.abs(exp - act) < epsilon)
-end
-
-local function assert_geo(a, expected)
-    assert(#a.vertices == #expected.vertices)
-    assert(#a.uvs      == #expected.uvs)
-    assert(#a.indices  == #expected.indices)
-    for k,v in pairs(a.vertices) do
-        assert_near(v, expected.vertices[k])
-    end
-    for k,v in pairs(a.uvs) do
-        assert_near(v, expected.uvs[k])
-    end
-    for k,v in pairs(a.indices) do
-        assert_near(v, expected.indices[k])
-    end
-end
-
-local function test_create_get_atlas(self)
-    local test_anim = make_anim("test_anim", 128, 128, 1, 2)
+local function test_create_get_atlas(self, test_anim)
     local test_geo = make_quad(128, 128, 0, 0)
 
     local atlas_id = resource.create_atlas("/test_create.texturesetc", {
@@ -104,18 +39,16 @@ local function test_create_get_atlas(self)
     assert(#data.animations == 1)
     assert(#data.geometries == 1)
 
-    for k,v in pairs(data.animations) do
-        assert_anim(v, test_anim)
-    end
-    for k,v in pairs(data.geometries) do
-        assert_geo(v, test_geo)
-    end
+    assert_anim(data.animations[1], test_anim)
+    assert_geo(data.geometries[1], test_geo)
+
+    resource.release(atlas_id)
 end
 
 local function test_create_release_atlas(self)
     local atlas_id = resource.create_atlas("/test_release.texturesetc", {
         texture = self.valid_texture_path,
-        animations = {make_anim("test_anim", 128, 128, 1, 2)},
+        animations = {make_anim("test_anim", 128, 128, { 1 })},
         geometries = {make_quad(128, 128, 0, 0)}
     })
 
@@ -140,8 +73,7 @@ local function test_get_set_atlas(self)
         id              = "anim",
         width           = 16,
         height          = 16,
-        frame_start     = 1,
-        frame_end       = 2,
+        frames          = { 1 },
         fps             = 30,
         playback        = go.PLAYBACK_ONCE_FORWARD,
         flip_vertical   = false,
@@ -151,14 +83,31 @@ local function test_get_set_atlas(self)
     resource.set_atlas(self.valid_tileset_path, data)
 end
 
+local function test_get_atlas_frames_non_contiguous(self)
+    local data = resource.get_atlas("/resource/issue_11956.t.texturesetc")
+
+    assert(#data.geometries == 10)
+    assert(#data.animations == 1)
+
+    assert_anim(data.animations[1], {
+        id              = "issue_11956",
+        width           = 64,
+        height          = 64,
+        frames          = {10, 1, 4, 8, 9, 2, 3, 5, 6, 7},
+        fps             = 30,
+        playback        = go.PLAYBACK_ONCE_FORWARD,
+        flip_vertical   = false,
+        flip_horizontal = false,
+    })
+end
+
 local function test_set_atlas_valid(self)
     local animations = {
         {
             id              = "anim_1",
             width           = 4,
             height          = 4,
-            frame_start     = 1,
-            frame_end       = 2,
+            frames          = { 1 },
             fps             = 15,
             playback        = go.PLAYBACK_LOOP_PINGPONG,
             flip_vertical   = false,
@@ -168,8 +117,7 @@ local function test_set_atlas_valid(self)
             id              = "anim_2",
             width           = 16,
             height          = 16,
-            frame_start     = 2,
-            frame_end       = 3,
+            frames          = { 2 },
             fps             = 2,
             playback        = go.PLAYBACK_NONE,
             flip_vertical   = true,
@@ -222,11 +170,15 @@ local function test_atlas_invalid(self, fn, valid_path)
 
     -- test specifying animations but no geometry
     assert_error(function() fn(valid_path, {
-        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, 1, 2)}, geometries = {}}) end)
+        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, { 1 })}, geometries = {}}) end)
 
     -- test specifying incorrect animation start/end
     assert_error(function() fn(valid_path, {
-        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, 0, 0)}, geometries = {make_quad(1,1,1,1)}}) end)
+        texture = self.valid_texture_path, animations = {make_anim_from_startend("test", 1, 1, 0, 0)}, geometries = {make_quad(1,1,1,1)}}) end)
+
+    -- test specifying incorrect animation frames
+    assert_error(function() fn(valid_path, {
+        texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, { 0 })}, geometries = {make_quad(1,1,1,1)}}) end)
 
     -- test uneven components in data array
     assert_error(function() fn(valid_path, {
@@ -243,9 +195,11 @@ function init(self)
     self.valid_texture_path = "/tile/mario_tileset.texturec"
 
     -- valid tests
-    test_create_get_atlas(self)
+    test_create_get_atlas(self, make_anim("test_anim", 128, 128, { 1 }))
+    test_create_get_atlas(self, make_anim_from_startend("test_anim", 128, 128, 1, 2))
     test_create_release_atlas(self)
     test_get_set_atlas(self)
+    test_get_atlas_frames_non_contiguous(self)
     test_set_atlas_valid(self)
 
     -- invalid tests
@@ -259,4 +213,3 @@ function init(self)
     -- do a specific invalid test for create_atlas
     test_create_atlas_invalid(self)
 end
-

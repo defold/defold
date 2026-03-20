@@ -99,7 +99,7 @@
                   (catch Exception error
                     error))]
     (if (instance? Exception streams)
-      (g/->error _node-id :lines :fatal lines "Syntax error in buffer file.")
+      (g/->error _node-id :lines :fatal lines (localization/message "error.buffer-syntax-error"))
       streams)))
 
 (g/defnk produce-stream-ids [streams]

@@ -553,14 +553,14 @@ T& dmArray<T>::EraseSwapRef(T& element)
 template <typename T>
 void dmArray<T>::Push(const T& element)
 {
-    assert(Capacity() - Size() > 0);
+    assert(Size() < Capacity());
     *m_End++ = element;
 }
 
 template <typename T>
 void dmArray<T>::PushArray(const T* array, uint32_t count)
 {
-    assert(Capacity() - Size() >= count);
+    assert((Size() + count) <= Capacity());
     memcpy(m_End, array, sizeof(T) * count);
     m_End += count;
 }

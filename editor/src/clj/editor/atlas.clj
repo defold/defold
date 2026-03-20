@@ -23,6 +23,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
@@ -202,8 +203,11 @@
                          :flip-vertical   false
                          :playback        :playback-none}))
 
+(def ^:private id-message (properties/label-message :id))
+(def ^:private image-message (properties/label-message :image))
+
 (defn- unique-id-error [node-id id id-counts]
-  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
+  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id id-message)
       (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
 
 (defn- validate-image-id [node-id id id-counts]
@@ -211,7 +215,7 @@
     (unique-id-error node-id id id-counts)))
 
 (defn- validate-image-resource [node-id image-resource]
-  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
+  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource image-message))
 
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
@@ -233,8 +237,8 @@
             (value (g/fnk [pivot-x pivot-y] [pivot-x pivot-y]))
             (set (fn [_evaluation-context self old-value new-value]
                    (concat
-                     (g/set-property self :pivot-x (new-value 0))
-                     (g/set-property self :pivot-y (new-value 1)))))
+                     (g/set-property self :pivot-x (float (new-value 0)))
+                     (g/set-property self :pivot-y (float (new-value 1))))))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["X" "Y"]
                                               :precision 0.1})))
 
@@ -267,7 +271,7 @@
   (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource maybe-image-size]
                                              ;; Depending on maybe-image-size provides ErrorValues from the image/ImageNode,
                                              ;; but we also want to guard against a non-assigned Image here.
-                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource "Image")
+                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource image-message)
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
@@ -402,8 +406,10 @@
 (defn- validate-animation-id [node-id id id-counts]
   (unique-id-error node-id id id-counts))
 
+(def ^:private fps-message (properties/label-message :atlas.animation :fps))
+
 (defn- validate-animation-fps [node-id fps]
-  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "Fps"))
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
 
 (g/defnode AtlasAnimation
   (inherits core/Scope)
@@ -486,29 +492,39 @@
     :max-page-width (max-page-size 0)
     :max-page-height (max-page-size 1)))
 
+(def ^:private margin-message (properties/label-message :atlas :margin))
+(def ^:private inner-padding-message (properties/label-message :atlas :inner-padding))
+(def ^:private extrude-borders-message (properties/label-message :atlas :extrude-borders))
+(def ^:private max-page-width-message (properties/label-message :atlas :max-page-width))
+(def ^:private max-page-height-message (properties/label-message :atlas :max-page-height))
+
 (defn- validate-margin [node-id margin]
-  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
+  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin margin-message))
 
 (defn- validate-inner-padding [node-id inner-padding]
-  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding inner-padding-message))
 
 (defn- validate-extrude-borders [node-id extrude-borders]
-  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders extrude-borders-message))
 
 (defn- max-page-size-error-message [[x y]]
   (cond
-    (neg? x) "'Max Page Width' cannot be negative"
-    (neg? y) "'Max Page Height' cannot be negative"
-    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Width' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
-    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Height' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
+    (neg? x) (localization/message "error.property-cannot-be-negative" {"property" max-page-width-message})
+    (neg? y) (localization/message "error.property-cannot-be-negative" {"property" max-page-height-message})
+    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (localization/message "error.property-cannot-exceed"
+                                                                     {"property" max-page-width-message
+                                                                      "value" TextureSetLayout/MAX_ATLAS_DIMENSION})
+    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (localization/message "error.property-cannot-exceed"
+                                                                     {"property" max-page-height-message
+                                                                      "value" TextureSetLayout/MAX_ATLAS_DIMENSION})
     :else nil))
 
 (defn- validate-max-page-size [node-id page-size]
   (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
 
 (defn- texture-page-count-error-message [x]
-  (when (> x 8)
-    (format "Atlas page count (%d) cannot exceed 8 pages per atlas" x)))
+  (when (> x shader/max-array-samplers)
+    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" shader/max-array-samplers})))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
@@ -599,7 +615,7 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size]
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size texture-page-count]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (pmap (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
@@ -750,6 +766,7 @@
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
   (input build-settings g/Any)
+  (input exclude-gles-sm100 g/Any)
   (input texture-profiles g/Any)
   (input animations Animation :array)
   (input animation-ids g/Str :array)
@@ -774,12 +791,13 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size]
+  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
                                      (let [page-count (calculate-texture-page-count layout-data max-page-size)]
-                                       (or (validation/prop-error :fatal _node-id
-                                                                  :validate-texture-page-count
-                                                                  texture-page-count-error-message
-                                                                  page-count)
+                                       (or (when (not exclude-gles-sm100)
+                                             (validation/prop-error :fatal _node-id
+                                                                    :validate-texture-page-count
+                                                                    texture-page-count-error-message
+                                                                    page-count))
                                            page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
@@ -889,6 +907,7 @@
         image-msgs (resolve-image-msgs workspace (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (g/connect project :texture-profiles self :texture-profiles)
       (gu/set-properties-from-pb-map self AtlasProto$Atlas atlas
         margin :margin
@@ -1055,8 +1074,8 @@
         {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
         pivot-x (+ 0.5 pivot-x)
         pivot-y (- 0.5 pivot-y)
-        delta-x (/ (cond-> ^double (.x delta) rotated -) width)
-        delta-y (/ ^double (.y delta) height)
+        delta-x (/ (cond-> (.x delta) rotated -) width)
+        delta-y (/ (.y delta) height)
         pivot (if rotated
                 [(- pivot-x delta-y) (+ pivot-y delta-x)]
                 [(+ pivot-x delta-x) (- pivot-y delta-y)])]
@@ -1071,7 +1090,7 @@
         absolute-pivot-x (* pivot-x (if rotated height width))
         absolute-pivot-y (* pivot-y (if rotated width height))
         page-offset-x (get-rect-page-offset layout-width page)
-        x (+ x page-offset-x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
+        x (+ x ^double page-offset-x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
         y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y)))]
     [x y 0.0]))
 

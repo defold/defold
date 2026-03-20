@@ -44,6 +44,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.test.util.MockResource;
 import com.dynamo.bob.TaskResult;
@@ -200,7 +201,7 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
-        IResource testOut = fileSystem.get("test.out").output();
+        IResource testOut = fileSystem.get(ResourceUtil.minifyPath("test.out")).output();
         assertNotNull(testOut);
         assertThat(new String(testOut.getContent()), is("test data"));
     }
@@ -219,7 +220,7 @@ public class JBobTest {
         project.setInputs(Arrays.asList("/root/test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
-        IResource testOut = fileSystem.get("/root/test.out").output();
+        IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
         assertThat(testOut.exists(), is(true));
         assertThat(new String(testOut.getContent()), is("test data"));
     }
@@ -259,7 +260,7 @@ public class JBobTest {
         assertThat(result.size(), is(1));
 
         // remove output
-        fileSystem.get("test.out").output().remove();
+        fileSystem.get(ResourceUtil.minifyPath("test.out")).output().remove();
 
         // rebuild
         result = build();
@@ -276,7 +277,7 @@ public class JBobTest {
         assertThat(result.size(), is(3));
 
         // remove generated output, ie input to another task
-        fileSystem.get("test_0.numberc").output().remove();
+        fileSystem.get(ResourceUtil.minifyPath("test_0.numberc")).output().remove();
 
         // rebuild
         result = build();
@@ -336,8 +337,8 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.dynamic"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(3));
-        assertThat(getResourceString("test_0.numberc"), is("10"));
-        assertThat(getResourceString("test_1.numberc"), is("20"));
+        assertThat(getResourceString(ResourceUtil.minifyPath("test_0.numberc")), is("10"));
+        assertThat(getResourceString(ResourceUtil.minifyPath("test_1.numberc")), is("20"));
         assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
         assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
     }

@@ -15,7 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_VULKAN_H
 #define DM_PLATFORM_WINDOW_VULKAN_H
 
-#include "platform_window.h"
+#include "window.hpp"
 
 namespace dmPlatform
 {

@@ -29,7 +29,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memory.h>
@@ -114,7 +114,7 @@ struct ResourceFactory
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
 
     // Streaming chunked reading support
-    dmJobThread::HContext                        m_JobThreadContext;
+    HJobContext                                  m_JobThreadContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -810,7 +810,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
             if(create_error != RESULT_PENDING)
                 break;
             // As we're stalling on the main thread here, we also need to finish any potential resource tasks here.
-            dmJobThread::Update(factory->m_JobThreadContext, 1000);
+            JobSystemUpdate(factory->m_JobThreadContext, 1000);
             dmTime::Sleep(1000);
         }
     }
@@ -1199,7 +1199,8 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
                 pair.m_Callback(&reload_params);
             }
         }
-        if (rd->m_PrevResource) {
+        if (rd->m_PrevResource)
+        {
             ResourceDescriptor tmp_resource = *rd;
             tmp_resource.m_Resource = rd->m_PrevResource;
             ResourceDestroyParams params;
@@ -1348,6 +1349,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 params.m_Resource = rd;
                 params.m_Filename = 0;
                 params.m_FilenameHash = hashed_name;
+                params.m_Type = resource_type;
                 pair.m_Callback(&params);
             }
         }
@@ -1606,7 +1608,7 @@ Result RemoveFile(HFactory factory, const char* path)
     return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
 }
 
-dmJobThread::HContext GetJobThread(const dmResource::HFactory factory)
+HJobContext GetJobThread(const dmResource::HFactory factory)
 {
     return factory->m_JobThreadContext;
 }

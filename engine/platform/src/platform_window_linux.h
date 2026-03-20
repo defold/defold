@@ -18,7 +18,7 @@
 #include <X11/Xlib.h>
 #include <GL/glx.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 
 namespace dmPlatform
 {

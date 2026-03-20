@@ -59,6 +59,8 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-webgpu': 'WITH_WEBGPU'
 }
 
+JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
+
 sys.dont_write_bytecode = True
 try:
     import build_vendor
@@ -119,7 +121,6 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
-    "protobuf-java-3.20.1",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
@@ -129,7 +130,7 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
-    "jctest-0.12",
+    "jctest-0.13",
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
@@ -194,7 +195,8 @@ PACKAGES_MACOS_X86_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -216,7 +218,8 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -254,7 +257,8 @@ PACKAGES_WIN32_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -277,7 +281,8 @@ PACKAGES_LINUX_X86_64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -299,12 +304,11 @@ PACKAGES_LINUX_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -319,9 +323,7 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -1042,10 +1044,11 @@ class Configuration(object):
         # .. so we stick with the old version of prewarming
 
         # Compile a file warm up the emscripten caches (libc etc)
-        c_file = tempfile.mktemp(suffix='.c')
-        exe_file = tempfile.mktemp(suffix='.js')
-        with open(c_file, 'w') as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
+            c_file = f.name
             f.write('int main() { return 0; }')
+        with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
+            exe_file = f.name
         run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
@@ -1213,9 +1216,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar",
-                                 "glfw_android.jar")
+                external_jars = ("glfw_android.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -1708,7 +1709,7 @@ class Configuration(object):
         if self.verbose:
             gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
         s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
@@ -1889,7 +1890,7 @@ class Configuration(object):
         if self.verbose:
             gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
         flags = ''
         if self.keep_bob_uncompressed:
             flags = '-Pkeep-bob-uncompressed'
@@ -2804,6 +2805,7 @@ class Configuration(object):
         if not 'JAVA_HOME' in os.environ:
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
+        env['DM_JAVA_RUNTIME_FLAGS'] = JAVA_RUNTIME_FLAGS
 
         env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home

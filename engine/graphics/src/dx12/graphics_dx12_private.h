@@ -20,9 +20,9 @@
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/opaque_handle_container.h>
+#include <platform/window.h>
 
-#include <platform/platform_window.h>
-
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #if defined(DM_PLATFORM_VENDOR)
     #include "graphics_dx12_vendor.h"
@@ -252,7 +252,7 @@ namespace dmGraphics
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
-        dmPlatform::HWindow                m_Window;
+        HWindow                            m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;
@@ -262,6 +262,7 @@ namespace dmGraphics
 
         HRenderTarget                      m_MainRenderTarget;
         VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         HRenderTarget                      m_CurrentRenderTarget;
         DX12ShaderProgram*                 m_CurrentProgram;
@@ -302,6 +303,7 @@ namespace dmGraphics
 
     DX12Context*    DX12NativeCreate(const struct ContextParams& params);
     bool            DX12NativeInitialize(DX12Context* context);
+    void            DX12DestroyContextResources(DX12Context* context);
     void            DX12NativeDestroy(DX12Context* context);
     void            DX12NativeBeginFrame(DX12Context* context);
     void            DX12NativeEndFrame(DX12Context* context);

@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.lsp :as lsp]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -60,8 +61,8 @@
 
 (defn- as-missing-file-error-info
   [value]
-  (let [pattern #"\bfile '(.*?)' could not be found\b"
-        message (g/error-message value)]
+  (let [pattern #"\"(.*?)\" could not be found"
+        message (test-util/localization (g/error-message value))]
     (if-some [[_ proj-path] (re-find pattern message)]
       (make-missing-file-error-info proj-path)
       value)))
@@ -82,8 +83,8 @@
 
 (defn- as-broken-symlink-error-info
   [value]
-  (let [pattern #"\bsymlink '(.*?)' refers to missing path '(.*?)'"
-        message (g/error-message value)]
+  (let [pattern #"\bSymlink \"(.*?)\" refers to missing path \"(.*?)\""
+        message (test-util/localization (g/error-message value))]
     (if-some [[_ proj-path target-path] (re-find pattern message)]
       (make-broken-symlink-error-info proj-path (path/of target-path))
       value)))
@@ -157,7 +158,9 @@
             (workspace/resource-sync! workspace)
 
             (testing "After breaking symlink."
-              (check-stateless-directory-symlink-broken! project referencing-directory))))))))
+              (check-stateless-directory-symlink-broken! project referencing-directory))
+
+            (lsp/await (lsp/get-node-lsp project))))))))
 
 (deftest stateless-directory-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -187,7 +190,9 @@
             (workspace/resource-sync! workspace)
 
             (testing "After fixing symlink."
-              (check-stateless-directory-symlink-valid! project referencing-directory))))))))
+              (check-stateless-directory-symlink-valid! project referencing-directory))
+
+            (lsp/await (lsp/get-node-lsp project))))))))
 
 (defn- check-stateful-directory-symlink-valid! [project referencing-directory]
   (testing "Symlink appears as directory."
@@ -244,7 +249,9 @@
             (workspace/resource-sync! workspace)
 
             (testing "After breaking symlink."
-              (check-stateful-directory-symlink-broken! project referencing-directory))))))))
+              (check-stateful-directory-symlink-broken! project referencing-directory))
+
+            (lsp/await (lsp/get-node-lsp project))))))))
 
 (deftest stateful-directory-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -274,7 +281,9 @@
             (workspace/resource-sync! workspace)
 
             (testing "After fixing symlink."
-              (check-stateful-directory-symlink-valid! project referencing-directory))))))))
+              (check-stateful-directory-symlink-valid! project referencing-directory))
+
+            (lsp/await (lsp/get-node-lsp project))))))))
 
 (defn- create-file-symlinks! [referencing-directory referenced-directory]
   (coll/reduce-> (path/tree-walker referenced-directory) {}
@@ -360,7 +369,9 @@
               (workspace/resource-sync! workspace)
 
               (testing "After breaking symlinks."
-                (check-stateless-file-symlinks-broken! project referencing-files referenced-project-path)))))))))
+                (check-stateless-file-symlinks-broken! project referencing-files referenced-project-path))
+
+              (lsp/await (lsp/get-node-lsp project)))))))))
 
 (deftest stateless-file-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -392,7 +403,9 @@
               (workspace/resource-sync! workspace)
 
               (testing "After fixing symlinks."
-                (check-stateless-file-symlinks-valid! project referencing-files)))))))))
+                (check-stateless-file-symlinks-valid! project referencing-files))
+
+              (lsp/await (lsp/get-node-lsp project)))))))))
 
 (defn- check-stateful-file-symlinks-valid! [project referencing-files]
   (testing "Symlinks appear as files of their respective resource-type."
@@ -461,7 +474,9 @@
               (workspace/resource-sync! workspace)
 
               (testing "After breaking symlinks."
-                (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path)))))))))
+                (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path))
+
+              (lsp/await (lsp/get-node-lsp project)))))))))
 
 (deftest stateful-file-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -493,4 +508,6 @@
               (workspace/resource-sync! workspace)
 
               (testing "After fixing symlinks."
-                (check-stateful-file-symlinks-valid! project referencing-files)))))))))
+                (check-stateful-file-symlinks-valid! project referencing-files))
+
+              (lsp/await (lsp/get-node-lsp project)))))))))

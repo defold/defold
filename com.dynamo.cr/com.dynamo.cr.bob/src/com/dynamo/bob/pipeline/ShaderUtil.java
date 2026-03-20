@@ -21,6 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -106,7 +107,24 @@ public class ShaderUtil {
             return rewriter.getText();
         }
 
-        public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, boolean useLatestFeatures, boolean splitTextureSamplers) throws CompileExceptionError {
+        private static void writeGlesSM100PrecisionDirective(PrintWriter writer, ShaderDesc.ShaderType shaderType, Shaderc.ShaderPrecision defaultPrecision, String typeKeyword) {
+            String prec = defaultPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+
+            // GLSL ES 2.0 might not support highp/mediump precision for fragment shaders, so we need to guard for that.
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT && defaultPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP) {
+                writer.println("#ifdef GL_FRAGMENT_PRECISION_HIGH");
+                writer.println("    precision highp " + typeKeyword + ";");
+                writer.println("#else");
+                writer.println("    precision mediump " + typeKeyword + ";");
+                writer.println("#endif");
+            } else {
+                writer.println("precision " + prec + " " + typeKeyword + ";");
+            }
+        }
+
+        public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
+                                         boolean isDebug, boolean useLatestFeatures, boolean splitTextureSamplers,
+                                         Shaderc.ShaderPrecision defaultFloatPrecision, Shaderc.ShaderPrecision defaultIntPrecision) throws CompileExceptionError {
 
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             PrintWriter writer = new PrintWriter(os);
@@ -159,8 +177,8 @@ public class ShaderUtil {
 
                 // Write our directives.
                 if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
-                    // Normally, the ES2ToES3Converter would do this
-                    writer.println("precision mediump float;");
+                    writeGlesSM100PrecisionDirective(writer, shaderType, defaultFloatPrecision, "float");
+                    writeGlesSM100PrecisionDirective(writer, shaderType, defaultIntPrecision, "int");
                 }
 
                 if (!gles) {
@@ -200,7 +218,7 @@ public class ShaderUtil {
             String source = os.toString().replace("\r", "");
 
             if (gles3Standard) {
-                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures, splitTextureSamplers);
+                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures, splitTextureSamplers, defaultFloatPrecision, defaultIntPrecision);
                 source = es3Result.output;
             }
             return source;
@@ -389,8 +407,6 @@ public class ShaderUtil {
         private static final String glFragColorRep              = dmEngineGeneratedRep + glFragColorKeyword;
         private static final String glFragColorAttrRep          = "\n%sout vec4 " + glFragColorRep + "%s;\n";
         private static final String glFragColorAttrLayoutPrefix = "layout(location = %d) ";
-        private static final String floatPrecisionAttrRep       = "precision mediump float;\n";
-
         private static boolean isOpaqueType(String type) {
             for( String opaqueTypePrefix : opaqueUniformTypesPrefix) {
                 if(type.startsWith(opaqueTypePrefix)) {
@@ -457,7 +473,7 @@ public class ShaderUtil {
 
 
 
-        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures, boolean splitTextureSamplers) throws CompileExceptionError {
+        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures, boolean splitTextureSamplers, Shaderc.ShaderPrecision defaultFloatPrecision, Shaderc.ShaderPrecision defaultIntPrecision) throws CompileExceptionError {
             Result result = new Result();
 
             if(input.isEmpty()) {
@@ -473,6 +489,7 @@ public class ShaderUtil {
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
+            int intPrecisionIndex = -1;
 
             Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(input);
 
@@ -622,8 +639,11 @@ public class ShaderUtil {
                     // Check if precision keyword present and store index if so, for post patch tasks
                     Matcher precisionMatcher = regexPrecisionKeywordPattern.matcher(line);
                     if(precisionMatcher.find()) {
-                        if(precisionMatcher.group("type").equals("float")) {
+                        String type = precisionMatcher.group("type");
+                        if(type.equals("float")) {
                             floatPrecisionIndex = output.size();
+                        } else if (type.equals("int")) {
+                            intPrecisionIndex = output.size();
                         }
                     }
                 }
@@ -637,16 +657,26 @@ public class ShaderUtil {
             if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
                 // if we have patched glFragColor
                 if(output_glFragColor || output_glFragData) {
+
+                    boolean isEsTargetProfile = targetProfile.equals("es");
+
                     // insert precision if not found, as it is mandatory for out attributes
-                    if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {
+                    if(floatPrecisionIndex < 0 && isEsTargetProfile) {
+                        String floatPrecision = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                        String floatPrecisionAttrRep = "precision " + floatPrecision + " float;\n";
                         output.add(patchLineIndex++, floatPrecisionAttrRep);
+                    }
+                    if(intPrecisionIndex < 0 && isEsTargetProfile) {
+                        String intPrecision = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+                        String intPrecisionAttrRep = "precision " + intPrecision + " int;\n";
+                        output.add(patchLineIndex++, intPrecisionAttrRep);
                     }
 
                     // insert fragcolor out attribute for all output targets
                     for (int i = 0; i < maxColorOutputs; i++) {
                         String colorOutputLayoutPrefix = "";
                         // For ES targets we need to add a layout specification for the outputs
-                        if (targetProfile.equals("es") && maxColorOutputs > 1)
+                        if (isEsTargetProfile && maxColorOutputs > 1)
                         {
                             colorOutputLayoutPrefix = String.format(glFragColorAttrLayoutPrefix, i);
                         }

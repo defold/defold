@@ -47,11 +47,19 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslang libexec/x86_64-linux/glslang
 cp -v $DYNAMO_HOME/ext/bin/arm64-linux/glslang libexec/arm64-linux/glslang
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe libexec/x86_64-win32/glslang.exe
 
+# Tint (wgsl toolchain)
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/tint libexec/x86_64-macos/tint
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/tint libexec/arm64-macos/tint
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/tint libexec/x86_64-linux/tint
 cp -v $DYNAMO_HOME/ext/bin/arm64-linux/tint libexec/arm64-linux/tint
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/tint.exe libexec/x86_64-win32/tint.exe
+
+# glTF validator
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/gltf_validator libexec/x86_64-macos/gltf_validator
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/gltf_validator libexec/arm64-macos/gltf_validator
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/gltf_validator libexec/x86_64-linux/gltf_validator
+cp -v $DYNAMO_HOME/ext/bin/arm64-linux/gltf_validator libexec/arm64-linux/gltf_validator
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/gltf_validator.exe libexec/x86_64-win32/gltf_validator.exe
 
 #
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip

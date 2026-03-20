@@ -53,6 +53,8 @@
 (set! *warn-on-reflection* true)
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
+(def id-message (properties/label-message :id))
+(def path-message (properties/label-message :path))
 
 (declare add-embedded-component)
 
@@ -149,9 +151,9 @@
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
 (defn- resource-path-error [_node-id source-resource]
-    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
-        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
-        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource "Path")))
+    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource path-message)
+        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource path-message)
+        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource path-message)))
 
 (g/defnk produce-referenced-component-build-targets [_node-id source-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced component. Also tag on
@@ -188,9 +190,9 @@
 
   (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts]
-                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
+                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
+                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id id-message))))
             (dynamic read-only? (g/fnk [_this]
                                   (some? (gt/original _this)))))
   (property url g/Str ; Just for presentation.
@@ -672,14 +674,18 @@
   (fn ReferencedComponent-getter [_node-id property _evaluation-context]
     (case property
       "type" constantly-ext-referenced-component-type
-      nil)))
+      nil))
+  (fn ReferencedComponent-lister [_node-id _evaluation-context]
+    ["type"]))
 
 (ext-graph/register-property-getter!
   ::EmbeddedComponent
   (fn EmbeddedComponent-getter [node-id property evaluation-context]
     (case property
       "type" #(resource/ext (g/node-value node-id :source-resource evaluation-context))
-      nil)))
+      nil))
+  (fn EmbeddedComponent-lister [_node-id _evaluation-context]
+    ["type"]))
 
 (defmethod ext-graph/extract-node-type [::GameObjectNode :components]
   [rt attachment workspace _node-id _list-kw evaluation-context]

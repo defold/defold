@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -33,7 +34,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
@@ -469,6 +470,38 @@
 (defn mtime [^File f]
   (.lastModified f))
 
+(deftest build-data
+  (testing "Building data component"
+    (with-build-results "/data/data.data"
+      (let [content (get content-by-source "/data/data.data")
+            desc (protobuf/bytes->map-with-defaults DataProto$Data content)
+            expected {:tags ["tag_one" "tag_two"]
+                      :data {:struct
+                             {:fields
+                              {"test_number" {:number 3.0}
+                               "test_string" {:string "hello"}
+                               "test_bool" {:bool true}
+                               "test_empty_string" {:string ""}
+                               "test_list" {:list {:values [{:number 1.0}
+                                                            {:number 2.0}
+                                                            {:number 3.0}]}}
+                               "test_nested_struct" {:struct {:fields {"inner" {:number 42.0}}}}
+                               "test_list_in_nested_struct" {:struct {:fields {"ids" {:list {:values [{:number 10.0}
+                                                                                                      {:number 20.0}
+                                                                                                      {:number 30.0}]}}}}}
+                               "test_list_of_structs" {:list {:values [{:struct {:fields {"name" {:string "alice"}
+                                                                                          "score" {:number 100.0}}}}
+                                                                       {:struct {:fields {"name" {:string "bob"}
+                                                                                          "score" {:number 200.0}}}}]}}
+                               "test_list_in_list" {:list {:values [{:list {:values [{:number 1.0} {:number 2.0}]}}
+                                                                    {:list {:values [{:number 3.0} {:number 4.0}]}}]}}
+                               "test_empty_list" {:list {}}
+                               "test_empty_struct" {:struct {}}
+                               "test_mixed_list" {:list {:values [{:number 1.0}
+                                                                   {:string "a"}
+                                                                   {:bool true}]}}}}}}]
+        (is (= expected desc))))))
+
 (deftest build-atlas
   (testing "Building atlas"
     (with-build-results "/background/background.atlas"
@@ -850,7 +883,7 @@
           build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
           error-message (some :message (tree-seq :causes :causes build-error))]
       (is (g/error? build-error))
-      (is (= "The file '/MAIN/BUTTON_CLOUDY.png' could not be found." error-message)))))
+      (is (= (localization/message "error.resource-not-found" {"resource" "/MAIN/BUTTON_CLOUDY.png"}) error-message)))))
 
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"
@@ -865,3 +898,15 @@
                   (tree-seq :causes :causes)
                   (keep :message)
                   first))))))
+
+(deftest build-process-handles-exclude-gles-sm100-skips-paged-material-validation
+  (with-loaded-project "test/resources/max_paged_count_project"
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (testing "paged atlas with 9 pages fails build when exclude_gles_sm100 is false"
+        (with-setting "shader/exclude_gles_sm100" false
+          (let [build-results (project-build project game-project (g/make-evaluation-context))]
+            (is (g/error? (:error build-results))))))
+      (testing "paged atlas with 9 pages passes build when exclude_gles_sm100 is true"
+        (with-setting "shader/exclude_gles_sm100" true
+          (let [build-results (project-build project game-project (g/make-evaluation-context))]
+            (is (not (g/error? (:error build-results))))))))))

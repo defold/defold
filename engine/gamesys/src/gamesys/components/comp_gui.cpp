@@ -23,7 +23,7 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 #include <dmsdk/dlib/vmath.h>
 #include <font/text_layout.h>
 #include <graphics/graphics.h>
@@ -71,7 +71,7 @@ namespace dmGameSystem
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
-    extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
+    extern dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data);
 
     static dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
     static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
@@ -211,6 +211,23 @@ namespace dmGameSystem
         }
     }
 
+    static dmGui::NodeType DDFNodeTypeToGuiNodeType(dmGuiDDF::NodeDesc::Type type)
+    {
+        switch (type)
+        {
+            case dmGuiDDF::NodeDesc::TYPE_BOX:        return dmGui::NODE_TYPE_BOX;
+            case dmGuiDDF::NodeDesc::TYPE_TEXT:       return dmGui::NODE_TYPE_TEXT;
+            case dmGuiDDF::NodeDesc::TYPE_PIE:        return dmGui::NODE_TYPE_PIE;
+            case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:   return dmGui::NODE_TYPE_TEMPLATE;
+            case dmGuiDDF::NodeDesc::TYPE_PARTICLEFX: return dmGui::NODE_TYPE_PARTICLEFX;
+            case dmGuiDDF::NodeDesc::TYPE_CUSTOM:     return dmGui::NODE_TYPE_CUSTOM;
+            default:
+                dmLogError("Unknown gui node type: %d", type);
+                assert(0);
+                return dmGui::NODE_TYPE_BOX;
+        }
+    }
+
     struct CompGuiRenderConstantUserData
     {
         GuiComponent*       m_GuiComponent;
@@ -284,22 +301,22 @@ namespace dmGameSystem
         }
 
         HComponentRenderConstants cloned_constants = dmGameSystem::CreateRenderConstants();
-        
+
         uint32_t count = dmGameSystem::GetRenderConstantCount(src_constants);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmRender::HConstant constant = dmGameSystem::GetRenderConstant(src_constants, i);
             dmhash_t name_hash = dmRender::GetConstantName(constant);
-            
+
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            
+
             if (values)
             {
                 dmGameSystem::SetRenderConstant(cloned_constants, name_hash, values, num_values);
             }
         }
-        
+
         return cloned_constants;
     }
 
@@ -362,10 +379,11 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+        gui_world->m_ParticleAttributeInfos.m_Infos = new dmGraphics::VertexAttributeInfo[4];
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
 
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
@@ -379,6 +397,7 @@ namespace dmGameSystem
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
+        gui_world->m_ParticleAttributeInfos.m_StructSize   = sizeof(dmGraphics::VertexAttributeInfos);
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -476,6 +495,7 @@ namespace dmGameSystem
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
         delete[] gui_world->m_BoxVertexStreamDeclaration;
+        delete[] gui_world->m_ParticleAttributeInfos.m_Infos;
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -908,11 +928,9 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
-            // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
             const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
-            dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
+            dmGui::NodeType type = DDFNodeTypeToGuiNodeType(node_desc->m_Type);
             uint32_t custom_type = node_desc->m_CustomType;
-
 
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;
@@ -1263,6 +1281,7 @@ namespace dmGameSystem
                          RenderGuiContext* gui_context)
     {
         GuiWorld* gui_world = gui_context->m_GuiWorld;
+        uint32_t batch_render_order = MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++);
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1286,8 +1305,10 @@ namespace dmGameSystem
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             params.m_Text = dmGui::GetNodeText(scene, node);
+            if (params.m_Text[0] == '\0')
+                continue;
             params.m_WorldTransform = node_transforms[i];
-            params.m_RenderOrder = dmGui::GetRenderOrder(scene);
+            params.m_RenderOrder = batch_render_order;
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
             params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
@@ -1350,8 +1371,6 @@ namespace dmGameSystem
 
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
-
-        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     static void RenderParticlefxNodes(dmGui::HScene scene,
@@ -2392,6 +2411,8 @@ namespace dmGameSystem
             }
         }
 
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, false);
+
         dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
@@ -2658,7 +2679,7 @@ namespace dmGameSystem
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
-        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
+        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchResourcesCallback);
         const uint32_t count = gui_world->m_Components.Size();
         DM_PROPERTY_ADD_U32(rmtp_Gui, count);
         for (uint32_t i = 0; i < count; ++i)
@@ -2968,7 +2989,7 @@ namespace dmGameSystem
         {
             return (*getter_fn)(gui_component->m_Scene, params, out_value);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3072,7 +3093,7 @@ namespace dmGameSystem
         {
             return (*setter_fn)(gui_component->m_Scene, params);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3317,7 +3338,7 @@ namespace dmGameSystem
     {
         g_CompGuiPropertySetters.SetCapacity(4, 8);
         g_CompGuiPropertyGetters.SetCapacity(4, 8);
-        
+
         CompGuiContext* gui_context = new CompGuiContext;
         gui_context->m_Factory = ctx->m_Factory;
         gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));

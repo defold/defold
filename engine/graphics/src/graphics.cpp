@@ -15,6 +15,7 @@
 #include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
+#include <platform/window.hpp>
 
 #if defined(DM_PLATFORM_IOS)
 #include  <glfw/glfw_native.h> // for glfwAppBootstrap
@@ -285,13 +286,7 @@ namespace dmGraphics
 
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
-    ContextParams::ContextParams()
-    {
-        memset(this, 0x0, sizeof(*this));
-        m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-        m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
-        m_SwapInterval            = 1;
-    }
+
 
     AttachmentToBufferType::AttachmentToBufferType()
     {
@@ -300,6 +295,22 @@ namespace dmGraphics
         m_AttachmentToBufferType[ATTACHMENT_DEPTH] = BUFFER_TYPE_DEPTH_BIT;
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }
+
+    ContextParams::ContextParams()
+    : m_Window(0)
+    , m_JobContext(0)
+    , m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+    , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
+    , m_Width(0)
+    , m_Height(0)
+    , m_GraphicsMemorySize(0)
+    , m_SwapInterval(1)
+    , m_GraphicsApiVersionMajorHint(0)
+    , m_GraphicsApiVersionMinorHint(0)
+    , m_VerifyGraphicsCalls(0)
+    , m_PrintDeviceInfo(0)
+    , m_UseValidationLayers(0)
+    {}
 
     HContext NewContext(const ContextParams& params)
     {
@@ -577,6 +588,8 @@ namespace dmGraphics
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
+
+        sd->m_Streams.SetCapacity(8);
         return sd;
     }
 
@@ -594,20 +607,19 @@ namespace dmGraphics
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
     {
-        if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
+        if (stream_declaration->m_Streams.Full())
         {
-            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)",
-                dmHashReverseSafe64(name_hash), MAX_VERTEX_STREAM_COUNT);
-            return;
+            stream_declaration->m_Streams.OffsetCapacity(8);
         }
 
-        uint8_t stream_index = stream_declaration->m_StreamCount;
-        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
-        stream_declaration->m_Streams[stream_index].m_Size      = size;
-        stream_declaration->m_Streams[stream_index].m_Type      = type;
-        stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
-        stream_declaration->m_Streams[stream_index].m_Stream    = stream_index;
-        stream_declaration->m_StreamCount++;
+        VertexStream stream;
+        stream.m_NameHash  = name_hash;
+        stream.m_Size      = size;
+        stream.m_Type      = type;
+        stream.m_Normalize = normalize;
+        stream.m_Stream    = stream_declaration->m_Streams.Size();
+
+        stream_declaration->m_Streams.Push(stream);
     }
 
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
@@ -617,6 +629,13 @@ namespace dmGraphics
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
+        // Free dynamically allocated stream storage if present
+        if (vertex_declaration && vertex_declaration->m_Streams)
+        {
+            delete [] vertex_declaration->m_Streams;
+            vertex_declaration->m_Streams = 0;
+            vertex_declaration->m_StreamCount = 0;
+        }
         delete vertex_declaration;
     }
 
@@ -636,9 +655,8 @@ namespace dmGraphics
 
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
     {
-        uint32_t count = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             if (streams[i].m_NameHash == name_hash)
             {
@@ -927,6 +945,7 @@ namespace dmGraphics
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
         ps.m_StencilEnabled           = 0;
+        ps.m_ScissorTestEnabled       = 0;
         ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpDepthFail  = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpPass       = STENCIL_OP_KEEP;
@@ -1035,6 +1054,9 @@ namespace dmGraphics
         {
             case STATE_DEPTH_TEST:
                 pipeline_state.m_DepthTestEnabled = value;
+            break;
+            case STATE_SCISSOR_TEST:
+                pipeline_state.m_ScissorTestEnabled = value;
             break;
             case STATE_STENCIL_TEST:
                 pipeline_state.m_StencilEnabled = value;
@@ -1165,7 +1187,7 @@ namespace dmGraphics
             free(meta.m_TypeInfos[i].m_Name);
             for (int j = 0; j < meta.m_TypeInfos[i].m_MemberCount; ++j)
             {
-                free(meta.m_TypeInfos[i].m_Members[j].m_Name);
+                free((char*) meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
 
             delete[] meta.m_TypeInfos[i].m_Members;
@@ -1327,6 +1349,31 @@ namespace dmGraphics
                 const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
                 VisitUniformLeafNodes(callback, user_data, next, type_infos, next->m_Res->m_Type, next->m_Res->m_Name, next->m_Res->m_InstanceName, &canonical_name_buffer, canonical_name_buffer_offset);
             }
+        }
+    }
+
+    void IterateProgramResourceBindings(HProgram prog, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data)
+    {
+        Program* program = (Program*) prog;
+        ProgramResourceBindingIterator it(program);
+
+        const ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            if (!binding->m_Res || binding->m_Res->m_BindingFamily != family)
+            {
+                continue;
+            }
+
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *binding->m_TypeInfos;
+            uint32_t root_type_index = binding->m_Res->m_Type.m_TypeIndex;
+            if (root_type_index >= (uint32_t) type_infos.Size())
+            {
+                continue;
+            }
+
+            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
         }
     }
 
@@ -1574,7 +1621,10 @@ namespace dmGraphics
             if (use_type_index)
             {
                 uint32_t child_type = member.m_Type.m_TypeIndex;
-                dmHashUpdateBuffer32(hash_state, &child_type, sizeof(child_type));
+                // Hash the type's name so the layout hash is independent of type array order
+                // (shader reflection may order types differently than manually built layouts).
+                dmhash_t child_name_hash = types[child_type].m_NameHash;
+                dmHashUpdateBuffer32(hash_state, &child_name_hash, sizeof(child_name_hash));
 
                 // Recurse into referenced type
                 HashTypeRecursive(child_type, types, num_types, hash_state, visited);
@@ -1692,15 +1742,15 @@ namespace dmGraphics
     ///////////////////////////////////////////////////
     ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
 
-    dmPlatform::HWindow GetWindow(HContext context)
+    HWindow GetWindow(HContext context)
     {
         return g_functions.m_GetWindow(context);
     }
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), WINDOW_STATE_REFRESH_RATE);
     }
-    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state)
+    uint32_t GetWindowStateParam(HContext context, WindowState state)
     {
         return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), state);
     }
@@ -1932,6 +1982,28 @@ namespace dmGraphics
     void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         g_functions.m_SetSampler(context, location, unit);
+    }
+
+    HUniformLocation FindUniformLocation(HProgram program, dmhash_t name_hash)
+    {
+        uint32_t uniform_count = GetUniformCount(program);
+        for (uint32_t i = 0; i < uniform_count; ++i)
+        {
+            Uniform uniform;
+            GetUniform(program, i, &uniform);
+            if (uniform.m_NameHash == name_hash)
+            {
+                return uniform.m_Location;
+            }
+        }
+
+        return INVALID_UNIFORM_LOCATION;
+    }
+
+    HUniformLocation FindUniformLocation(HProgram program, const char* name)
+    {
+        dmhash_t name_hash = dmHashString64(name);
+        return FindUniformLocation(program, name_hash);
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

@@ -26,6 +26,8 @@
 #include "render/font/font_renderer.h"
 #include "render/font/font_glyphbank.h"
 #include "font/font.h"
+#include <platform/window.hpp>
+
 #include <dmsdk/font/fontcollection.h>
 
 #include "render/render_ddf.h"
@@ -88,7 +90,7 @@ static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
 class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
-    dmPlatform::HWindow         m_Window;
+    HWindow                     m_Window;
     dmScript::HContext          m_ScriptContext;
     dmRender::HRenderContext    m_Context;
     dmGraphics::HContext        m_GraphicsContext;
@@ -104,9 +106,10 @@ protected:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         win_params.m_Width = 20;
         win_params.m_Height = 10;
         win_params.m_ContextAlphabits = 8;
@@ -988,19 +991,19 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     // First update: A "draw_text" message is sent
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     // Second update: "draw_text" is processed, but no glyphs are in font cache,
     //                they are marked as missing and uploaded. A new "draw_text" also is sent.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     // Third update: The second "draw_text" is processed, this time the glyphs are uploaded
     //               and the text is drawn.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     ASSERT_NE(0u, m_Context->m_TextContext.m_TextEntries.Size());
 

@@ -42,13 +42,78 @@ namespace dmGameSystem
 {
     /*# Particle effects API documentation
      *
-     * Functions for controlling particle effect component playback and
+     * Functions and properties for controlling particle effect component playback and
      * shader constants.
      *
      * @document
      * @name Particle effects
      * @namespace particlefx
      * @language Lua
+     */
+
+    /*# [type:hash] particlefx material
+     *
+     * The material used during rendering by an emitter in a particle FX component.
+     * The property type is a hash and refers to a material resource.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set and get the material of an emitter in a particle FX.
+     *
+     * ```lua
+     * go.property("my_material", resource.material())
+     * function init(self)
+     *     go.set("#particlefx", "material", self.my_material, { keys = { "explosion" } })
+     *     local emitter_mat = go.get("#particlefx", "material", { keys = { "explosion" } })
+     *     assert(emitter_mat == self.my_material)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] particlefx image
+     *
+     * The image used during rendering by an emitter in a particle FX component.
+     * The property type is a hash and refers to an image resource (atlas or tile source).
+     * Note: When setting the image, if the currently playing animation of the emitter
+     * isn't found in the new image, the animation will be set to the first animation found.
+     *
+     * @name image
+     * @property
+     *
+     * @examples
+     *
+     * How to set and get the image of an emitter in a particle FX.
+     *
+     * ```lua
+     * go.property("my_atlas", resource.atlas())
+     * function init(self)
+     *     go.set("#particlefx", "image", self.my_atlas, { keys = { "explosion" } })
+     *     local emitter_img = go.get("#particlefx", "image", { keys = { "explosion" } })
+     *     assert(emitter_img == self.my_atlas)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] particlefx animation
+     *
+     * The animation used during rendering by an emitter in a particle FX component.
+     * The property type is a hash and refers to a valid animation in an atlas or a tile source resource.
+     * If the animation isn't found, and error will be thrown.
+     *
+     * @name animation
+     * @property
+     *
+     * @examples
+     *
+     * How to set and get the animation of an emitter in a particle FX.
+     *
+     * ```lua
+     * local current_animation = go.get("#particlefx", "animation", { keys = { "explosion" } })
+     * go.set("#particlefx", "animation", hash("explode_large"), { keys = { "explosion" } })
+     * ```
      */
 
     /*# sleeping state

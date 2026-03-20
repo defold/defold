@@ -329,7 +329,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
+    bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
     bld(features='jar seq',
         basedir='java',
@@ -379,7 +379,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/job_thread.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/jobsystem.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')

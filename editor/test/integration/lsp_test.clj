@@ -160,6 +160,7 @@
                   :pull-diagnostics :none
                   :goto-definition false
                   :find-references false
+                  :document-symbol false
                   :hover false
                   :rename false}]
                 [:on-publish-diagnostics
@@ -176,6 +177,7 @@
 
 (g/defnode LSPViewNode
   (property diagnostics g/Any (default []))
+  (property document-symbols g/Any (default []))
   (property completion-trigger-characters g/Any (default #{})))
 
 (deftest start-open-order-test
@@ -598,6 +600,29 @@
              (hover! lsp (test-util/resource workspace "/foo.json") (data/->Cursor 0 1))))
       (is (realized? matched-promise))
       (is (not (realized? unmatched-promise)))
+      (await-lsp (set-servers! lsp #{})))))
+
+(deftest content-modified-errors-are-retried-test
+  (test-util/with-scratch-project "test/resources/lsp_project"
+    (let [hover-requests (atom 0)
+          lsp (lsp/get-node-lsp project)
+          _ (set-servers! lsp #{{:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:hoverProvider true}})
+                                              "initialized" (constantly nil)
+                                              "shutdown" (constantly nil)
+                                              "textDocument/hover" (fn [_ _]
+                                                                     (if (= 1 (swap! hover-requests inc))
+                                                                       (throw (ex-info "Content modified." {:jsonrpc/code -32801}))
+                                                                       {:contents {:kind :markdown :value "hover"}}))
+                                              "exit" (constantly nil)})}})]
+      (is (= [(data/map->CursorRange {:from (data/->Cursor 0 1)
+                                      :to (data/->Cursor 0 2)
+                                      :type :hover
+                                      :hoverable true
+                                      :content (lsp.server/->MarkupContent :markdown "hover")})]
+             (hover! lsp (test-util/resource workspace "/foo.json") (data/->Cursor 0 1))))
+      (is (= 2 @hover-requests))
       (await-lsp (set-servers! lsp #{})))))
 
 (deftest rename-test

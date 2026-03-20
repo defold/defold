@@ -17,7 +17,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/thread.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
@@ -109,6 +109,47 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STR_CASE
 
+    static const char* VkPhysicalDeviceTypeToStr(VkPhysicalDeviceType device_type)
+    {
+        switch (device_type)
+        {
+            case VK_PHYSICAL_DEVICE_TYPE_OTHER:          return "other";
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "integrated_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   return "discrete_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    return "virtual_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:            return "cpu";
+            default:                                     return "unknown";
+        }
+    }
+
+    static const char* VkVendorIdToStr(uint32_t vendor_id)
+    {
+        switch (vendor_id)
+        {
+            case 0x1002: return "AMD";
+            case 0x1010: return "Imagination Technologies";
+            case 0x10DE: return "NVIDIA";
+            case 0x13B5: return "ARM";
+            case 0x5143: return "Qualcomm";
+            case 0x8086: return "Intel";
+            default:     return "Unknown";
+        }
+    }
+
+    static void VulkanPrintDeviceInfo(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        const VkPhysicalDeviceProperties& properties = context->m_PhysicalDevice.m_Properties;
+
+        dmLogInfo("Device: Vulkan %u.%u.%u  %s",
+            VK_VERSION_MAJOR(properties.apiVersion),
+            VK_VERSION_MINOR(properties.apiVersion),
+            VK_VERSION_PATCH(properties.apiVersion),
+            properties.deviceName);
+        dmLogInfo("Device ID: 0x%04x  Type: %s", properties.deviceID, VkPhysicalDeviceTypeToStr(properties.deviceType));
+        dmLogInfo("Vendor: %s (0x%04x) driver version: 0x%08x", VkVendorIdToStr(properties.vendorID), properties.vendorID, properties.driverVersion);
+    }
+
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
     {
         memset(this, 0, sizeof(*this));
@@ -117,13 +158,13 @@ namespace dmGraphics
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_UseValidationLayers     = params.m_UseValidationLayers;
-        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
-        m_JobThread               = params.m_JobThread;
+        m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -131,7 +172,7 @@ namespace dmGraphics
         if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
             m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -224,7 +265,6 @@ namespace dmGraphics
         for(uint8_t i=0; i < frame_resource_count; i++)
         {
             if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_ImageAvailable) != VK_SUCCESS ||
-                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_RenderFinished) != VK_SUCCESS ||
                 vkCreateFence(vk_device, &vk_create_fence_info, 0, &frame_resources_out[i].m_SubmitFence) != VK_SUCCESS)
             {
                 return VK_ERROR_INITIALIZATION_FAILED;
@@ -1060,7 +1100,7 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1152,9 +1192,15 @@ namespace dmGraphics
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
         void* device_pNext_chain = 0;
+        VkPhysicalDevicePresentIdFeaturesKHR present_id_feature_support = {};
+        VkPhysicalDevicePresentWaitFeaturesKHR present_wait_feature_support = {};
+        VkPhysicalDevicePresentIdFeaturesKHR device_present_id_features = {};
+        VkPhysicalDevicePresentWaitFeaturesKHR device_present_wait_features = {};
+        VkPhysicalDeviceFeatures2 present_features = {};
+        bool supports_present_wait_extensions = false;
 
         uint16_t validation_layers_count;
-        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
+        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers);
 
         if (selected_device == NULL)
         {
@@ -1164,9 +1210,48 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
+        if (context->m_PrintDeviceInfo)
+        {
+            VulkanPrintDeviceInfo(context);
+        }
+
         SetupSupportedTextureFormats(context);
 
-    #if defined(__MACH__)
+        present_id_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+        present_wait_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+        present_id_feature_support.pNext = &present_wait_feature_support;
+
+        supports_present_wait_extensions =
+            VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
+            VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+
+        if (supports_present_wait_extensions)
+        {
+            present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            present_features.pNext = &present_id_feature_support;
+            vkGetPhysicalDeviceFeatures2(context->m_PhysicalDevice.m_Device, &present_features);
+        }
+
+        if (supports_present_wait_extensions &&
+            present_id_feature_support.presentId &&
+            present_wait_feature_support.presentWait)
+        {
+            device_extensions.OffsetCapacity(2);
+            device_extensions.Push(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+            device_extensions.Push(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+
+            device_present_wait_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+            device_present_wait_features.pNext = device_pNext_chain;
+            device_present_wait_features.presentWait = VK_TRUE;
+
+            device_present_id_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+            device_present_id_features.pNext = &device_present_wait_features;
+            device_present_id_features.presentId = VK_TRUE;
+
+            device_pNext_chain = &device_present_id_features;
+        }
+
+#if defined(__MACH__)
         // Check for optional extensions so that we can enable them if they exist
         if (VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
@@ -1179,20 +1264,20 @@ namespace dmGraphics
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
         }
+#endif
 
-        #ifdef DM_VULKAN_VALIDATION
+#if defined(__MACH__) && defined(DM_VULKAN_VALIDATION)
         if (context->m_UseValidationLayers)
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push("VK_KHR_portability_subset");
         }
-        #endif
-    #endif
+#endif
 
         if (VulkanIsExtensionSupported((HContext) context, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
         {
             context->m_FragmentShaderInterlockFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
-            context->m_FragmentShaderInterlockFeatures.pNext = NULL;
+            context->m_FragmentShaderInterlockFeatures.pNext = device_pNext_chain;
 
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
@@ -1209,12 +1294,13 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        context->m_WaitForPresent   = (PFN_vkWaitForPresentKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkWaitForPresentKHR");
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, &context->m_ResolveTexture);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, &context->m_ResolveTexture, context->m_WaitForPresent);
 
         res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
@@ -1237,7 +1323,7 @@ namespace dmGraphics
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
 
-        context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
+        context->m_AsyncProcessingSupport = context->m_JobContext != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
@@ -1296,8 +1382,10 @@ bail:
         extensionNameCount         = 1;
     #endif
 
+        uint32_t vk_api_version = VK_MAKE_API_VERSION(0, 1, 0, 0);
+
         VkInstance inst;
-        VkResult res = CreateInstance(&inst, extensionNames, extensionNameCount, 0, 0, 0, 0);
+        VkResult res = CreateInstance(&inst, vk_api_version, extensionNames, extensionNameCount, 0, 0, 0, 0);
 
         if (res == VK_SUCCESS)
         {
@@ -1323,12 +1411,15 @@ bail:
             uint16_t extension_names_count;
             const char** extension_names = GetExtensionNames(&extension_names_count);
             uint16_t validation_layers_count;
-            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers, params.m_RenderDocSupport);
+            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers);
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
+            uint32_t vk_api_version = VK_MAKE_API_VERSION(0, params.m_GraphicsApiVersionMajorHint, params.m_GraphicsApiVersionMinorHint, 0);
+
             VkInstance vk_instance;
             if (CreateInstance(&vk_instance,
+                                vk_api_version,
                                 extension_names, extension_names_count,
                                 validation_layers, validation_layers_count,
                                 validation_layers_ext, validation_layers_ext_count) != VK_SUCCESS)
@@ -1358,18 +1449,22 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                delete context->m_MainResourcesToDestroy[i];
+            }
+
             if (context->m_Instance != VK_NULL_HANDLE)
             {
-                vkDestroyInstance(context->m_Instance, 0);
-                context->m_Instance = VK_NULL_HANDLE;
+                DestroyInstance(&context->m_Instance);
             }
+
+            ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             if (context->m_AssetHandleContainerMutex)
             {
                 dmMutex::Delete(context->m_AssetHandleContainerMutex);
             }
-
-            ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             delete context;
             g_VulkanContext = 0x0;
@@ -1485,6 +1580,7 @@ bail:
 
         // Determine the swapchain image we rendered to
         uint32_t swapchainImageIndex = context->m_SwapChain->m_ImageIndex;
+        VkSemaphore renderFinishedSemaphore = context->m_SwapChain->m_RenderFinishedSemaphores[swapchainImageIndex];
 
         // End the current render pass
         EndRenderPass(context);
@@ -1504,7 +1600,7 @@ bail:
         submitInfo.commandBufferCount   = 1;
         submitInfo.pCommandBuffers      = &cmd;
         submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores    = &currentFrame.m_RenderFinished;
+        submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
         res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
         CHECK_VK_ERROR(res);
@@ -1513,13 +1609,29 @@ bail:
         VkPresentInfoKHR presentInfo = {};
         presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores    = &currentFrame.m_RenderFinished;
+        presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
         presentInfo.swapchainCount     = 1;
         presentInfo.pSwapchains        = &context->m_SwapChain->m_SwapChain;
         presentInfo.pImageIndices      = &swapchainImageIndex;
         presentInfo.pResults           = nullptr;
 
+        VkPresentIdKHR present_id_info = {};
+        uint64_t present_id = 0;
+        if (context->m_WaitForPresent)
+        {
+            present_id = context->m_SwapChain->m_LastPresentId + 1;
+            present_id_info.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
+            present_id_info.swapchainCount = 1;
+            present_id_info.pPresentIds = &present_id;
+            presentInfo.pNext = &present_id_info;
+        }
+
         res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
+        {
+            context->m_SwapChain->m_LastPresentId = present_id;
+        }
+
         if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
         {
             CHECK_VK_ERROR(res);
@@ -1798,11 +1910,16 @@ bail:
 
     static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
     {
+        VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+        CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
     }
@@ -1812,7 +1929,7 @@ bail:
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
         assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
-        SetDeviceBuffer(context, &ubo->m_DeviceBuffer, size, offset, data);
+        DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
     static void VulkanDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -2004,9 +2121,11 @@ bail:
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_StreamCount = stream_count;
+        vd->m_Streams = new VertexDeclaration::Stream[stream_count];
 
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+        for (uint32_t i = 0; i < stream_count; ++i)
         {
             VertexStream& stream = stream_declaration->m_Streams[i];
 
@@ -2105,6 +2224,14 @@ bail:
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
+
+        if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
+        {
+            context->m_MainVertexDeclarationStreams[binding_index].SetCapacity(vertex_declaration->m_StreamCount);
+            context->m_MainVertexDeclarationStreams[binding_index].SetSize(vertex_declaration->m_StreamCount);
+        }
+        memset(context->m_MainVertexDeclarationStreams[binding_index].Begin(), 0, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+        context->m_MainVertexDeclaration[binding_index].m_Streams = context->m_MainVertexDeclarationStreams[binding_index].Begin();
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
@@ -3003,6 +3130,9 @@ bail:
         DestroyShader(context, program_ptr->m_VertexModule);
         DestroyShader(context, program_ptr->m_FragmentModule);
         DestroyShader(context, program_ptr->m_ComputeModule);
+        delete program_ptr->m_VertexModule;
+        delete program_ptr->m_FragmentModule;
+        delete program_ptr->m_ComputeModule;
 
         delete program_ptr;
     }
@@ -4291,14 +4421,19 @@ bail:
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        delete context->m_DefaultTexture2D;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        delete context->m_DefaultTexture2DArray;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+        delete context->m_DefaultTextureCubeMap;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
+        delete context->m_DefaultTexture2D32UI;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
+        delete context->m_DefaultStorageImage2D;
 
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -4332,14 +4467,37 @@ bail:
 
         FlushFenceResourcesToDestroy(context);
 
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+            if (main_render_target)
+            {
+                context->m_AssetHandleContainer.Release(context->m_MainRenderTarget);
+                delete main_render_target;
+                context->m_MainRenderTarget    = 0x0;
+                context->m_CurrentRenderTarget = 0x0;
+            }
+        }
+
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
-            vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
             vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
             vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
         }
 
         DestroySwapChain(vk_device, context->m_SwapChain);
+
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            if (current_swapchain_texture)
+            {
+                context->m_AssetHandleContainer.Release(context->m_CurrentSwapchainTexture);
+                delete current_swapchain_texture;
+                context->m_CurrentSwapchainTexture = 0x0;
+            }
+        }
+
         DestroyLogicalDevice(&context->m_LogicalDevice);
         DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }
@@ -4353,7 +4511,7 @@ bail:
         VulkanSetTextureInternal(context, tex, params);
     }
 
-    static int AsyncProcessCallback(dmJobThread::HContext, dmJobThread::HJob job, void* _context, void* data)
+    static int AsyncProcessCallback(HJobContext, HJob job, void* _context, void* data)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4458,7 +4616,7 @@ bail:
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(dmJobThread::HContext, dmJobThread::HJob job, dmJobThread::JobStatus status, void* _context, void* data, int result)
+    static void AsyncCompleteCallback(HJobContext, HJob job, JobSystemStatus status, void* _context, void* data, int result)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4570,14 +4728,14 @@ bail:
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::Job job = {0};
+            Job job = {0};
             job.m_Process = AsyncProcessCallback;
             job.m_Callback = AsyncCompleteCallback;
             job.m_Context = (void*) context;
             job.m_Data = (void*) (uintptr_t) param_array_index;
 
-            dmJobThread::HJob hjob = dmJobThread::CreateJob(context->m_JobThread, &job);
-            dmJobThread::PushJob(context->m_JobThread, hjob);
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(context->m_JobContext, hjob);
         } 
         else
         {
@@ -4849,7 +5007,7 @@ bail:
         }
     }
 
-    static dmPlatform::HWindow VulkanGetWindow(HContext context)
+    static HWindow VulkanGetWindow(HContext context)
     {
         return ((VulkanContext*) context)->m_Window;
     }
@@ -4964,7 +5122,23 @@ bail:
     VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        return context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+    }
+
+    VkImage VulkanGetImage(HContext _context, HTexture texture)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Handle.m_Image : 0;
+    }
+
+    VkImageView VulkanGetImageView(HContext _context, HTexture texture)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Handle.m_ImageView : 0;
     }
 
     bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)

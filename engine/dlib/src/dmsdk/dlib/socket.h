@@ -19,7 +19,7 @@
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/file_descriptor.h>
 
-/*# SDK Socket API documentation
+/*# Socket API documentation
  * Socket functions.
  *
  * @document

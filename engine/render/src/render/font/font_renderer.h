@@ -60,8 +60,8 @@ namespace dmRender
         dmGraphics::BlendFactor m_SourceBlendFactor;
         /// The destination blend factor
         dmGraphics::BlendFactor m_DestinationBlendFactor;
-        /// Render order value. Passed to the render-key
-        uint16_t    m_RenderOrder;
+        /// Render order value. Passed to the render-key (24-bit value for sorting)
+        uint32_t    m_RenderOrder;
         /// Number render constants
         uint8_t     m_NumRenderConstants;
         /// Text render box width. Used for alignment and when m_LineBreak is true
@@ -104,7 +104,7 @@ namespace dmRender
      * @param render_order Render order to write for the rendering
      * @param render_context Context to use when rendering
      */
-    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final);
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final);
 }
 
 #endif // DM_FONT_RENDERER_H

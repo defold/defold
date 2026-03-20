@@ -231,8 +231,10 @@ namespace dmParticle
         uint16_t index = context->m_InstanceIndexPool.Pop();
 
         // Avoid zero in order to ensure that HInstance != INVALID_INSTANCE for valid handles.
-        if (context->m_NextVersionNumber == INVALID_INSTANCE) context->m_NextVersionNumber++;
+        if (context->m_NextVersionNumber == INVALID_INSTANCE)
+            context->m_NextVersionNumber++;
         instance->m_VersionNumber = context->m_NextVersionNumber++;
+        instance->m_UserData = 0;
 
         context->m_Instances[index] = instance;
 
@@ -600,7 +602,7 @@ namespace dmParticle
     }
 
     // helper functions in update
-    static void FetchAnimation(Emitter* emitter, EmitterPrototype* prototype, FetchAnimationCallback fetch_animation_callback);
+    static void FetchResources(HParticleContext context, HInstance instance, Emitter* emitter, uint32_t emitter_index, EmitterPrototype* prototype, FetchResourcesCallback fetch_resources_callback);
     static void UpdateParticles(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
@@ -733,7 +735,7 @@ namespace dmParticle
         return GenerateVertexDataInternal(context, dt, instance, emitter_index, particle_start, particle_count, attribute_infos, color, vertex_buffer, vertex_buffer_size, out_vertex_buffer_size);
     }
 
-    void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
+    void Update(HParticleContext context, float dt, FetchResourcesCallback fetch_resources_callback)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -772,7 +774,8 @@ namespace dmParticle
                 UpdateEmitterVelocity(instance, emitter, emitter_ddf, dt);
                 UpdateEmitter(prototype, instance, emitter_prototype, emitter, emitter_ddf, dt);
                 TotalAliveParticles += (uint32_t)emitter->m_Particles.Size();
-                FetchAnimation(emitter, emitter_prototype, fetch_animation_callback);
+
+                FetchResources(context, instance_handle, emitter, emitter_i, emitter_prototype, fetch_resources_callback);
                 UpdateEmitterRenderData(instance_handle, emitter_i, instance, emitter, emitter_ddf);
 
                 if (emitter->m_ReHash)
@@ -780,28 +783,52 @@ namespace dmParticle
             }
         }
 
-        DM_PROPERTY_SET_U32(rmtp_ParticlesAlive, TotalAliveParticles);
+        DM_PROPERTY_SET_U32(rmtp_ParticlesAlive, TotalAliveParticles);        
     }
 
-    static void FetchAnimation(Emitter* emitter, EmitterPrototype* prototype, FetchAnimationCallback fetch_animation_callback)
+    static void FetchResources(HParticleContext context, HInstance instance, Emitter* emitter, uint32_t emitter_index, EmitterPrototype* prototype, FetchResourcesCallback fetch_resources_callback)
     {
         DM_PROFILE(__FUNCTION__);
 
         // Needed to avoid autoread of AnimationData when calling java through JNA
         memset(&emitter->m_AnimationData, 0, sizeof(AnimationData));
-        if (fetch_animation_callback != 0x0 && prototype->m_TileSource)
+
+        if (fetch_resources_callback != 0x0)
         {
-            FetchAnimationResult result = fetch_animation_callback(prototype->m_TileSource, prototype->m_Animation, &emitter->m_AnimationData);
-            if (result != FETCH_ANIMATION_OK)
+            FetchResourcesParams params = {};
+            params.m_ParticleContext    = context;
+            params.m_Instance           = instance;
+            params.m_EmitterIndex       = emitter_index;
+            params.m_Animation          = prototype->m_Animation;
+            params.m_MaterialResource   = prototype->m_Material;
+            params.m_TextureSetResource = prototype->m_TileSource;
+
+            FetchResourcesData data = {};
+            FetchResourcesResult result = fetch_resources_callback(&params, &data);
+
+            if (result != FETCH_RESOURCES_OK)
             {
                 if (!emitter->m_FetchAnimWarning)
                 {
                     emitter->m_FetchAnimWarning = 1;
-                    dmLogWarning("The animation '%s' could not be found", dmHashReverseSafe64(prototype->m_Animation));
+
+                    if (!data.m_AnimationData.m_Texture)
+                    {
+                        dmLogWarning("The animation '%s' could not be found", dmHashReverseSafe64(prototype->m_Animation));
+                    }
+                    if (!data.m_Material)
+                    {
+                        dmLogWarning("The material could not be found");
+                    }
                 }
-            } else {
+            }
+            else
+            {
+                emitter->m_AnimationData = data.m_AnimationData;
                 assert(emitter->m_AnimationData.m_StructSize == sizeof(AnimationData) && "AnimationData::m_StructSize has an invalid size");
                 emitter->m_FetchAnimWarning = 0;
+                emitter->m_Material         = data.m_Material;
+                emitter->m_AnimationData    = data.m_AnimationData;
             }
         }
     }
@@ -890,7 +917,9 @@ namespace dmParticle
         if (emitter->m_State == EMITTER_STATE_POSTSPAWN)
         {
             if (emitter->m_Particles.Empty())
+            {
                 SetEmitterState(instance, emitter, EMITTER_STATE_SLEEPING);
+            }
         }
     }
 
@@ -902,6 +931,18 @@ namespace dmParticle
         uint32_t particle_count = emitter->m_Particles.Size();
 
         return particle_count * vertices_per_particle;
+    }
+
+    void SetInstanceUserData(HParticleContext context, HInstance instance, void* user_data)
+    {
+        Instance* inst = GetInstance(context, instance);
+        inst->m_UserData = user_data;
+    }
+
+    void* GetInstanceUserData(HParticleContext context, HInstance instance)
+    {
+        Instance* inst = GetInstance(context, instance);
+        return inst->m_UserData;
     }
 
     static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, const dmTransform::TransformS1& emitter_transform, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)
@@ -1205,13 +1246,14 @@ namespace dmParticle
                 ddf->m_Pivot.getZ()));
         }
 
-        Vector3 position_world_flat[6];
-        Vector3 position_local_flat[6];
+        Point3 position_world_flat[6];
+        Point3 position_local_flat[6];
         float tex_coord_flat[6 * 2];
 
         Vector4 color_to_write;
         dmVMath::Matrix4 world_matrix;
         float page_index;
+        float texture_transform_packed[9];
         dmGraphics::WriteAttributeParams write_params = {};
 
         const float* world_matrix_channel[] = { (float*) &world_matrix };
@@ -1220,6 +1262,7 @@ namespace dmParticle
         const float* position_local_channel[] = { (float*) position_local_flat };
         const float* color_channel[] = { (float*) &color_to_write };
         const float* tex_coord_channel[] = { tex_coord_flat };
+        const float* texture_transform_channel[] = { texture_transform_packed };
 
         write_params.m_VertexAttributeInfos = &attribute_infos;
         write_params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
@@ -1233,6 +1276,11 @@ namespace dmParticle
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsWorldSpace, position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        if (material_attribute_info_meta.m_HasAttributeTextureTransform2D)
+        {
+            dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TextureTransform2D, texture_transform_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+        }
 
         uint32_t particle_full_count = emitter->m_Particles.Size();
         uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
@@ -1293,29 +1341,27 @@ namespace dmParticle
                 particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
             }
 
-            Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
-            Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
-            Vector3 x       = dmTransform::Apply(particle_transform, x_local);
-            Vector3 y       = dmTransform::Apply(particle_transform, y_local);
+            // Local space has full transform scale; world matrix is rotation+translation only so mtx_world * position_local == position_world
+            Vector3 scale = particle_transform.GetScale();
+            float hx = width_factor * scale.getX();
+            float hy = height_factor * scale.getY();
+            position_local_flat[0] = Point3(-hx, -hy, 0.0f);
+            position_local_flat[1] = Point3(-hx,  hy, 0.0f);
+            position_local_flat[2] = Point3( hx,  hy, 0.0f);
+            position_local_flat[3] = position_local_flat[2];
+            position_local_flat[4] = Point3( hx, -hy, 0.0f);
+            position_local_flat[5] = position_local_flat[0];
+
+            dmTransform::Transform particle_transform_no_scale = particle_transform;
+            particle_transform_no_scale.SetScale(Vector3(1.0f, 1.0f, 1.0f));
+            world_matrix = dmTransform::ToMatrix4(particle_transform_no_scale);
 
             if (material_attribute_info_meta.m_HasAttributeWorldPosition)
             {
-                position_world_flat[0] = -x - y + particle_transform.GetTranslation();
-                position_world_flat[1] = -x + y + particle_transform.GetTranslation();
-                position_world_flat[2] = x + y + particle_transform.GetTranslation();
-                position_world_flat[3] = position_world_flat[2];
-                position_world_flat[4] = x - y + particle_transform.GetTranslation();
-                position_world_flat[5] = position_world_flat[0];
-            }
-
-            if (material_attribute_info_meta.m_HasAttributeLocalPosition)
-            {
-                position_local_flat[0] = -x - y;
-                position_local_flat[1] = -x + y;
-                position_local_flat[2] = x + y;
-                position_local_flat[3] = position_local_flat[2];
-                position_local_flat[4] = x - y;
-                position_local_flat[5] = position_local_flat[0];
+                for (int i = 0; i < 6; ++i)
+                {
+                    position_world_flat[i] = Point3((world_matrix * position_local_flat[i]).getXYZ());
+                }
             }
 
             if (material_attribute_info_meta.m_HasAttributeColor)
@@ -1352,10 +1398,22 @@ namespace dmParticle
                 }
             }
 
-            if (material_attribute_info_meta.m_HasAttributeWorldMatrix)
+            if (material_attribute_info_meta.m_HasAttributeTextureTransform2D)
             {
-                world_matrix = dmTransform::ToMatrix4(particle_transform);
+                // Full 2D affine from unit square to atlas quad (supports rotation)
+                const float* tc = tex_coord;
+                texture_transform_packed[0] = tc[2] - tc[0];
+                texture_transform_packed[1] = tc[3] - tc[1];
+                texture_transform_packed[2] = 0.0f;
+                texture_transform_packed[3] = tc[6] - tc[0];
+                texture_transform_packed[4] = tc[7] - tc[1];
+                texture_transform_packed[5] = 0.0f;
+                texture_transform_packed[6] = tc[0];
+                texture_transform_packed[7] = tc[1];
+                texture_transform_packed[8] = 1.0f;
             }
+
+            // world_matrix already set from particle_transform_no_scale (no size) above
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
             write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, 6, write_params);
@@ -1822,6 +1880,7 @@ namespace dmParticle
             EmitterPrototype* emitter = &prototype->m_Emitters[i];
             emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
             emitter->m_BlendMode = emitter_ddf->m_BlendMode;
+            emitter->m_Id = dmHashString64(emitter_ddf->m_Id);
             // Approximate splines with linear segments
             memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
             memset(emitter->m_ParticleProperties, 0, sizeof(emitter->m_ParticleProperties));
@@ -1972,7 +2031,15 @@ namespace dmParticle
         dmVMath::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[emitter_index];
 
-        render_emitter_callback(user_context, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, world, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
+        render_emitter_callback(user_context,
+            emitter_proto->m_Material,
+            emitter->m_AnimationData.m_Texture,
+            world,
+            emitter_proto->m_BlendMode,
+            emitter->m_VertexIndex,
+            emitter->m_VertexCount,
+            emitter->m_RenderConstants.Begin(),
+            emitter->m_RenderConstants.Size());
     }
 
     // Update render data for the emitter at the specified index
@@ -1986,7 +2053,7 @@ namespace dmParticle
         dmParticle::EmitterPrototype* emitter_proto = &inst->m_Prototype->m_Emitters[emitter_index];
 
         render_data.m_Transform = world;
-        render_data.m_Material = emitter_proto->m_Material;
+        render_data.m_Material = emitter->m_Material ? emitter->m_Material : emitter_proto->m_Material;
         render_data.m_BlendMode = emitter_proto->m_BlendMode;
         render_data.m_Texture = emitter->m_AnimationData.m_Texture;
         render_data.m_RenderConstants = emitter->m_RenderConstants.Begin();
@@ -2060,6 +2127,24 @@ namespace dmParticle
     void SetTileSource(HPrototype prototype, uint32_t emitter_index, void* tile_source)
     {
         prototype->m_Emitters[emitter_index].m_TileSource = tile_source;
+    }
+
+    dmhash_t GetAnimation(HPrototype prototype, uint32_t emitter_index)
+    {
+        return prototype->m_Emitters[emitter_index].m_Animation;
+    }
+
+    uint32_t GetEmitterIndexFromId(HPrototype prototype, dmhash_t id)
+    {
+        uint32_t emitter_count = prototype->m_Emitters.Size();
+        for (int i = 0; i < emitter_count; ++i)
+        {
+            if (prototype->m_Emitters[i].m_Id == id)
+            {
+                return i;
+            }
+        }
+        return INVALID_EMITTER_INDEX;
     }
 
     static void SetRenderConstantInternal(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Matrix4 value, bool is_matrix4)
@@ -2319,7 +2404,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, SetScale, HParticleContext, HInstance, float);
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
+    DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchResourcesCallback);
     DM_PARTICLE_TRAMPOLINE9(GenerateVertexDataResult, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const dmGraphics::VertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);

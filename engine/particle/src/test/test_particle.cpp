@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
 #include <stdio.h>
 #include <algorithm>
 
@@ -54,7 +55,24 @@ static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t
     info.m_VectorType      = source_vector_type;
     info.m_ValuePtr        = 0;
     info.m_ValueVectorType = source_vector_type;
+    info.m_ElementCount    = dmGraphics::VectorTypeToElementCount(source_vector_type);
 }
+
+static inline void FillAttributeWithSpace(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexAttribute::VectorType source_vector_type, dmGraphics::CoordinateSpace space)
+{
+    FillAttribute(info, name_hash, semantic_type, source_vector_type);
+    info.m_CoordinateSpace = space;
+}
+
+// Vertex with both world and local position for testing local coordinate invariance
+struct TestVertexWithLocal
+{
+    float m_WorldX, m_WorldY, m_WorldZ, m_WorldW;
+    float m_LocalX, m_LocalY, m_LocalZ, m_LocalW;
+    float m_Red, m_Green, m_Blue, m_Alpha;
+    float m_U, m_V;
+    float m_PageIndex;
+};
 
 class ParticleTest : public jc_test_base_class
 {
@@ -67,11 +85,15 @@ protected:
         m_VertexBuffer = new uint8_t[m_VertexBufferSize];
         m_Prototype = 0x0;
 
-        FillAttribute(m_AttributeInfos.m_Infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
-        FillAttribute(m_AttributeInfos.m_Infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-        FillAttribute(m_AttributeInfos.m_Infos[2], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
-        FillAttribute(m_AttributeInfos.m_Infos[3], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+        dmGraphics::VertexAttributeInfo* attribute_infos = new dmGraphics::VertexAttributeInfo[4];
+        memset(attribute_infos, 0, sizeof(dmGraphics::VertexAttributeInfo) * 4);
 
+        FillAttribute(attribute_infos[0], dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute(attribute_infos[1], dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute(attribute_infos[2], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute(attribute_infos[3], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+
+        m_AttributeInfos.m_Infos        = attribute_infos;
         m_AttributeInfos.m_NumInfos     = 4;
         m_AttributeInfos.m_VertexStride = sizeof(TestVertex);
     }
@@ -84,6 +106,7 @@ protected:
         }
         dmParticle::DestroyContext(m_Context);
         delete [] m_VertexBuffer;
+        delete [] m_AttributeInfos.m_Infos;
     }
 
     void VerifyVertexTexCoords(TestVertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas);
@@ -140,18 +163,18 @@ void ParticleTest::VerifyVertexTexCoords(TestVertex* vertex_buffer, float* tex_c
     // |         then       |
     // 0               5 -- 4
 
-    ASSERT_EQ(u0, vertex_buffer[0].m_U);
-    ASSERT_EQ(v1, vertex_buffer[0].m_V);
-    ASSERT_EQ(u0, vertex_buffer[1].m_U);
-    ASSERT_EQ(v0, vertex_buffer[1].m_V);
-    ASSERT_EQ(u1, vertex_buffer[2].m_U);
-    ASSERT_EQ(v0, vertex_buffer[2].m_V);
-    ASSERT_EQ(u1, vertex_buffer[3].m_U);
-    ASSERT_EQ(v0, vertex_buffer[3].m_V);
-    ASSERT_EQ(u1, vertex_buffer[4].m_U);
-    ASSERT_EQ(v1, vertex_buffer[4].m_V);
-    ASSERT_EQ(u0, vertex_buffer[5].m_U);
-    ASSERT_EQ(v1, vertex_buffer[5].m_V);
+    ASSERT_NEAR(u0, vertex_buffer[0].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[0].m_V, EPSILON);
+    ASSERT_NEAR(u0, vertex_buffer[1].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[1].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[2].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[2].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[3].m_U, EPSILON);
+    ASSERT_NEAR(v0, vertex_buffer[3].m_V, EPSILON);
+    ASSERT_NEAR(u1, vertex_buffer[4].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[4].m_V, EPSILON);
+    ASSERT_NEAR(u0, vertex_buffer[5].m_U, EPSILON);
+    ASSERT_NEAR(v1, vertex_buffer[5].m_V, EPSILON);
 }
 
 void ParticleTest::VerifyVertexDims(TestVertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height)
@@ -376,16 +399,16 @@ TEST_F(ParticleTest, CreationSuccessFromDDF)
     ASSERT_EQ(0U, m_Context->m_InstanceIndexPool.Size());
 }
 
-dmParticle::FetchAnimationResult EmptyFetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+dmParticle::FetchResourcesResult EmptyFetchAnimationCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data)
 {
     // Trash data to verify that this function is not called
     memset(out_data, 1, sizeof(*out_data));
-    return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+    return dmParticle::FETCH_RESOURCES_UNKNOWN_ERROR;
 }
 
-dmParticle::FetchAnimationResult FailFetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+dmParticle::FetchResourcesResult FailFetchAnimationCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data)
 {
-    return dmParticle::FETCH_ANIMATION_NOT_FOUND;
+    return dmParticle::FETCH_RESOURCES_NOT_FOUND;
 }
 
 float g_UnitTexCoords[] =
@@ -1410,40 +1433,40 @@ struct TileSource
     uint32_t m_TileHeight;
 };
 
-dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+dmParticle::FetchResourcesResult FetchAnimationCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data)
 {
-    if (tile_source == 0x0)
+    if (params->m_TextureSetResource == 0x0)
     {
-        return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+        return dmParticle::FETCH_RESOURCES_UNKNOWN_ERROR;
     }
-    TileSource* ts = (TileSource*)tile_source;
-    out_data->m_Texture = ts->m_Texture;
-    out_data->m_TexCoords = ts->m_TexCoords;
-    out_data->m_TexDims = ts->m_TexDims;
-    out_data->m_TileWidth = 2;
-    out_data->m_TileHeight = 3;
-    out_data->m_StartTile = 0;
-    out_data->m_EndTile = 5;
-    out_data->m_FPS = 4;
-    out_data->m_Texture = (void*)0xBAADF00D;
-    out_data->m_StructSize = sizeof(dmParticle::AnimationData);
-    if (animation == dmHashString64("none"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_NONE;
-    else if (animation == dmHashString64("once_fwd"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
-    else if (animation == dmHashString64("once_bwd"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
-    else if (animation == dmHashString64("once_pingpong"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_PINGPONG;
-    else if (animation == dmHashString64("loop_fwd"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
-    else if (animation == dmHashString64("loop_bwd"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
-    else if (animation == dmHashString64("loop_pingpong"))
-        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
+    TileSource* ts = (TileSource*)params->m_TextureSetResource;
+    out_data->m_AnimationData.m_Texture = ts->m_Texture;
+    out_data->m_AnimationData.m_TexCoords = ts->m_TexCoords;
+    out_data->m_AnimationData.m_TexDims = ts->m_TexDims;
+    out_data->m_AnimationData.m_TileWidth = 2;
+    out_data->m_AnimationData.m_TileHeight = 3;
+    out_data->m_AnimationData.m_StartTile = 0;
+    out_data->m_AnimationData.m_EndTile = 5;
+    out_data->m_AnimationData.m_FPS = 4;
+    out_data->m_AnimationData.m_Texture = (void*)0xBAADF00D;
+    out_data->m_AnimationData.m_StructSize = sizeof(dmParticle::AnimationData);
+    if (params->m_Animation == dmHashString64("none"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_NONE;
+    else if (params->m_Animation == dmHashString64("once_fwd"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+    else if (params->m_Animation == dmHashString64("once_bwd"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
+    else if (params->m_Animation == dmHashString64("once_pingpong"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_PINGPONG;
+    else if (params->m_Animation == dmHashString64("loop_fwd"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
+    else if (params->m_Animation == dmHashString64("loop_bwd"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
+    else if (params->m_Animation == dmHashString64("loop_pingpong"))
+        out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
     else
-        return dmParticle::FETCH_ANIMATION_NOT_FOUND;
-    return dmParticle::FETCH_ANIMATION_OK;
+        return dmParticle::FETCH_RESOURCES_NOT_FOUND;
+    return dmParticle::FETCH_RESOURCES_OK;
 }
 
 TEST_F(ParticleTest, Animation)
@@ -2139,25 +2162,25 @@ TEST_F(ParticleTest, Stats)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
-dmParticle::FetchAnimationResult FetchPivotAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+dmParticle::FetchResourcesResult FetchPivotAnimationCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data)
 {
-    if (tile_source == 0x0)
+    if (params->m_TextureSetResource == 0x0)
     {
-        return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+        return dmParticle::FETCH_RESOURCES_UNKNOWN_ERROR;
     }
-    TileSource* ts = (TileSource*)tile_source;
-    out_data->m_Texture = ts->m_Texture;
-    out_data->m_TexCoords = ts->m_TexCoords;
-    out_data->m_TexDims = ts->m_TexDims;
-    out_data->m_TileWidth = ts->m_TileWidth;
-    out_data->m_TileHeight = ts->m_TileHeight;
-    out_data->m_StartTile = 0;
-    out_data->m_EndTile = 1;
-    out_data->m_FPS = 4;
-    out_data->m_Texture = (void*)0xBAADF00D;
-    out_data->m_StructSize = sizeof(dmParticle::AnimationData);
-    out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
-    return dmParticle::FETCH_ANIMATION_OK;
+    TileSource* ts = (TileSource*)params->m_TextureSetResource;
+    out_data->m_AnimationData.m_Texture = ts->m_Texture;
+    out_data->m_AnimationData.m_TexCoords = ts->m_TexCoords;
+    out_data->m_AnimationData.m_TexDims = ts->m_TexDims;
+    out_data->m_AnimationData.m_TileWidth = ts->m_TileWidth;
+    out_data->m_AnimationData.m_TileHeight = ts->m_TileHeight;
+    out_data->m_AnimationData.m_StartTile = 0;
+    out_data->m_AnimationData.m_EndTile = 1;
+    out_data->m_AnimationData.m_FPS = 4;
+    out_data->m_AnimationData.m_Texture = (void*)0xBAADF00D;
+    out_data->m_AnimationData.m_StructSize = sizeof(dmParticle::AnimationData);
+    out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+    return dmParticle::FETCH_RESOURCES_OK;
 }
 
 /**
@@ -2198,6 +2221,64 @@ TEST_F(ParticleTest, Pivot)
     ASSERT_NEAR(1.0f, vertex_buffer[3].m_Y, EPSILON); // top right
     ASSERT_NEAR(0.0f, vertex_buffer[4].m_Y, EPSILON); // bottom right
     ASSERT_NEAR(0.0f, vertex_buffer[5].m_Y, EPSILON); // bottom left
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that local position vertex attributes are unaffected by the instance transform.
+ * World positions should change when we move the instance; local positions must stay the same.
+ */
+TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
+{
+    const float dt = 1.0f;
+    ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+    dmGraphics::VertexAttributeInfo local_attribute_infos[5];
+    memset(local_attribute_infos, 0, sizeof(local_attribute_infos));
+    FillAttributeWithSpace(local_attribute_infos[0], dmHashString64("position"),    dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::COORDINATE_SPACE_WORLD);
+    FillAttributeWithSpace(local_attribute_infos[1], dmHashString64("local_pos"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::COORDINATE_SPACE_LOCAL);
+    FillAttribute(local_attribute_infos[2], dmHashString64("color"),     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    FillAttribute(local_attribute_infos[3], dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+    FillAttribute(local_attribute_infos[4], dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+
+    dmGraphics::VertexAttributeInfos local_infos;
+    local_infos.m_Infos        = local_attribute_infos;
+    local_infos.m_NumInfos    = 5;
+    local_infos.m_VertexStride = sizeof(TestVertexWithLocal);
+
+    dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, EmptyFetchAnimationCallback);
+
+    uint32_t out_size = 0;
+    const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertexWithLocal));
+    TestVertexWithLocal vertex_buffer[6];
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
+    ASSERT_EQ(6u, out_size / sizeof(TestVertexWithLocal));
+
+    float local_pos_first[6 * 4];
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        local_pos_first[i*4 + 0] = vertex_buffer[i].m_LocalX;
+        local_pos_first[i*4 + 1] = vertex_buffer[i].m_LocalY;
+        local_pos_first[i*4 + 2] = vertex_buffer[i].m_LocalZ;
+        local_pos_first[i*4 + 3] = vertex_buffer[i].m_LocalW;
+    }
+
+    dmParticle::SetPosition(m_Context, instance, Point3(100.0f, 200.0f, 50.0f));
+    dmParticle::Update(m_Context, 0.0f, EmptyFetchAnimationCallback);
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, local_infos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_size);
+    ASSERT_EQ(6u, out_size / sizeof(TestVertexWithLocal));
+
+    for (uint32_t v = 0; v < 6; ++v)
+    {
+        ASSERT_NEAR(local_pos_first[v*4+0], vertex_buffer[v].m_LocalX, EPSILON);
+        ASSERT_NEAR(local_pos_first[v*4+1], vertex_buffer[v].m_LocalY, EPSILON);
+        ASSERT_NEAR(local_pos_first[v*4+2], vertex_buffer[v].m_LocalZ, EPSILON);
+        ASSERT_NEAR(local_pos_first[v*4+3], vertex_buffer[v].m_LocalW, EPSILON);
+    }
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

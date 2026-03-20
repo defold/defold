@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, re
-from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature, platform_graphics_libs_and_symbols
+from waf_dynamo import dmsdk_add_files, copy_file_task, platform_supports_feature, platform_graphics_libs_and_symbols
 import waflib.Options
 import waf_dynamo
 
@@ -110,8 +110,6 @@ def build(bld):
     dynamo_home = os.getenv('DYNAMO_HOME')
 
     android_jar_paths = [
-              '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
-              '%s/ext/share/java/androidx-multidex.jar' % (dynamo_home),
               '%s/ext/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home)]
@@ -245,7 +243,6 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    apidoc_extract_task(bld, ['../proto/engine/engine_ddf.proto', 'engine_doc.h', 'script/script_engine.cpp'])
 
 def configure(conf):
     pass

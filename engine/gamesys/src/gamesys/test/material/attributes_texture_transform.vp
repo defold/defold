@@ -1,0 +1,19 @@
+#version 140
+
+in vec4 position;
+in vec3 normal;
+in vec2 texcoord0;
+in mat3 texture_transform_2d;
+in vec4 color;
+
+out vec3 var_normal;
+out vec2 var_uv;
+out vec4 var_color;
+
+void main()
+{
+    gl_Position = position;
+    var_normal = normal;
+    var_uv = (texture_transform_2d * vec3(texcoord0, 1.0)).xy;
+    var_color = color;
+}

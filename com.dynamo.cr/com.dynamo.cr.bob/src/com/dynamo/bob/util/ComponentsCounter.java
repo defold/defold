@@ -36,7 +36,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
-import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
@@ -175,14 +175,14 @@ public class ComponentsCounter {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
             ProtoUtil.merge(resource, resourceContent, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
-            String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
+            String counterName = ResourceUtil.minifyPathAndReplaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
             return entry;
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
             ProtoUtil.merge(resource, resourceContent, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
-            String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
+            String counterName = ResourceUtil.minifyPathAndReplaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
             return entry;
         }
@@ -266,9 +266,9 @@ public class ComponentsCounter {
 
     public static String replaceExt(String path) {
         if (path.endsWith(".go")) {
-            return BuilderUtil.replaceExt(path, ".go", EXT_GO);
+            return ResourceUtil.minifyPathAndReplaceExt(path, ".go", EXT_GO);
         } else if (path.endsWith(".collection")) {
-            return BuilderUtil.replaceExt(path, ".collection", EXT_COL);
+            return ResourceUtil.minifyPathAndReplaceExt(path, ".collection", EXT_COL);
         }
         return null;
     }
@@ -327,7 +327,7 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
             // for example wav and sound both are soundc
-            String name = project.replaceExt("." + entry.getKey()).substring(1);
+            String name = ResourceUtil.getOutputExt("." + entry.getKey()).substring(1);
             Integer value = entry.getValue();
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);

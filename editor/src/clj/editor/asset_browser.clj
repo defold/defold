@@ -300,9 +300,11 @@
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
 (defn- reserved-project-file [^File project-path ^File f]
+  ;; The project-path is assumed to be canonical.
   (resource-watch/reserved-proj-path? project-path (resource/file->proj-path project-path f)))
 
 (defn- illegal-copy-move-pairs [^File project-path prospect-pairs]
+  ;; The project-path is assumed to be canonical.
   (seq (filter (comp (partial reserved-project-file project-path) second) prospect-pairs)))
 
 (defn allow-resource-move?
@@ -926,7 +928,7 @@
     (doto tree-view
       (.setShowRoot false)
       (.setSkin (ExtendedTreeViewSkin. tree-view))
-      (ui/customize-tree-view! {:double-click-expand? true})
+      (ui/customize-tree-view! {:double-click-expand true})
       (ui/bind-double-click! :file.open-selected)
       (ui/bind-key-commands! {"Enter" :file.open-selected})
       (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))

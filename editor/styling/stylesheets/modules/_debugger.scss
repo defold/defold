@@ -1,76 +1,73 @@
-#debugger-data-split {
+#debugger-call-stack {
+  -fx-background-color: -df-background-light;
+  -fx-padding: 0;
 
-  #debugger-call-stack {
-    -fx-background-color: -df-background-light;
-    -fx-padding: 0;
+  .list-cell {
+    -fx-background-insets: 0 0 0 0;
+    -fx-padding: 5 5 5 12;
 
-    .list-cell {
-      -fx-background-insets: 0 0 0 0;
-      -fx-padding: 5 5 5 12;
-
+    .label {
+      -fx-text-fill: -df-text;
+    }
+    .call-stack-path {
+      -fx-text-fill: -df-text-dark;
+      -fx-opacity: 0.8;
+    }
+    .call-stack-line-container {
+      -fx-min-width: 30px;
+      -fx-alignment: center-right;
+    }
+    .call-stack-line {
+      -fx-padding: 0 3px;
+      -fx-background-color: -df-component-lighter;
+      -fx-background-radius: 3px;
+    }
+    &:hover {
       .label {
-        -fx-text-fill: -df-text;
+        -fx-text-fill: -df-text-selected
       }
       .call-stack-path {
         -fx-text-fill: -df-text-dark;
         -fx-opacity: 0.8;
       }
-      .call-stack-line-container {
-        -fx-min-width: 30px;
-        -fx-alignment: center-right;
+    }
+    &:selected {
+      .label {
+        -fx-text-fill: -df-text-selected;
       }
-      .call-stack-line {
-        -fx-padding: 0 3px;
-        -fx-background-color: -df-component-lighter;
-        -fx-background-radius: 3px;
-      }
-      &:hover {
-        .label {
-          -fx-text-fill: -df-text-selected
-        }
-        .call-stack-path {
-          -fx-text-fill: -df-text-dark;
-          -fx-opacity: 0.8;
-        }
-      }
-      &:selected {
-        .label {
-          -fx-text-fill: -df-text-selected;
-        }
-        .call-stack-path {
-          -fx-text-fill: -df-text-dark;
-          -fx-opacity: 0.8;
-        }
+      .call-stack-path {
+        -fx-text-fill: -df-text-dark;
+        -fx-opacity: 0.8;
       }
     }
   }
+}
 
-  #debugger-variables {
-    .tree-cell {
+#debugger-variables {
+  .tree-cell {
+    .label {
+      -fx-text-fill: -df-text;
+    }
+    .equals {
+      -fx-text-fill: -df-text-dark;
+      -fx-opacity: 0.8;
+    }
+    &:hover {
       .label {
-        -fx-text-fill: -df-text;
+        -fx-text-fill: -df-text-selected;
       }
       .equals {
         -fx-text-fill: -df-text-dark;
         -fx-opacity: 0.8;
       }
-      &:hover {
-        .label {
-          -fx-text-fill: -df-text-selected;
-        }
-        .equals {
-          -fx-text-fill: -df-text-dark;
-          -fx-opacity: 0.8;
-        }
+    }
+    &:selected {
+      .label {
+        -fx-text-fill: -df-text-selected;
       }
-      &:selected {
-        .label {
-          -fx-text-fill: -df-text-selected;
-        }
-        .equals {
-          -fx-text-fill: -df-text-dark;
-          -fx-opacity: 0.8;
-        }
+      .equals {
+        -fx-text-fill: -df-text-dark;
+        -fx-opacity: 0.8;
       }
     }
   }

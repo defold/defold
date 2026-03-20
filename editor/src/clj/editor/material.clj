@@ -45,9 +45,12 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private vertex-program-message (localization/message "form.label.material.vertex-program"))
+(def ^:private fragment-program-message (localization/message "form.label.material.fragment-program"))
+
 (def ^:private editable-attribute-optional-field-defaults
   (-> Graphics$VertexAttribute
-      (protobuf/default-message #{:optional})
+      (protobuf/optional-field-defaults)
       (dissoc :binary-values :double-values :long-values :name-hash)))
 
 (defn- attribute->editable-attribute [attribute]
@@ -122,19 +125,19 @@
             (when (and normalize
                        (= :type-float data-type))
               (g/->error node-id label :fatal nil
-                         (format "'%s' attribute uses normalize with float data type"
-                                 name)))]))
+                         (localization/message "error.vertex-attribute-normalize-float-data-type"
+                                               {"attribute" name})))]))
 
 (defn- build-target-pbr-params [shader-reflection]
   (when-some [pbr-parameters-proto (MaterialBuilder/makePbrParametersProtoMessage shader-reflection)]
     (protobuf/pb->map-without-defaults pbr-parameters-proto)))
 
-(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 resource vertex-program vertex-shader-source-info]
+(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
-        (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-        (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+        (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
+        (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100)
+      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
             build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
@@ -161,6 +164,7 @@
                                     (.setElement 1 0 y)
                                     (.setElement 2 0 z)
                                     (.setElement 3 0 w)))
+    :constant-type-time (Vector4d. 0.0 0.0 0.0 0.0)
     :constant-type-viewproj :view-proj
     :constant-type-world :world
     :constant-type-texture :texture
@@ -171,13 +175,13 @@
     :constant-type-worldviewproj :world-view-proj))
 
 (defn- transpile-shader-source
-  [shader-resource-node-id shader-resource ^String shader-source ^long max-page-count]
+  [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
   ;; lines from include directives, so we do not report the correct source paths
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (shader-gen/transpile-shader-source shader-proj-path shader-source max-page-count)
+      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
@@ -193,12 +197,12 @@
                                     error-cursor-range (assoc :cursor-range error-cursor-range))]
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
-(g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
-  (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-      (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+(g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
+  (or (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
+      (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
       (let [augmented-shader-infos
             (mapv (fn [{:keys [node-id resource shader-source]}]
-                    (transpile-shader-source node-id resource shader-source max-page-count))
+                    (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
                   [vertex-shader-source-info
                    fragment-shader-source-info])]
         (g/precluding-errors augmented-shader-infos
@@ -568,6 +572,8 @@
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
   (input exclude-gles-sm100 g/Any)
+  (input glsl-es-default-precision-float g/Any)
+  (input glsl-es-default-precision-int g/Any)
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 
@@ -589,6 +595,8 @@
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
+      (g/connect project :glsl-es-default-precision-float self :glsl-es-default-precision-float)
+      (g/connect project :glsl-es-default-precision-int self :glsl-es-default-precision-int)
       (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
         vertex-program (resolve-resource :vertex-program)
         fragment-program (resolve-resource :fragment-program)

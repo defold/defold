@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Image API documentation
+/*# Image API documentation
  *
  * Image API functions.
  *

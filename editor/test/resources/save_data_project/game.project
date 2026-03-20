@@ -42,8 +42,8 @@ push_icon_large_xxhdpi = /referenced/images/diamond.png
 push_icon_large_xxxhdpi = /referenced/images/diamond.png
 push_field_title = push_field_title
 push_field_text = push_field_text
-target_sdk_version = 32
-minimum_sdk_version = 18
+target_sdk_version = 36
+minimum_sdk_version = 21
 version_code = 2
 package = com.defold.save-data-project
 debuggable = 1
@@ -210,6 +210,8 @@ verify_graphics_calls = 0
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512
+vulkan_version_minor = 1
+vulkan_version_major = 0
 
 [iap]
 auto_finish_transactions = 0
@@ -282,6 +284,9 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
+glsl_es_default_precision_float = highp
+glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
+

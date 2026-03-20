@@ -272,11 +272,27 @@
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
                                (into [] cat [(engine-profiler/routes)
+                                             (web-server/built-in-routes project)
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
-                                             (command-requests/router root progress/null-render-progress!)])))]
+                                             (command-requests/router root test-util/localization progress/null-render-progress!)])))]
           (let [url (http-server/local-url server)]
+            (let [{:keys [status headers body]} @(http/request (str url "/") :as :string)]
+              (is (= 200 status))
+              (is (= "text/html; charset=utf-8" (get headers "content-type")))
+              (is (string/includes? body "Defold Editor HTTP Server"))
+              (is (string/includes? body "/openapi.json")))
+            (let [{:keys [status headers body]} @(http/request (str url "/openapi.json") :as :string)]
+              (is (= 200 status))
+              (is (= "application/json" (get headers "content-type")))
+              (let [json-body (json/read-str body)]
+                (is (= "3.0.3" (get json-body "openapi")))
+                (is (contains? (get json-body "paths") "/console"))
+                (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
+                  (is (= "Execute an editor command" (get post-command "summary")))
+                  (is (string/includes? (get post-command "description") "`build-html5`"))
+                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))
               (is (= "text/html" (get headers "content-type")))
@@ -289,10 +305,8 @@
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (string/includes? body "\"lines\":")))
-            (let [{:keys [status headers body]} (update @(http/request (str url "/command/") :as :string) :body json/read-str :key-fn keyword)]
-              (is (= 200 status))
-              (is (= "application/json" (get headers "content-type")))
-              (is (contains? body :build-html5)))
+            (let [{:keys [status]} @(http/request (str url "/command/") :as :string)]
+              (is (= 404 status)))
             (let [{:keys [status headers body]} @(http/request (str url "/command/build-html5") :as :string)]
               (is (= 405 status))
               (is (= "OPTIONS, POST" (get headers "allow")))

@@ -20,7 +20,7 @@
 #include <jni.h>
 #include <android_native_app_glue.h> // For ANativeActivity
 
-/*# SDK Android API documentation
+/*# Android API documentation
  * Android utility functions
  *
  * @document
@@ -32,7 +32,7 @@
 namespace dmAndroid {
 
 /*#
- * Struct attaching the JNI environment. Detaches the
+ * Struct attaching the JNI environment.
  * @class
  * @name ThreadAttacher
  */

@@ -28,7 +28,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.hpp>
@@ -107,7 +107,7 @@ namespace dmLiveUpdate
         dmResourceMounts::HContext      m_ResourceMounts;       // The resource mounts
         dmResourceProvider::HArchive    m_ResourceBaseArchive;  // The "game.arcd" archive
 
-        dmJobThread::HContext           m_JobThread;
+        HJobContext                     m_JobContext;
 
         // Legacy functionality
         dmResource::HFactory            m_ResourceFactory;      // Resource system factory
@@ -375,7 +375,7 @@ namespace dmLiveUpdate
 
     static bool IsLiveupdateThreadDisabled()
     {
-        if (!g_LiveUpdate.m_JobThread)
+        if (!g_LiveUpdate.m_JobContext)
         {
             dmLogError("Liveupdate function can't be called. Liveupdate disabled");
             return true;
@@ -414,15 +414,15 @@ namespace dmLiveUpdate
     // ** LiveUpdate async functions
     // ******************************************************************
 
-    static bool PushAsyncJob(dmJobThread::FProcess process, dmJobThread::FCallback callback, void* jobctx, void* jobdata)
+    static bool PushAsyncJob(FJobProcess process, FJobCallback callback, void* jobctx, void* jobdata)
     {
-        dmJobThread::Job job = {0};
+        Job job = {0};
         job.m_Process = process;
         job.m_Callback = callback;
         job.m_Context = jobctx;
         job.m_Data = jobdata;
-        dmJobThread::HJob hjob = dmJobThread::CreateJob(g_LiveUpdate.m_JobThread, &job);
-        dmJobThread::PushJob(g_LiveUpdate.m_JobThread, hjob);
+        HJob hjob = JobSystemCreateJob(g_LiveUpdate.m_JobContext, &job);
+        JobSystemPushJob(g_LiveUpdate.m_JobContext, hjob);
         return true;
     }
 
@@ -451,7 +451,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreResourceProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, ResourceInfo* job)
+    static int StoreResourceProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, ResourceInfo* job)
     {
         if (jobctx->m_LiveupdateArchiveManifest == 0 || jobctx->m_LiveupdateArchive == 0)
         {
@@ -480,8 +480,8 @@ namespace dmLiveUpdate
 
         return dmResourceProvider::RESULT_OK == result;
     }
-    // Called on the main thread (see dmJobThread::Update below)
-    static void StoreResourceFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void StoreResourceFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
     {
         if (job->m_Callback)
             job->m_Callback(result == 1, job->m_CallbackData);
@@ -520,7 +520,7 @@ namespace dmLiveUpdate
         info->m_Callback = callback;
         info->m_CallbackData = callback_data;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreResourceProcess, (dmJobThread::FCallback)StoreResourceFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)StoreResourceProcess, (FJobCallback)StoreResourceFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -540,7 +540,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreManifestProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, StoreManifestInfo* job)
+    static int StoreManifestProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, StoreManifestInfo* job)
     {
         dmResource::Manifest* manifest = 0;
         dmResource::Result result = dmResource::LoadManifestFromBuffer(job->m_Data, job->m_DataLength, &manifest);
@@ -584,8 +584,8 @@ namespace dmLiveUpdate
         return result;
     }
 
-    // Called on the main thread (see dmJobThread::Update below)
-    static void StoreManifestFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void StoreManifestFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
     {
         dmLogInfo("Finishing manifest job");
         if (job->m_Callback)
@@ -618,7 +618,7 @@ namespace dmLiveUpdate
         info->m_CallbackData = callback_data;
         info->m_Verify = true;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreManifestProcess, (dmJobThread::FCallback)StoreManifestFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)StoreManifestProcess, (FJobCallback)StoreManifestFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -639,7 +639,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int StoreArchiveProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
+    static int StoreArchiveProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
     {
         if (job->m_Verify)
         {
@@ -693,8 +693,8 @@ namespace dmLiveUpdate
         return RESULT_OK;
     }
 
-    // Called on the main thread (see dmJobThread::Update below)
-    static void StoreArchiveFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void StoreArchiveFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
     {
         dmLogInfo("Finishing archive job: %d", result);
         if (job->m_Callback)
@@ -728,7 +728,7 @@ namespace dmLiveUpdate
         info->m_CallbackData = callback_data;
         info->m_Verify = true;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreArchiveProcess, (dmJobThread::FCallback)StoreArchiveFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)StoreArchiveProcess, (FJobCallback)StoreArchiveFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -750,7 +750,7 @@ namespace dmLiveUpdate
     };
 
     // Called on the worker thread
-    static int AddMountProcess(dmJobThread::HContext context, dmJobThread::HJob hjob, LiveUpdateCtx* jobctx, AddMountInfo* job)
+    static int AddMountProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, AddMountInfo* job)
     {
         dmURI::Parts uri;
         dmURI::Parse(job->m_Uri, &uri);
@@ -787,8 +787,8 @@ namespace dmLiveUpdate
         return RESULT_OK;
     }
 
-    // Called on the main thread (see dmJobThread::Update below)
-    static void AddMountFinished(dmJobThread::HContext context, dmJobThread::HJob hjob, dmJobThread::JobStatus status, LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
+    // Called on the main thread (see JobSystemUpdate below)
+    static void AddMountFinished(HJobContext context, HJob hjob, JobSystemStatus status, LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
     {
         dmLogInfo("Finishing add mount job: %d", result);
         if (job->m_Callback)
@@ -813,7 +813,7 @@ namespace dmLiveUpdate
         info->m_Callback = callback;
         info->m_CallbackData = callback_data;
 
-        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)AddMountProcess, (dmJobThread::FCallback)AddMountFinished, (void*)&g_LiveUpdate, info);
+        bool res = dmLiveUpdate::PushAsyncJob((FJobProcess)AddMountProcess, (FJobCallback)AddMountFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -936,15 +936,15 @@ namespace dmLiveUpdate
         g_LiveUpdate.m_IsEnabled = true;
 
         // We initialize scripting first, as we might want to use file/http providers
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        JobSystemCreateParams job_thread_create_param;
         job_thread_create_param.m_ThreadNamePrefix  = "liveupdate";
         job_thread_create_param.m_ThreadCount       = 1;
 
-        g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
+        g_LiveUpdate.m_JobContext = JobSystemCreate(&job_thread_create_param);
 
         dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
 
-        if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
+        if (g_LiveUpdate.m_JobContext) // Make the liveupdate module `nil` if it isn't available
         {
             if (params->m_L) // TODO: until unit tests have been updated with a Lua context
                 ScriptInit(params->m_L, factory);
@@ -991,9 +991,9 @@ namespace dmLiveUpdate
         if (!IsLiveupdateEnabled())
             return dmExtension::RESULT_OK;
 
-        if (g_LiveUpdate.m_JobThread)
-            dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
-        g_LiveUpdate.m_JobThread = 0;
+        if (g_LiveUpdate.m_JobContext)
+            JobSystemDestroy(g_LiveUpdate.m_JobContext);
+        g_LiveUpdate.m_JobContext = 0;
         g_LiveUpdate.m_ResourceFactory = 0;
         return dmExtension::RESULT_OK;
     }
@@ -1004,8 +1004,8 @@ namespace dmLiveUpdate
             return dmExtension::RESULT_OK;
 
         DM_PROFILE("LiveUpdate");
-        if (g_LiveUpdate.m_JobThread)
-            dmJobThread::Update(g_LiveUpdate.m_JobThread, 0); // Flushes finished async jobs', and calls any Lua callbacks
+        if (g_LiveUpdate.m_JobContext)
+            JobSystemUpdate(g_LiveUpdate.m_JobContext, 0); // Flushes finished async jobs', and calls any Lua callbacks
         return dmExtension::RESULT_OK;
     }
 };

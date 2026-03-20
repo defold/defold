@@ -144,7 +144,8 @@
   "Returns an absolute java.nio.file.Path whose casing matches an existing file
   system entry. Throws an IOException if there was no matching entry in the file
   system. Contrary to the `real` function, `actual-cased` does not resolve
-  symbolic links in the returned Path."
+  symbolic links in the returned Path. Beware that this operation can be
+  surprisingly slow on certain file systems."
   (^Path [x]
    (.toRealPath (to-path x) no-follow-links-link-options))
   (^Path [x & xs]
@@ -153,7 +154,8 @@
 (defn real
   "Returns the canonical, real path to an existing file system entry. Throws an
   IOException if there was no matching entry in the file system. Follows
-  symbolic links and queries their target."
+  symbolic links and queries their target. Beware that this operation can be
+  surprisingly slow on certain file systems."
   (^Path [x]
    (.toRealPath (to-path x) follow-links-link-options))
   (^Path [x & xs]
@@ -173,10 +175,21 @@
   coerced Path. If other is an empty path, returns the Path coerced from the
   first argument. Otherwise, we consider this path to be a directory and
   resolve the other path against this path. For example, on UNIX, if this path
-  is `/a/b` and the other path is `../c/d`, then the resulting resolved path would
-  be `/a/c/d`."
+  is `/a/b` and the other path is `../c/d`, then the resulting resolved path
+  would be `/a/b/../c/d`."
   ^Path [this other]
   (.resolve (to-path this) (to-path other)))
+
+(defn resolve-normalized
+  "Coerces both arguments to java.nio.file.Path and resolves the other path
+  against this path. If the other parameter is an absolute path, returns its
+  normalized Path. If other is an empty path, returns the normalized Path
+  coerced from the first argument. Otherwise, we consider this path to be a
+  directory and resolve the other path against this path and return the
+  normalized Path. For example, on UNIX, if this path is `/a/b` and the other
+  path is `../c/d`, then the resulting resolved path would be `/a/c/d`."
+  ^Path [this other]
+  (.normalize (.resolve (to-path this) (to-path other))))
 
 (defn resolve-sibling
   "Coerces both arguments to java.nio.file.Path and resolves the other path

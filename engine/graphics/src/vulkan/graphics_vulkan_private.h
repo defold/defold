@@ -219,7 +219,6 @@ namespace dmGraphics
     struct FrameResource
     {
         VkSemaphore m_ImageAvailable;
-        VkSemaphore m_RenderFinished;
         VkFence     m_SubmitFence;
     };
 
@@ -363,10 +362,12 @@ namespace dmGraphics
             VkSampleCountFlagBits        vk_sample_flag,
             const SwapChainCapabilities& capabilities,
             const QueueFamily            queueFamily,
-            VulkanTexture*               resolveTexture);
+            VulkanTexture*               resolveTexture,
+            PFN_vkWaitForPresentKHR      wait_for_present);
 
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
+        dmArray<VkSemaphore>  m_RenderFinishedSemaphores;
         VulkanTexture*        m_ResolveTexture;
         const VkSurfaceKHR    m_Surface;
         const QueueFamily     m_QueueFamily;
@@ -374,6 +375,8 @@ namespace dmGraphics
         VkSwapchainKHR        m_SwapChain;
         VkExtent2D            m_ImageExtent;
         VkSampleCountFlagBits m_SampleCountFlag;
+        PFN_vkWaitForPresentKHR m_WaitForPresent;
+        uint64_t              m_LastPresentId;
         uint8_t               m_ImageIndex;
 
         VkResult Advance(VkDevice vk_device, VkSemaphore);
@@ -387,8 +390,8 @@ namespace dmGraphics
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        dmPlatform::HWindow                m_Window;
-        dmPlatform::WindowResizeCallback   m_WindowResizeCallback;
+        HWindow                            m_Window;
+        FWindowResizeCallback              m_WindowResizeCallback;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                      m_PipelineCache;
@@ -407,7 +410,7 @@ namespace dmGraphics
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
         // Async process resources
-        dmJobThread::HContext              m_JobThread;
+        HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
@@ -426,6 +429,7 @@ namespace dmGraphics
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
         VertexDeclaration               m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
@@ -449,6 +453,7 @@ namespace dmGraphics
         VulkanTexture                   m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
         int32_atomic_t                  m_DeleteContextRequested;
+        PFN_vkWaitForPresentKHR         m_WaitForPresent;
 
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -459,10 +464,10 @@ namespace dmGraphics
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
+        uint32_t                        m_PrintDeviceInfo      : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
-        uint32_t                        m_RenderDocSupport     : 1;
         uint32_t                        m_ASTCSupport          : 1;
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                        m_ASTCArrayTextureSupport : 1;
@@ -471,6 +476,7 @@ namespace dmGraphics
 
     // Implemented in graphics_vulkan_context.cpp
     VkResult CreateInstance(VkInstance* vkInstanceOut,
+        uint32_t api_version,
         // Extension names, e.g. "VK_KHR_SURFACE_EXTENSION_NAME"
         const char** extensionNames, uint16_t extensionNameCount,
         // Validation Layer Names, i.e "VK_LAYER_LUNARG_standard_validation"
@@ -555,10 +561,10 @@ namespace dmGraphics
 
     // Implemented per supported platform
     const char** GetExtensionNames(uint16_t* num_extensions);
-    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
-    VkResult     CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    VkResult     CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 
     bool         LoadVulkanLibrary();
     void         LoadVulkanFunctions(VkInstance vk_instance);

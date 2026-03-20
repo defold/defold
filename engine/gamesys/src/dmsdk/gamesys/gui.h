@@ -28,7 +28,7 @@ namespace dmBuffer
     struct StreamDeclaration;
 }
 
-/*# SDK Gui Component API documentation
+/*# Gui Component API documentation
  *
  * Built-in scripting functions.
  *

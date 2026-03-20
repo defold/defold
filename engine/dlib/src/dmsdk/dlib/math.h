@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Math API documentation
+/*# Math API documentation
  * Math functions.
  *
  * @document

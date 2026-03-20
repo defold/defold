@@ -43,7 +43,6 @@
 #include "resources/res_gamepad_map.h"
 #include "resources/res_factory.h"
 #include "resources/res_collection_factory.h"
-#include "resources/res_light.h"
 #include "resources/res_render_script.h"
 #include "resources/res_render_target.h"
 #include "resources/res_render_prototype.h"
@@ -67,7 +66,6 @@
 #include "components/comp_camera.h"
 #include "components/comp_factory.h"
 #include "components/comp_collection_factory.h"
-#include "components/comp_light.h"
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
 #include "components/comp_label.h"
@@ -114,6 +112,7 @@ namespace dmGameSystem
     };
     const dmhash_t PROP_TEXTURES    = dmHashString64("textures");
     const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
+    const dmhash_t PROP_ANIMATION   = dmHashString64("animation");
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
@@ -138,6 +137,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);
         // fontc: res_font.cpp
         REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate);
+        // datac: res_data.cpp
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
@@ -153,7 +153,6 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryPreload, ResFactoryCreate, 0, ResFactoryDestroy, ResFactoryRecreate);
         REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, ResCollectionFactoryPreload, ResCollectionFactoryCreate, 0, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate);
         REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, 0, ResLabelDestroy, ResLabelRecreate);
-        REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, 0, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, 0, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("render_targetc", render_context, ResRenderTargetPreload, ResRenderTargetCreate, 0, ResRenderTargetDestroy, ResRenderTargetRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
@@ -280,7 +279,7 @@ namespace dmGameSystem
                 &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
                 &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, CompParticleFXGetComponent,
                 &CompParticleFXUpdate, 0, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
-                &CompParticleFXOnReload, 0, 0,
+                &CompParticleFXOnReload, CompParticleFXGetProperty, CompParticleFXSetProperty,
                 0, 0,
                 1);
 
@@ -299,14 +298,6 @@ namespace dmGameSystem
                 0, CompCollectionFactoryGetProperty, 0,
                 0, 0,
                 0);
-
-        REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
-                CompLightNewWorld, CompLightDeleteWorld,
-                CompLightCreate, CompLightDestroy, 0, 0, CompLightAddToUpdate, CompLightGetComponent,
-                0, CompLightLateUpdate, 0, 0, 0, CompLightOnMessage, 0,
-                0, 0, 0,
-                0, 0,
-                1);
 
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,

@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import os, re
-from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
@@ -63,7 +62,5 @@ def build(bld):
     bld.recurse('test')
     bld.recurse('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
-
-    apidoc_extract_task(bld, ['script_crash.cpp'])
 
 

@@ -437,7 +437,7 @@
 
 (declare get-registered-node-type-cls)
 
-(def ^:private default-node-desc-pb-field-values (protobuf/default-value Gui$NodeDesc))
+(def ^:private default-node-desc-pb-field-values (protobuf/optional-field-defaults Gui$NodeDesc))
 
 (def ^:private default-pb-node-type (protobuf/default Gui$NodeDesc :type)) ; E.g. :type-box.
 
@@ -542,6 +542,7 @@
                                      (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
                                      (s/optional-key :spine-scene-names) TGuiResourceNames
                                      (s/optional-key :texture-page-counts) TGuiResourcePageCounts
+                                     (s/optional-key :exclude-gles-sm100) s/Any
                                      (s/optional-key :texture-resource-names) TGuiResourceNames})
 (s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
                                       (s/optional-key :font-shaders) TGuiResourceShaders
@@ -583,25 +584,53 @@
 (g/defnk override-node? [_this] (g/node-override? _this))
 (g/defnk not-override-node? [_this] (not (g/node-override? _this)))
 
-(defn- validate-contains [severity fmt prop-kw node-id coll key]
+(defn- ^:deprecated validate-contains
+  "Use [[validate-contains-localized]] instead."
+  [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
                          prop-kw (fn [id ids]
                                    (when-not (contains? ids id)
                                      (format fmt id)))
                          key coll))
 
-(defn- validate-gui-resource [severity fmt prop-kw node-id coll key]
+(defn- validate-contains-localized [severity message-fn prop-kw node-id coll key]
+  (validation/prop-error severity node-id
+                         prop-kw (fn [id ids]
+                                   (when-not (contains? ids id)
+                                     (message-fn id)))
+                         key coll))
+
+(defn- ^:deprecated validate-gui-resource
+  "Use [[validate-gui-resource-localized]] instead."
+  [severity fmt prop-kw node-id coll key]
   (validate-contains severity fmt prop-kw node-id coll key))
 
+(defn- validate-gui-resource-localized [severity message-fn prop-kw node-id coll key]
+  (validate-contains-localized severity message-fn prop-kw node-id coll key))
+
 ;; SDK api
-(defn validate-required-gui-resource [fmt prop-kw node-id coll key]
+(defn ^:deprecated validate-required-gui-resource
+  "Use [[validate-required-gui-resource-localized]] instead."
+  [fmt prop-kw node-id coll key]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? key (properties/keyword->name prop-kw))
       (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
 
 ;; SDK api
-(defn validate-optional-gui-resource [fmt prop-kw node-id coll key]
+(defn validate-required-gui-resource-localized [message-fn prop-kw node-id coll key]
+  (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? key (properties/keyword->name prop-kw))
+      (validate-gui-resource-localized :fatal message-fn prop-kw node-id coll key)))
+
+;; SDK api
+(defn ^:deprecated validate-optional-gui-resource
+  "Use [[validate-optional-gui-resource-localized]] instead."
+  [fmt prop-kw node-id coll key]
   (when-not (empty? key)
     (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
+
+;; SDK api
+(defn validate-optional-gui-resource-localized [message-fn prop-kw node-id coll key]
+  (when-not (empty? key)
+    (validate-gui-resource-localized :fatal message-fn prop-kw node-id coll key)))
 
 ;; SDK api
 (defn required-gui-resource-choicebox [coll]
@@ -723,15 +752,52 @@
 
 (def base-display-order [:id :generated-id scene/SceneNode])
 
+(defn- error-gui-resource-not-found-in-scene-message-fn [type name] (localization/message "error.gui.resource-not-found-in-scene" {"type" type "name" name}))
+(defn- error-gui-layer-from-template-not-found-in-scene-message-fn [layer] (localization/message "error.gui.layer-from-template-not-found-in-scene" {"layer" layer}))
+(def ^:private error-gui-adjust-mode-stretch-not-supported-for-particlefx-message (localization/message "error.gui.adjust-mode-stretch-not-supported-for-particlefx"))
+
+(def ^:private texture-type-message (localization/message "resource.type.texture"))
+(def ^:private material-type-message (localization/message "resource.type.material"))
+(def ^:private font-type-message (localization/message "resource.type.font"))
+(def ^:private particlefx-type-message (localization/message "resource.type.particlefx"))
+(def ^:private custom-type-message (localization/message "resource.type.custom"))
+
+(def ^:private error-gui-layer-not-found-in-scene-message-fn (partial error-gui-resource-not-found-in-scene-message-fn (properties/label-message :gui :layer)))
+(def ^:private error-gui-material-not-found-in-scene-message-fn (partial error-gui-resource-not-found-in-scene-message-fn material-type-message))
+(def ^:private error-gui-texture-not-found-in-scene-message-fn (partial error-gui-resource-not-found-in-scene-message-fn texture-type-message))
+(def ^:private error-gui-font-not-found-in-scene-message-fn (partial error-gui-resource-not-found-in-scene-message-fn font-type-message))
+(def ^:private error-gui-particlefx-not-found-in-scene-message-fn (partial error-gui-resource-not-found-in-scene-message-fn particlefx-type-message))
+
+(def ^:private id-message (properties/label-message :id))
+(def ^:private name-message (properties/label-message :name))
+(def ^:private font-message (properties/label-message :gui :font))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private particlefx-message (properties/label-message :gui :particlefx))
+(def ^:private perimeter-vertices-message (properties/label-message :gui :perimeter-vertices))
+(def ^:private script-message (properties/label-message :gui :script))
+(def ^:private template-message (properties/label-message :gui :template))
+(def ^:private texture-message (properties/label-message :gui :texture))
+(def ^:private max-nodes-message (properties/label-message :gui :max-nodes))
+(def ^:private max-dynamic-textures-message (properties/label-message :gui :max-dynamic-textures))
+
+(def ^:private outline-textures-message (localization/message "outline.gui.textures"))
+(def ^:private outline-materials-message (localization/message "outline.gui.materials"))
+(def ^:private outline-fonts-message (localization/message "outline.gui.fonts"))
+(def ^:private outline-particlefx-message (localization/message "outline.particlefx"))
+(def ^:private outline-box-message (localization/message "outline.gui.box"))
+(def ^:private outline-pie-message (localization/message "outline.gui.pie"))
+(def ^:private outline-text-message (localization/message "outline.gui.text"))
+(def ^:private outline-template-message (localization/message "outline.gui.template"))
+
 (defn- validate-layer [basis emit-warnings? node-id layer-names layer]
   (when-not (empty? layer)
     ;; Layers are not brought in from template sources. The brought in nodes act
     ;; as if they belong to no layer if the layer does not exist in the scene,
     ;; but a warning is emitted.
     (if (g/property-value-origin? basis node-id :layer)
-      (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-names layer)
+      (validate-contains-localized :fatal error-gui-layer-not-found-in-scene-message-fn :layer node-id layer-names layer)
       (when emit-warnings?
-        (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
+        (validate-contains-localized :warning error-gui-layer-from-template-not-found-in-scene-message-fn :layer node-id layer-names layer)))))
 
 (defn- overridden-pb-field-indices [gui-node]
   (->> gui-node
@@ -1076,7 +1142,7 @@
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
 
   (property id g/Str (default (protobuf/default Gui$NodeDesc :id))
-            (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts "Id")))
+            (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts id-message)))
             (dynamic visible not-override-node?))
   (property generated-id g/Str ; Just for presentation.
             (dynamic label (properties/label-dynamic :id))
@@ -1336,7 +1402,7 @@
                   layer-names (:layer-names basic-gui-scene-info)]
               (g/package-errors
                 _node-id
-                (prop-unique-id-error _node-id :id id id-counts "Id")
+                (prop-unique-id-error _node-id :id id id-counts id-message)
                 (validate-layer basis false _node-id layer-names layer)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-gui-node))
   (output build-errors g/Any (g/fnk [_node-id own-build-errors child-build-errors]
@@ -1449,18 +1515,18 @@
                          :adjust-mode
                          (fn [adjust-mode]
                            (when (= adjust-mode :adjust-mode-stretch)
-                             "Adjust mode \"Stretch\" not supported for particlefx nodes."))
+                             error-gui-adjust-mode-stretch-not-supported-for-particlefx-message))
                          adjust-mode))
 
-(def ^:private validate-material-resource (partial validate-optional-gui-resource "Material '%s' does not exist in the scene" :material))
+(def ^:private validate-material-resource (partial validate-optional-gui-resource-localized error-gui-material-not-found-in-scene-message-fn :material))
 
-(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts texture]
+(defn- validate-material-capabilities [_node-id material-infos material texture-page-counts exclude-gles-sm100 texture]
   (let [material-info (or (get material-infos material)
                           (get material-infos ""))
         is-paged-material (:paged material-info)
         material-max-page-count (:max-page-count material-info)
         texture-page-count (get texture-page-counts texture)]
-    (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Texture")))
+    (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 texture-message)))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg ^:raw visible ^:raw blend-mode ^:raw adjust-mode ^:raw material ^:raw pivot ^:raw x-anchor ^:raw y-anchor]
   (merge gui-base-node-msg
@@ -1583,7 +1649,7 @@
 
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
-(def ^:private validate-texture-resource (partial validate-optional-gui-resource "Texture '%s' does not exist in the scene" :texture))
+(def ^:private validate-texture-resource (partial validate-optional-gui-resource-localized error-gui-texture-not-found-in-scene-message-fn :texture))
 
 (def ^:private size-pb-field-index (prop-key->pb-field-index :manual-size))
 
@@ -1740,9 +1806,10 @@
                                    (wrap-layout-property-edit-type material (optional-gui-resource-choicebox material-names)))))
             (dynamic error (g/fnk [_node-id basic-gui-scene-info material texture]
                              (let [material-infos (:material-infos basic-gui-scene-info)
-                                   texture-page-counts (:texture-page-counts basic-gui-scene-info)]
+                                   texture-page-counts (:texture-page-counts basic-gui-scene-info)
+                                   exclude-gles-sm100 (:exclude-gles-sm100 basic-gui-scene-info)]
                                (or (validate-material-resource _node-id material-infos material)
-                                   (validate-material-capabilities _node-id material-infos material texture-page-counts texture)))))
+                                   (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture)))))
             (value (layout-property-getter material))
             (set (layout-property-setter material)))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
@@ -1796,12 +1863,13 @@
   (output build-errors-shape-node g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node material texture]
             (let [material-infos (:material-infos basic-gui-scene-info)
-                  texture-page-counts (:texture-page-counts basic-gui-scene-info)]
+                  texture-page-counts (:texture-page-counts basic-gui-scene-info)
+                  exclude-gles-sm100 (:exclude-gles-sm100 basic-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node ; Validates material name.
                 (validate-texture-resource _node-id texture-page-counts texture)
-                (validate-material-capabilities _node-id material-infos material texture-page-counts texture)))))
+                (validate-material-capabilities _node-id material-infos material texture-page-counts exclude-gles-sm100 texture)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -1856,7 +1924,7 @@
 (def ^:private perimeter-vertices-max 1000)
 
 (defn- validate-perimeter-vertices [node-id perimeter-vertices]
-  (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
+  (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices perimeter-vertices-message))
 
 (g/defnk produce-pie-node-msg [shape-base-node-msg ^:raw outer-bounds ^:raw inner-radius ^:raw perimeter-vertices ^:raw pie-fill-angle]
   (merge shape-base-node-msg
@@ -1968,7 +2036,7 @@
 
 ;; Text nodes
 
-(def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
+(def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
 (g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha]
   (merge visual-base-node-msg
@@ -2182,7 +2250,7 @@
                                                   :to-type (fn [v] (:resource v))
                                                   :from-type (fn [r] {:resource r :overrides {}})}))
             (dynamic error (g/fnk [_node-id template-resource]
-                             (prop-resource-error _node-id :template template-resource "Template")))
+                             (prop-resource-error _node-id :template template-resource template-message)))
             (dynamic label (properties/label-dynamic :gui :template))
             (dynamic tooltip (properties/tooltip-dynamic :gui :template))
             (value (g/fnk [_node-id id template-resource template-overrides]
@@ -2307,11 +2375,11 @@
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-gui-node template-resource]
                                    (g/package-errors _node-id
                                                      build-errors-gui-node
-                                                     (prop-resource-error _node-id :template template-resource "Template")))))
+                                                     (prop-resource-error _node-id :template template-resource template-message)))))
 
 ;; Particle FX
 
-(def ^:private validate-particlefx-resource (partial validate-required-gui-resource "particlefx '%s' does not exist in the scene" :particlefx))
+(def ^:private validate-particlefx-resource (partial validate-required-gui-resource-localized error-gui-particlefx-not-found-in-scene-message-fn :particlefx))
 
 (defn- move-topmost [scene]
   (cond-> scene
@@ -2465,7 +2533,7 @@
   (inherits outline/OutlineNode)
 
   (property name g/Str ; Required protobuf field.
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts name-message)))
             (set (partial update-gui-resource-references :texture)))
   (property texture resource/Resource ; Required protobuf field.
             (value (gu/passthrough texture-resource))
@@ -2478,7 +2546,7 @@
                                             [:anim-ids :anim-ids]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
-                             (prop-resource-error _node-id :texture texture "Texture")))
+                             (prop-resource-error _node-id :texture texture texture-message)))
             (dynamic label (properties/label-dynamic :gui :texture))
             (dynamic tooltip (properties/tooltip-dynamic :gui :texture))
             (dynamic edit-type (g/fnk [^:unsafe _evaluation-context _node-id]
@@ -2519,13 +2587,13 @@
   (output texture-page-counts GuiResourcePageCounts :cached produce-texture-page-counts)
   (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :texture texture "Texture")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts name-message)
+                                                 (prop-resource-error _node-id :texture texture texture-message)))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str ; Required protobuf field.
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts name-message)))
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource ; Required protobuf field.
             (value (gu/passthrough font-resource))
@@ -2537,7 +2605,7 @@
                      [:material-shader :font-shader]
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
-                                  (prop-resource-error _node-id :font font "Font")))
+                                  (prop-resource-error _node-id :font font font-message)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["font"]})))
@@ -2573,13 +2641,13 @@
                                            {name font-data})))
   (output build-errors g/Any (g/fnk [_node-id name name-counts font]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :font font "Font")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts name-message)
+                                                 (prop-resource-error _node-id :font font font-message)))))
 
 (g/defnode MaterialNode
   (inherits outline/OutlineNode)
   (property name g/Str ; Required protobuf field.
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts name-message)))
             (set (partial update-gui-resource-references :material)))
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0))
 
@@ -2593,7 +2661,7 @@
                      [:max-page-count :material-max-page-count]
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id material]
-                             (prop-resource-error _node-id :material material "Material")))
+                             (prop-resource-error _node-id :material material material-message)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
@@ -2634,13 +2702,13 @@
                                                       (sorted-map name material-info))))
   (output build-errors g/Any (g/fnk [_node-id name name-counts material]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :material material "Material")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts name-message)
+                                                 (prop-resource-error _node-id :material material material-message)))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str ; Required protobuf field.
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts name-message)))
             (set (partial update-gui-resource-references :layer)))
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
   (input name-counts NameCounts)
@@ -2658,12 +2726,12 @@
                              (assoc :child-index child-index)))) ; Used to order layers in the SceneDesc.
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts name-message)))))
 
 (g/defnode ParticleFXResource
   (inherits outline/OutlineNode)
   (property name g/Str ; Required protobuf field.
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts name-message)))
             (set (partial update-gui-resource-references :particlefx)))
   (property particlefx resource/Resource ; Required protobuf field.
             (value (gu/passthrough particlefx-resource))
@@ -2676,7 +2744,7 @@
             (dynamic label (properties/label-dynamic :gui :particlefx))
             (dynamic tooltip (properties/tooltip-dynamic :gui :particlefx))
             (dynamic error (g/fnk [_node-id particlefx]
-                                  (prop-resource-error _node-id :particlefx particlefx "Particle FX")))
+                             (prop-resource-error _node-id :particlefx particlefx particlefx-message)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext [particlefx/particlefx-ext]})))
@@ -2702,14 +2770,14 @@
                                              {name {:particlefx-scene particlefx-scene}}))
   (output build-errors g/Any (g/fnk [_node-id name name-counts particlefx]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :particlefx particlefx "Particle FX")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts name-message)
+                                                 (prop-resource-error _node-id :particlefx particlefx particlefx-message)))))
 
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
   (property name g/Str ; Required protobuf field.
             (dynamic read-only? (g/constantly true))
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts name-message))))
   (input name-counts NameCounts)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
@@ -2719,7 +2787,7 @@
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts name-message)))))
 
 (defmacro gen-outline-fnk [label node-outline-key order sort-children? child-reqs]
   `(g/fnk [~'_node-id ~'child-outlines]
@@ -2837,7 +2905,7 @@
              resource-exts (workspace/resource-kind-extensions workspace :atlas evaluation-context)
              name-counts (g/node-value parent :name-counts evaluation-context)]
     (query-and-add-resources!
-      "Textures" resource-exts name-counts project select-fn
+      outline-textures-message resource-exts name-counts project select-fn
       (partial add-texture scene parent))))
 
 (g/defnode TexturesNode
@@ -2857,7 +2925,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id "Textures..." texture-icon add-textures-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.textures") texture-icon add-textures-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2879,7 +2947,7 @@
 
 (defn- add-materials-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Materials" ["material"] (g/node-value parent :name-counts) project select-fn
+    outline-materials-message ["material"] (g/node-value parent :name-counts) project select-fn
     (partial add-material scene parent)))
 
 (g/defnode MaterialsNode
@@ -2895,7 +2963,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-material)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-            [_node-id "Materials..." material-icon add-materials-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.materials") material-icon add-materials-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2923,8 +2991,8 @@
 
 (defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Fonts" ["font"] (g/node-value parent :name-counts) project select-fn
-   (partial add-font scene parent)))
+    outline-fonts-message ["font"] (g/node-value parent :name-counts) project select-fn
+    (partial add-font scene parent)))
 
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
@@ -2938,7 +3006,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-font)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id "Fonts..." font-icon add-fonts-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.fonts") font-icon add-fonts-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2995,7 +3063,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-layer :ordered-layer-names)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id "Layer" layer-icon add-layer-handler {}])))
+            [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.layer") layer-icon add-layer-handler {}])))
 
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3056,7 +3124,7 @@
 
 (defn- add-particlefx-resources-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Particle FX" [particlefx/particlefx-ext] (g/node-value parent :name-counts) project select-fn
+   outline-particlefx-message [particlefx/particlefx-ext] (g/node-value parent :name-counts) project select-fn
    (partial add-particlefx-resource scene parent)))
 
 (g/defnode ParticleFXResources
@@ -3072,7 +3140,7 @@
                              :tx-attach-fn (gen-outline-node-tx-attach-fn attach-particlefx-resource)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
-                 [_node-id "Particle FX..." particlefx/particle-fx-icon add-particlefx-resources-handler {}])))
+                 [_node-id (localization/message "command.edit.add-embedded-component.variant.gui.option.particlefx") particlefx/particle-fx-icon add-particlefx-resources-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3427,40 +3495,44 @@
                      (comp
                        (filter #(< 1 (-> % val count)))
                        (map (fn [[[gui-resource-type gui-resource-name] value->proj-paths]]
-                              (format "%s \"%s\" has conflicting values in templates: %s"
-                                      (case gui-resource-type
-                                        :textures "Texture"
-                                        :materials "Material"
-                                        :fonts "Font"
-                                        :particlefxs "Particle FX"
-                                        :resources "Custom resource")
-                                      gui-resource-name
-                                      (->> (for [[value proj-paths] value->proj-paths
-                                                 proj-path proj-paths]
-                                             (format "%s (%s)" proj-path value))
-                                           (sort eutil/natural-order)
-                                           (eutil/join-words ", " " and "))))))
+                              (localization/message "error.gui.template-resource-conflicting-values"
+                                                    {"type" (case gui-resource-type
+                                                              :textures texture-type-message
+                                                              :materials material-type-message
+                                                              :fonts font-type-message
+                                                              :particlefxs particlefx-type-message
+                                                              :resources custom-type-message)
+                                                     "resource" gui-resource-name
+                                                     "values" (->> (for [[value proj-paths] value->proj-paths
+                                                                         proj-path proj-paths]
+                                                                     (format "%s (%s)" proj-path value))
+                                                                   (sort eutil/natural-order)
+                                                                   vec
+                                                                   localization/and-list)}))))
                      (sort-by key
                               (eutil/comparator-chain
                                 (eutil/comparator-on key)
                                 (eutil/comparator-on eutil/natural-order val))
                               gui-resource-type+name->value->resource-proj-paths))]
     (when (pos? (count errors))
-      (str/join "\n" errors))))
+      (localization/join "\n" errors))))
 
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
-    (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 8192]) max-nodes "Max Nodes")
+    (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 8192]) max-nodes max-nodes-message)
         (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
                                                                     (when (> c max-nodes)
-                                                                      (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
+                                                                      (localization/message "error.gui.max-nodes-exceeded"
+                                                                                            {"count" c
+                                                                                             "property" max-nodes-message
+                                                                                             "max" max-nodes})))) max-nodes)))
 
 (defn- validate-max-dynamic-textures [_node-id max-dynamic-textures]
-  (validation/prop-error :fatal _node-id :max-dynamic-textures (partial validation/prop-outside-range? [0 8192]) max-dynamic-textures "Max Dynamic Textures"))
+  (validation/prop-error :fatal _node-id :max-dynamic-textures (partial validation/prop-outside-range? [0 8192]) max-dynamic-textures max-dynamic-textures-message))
 
 (g/defnk produce-own-build-errors [_node-id material max-dynamic-textures max-nodes ^:try node-ids script]
   (g/package-errors _node-id
-                    (when script (prop-resource-error _node-id :script script "Script" "gui_script"))
-                    (prop-resource-error _node-id :material material "Material")
+                    (when script (prop-resource-error _node-id :script script script-message "gui_script"))
+                    (prop-resource-error _node-id :material material material-message)
                     (when-not (g/error-value? node-ids)
                       (validate-max-nodes _node-id max-nodes node-ids))
                     (validate-max-dynamic-textures _node-id max-dynamic-textures)))
@@ -3491,7 +3563,7 @@
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
                              (when script
-                               (prop-resource-error _node-id :script script "Script" "gui_script"))))
+                               (prop-resource-error _node-id :script script script-message "gui_script"))))
             (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui_script"}))
             (dynamic label (properties/label-dynamic :gui :script))
@@ -3508,7 +3580,7 @@
              [:samplers :samplers]
              [:build-targets :dep-build-targets])))
     (dynamic error (g/fnk [_node-id material]
-                     (prop-resource-error _node-id :material material "Material")))
+                     (prop-resource-error _node-id :material material material-message)))
     (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
@@ -3552,6 +3624,7 @@
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (input display-profiles g/Any)
   (input node-msgs g/Any)
@@ -3695,7 +3768,7 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts texture-resource-names spine-scene-element-ids]
+          (g/fnk [font-names layer->index layer-names material-infos particlefx-resource-names spine-scene-names texture-page-counts exclude-gles-sm100 texture-resource-names spine-scene-element-ids]
             {:font-names font-names
              :layer->index layer->index
              :layer-names layer-names
@@ -3704,6 +3777,7 @@
              :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
              :spine-scene-names spine-scene-names
              :texture-page-counts texture-page-counts
+             :exclude-gles-sm100 exclude-gles-sm100
              :texture-resource-names texture-resource-names}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
@@ -3712,7 +3786,7 @@
             (coll/merge-with-kv
               (fn [key aux-value own-value]
                 (case key
-                  (:layer->index :layer-names) aux-value ; Replaced, not merged.
+                  (:layer->index :layer-names :exclude-gles-sm100) aux-value ; Replaced, not merged.
                   (coll/merge aux-value own-value)))
               aux-basic-gui-scene-info
               own-basic-gui-scene-info)))
@@ -3970,6 +4044,7 @@
         max-dynamic-textures :max-dynamic-textures)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (g/connect project :display-profiles self :display-profiles)
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
@@ -4517,19 +4592,19 @@
 (def ^:private base-node-type-infos
   [{:node-type :type-box
     :node-cls BoxNode
-    :display-name "Box"
+    :display-name outline-box-message
     :custom-type 0
     :icon box-icon
     :defaults shape-base-node-defaults}
    {:node-type :type-pie
     :node-cls PieNode
-    :display-name "Pie"
+    :display-name outline-pie-message
     :custom-type 0
     :icon pie-icon
     :defaults shape-base-node-defaults}
    {:node-type :type-text
     :node-cls TextNode
-    :display-name "Text"
+    :display-name outline-text-message
     :custom-type 0
     :icon text-icon
     :defaults (assoc visual-base-node-defaults
@@ -4537,13 +4612,13 @@
                 :text "<text>")}
    {:node-type :type-template
     :node-cls TemplateNode
-    :display-name "Template"
+    :display-name outline-template-message
     :custom-type 0
     :icon template-icon
     :defaults gui-base-node-defaults}
    {:node-type :type-particlefx
     :node-cls ParticleFXNode
-    :display-name "ParticleFX"
+    :display-name outline-particlefx-message
     :custom-type 0
     :icon particlefx/particle-fx-icon
     :defaults visual-base-node-defaults}])
@@ -4617,7 +4692,24 @@
             (let [value (prop->value prop-kw)
                   edit-type-id (properties/edit-type-id (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
               (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
-                #(converter value)))))))))
+                #(converter value))))))))
+  (fn GuiNode-lister [node-id evaluation-context]
+    (let [{:keys [basis]} evaluation-context
+          node (g/node-by-id basis node-id)
+          node-type (g/node-type node)
+          property-name->prop-kw (node-type->layout-property-names node-type)
+          layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)]
+      (coll/into-> layout->prop->value []
+        (mapcat
+          (fn [[layout-name _prop->value]]
+            (coll/into-> property-name->prop-kw :eduction
+              (keep
+                (fn [[property-name prop-kw]]
+                  (when-let [edit-type-id (properties/edit-type-id (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
+                    (when-let [_converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
+                      (if (empty? layout-name)
+                        property-name
+                        (str layout-name ":" property-name)))))))))))))
 
 (ext-graph/register-property-setter!
   ::GuiNode

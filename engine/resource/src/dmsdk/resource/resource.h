@@ -15,13 +15,13 @@
 #ifndef DMSDK_RESOURCE_H
 #define DMSDK_RESOURCE_H
 
-/*# Resource
+/*# Functions for managing resource and resource types
  *
- * Functions for managing resource types.
+ * Functions for managing resource and resource types
  *
  * @document
  * @name Resource
- * @language C++
+ * @language C
  */
 
 #include <stdbool.h>

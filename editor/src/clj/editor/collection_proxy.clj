@@ -31,9 +31,10 @@
 (set! *warn-on-reflection* true)
 
 (def collection-proxy-icon "icons/32/Icons_52-Collection-proxy.png")
+(def ^:private collection-message (properties/label-message :collection-proxy :collection))
 
 (g/defnk produce-form-data
-  [_node-id collection-resource]
+  [_node-id collection-resource exclude]
   {:form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
@@ -42,8 +43,12 @@
                :fields [{:path [:collection]
                          :localization-key "collectionproxy.collection"
                          :type :resource
-                         :filter "collection"}]}]
-   :values {[:collection] collection-resource}})
+                         :filter "collection"}
+                        {:path [:exclude]
+                         :localization-key "collectionproxy.exclude"
+                         :type :boolean}]}]
+   :values {[:collection] collection-resource
+            [:exclude] exclude}})
 
 (g/defnk produce-save-value
   [collection-resource exclude]
@@ -61,7 +66,7 @@
 
 (g/defnk produce-build-targets
   [_node-id resource save-value dep-build-targets collection]
-  (or (validation/prop-error :fatal _node-id :collection validation/prop-nil? collection "collection")
+  (or (validation/prop-error :fatal _node-id :collection validation/prop-nil? collection collection-message)
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:collection collection]])]
@@ -93,8 +98,8 @@
                                             [:resource :collection-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id collection-resource]
-                             (or (validation/prop-error :info _node-id :prototype validation/prop-nil? collection-resource "Collection")
-                                 (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource "Collection"))))
+                             (or (validation/prop-error :info _node-id :prototype validation/prop-nil? collection-resource collection-message)
+                                 (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? collection-resource collection-message))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource :ext "collection"}))
             (dynamic label (properties/label-dynamic :collection-proxy :collection))

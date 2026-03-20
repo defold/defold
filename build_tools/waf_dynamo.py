@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
@@ -37,10 +37,8 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
-script_dir = os.path.dirname(__file__)
-defold_root = os.path.abspath(os.path.join(script_dir, ".."))
-
 # import the vendor specific build setup
+script_dir = os.path.dirname(__file__)
 path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
 if os.path.exists(path):
     sys.dont_write_bytecode = True
@@ -209,145 +207,11 @@ def copy_file_task(bld, src, name=None):
                name = name,
                shell = True)
 
-#   Extract api docs from source files and store the raw text in .apidoc
-#   files per file for later collation into .json and .sdoc files.
-def apidoc_extract_task(bld, src):
-    import re
-    from collections import defaultdict
-    all_docs = {}
-
-    def _strip_comment_stars(str):
-        lines = str.split('\n')
-        ret = []
-        for line in lines:
-            line = line.strip()
-            if line.startswith('*'):
-                line = line[1:]
-                if line.startswith(' '):
-                    line = line[1:]
-            ret.append(line)
-        return '\n'.join(ret)
-
-    def _parse_comment(source):
-        str = _strip_comment_stars(source)
-        # The regexp means match all strings that:
-        # * begins with line start, possible whitespace and an @
-        # * followed by non-white-space (the tag)
-        # * followed by possible spaces
-        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-        comment = {
-            "is_document": False,
-            "namespace": None,
-            "path": None
-        }
-        for (tag, value) in lst:
-            tag = tag.strip()
-            value = value.strip()
-            if tag == 'document':
-                comment["is_document"] = True
-            else:
-                comment[tag] = value
-        return comment
-
-    def _parse_source(source_path):
-        resource = bld.path.find_resource(source_path)
-        if not resource:
-            sys.exit("Couldn't find resource: %s" % resource)
-            return
-
-        elements = {}
-        resource_path = resource.abspath()
-        resource_file = os.path.basename(resource_path)
-        relative_path = resource_path.replace(defold_root, "")[1:]
-
-        with open(resource_path, encoding='utf8') as in_f:
-            source = in_f.read()
-            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
-            default_namespace = None
-            for comment_str in lst:
-                comment = _parse_comment(comment_str)
-
-                namespace = comment.get("namespace")
-                if comment["is_document"]:
-                    comment_path = comment.get("path")
-                    if not comment_path:
-                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str + ("* @path %s\n" % relative_path)
-                    else:
-                        # there really shouldn't be any files with hardcoded paths anymore
-                        # but let's keep this here for some time in case we introduce a hardcoded
-                        # path somewhere again
-                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
-
-                    comment_file = comment.get("file")
-                    if not comment_file:
-                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str + ("* @file %s\n" % resource_file)
-                    elif comment_file != resource_file:
-                        # there shouldn't be any of these, but let's keep it here anyway
-                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
-
-                    comment_language = comment.get("language")
-                    if not comment_language:
-                        print("Missing @language in %s, assuming C++" % (resource_path))
-                        comment_str = comment_str + "* @language C++\n"
-
-                    if namespace:
-                        default_namespace = namespace
-
-                if not namespace:
-                    namespace = default_namespace
-                    comment["namespace"] = default_namespace
-
-                if namespace:
-                    if namespace not in elements:
-                        elements[namespace] = []
-                    elements[namespace].append('/' + comment_str + '*/')
-                else:
-                    if resource_path not in elements:
-                        elements[resource_path] = []
-                    elements[resource_path].append('/' + comment_str + '*/')
-
-        return elements
-
-    def extract_docs(bld, src):
-        docs = defaultdict(list)
-        # Gather data
-        for s in src:
-            elements = _parse_source(s)
-            for k,v in elements.items():
-                # turn path into key which will later be used as the
-                # build target filename
-                key = "-".join(os.path.normpath(s).split(os.sep))
-                key = key.replace("..-", "")
-                docs[key] = docs[key] + v
-        all_docs.update(docs)
-        return docs
-
-    def write_docs(task):
-        for o in task.outputs:
-            name = os.path.splitext(o.name)[0] # remove .apidoc
-            docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
-                out_f.write('\n'.join(docs))
-
-    if not getattr(Options.options, 'skip_apidocs', False):
-        docs = extract_docs(bld, src)
-        target = []
-        for key in docs.keys():
-            target.append(key + '.apidoc')
-        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
-
-
 # Add single dmsdk file.
 # * 'source' file is installed into 'target' directory
 # * 'source' file is added to documentation pipeline
 def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
-    apidoc_extract_task(bld, source)
 
 # Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
@@ -368,7 +232,6 @@ def dmsdk_add_files(bld, target, source):
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
             bld.install_files(os.path.join(target, sdk_dir), f)
-    apidoc_extract_task(bld, doc_files)
 
 def getAndroidNDKArch(target_arch):
     return 'arm64' if 'arm64' == target_arch else 'arm'
@@ -437,7 +300,7 @@ def default_flags(self):
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan or Options.options.with_msan) and opt_level != '0':
         opt_level = 1
 
     FLAG_ST = '/%s' if use_cl_exe else '-%s'
@@ -838,6 +701,10 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
+    elif Options.options.with_msan and build_util.get_target_os() in ('linux', 'ps5'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('CFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=memory'])
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1274,7 +1141,8 @@ def android_package(task):
         proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % sdkinfo['path']
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        java_runtime_flags = task.env.get_flat('JAVA_RUNTIME_FLAGS')
+        ret = bld.exec_command('%s %s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], java_runtime_flags, proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
         if ret != 0:
             error('Error running proguard')
             return 1
@@ -1521,13 +1389,16 @@ def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     config.set("server", "socket", port)
 
     if config_name is None:
-        config_name = tempfile.mktemp(".cfg", "unittest_")
-    configfilepath = os.path.basename(config_name)
-    with open(configfilepath, 'w') as f:
-        config.write(f)
-        print("Wrote test config file: %s" % configfilepath)
-        return configfilepath
-    return None
+        with tempfile.NamedTemporaryFile(mode='w', suffix=".cfg", prefix="unittest_", dir=".", delete=False) as f:
+            configfilepath = os.path.basename(f.name)
+            config.write(f)
+    else:
+        configfilepath = os.path.basename(config_name)
+        with open(configfilepath, 'w') as f:
+            config.write(f)
+
+    print("Wrote test config file: %s" % configfilepath)
+    return configfilepath
 
 def _should_run_test_taskgen(ctx, taskgen):
     if not 'test' in taskgen.features:
@@ -1755,6 +1626,8 @@ def detect(conf):
 
     if not platform:
         platform = host_platform
+
+    conf.env['JAVA_RUNTIME_FLAGS'] = shlex.split(os.environ.get('DM_JAVA_RUNTIME_FLAGS', ''))
 
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
@@ -2251,6 +2124,7 @@ def options(opt):
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
+    opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

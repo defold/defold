@@ -18,6 +18,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
@@ -202,8 +203,8 @@
           (map (fn [{:keys [uri required current]}]
                  (g/map->error
                    {:severity :fatal
-                    :message (format "Library '%s' requires Defold %s or newer (current Defold version is %s). Update Defold or check older extension versions for compatibility."
-                                     (str uri) (str required) (str current))}))))
+                    :message (localization/message "notification.fetch-libraries.min-version.error"
+                                                   {"uri" uri "required" required "current" current})}))))
         dependencies))
 
 (g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
