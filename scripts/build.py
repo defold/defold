@@ -1446,7 +1446,7 @@ class Configuration(object):
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
 
         # upload mouse_capture lib on desktop platforms
-        if self.is_desktop_target():
+        if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
             mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)
             mouse_capture_lib = join(lib_dir, mouse_capture_name)
             self._log(mouse_capture_lib)
