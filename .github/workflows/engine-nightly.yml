@@ -11,7 +11,7 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
   DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
-
+  DOTNET_CHANNEL: 9.0.1xx
 
 jobs:
   bld-eng-macos-64:
@@ -24,19 +24,9 @@ jobs:
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
-        shell: bash,
-        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
-              chmod +x ./dotnet-install.sh &&
-              export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
-              export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
-              echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_HOME=${DOTNET_ROOT}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV &&
-              mkdir -p ${DOTNET_ROOT} &&
-              mkdir -p ${NUGET_PACKAGES} &&
-              ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} &&
-              echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
-              echo "dotnet version: $(dotnet --version)"'
+        id: setup_dotnet,
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
@@ -68,19 +58,9 @@ jobs:
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
-        shell: bash,
-        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
-              chmod +x ./dotnet-install.sh &&
-              export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
-              export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
-              echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_HOME=${DOTNET_ROOT}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV &&
-              mkdir -p ${DOTNET_ROOT} &&
-              mkdir -p ${NUGET_PACKAGES} &&
-              ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} &&
-              echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
-              echo "dotnet version: $(dotnet --version)"'
+        id: setup_dotnet,
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
@@ -116,19 +96,9 @@ jobs:
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
-        shell: bash,
-        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
-              chmod +x ./dotnet-install.sh &&
-              export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
-              export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
-              echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_HOME=${DOTNET_ROOT}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV &&
-              mkdir -p ${DOTNET_ROOT} &&
-              mkdir -p ${NUGET_PACKAGES} &&
-              ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} &&
-              echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
-              echo "dotnet version: $(dotnet --version)"'
+        id: setup_dotnet,
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
@@ -167,19 +137,9 @@ jobs:
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
-        shell: bash,
-        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
-              chmod +x ./dotnet-install.sh &&
-              export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
-              export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
-              echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_HOME=${DOTNET_ROOT}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV &&
-              mkdir -p ${DOTNET_ROOT} &&
-              mkdir -p ${NUGET_PACKAGES} &&
-              ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} &&
-              echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
-              echo "dotnet version: $(dotnet --version)"'
+        id: setup_dotnet,
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '4.0.6'}},
       { name: 'Verify emsdk',
@@ -209,19 +169,9 @@ jobs:
       { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
       {
         name: 'Setup dotnet',
-        shell: bash,
-        run: 'curl -O https://dot.net/v1/dotnet-install.sh &&
-              chmod +x ./dotnet-install.sh &&
-              export NUGET_PACKAGES=$(pwd)/tmp/dynamo_home/ext/share/nuget &&
-              export DOTNET_ROOT=$(pwd)/tmp/dynamo_home/ext/bin/dotnet &&
-              echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_HOME=${DOTNET_ROOT}" >> $GITHUB_ENV &&
-              echo "DOTNET_CLI_TELEMETRY_OPTOUT=1" >> $GITHUB_ENV &&
-              mkdir -p ${DOTNET_ROOT} &&
-              mkdir -p ${NUGET_PACKAGES} &&
-              ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} &&
-              echo ${DOTNET_ROOT} >> $GITHUB_PATH &&
-              echo "dotnet version: $(dotnet --version)"'
+        id: setup_dotnet,
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
