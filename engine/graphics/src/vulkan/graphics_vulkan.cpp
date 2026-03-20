@@ -223,7 +223,6 @@ namespace dmGraphics
         for(uint8_t i=0; i < frame_resource_count; i++)
         {
             if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_ImageAvailable) != VK_SUCCESS ||
-                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_RenderFinished) != VK_SUCCESS ||
                 vkCreateFence(vk_device, &vk_create_fence_info, 0, &frame_resources_out[i].m_SubmitFence) != VK_SUCCESS)
             {
                 return VK_ERROR_INITIALIZATION_FAILED;
@@ -1357,6 +1356,9 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
+            DeleteRenderTarget(_context, context->m_MainRenderTarget);
+            DeleteTexture(_context, context->m_CurrentSwapchainTexture);
+
             if (context->m_Instance != VK_NULL_HANDLE)
             {
                 vkDestroyInstance(context->m_Instance, 0);
@@ -1369,6 +1371,12 @@ bail:
             }
 
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
+                delete context->m_MainResourcesToDestroy[i];
+            }
 
             delete context;
             g_VulkanContext = 0x0;
@@ -1484,6 +1492,7 @@ bail:
 
         // Determine the swapchain image we rendered to
         uint32_t swapchainImageIndex = context->m_SwapChain->m_ImageIndex;
+        VkSemaphore renderFinishedSemaphore = context->m_SwapChain->m_RenderFinishedSemaphores[swapchainImageIndex];
 
         // End the current render pass
         EndRenderPass(context);
@@ -1503,7 +1512,7 @@ bail:
         submitInfo.commandBufferCount   = 1;
         submitInfo.pCommandBuffers      = &cmd;
         submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores    = &currentFrame.m_RenderFinished;
+        submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
         res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
         CHECK_VK_ERROR(res);
@@ -1512,7 +1521,7 @@ bail:
         VkPresentInfoKHR presentInfo = {};
         presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores    = &currentFrame.m_RenderFinished;
+        presentInfo.pWaitSemaphores    = &renderFinishedSemaphore;
         presentInfo.swapchainCount     = 1;
         presentInfo.pSwapchains        = &context->m_SwapChain->m_SwapChain;
         presentInfo.pImageIndices      = &swapchainImageIndex;
@@ -3017,6 +3026,9 @@ bail:
         DestroyShader(context, program_ptr->m_VertexModule);
         DestroyShader(context, program_ptr->m_FragmentModule);
         DestroyShader(context, program_ptr->m_ComputeModule);
+        delete program_ptr->m_VertexModule;
+        delete program_ptr->m_FragmentModule;
+        delete program_ptr->m_ComputeModule;
 
         delete program_ptr;
     }
@@ -4305,14 +4317,19 @@ bail:
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        delete context->m_DefaultTexture2D;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        delete context->m_DefaultTexture2DArray;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+        delete context->m_DefaultTextureCubeMap;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
+        delete context->m_DefaultTexture2D32UI;
         DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
+        delete context->m_DefaultStorageImage2D;
 
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -4348,7 +4365,6 @@ bail:
 
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
-            vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
             vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
             vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
         }
@@ -4978,7 +4994,7 @@ bail:
     VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        return context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
     }
 
     VkImage VulkanGetImage(HContext _context, HTexture texture)
