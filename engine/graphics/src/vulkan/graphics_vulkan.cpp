@@ -1619,7 +1619,7 @@ bail:
         uint64_t present_id = 0;
         if (context->m_WaitForPresent)
         {
-            present_id = ++context->m_SwapChain->m_LastPresentId;
+            present_id = context->m_SwapChain->m_LastPresentId + 1;
             present_id_info.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
             present_id_info.swapchainCount = 1;
             present_id_info.pPresentIds = &present_id;
@@ -1627,6 +1627,11 @@ bail:
         }
 
         res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
+        {
+            context->m_SwapChain->m_LastPresentId = present_id;
+        }
+
         if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
         {
             CHECK_VK_ERROR(res);
