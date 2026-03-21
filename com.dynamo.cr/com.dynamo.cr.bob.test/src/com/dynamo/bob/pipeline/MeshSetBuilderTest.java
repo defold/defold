@@ -49,6 +49,10 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
             "/gltf/valid.glb",
     };
 
+    String[] validGLTFFilesExternalResources = {
+            "/gltf/valid_external_resources.gltf",
+    };
+
     @Before
     public void setup() {
         addTestFiles();
@@ -104,6 +108,15 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         for (String validGLTFFile : validGLTFFiles) {
             IResource projectRes = getFileSystem().get(validGLTFFile);
             GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getContent(), FilenameUtils.getExtension(validGLTFFile), false);
+            assertTrue(res.result());
+        }
+    }
+
+    @Test
+    public void testGLTFValidatorValidExternalResources() throws IOException {
+        for (String validGLTFFilesExternalResource : validGLTFFilesExternalResources) {
+            IResource projectRes = getFileSystem().get(validGLTFFilesExternalResource);
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getAbsPath(),true);
             assertTrue(res.result());
         }
     }
