@@ -22,7 +22,7 @@ extern "C"
         dmMouseCapture::WarpCursor(x, y);
     }
 
-    DM_DLLEXPORT HContext* MouseCapture_StartCapture(int save_cursor_x, int save_cursor_y)
+    DM_DLLEXPORT dmMouseCapture::HContext MouseCapture_StartCapture(int save_cursor_x, int save_cursor_y)
     {
         return dmMouseCapture::StartCapture(save_cursor_x, save_cursor_y);
     }
