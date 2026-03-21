@@ -21,11 +21,14 @@ import static org.junit.Assert.assertNotNull;
 
 import com.dynamo.bob.fs.IResource;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,10 +50,6 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     String[] validGLTFFiles = {
             "/gltf/valid.gltf",
             "/gltf/valid.glb",
-    };
-
-    String[] validGLTFFilesExternalResources = {
-            "/gltf/valid_external_resources.gltf",
     };
 
     @Before
@@ -114,10 +113,18 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testGLTFValidatorValidExternalResources() throws IOException {
-        for (String validGLTFFilesExternalResource : validGLTFFilesExternalResources) {
-            IResource projectRes = getFileSystem().get(validGLTFFilesExternalResource);
-            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(projectRes.getAbsPath(),true);
+        Path tmpDir = Files.createTempDirectory("gltf_external_resources");
+        try {
+            IResource gltfRes = getFileSystem().get("/gltf/valid_external_resources.gltf");
+            IResource binRes = getFileSystem().get("/gltf/valid_external_resources.bin");
+            Path gltfPath = tmpDir.resolve("valid_external_resources.gltf");
+            Path binPath = tmpDir.resolve("valid_external_resources.bin");
+            Files.write(gltfPath, gltfRes.getContent());
+            Files.write(binPath, binRes.getContent());
+            GLTFValidator.ValidateResult res = GLTFValidator.validateGltf(gltfPath.toAbsolutePath().toString(), true);
             assertTrue(res.result());
+        } finally {
+            FileUtils.deleteDirectory(tmpDir.toFile());
         }
     }
 
