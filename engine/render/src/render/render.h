@@ -471,6 +471,7 @@ namespace dmRender
      * A light prototype can be used across many light instances, and must live as long as the lights live.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
+    void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);

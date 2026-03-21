@@ -1288,6 +1288,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = 0;
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
+        render_params.m_MaxLights = (uint32_t) dmMath::Max(0, dmConfigFile::GetInt(engine->m_Config, "light.max_count", 64));
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
@@ -1476,6 +1477,7 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("lightc"), engine->m_RenderContext);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)

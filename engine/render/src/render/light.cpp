@@ -40,6 +40,13 @@ namespace dmRender
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params)
     {
         LightPrototype* lp = new LightPrototype;
+        SetLightPrototype(render_context, lp, params);
+        return lp;
+    }
+
+    void SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params)
+    {
+        LightPrototype* lp = (LightPrototype*) light_prototype;
         memset(lp, 0, sizeof(LightPrototype));
         lp->m_Type = params.m_Type;
         lp->m_Color = params.m_Color;
@@ -48,7 +55,6 @@ namespace dmRender
         lp->m_Range = params.m_Range;
         lp->m_InnerConeAngle = params.m_InnerConeAngle;
         lp->m_OuterConeAngle = params.m_OuterConeAngle;
-        return lp;
     }
 
     void DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
@@ -308,6 +314,11 @@ namespace dmRender
     {
         render_context->m_MaxLightCount = max_light_count;
         render_context->m_LightUniformBuffer = 0;
+        render_context->m_LightBufferDirtyStart  = 0;
+        render_context->m_LightBufferDirtyEnd  = 0;
+        render_context->m_LightBufferDirtyCount  = 0;
+        render_context->m_LightBufferDataWriteStart  = 0;
+        render_context->m_LightBufferLastWrittenCount = 0;
 
         if (max_light_count > 0)
         {

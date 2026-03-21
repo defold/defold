@@ -42,6 +42,7 @@
 #include <font/fontcollection.h>
 
 #include <ddf/ddf.h>
+#include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/lua_ddf.h>
 #include <gameobject/script.h>
@@ -59,6 +60,7 @@
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/components/comp_gui.h>
 #include <dmsdk/gamesys/resources/res_data.h>
+#include <dmsdk/gamesys/resources/res_light.h>
 
 #include <sound/sound.h>
 
@@ -96,6 +98,11 @@ namespace dmGameSystem
     ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
     ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);\
     ASSERT_NEAR(exp.getW(), act.getW(), EPSILON);
+
+#define ASSERT_VEC3(exp, act)\
+    ASSERT_NEAR(exp.getX(), act.getX(), EPSILON);\
+    ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);
 
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
@@ -357,6 +364,166 @@ TEST_F(ResourceTest, DataResourceContents)
     EXPECT_STREQ("hello", ddf->m_Data.m_Kind.m_String);
 
     dmResource::Release(m_Factory, (void*)resource);
+}
+
+TEST_F(ResourceTest, LightResourcePrototype)
+{
+    /////////////////////////////////
+    // Test point light
+    /////////////////////////////////
+    dmGameSystem::LightResource* res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_point.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res); 
+
+    dmRender::HLightPrototype light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+
+    const dmRender::LightPrototype* proto = (const dmRender::LightPrototype*) light_prototype;
+    ASSERT_EQ(dmRender::LIGHT_TYPE_POINT, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(2.0f, proto->m_Intensity, EPSILON);
+    ASSERT_NEAR(10.0f, proto->m_Range, EPSILON);
+
+    dmResource::Release(m_Factory, (void*)res);
+
+    /////////////////////////////////
+    // Test directional light
+    /////////////////////////////////
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_directional_light.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res);
+
+    light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+    proto = (const dmRender::LightPrototype*)light_prototype;
+    ASSERT_EQ(dmRender::LIGHT_TYPE_DIRECTIONAL, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(3.0f, proto->m_Intensity, EPSILON);
+    ASSERT_VEC3(dmVMath::Vector3(1.0f, 2.0f, 3.0f), proto->m_Direction);
+
+    dmResource::Release(m_Factory, (void*)res);
+
+    /////////////////////////////////
+    // Test spot light
+    /////////////////////////////////
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/light/valid_spot_light.lightc", (void**)&res));
+    ASSERT_NE((void*)0, res);
+
+    light_prototype = dmGameSystem::GetLightPrototype(res);
+    ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
+    proto = (const dmRender::LightPrototype*)light_prototype;
+    ASSERT_EQ(dmRender::LIGHT_TYPE_SPOT, proto->m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto->m_Color);
+    ASSERT_NEAR(4.0f, proto->m_Intensity, EPSILON);
+    ASSERT_NEAR(20.0f, proto->m_Range, EPSILON);
+    ASSERT_NEAR(15.0f, proto->m_InnerConeAngle, EPSILON);
+    ASSERT_NEAR(30.0f, proto->m_OuterConeAngle, EPSILON);
+
+    dmResource::Release(m_Factory, (void*)res);
+}
+
+TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
+{
+    // CompLightLateUpdate calls dmRender::SetLightInstance, which commits into m_LightBufferScratch
+    // (same data ApplyMaterialProgramLightBuffers uploads to the GPU light uniform buffer).
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_NE((void*)0, render_ctx);
+    ASSERT_GE(render_ctx->m_MaxLightCount, 3u);
+
+    const Quat rot_id(0.0f, 0.0f, 0.0f, 1.0f);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const Point3 pos_point(4.0f, 5.0f, 6.0f);
+    const Point3 pos_dir(10.0f, 11.0f, 12.0f);
+    const Point3 pos_spot(-1.0f, 2.0f, -3.0f);
+
+    dmGameObject::HInstance go_point = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64("/light_point"), 0, pos_point, rot_id, Vector3(1, 1, 1));
+    dmGameObject::HInstance go_dir = Spawn(m_Factory, m_Collection, "/light/valid_directional_light.goc", dmHashString64("/light_dir"), 0, pos_dir, rot_id, Vector3(1, 1, 1));
+    dmGameObject::HInstance go_spot = Spawn(m_Factory, m_Collection, "/light/valid_spot_light.goc", dmHashString64("/light_spot"), 0, pos_spot, rot_id, Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go_point);
+    ASSERT_NE((dmGameObject::HInstance)0, go_dir);
+    ASSERT_NE((dmGameObject::HInstance)0, go_spot);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(3u, render_ctx->m_LightBufferScratch.Size());
+
+    // Creation order (point, directional, spot) matches CompLightWorld component order and light buffer indices 0..2
+    const dmRender::LightSTD140& L_point = render_ctx->m_LightBufferScratch[0];
+    ASSERT_VEC3(pos_point, L_point.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), L_point.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, 0.0f, 10.0f), L_point.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_POINT, 2.0f, 0.0f, 0.0f), L_point.m_Params);
+
+    const dmRender::LightSTD140& L_dir = render_ctx->m_LightBufferScratch[1];
+    ASSERT_VEC3(pos_dir, L_dir.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), L_dir.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 2.0f, 3.0f, 0.0f), L_dir.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_DIRECTIONAL, 3.0f, 0.0f, 0.0f), L_dir.m_Params);
+
+    const dmRender::LightSTD140& L_spot = render_ctx->m_LightBufferScratch[2];
+    ASSERT_VEC3(pos_spot, L_spot.m_Position);
+    ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, 15.0f, 30.0f), L_spot.m_Params);
+
+    const Point3 pos_point_moved(7.0f, 8.0f, 9.0f);
+    dmGameObject::SetPosition(go_point, pos_point_moved);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_VEC3(pos_point_moved, render_ctx->m_LightBufferScratch[0].m_Position);
+    ASSERT_VEC3(pos_dir, render_ctx->m_LightBufferScratch[1].m_Position);
+    ASSERT_VEC3(pos_spot, render_ctx->m_LightBufferScratch[2].m_Position);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ResourceTest, ReloadLightResourceTest)
+{
+    const char* valid_light_a = "/light/valid_point.lightc";
+    const char* valid_light_b = "/light/valid_directional_light.lightc";
+    const char* tmp_path      = "/light/tmp.lightc";
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64("/light_point"), 0, Point3(0,0,0), Quat(0,0,0,1), Vector3(1, 1, 1));
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("light"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    dmGameSystem::LightResource* resource = NULL;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, valid_light_a, (void**) &resource));
+    ASSERT_NE((void*)0, resource);
+
+    dmRender::LightPrototype* valid_light_prototype_a = dmGameSystem::GetLightPrototype(resource);
+    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.5, 0.25, 1.0), valid_light_prototype_a->m_Color);
+    ASSERT_NEAR(2.0, valid_light_prototype_a->m_Intensity, EPSILON);
+    ASSERT_NEAR(10.0, valid_light_prototype_a->m_Range, EPSILON);
+
+    ASSERT_TRUE(CopyResource(valid_light_a, tmp_path));
+    ASSERT_TRUE(CopyResource(valid_light_b, valid_light_a));
+    ASSERT_TRUE(CopyResource(tmp_path, valid_light_b));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, valid_light_a, 0));
+
+    // A reload will not create new internal pointers
+    dmRender::LightPrototype* valid_light_prototype_b = dmGameSystem::GetLightPrototype(resource);
+    ASSERT_EQ(valid_light_prototype_a, valid_light_prototype_b);
+
+    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.0, 0.0, 1.0), valid_light_prototype_b->m_Color);
+    ASSERT_NEAR(3.0, valid_light_prototype_b->m_Intensity, EPSILON);
+    ASSERT_VEC3(Vector3(1.0, 2.0, 3.0), valid_light_prototype_b->m_Direction);
+
+    dmResource::Release(m_Factory, (void**) resource);
+
+    ASSERT_TRUE(CopyResource(valid_light_a, tmp_path));
+    ASSERT_TRUE(CopyResource(valid_light_b, valid_light_a));
+    ASSERT_TRUE(CopyResource(tmp_path, valid_light_b));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 static bool UpdateAndWaitUntilDone(
@@ -3868,6 +4035,37 @@ ResourceFailParams invalid_data_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Data, ResourceFailTest, jc_test_values_in(invalid_data_resources));
 
+/* Light */
+
+const char* valid_light_resources[] = {
+    "/light/valid_point.lightc",
+    "/light/valid_directional_light.lightc",
+    "/light/valid_spot_light.lightc"
+};
+INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
+
+ResourceFailParams invalid_light_resources[] =
+{
+    {"/light/valid_point.lightc", "/light/invalid_point_missing_range.lightc"},
+    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_direction.lightc"},
+    {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"}
+};
+INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
+
+const char* valid_light_gos[] = {
+    "/light/valid_point_light.goc",
+    "/light/valid_directional_light.goc",
+    "/light/valid_spot_light.goc"
+};
+INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));
+
+const char* invalid_light_gos[] = {
+    "/light/invalid_point_light.goc",
+    "/light/invalid_directional_light.goc",
+    "/light/invalid_spot_light.goc"
+};
+INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, jc_test_values_in(invalid_light_gos));
+
 /* Script */
 
 const char* valid_script_resources[] = {"/script/valid.scriptc"};
@@ -4121,6 +4319,7 @@ ScriptComponentTestParams script_component_test_params[] =
     {"/camera/test_comp.goc",             "camerac",            "camera"},
     {"/factory/test_comp.goc",            "factoryc",           "factory"},
     {"/label/test_comp.goc",              "labelc",             "label"},
+    {"/light/test_comp.goc",              "lightc",             "light"},
     {"/mesh/test_comp.goc",               "meshc",              "mesh"},
     {"/model/test_comp.goc",              "modelc",             "model"},
     {"/particlefx/test_comp.goc",         "particlefxc",        "particlefx"},
@@ -6207,6 +6406,65 @@ TEST_F(MaterialTest, TestLightBuffer)
     ASSERT_TRUE(found_light_buffer);
 
     dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
+{
+    // Spawns multiple point-light components from the same .lightc with distinct transforms, runs the
+    // game-object update (LateUpdate -> SetLightInstance -> scratch), then applies light_buffer.material
+    // (fragment shader sums lights[i].color from LightBuffer) so ApplyMaterialProgramLightBuffers uploads
+    // scratch + active light count into the render light uniform buffer. On the null graphics adapter we
+    // memcmp the UBO backing store against scratch to prove the upload path ran with the expected layout.
+    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    ASSERT_NE((void*)0, render_ctx);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    Point3 positions[10];
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        char id_buf[32];
+        dmSnPrintf(id_buf, sizeof(id_buf), "/lpl%u", i);
+
+        positions[i] = Point3(i * 0.1f, (float) i * 1.5f, (float) i * 2.0f);
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/light/valid_point_light.goc", dmHashString64(id_buf), 0, positions[i], Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+        ASSERT_NE((dmGameObject::HInstance)0, go);
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Light data is commited into a scratch buffer before pushing it to the GPU
+    ASSERT_EQ(10u, render_ctx->m_LightBufferScratch.Size());
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_VEC3(positions[i], render_ctx->m_LightBufferScratch[i].m_Position);
+    }
+
+    dmGameSystem::MaterialResource* material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
+    ASSERT_NE((void*)0, material_res);
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+    ASSERT_TRUE(material->m_HasLightBuffer);
+
+    // Writes the light count into the light uniform buffer
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material);
+
+    dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
+    ASSERT_NE((void*)0, ubo);
+    ASSERT_NE((void*)0, ubo->m_Buffer);
+
+    float count_written = 0.0f;
+    memcpy(&count_written, ubo->m_Buffer, sizeof(float));
+    ASSERT_NEAR(10.0f, count_written, EPSILON);
+
+    const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
+    const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
+    ASSERT_LE(light_data_offset + light_data_bytes, ubo->m_BufferSize);
+    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferScratch.Begin(), light_data_bytes));
+
+    dmResource::Release(m_Factory, (void*) material_res);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(MaterialTest, TestLightBufferAbsent)
