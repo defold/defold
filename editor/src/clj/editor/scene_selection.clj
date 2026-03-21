@@ -156,7 +156,7 @@
         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
         (.setDropCompleted event true)))))
 
-(defn handle-selection-input [self action _user-data]
+(defn handle-selection-input [self _input-state action _user-data]
   (let [start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)

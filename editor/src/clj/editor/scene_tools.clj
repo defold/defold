@@ -502,7 +502,7 @@
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
-(defn handle-input [self action selection-data]
+(defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
                      (let [evaluation-context (g/make-evaluation-context)
@@ -516,14 +516,14 @@
                        (when (and (not (empty? original-values))
                                   (= (:button action) :primary))
                          (g/transact
-                            (concat
-                              (g/set-property self :start-action action)
-                              (g/set-property self :prev-action action)
-                              (g/set-property self :original-values original-values)
-                              (g/set-property self :initial-evaluation-context (atom evaluation-context))
-                              (g/set-property self :active-manip manip)
-                              (g/set-property self :hot-manip nil)
-                              (g/set-property self :op-seq (gensym)))))
+                           (concat
+                             (g/set-property self :start-action action)
+                             (g/set-property self :prev-action action)
+                             (g/set-property self :original-values original-values)
+                             (g/set-property self :initial-evaluation-context (atom evaluation-context))
+                             (g/set-property self :active-manip manip)
+                             (g/set-property self :hot-manip nil)
+                             (g/set-property self :op-seq (gensym)))))
                        nil)
                      action)
     :mouse-released (if (g/node-value self :start-action)

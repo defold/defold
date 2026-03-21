@@ -28,6 +28,7 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
+            [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
@@ -531,21 +532,31 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(defn- get-grid-settings-button
-  [^Tab tab]
+(defn- get-settings-button [^Tab tab button-id]
   (some-> tab
           .getContent
-          (.lookup "#show-grid-settings")))
+          (.lookup button-id)))
+
+(defn- show-settings-state [app-view scene-visibility button-id evaluation-context]
+  (some-> (g/node-value app-view :active-tab evaluation-context)
+          (get-settings-button button-id)
+          (scene-visibility/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
-  (run [app-view scene-visibility prefs]
+  (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-grid-settings-button))]
-      (grid/show-settings! app-view btn prefs)))
+                            (get-settings-button "#show-grid-settings"))]
+      (grid/show-settings! btn app-view prefs localization)))
   (state [app-view scene-visibility evaluation-context]
-    (some-> (g/node-value app-view :active-tab evaluation-context)
-            (get-grid-settings-button)
-            (scene-visibility/settings-visible?))))
+    (show-settings-state app-view scene-visibility "#show-grid-settings" evaluation-context)))
+
+(handler/defhandler :scene.perspective-camera.show-settings :workbench
+  (run [app-view scene-visibility prefs localization]
+    (when-some [btn (some-> (g/node-value app-view :active-tab)
+                            (get-settings-button "#show-perspective-camera-settings"))]
+      (camera/show-settings! btn prefs localization)))
+  (state [app-view scene-visibility evaluation-context]
+    (show-settings-state app-view scene-visibility "#show-perspective-camera-settings" evaluation-context)))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
@@ -598,7 +609,9 @@
    {:id :perspective-camera
     :tooltip "Perspective camera"
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
-    :command :scene.toggle-camera-type}
+    :command :scene.toggle-camera-type
+    :more {:id :show-perspective-camera-settings
+           :command :scene.perspective-camera.show-settings}}
    {:id :visibility-settings
     :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic

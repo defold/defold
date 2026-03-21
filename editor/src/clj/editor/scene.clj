@@ -976,6 +976,7 @@
   (inherits view/WorkbenchView)
   (inherits SceneRenderer)
 
+  (property app-view g/NodeID)
   (property image-view ImageView)
   (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
@@ -985,10 +986,10 @@
   (property async-copy-state g/Any)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
-  (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
 
   (input input-handlers Runnable :array)
+  (input update-tick-handlers Runnable :array)
   (input picking-rect Rect)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
@@ -1031,7 +1032,35 @@
     ;; `CLOSED_HAND ``OPEN_HAND_HAND ``HAND `all render a pointer cursor on Linux and Windows.
     ;; `MOVE `renders the default cursor on macOS.
     :pan (if (os/is-mac-os?) Cursor/CLOSED_HAND Cursor/MOVE)
+    :none Cursor/NONE
     Cursor/DEFAULT))
+
+(defn- screen->world
+  ^Vector3d [camera viewport ^Vector3d screen-pos]
+  (let [w4 (c/camera-unproject camera viewport screen-pos)]
+    (Vector3d. (.x w4) (.y w4) (.z w4))))
+
+;; TODO: We have an evaluation-context provided usually when we call this, maybe change the behavior
+(defn- view->camera
+  ([view]
+   (view->camera (g/now) view))
+  ([basis view]
+   (g/node-feeding-into basis view :camera)))
+
+(defn augment-action [view action]
+  (let [x          (:x action)
+        y          (:y action)
+        screen-pos (Vector3d. x y 0)
+        camera     (g/node-value (view->camera view) :camera)
+        viewport   (g/node-value view :viewport)
+        world-pos  (Point3d. (screen->world camera viewport screen-pos))
+        world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
+                         (.sub world-pos)
+                         (.normalize))]
+    (assoc action
+           :screen-pos screen-pos
+           :world-pos world-pos
+           :world-dir world-dir)))
 
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
@@ -1042,7 +1071,7 @@
             async-copy-state-atom (g/raw-property-value* basis node :async-copy-state)]
         (when (and (some? drawable)
                    (some? async-copy-state-atom))
-          (update-image-view! image-view drawable async-copy-state-atom dt)
+          (update-image-view! node-id image-view drawable async-copy-state-atom dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
@@ -1074,32 +1103,6 @@
         (g/set-property node-id :drawable nil)
         (g/set-property node-id :picking-drawable nil)
         (g/set-property node-id :async-copy-state nil)))))
-
-(defn- screen->world
-  ^Vector3d [camera viewport ^Vector3d screen-pos]
-  (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
-    (Vector3d. (.x w4) (.y w4) (.z w4))))
-
-(defn- view->camera
-  ([view]
-   (view->camera (g/now) view))
-  ([basis view]
-   (g/node-feeding-into basis view :camera)))
-
-(defn augment-action [view action]
-  (let [x          (:x action)
-        y          (:y action)
-        screen-pos (Vector3d. x y 0)
-        camera     (g/node-value (view->camera view) :camera)
-        viewport   (g/node-value view :viewport)
-        world-pos  (Point3d. (screen->world camera viewport screen-pos))
-        world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
-                         (.sub world-pos)
-                         (.normalize))]
-    (assoc action
-           :screen-pos screen-pos
-           :world-pos world-pos
-           :world-dir world-dir)))
 
 (defn- active-scene-view
   ([app-view]
@@ -1154,29 +1157,6 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn set-camera!
-  ([camera-node start-camera end-camera animate?]
-   (set-camera! camera-node start-camera end-camera animate? nil))
-  ([camera-node start-camera end-camera animate? on-animation-end]
-   (if animate?
-     (let [duration 0.5]
-       (g/transact (g/set-property camera-node :animating true))
-       (ui/anim! duration
-                 (fn [^double t]
-                   (let [t (- (* t t 3) (* t t t 2))
-                         cam (c/interpolate start-camera end-camera t)]
-                     (g/transact
-                       (g/set-property camera-node :local-camera cam))))
-                 (fn []
-                   (g/transact
-                     [(g/set-property camera-node :local-camera end-camera)
-                      (g/set-property camera-node :animating false)])
-                   (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-                   (when on-animation-end (on-animation-end)))))
-     (g/transact
-       (g/set-property camera-node :local-camera end-camera)))
-   nil))
-
 (defn- fudge-empty-aabb
   ^AABB [^AABB aabb]
   (if (geom/null-aabb? aabb)
@@ -1209,75 +1189,12 @@
 
 (defn- apply-framing-info! [framing-info animate?]
   (let [{:keys [camera-node-id start-camera end-camera]} framing-info]
-    (set-camera! camera-node-id start-camera end-camera animate?)))
+    (c/set-camera! camera-node-id start-camera end-camera animate?)))
 
 (defn- frame-selection! [view-node-id animate?]
   (let [framing-info (g/with-auto-evaluation-context evaluation-context
                        (selection-framing-info view-node-id evaluation-context))]
     (apply-framing-info! framing-info animate?)))
-
-(defn set-camera-type! [view projection-type]
-  (let [camera-controller (view->camera view)
-        old-camera (g/node-value camera-controller :local-camera)
-        current-type (:type old-camera)]
-    (when (not= current-type projection-type)
-      (let [new-camera (case projection-type
-                         :orthographic (c/camera-perspective->orthographic old-camera)
-                         :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
-        (set-camera! camera-controller old-camera new-camera false)))))
-
-(defn- sync-camera-position
-  [^Camera camera-a ^Camera camera-b viewport]
-  (let [focus ^Vector4d (:focus-point camera-b)
-        point (c/camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
-        world (c/camera-unproject camera-a viewport (.x point) (.y point) (.z point))
-        delta (c/camera-unproject camera-b viewport (.x point) (.y point) (.z point))]
-    (.sub delta world)
-    (cond-> camera-a
-      :always
-      (-> (c/camera-ensure-orthographic)
-          (c/camera-move (.x delta) (.y delta) (.z delta))
-          (assoc :fov-x (:fov-x camera-b)
-                 :fov-y (:fov-y camera-b)))
-
-      (= (:type camera-a) :perspective)
-      (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))))
-
-(defn- camera-2d?
-  [view evaluation-context]
-  (some-> (view->camera (:basis evaluation-context) view)
-          (g/node-value :local-camera evaluation-context)
-          (c/mode-2d?)))
-
-(defmulti realign-camera
-  (fn [view _animate?]
-    (g/with-auto-evaluation-context evaluation-context
-      (if (camera-2d? view evaluation-context) :2d :3d))))
-
-(defmethod realign-camera :2d
-  [view animate?]
-  (let [camera-node (view->camera view)
-        local-cam (g/node-value camera-node :local-camera)
-        viewport (g/node-value view :viewport)
-        camera-3d (-> (or (g/node-value camera-node :cached-3d-camera)
-                          (c/tumble (g/node-value camera-node :local-camera) 200.0 -100.0))
-                      (sync-camera-position local-cam viewport))
-        local-cam (cond-> local-cam
-                    (= (:type camera-3d) :perspective)
-                    (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-    (set-camera! camera-node local-cam camera-3d animate?)))
-
-(defmethod realign-camera :3d
-  [view animate?]
-  (let [camera-node (view->camera view)
-        local-cam (g/node-value camera-node :local-camera)
-        is-perspective (= (:type local-cam) :perspective)]
-    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
-    (let [end-camera (cond-> local-cam
-                       is-perspective c/camera-perspective->orthographic
-                       :always c/camera-orthographic-realign
-                       is-perspective (c/camera-orthographic->perspective c/fov-y-35mm-full-frame))]
-      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! view :orthographic)))))
 
 (handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
@@ -1299,8 +1216,9 @@
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
-  (run [app-view] (some-> (active-scene-view app-view) 
-                          (realign-camera true))))
+  (run [app-view] (some-> (active-scene-view app-view)
+                          (view->camera)
+                          (c/realign-camera true))))
 
 (handler/defhandler :scene.set-camera-type :global
   (label [user-data]
@@ -1314,7 +1232,7 @@
            (active-scene-view app-view evaluation-context))
   (run [app-view user-data]
        (when-some [view (active-scene-view app-view)]
-         (set-camera-type! view (:camera-type user-data))))
+         (c/set-camera-type! (view->camera view) (:camera-type user-data))))
   (options [user-data]
     (when-not user-data
       [{:label (localization/message "command.scene.set-camera-type.option.orthographic")
@@ -1330,32 +1248,50 @@
 
 (handler/defhandler :scene.toggle-interaction-mode :workbench
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
-  (run [app-view] (some-> (active-scene-view app-view) 
-                          (realign-camera true)))
+  (run [app-view]
+    (some-> (active-scene-view app-view)
+            (view->camera)
+            (c/realign-camera true)))
   (state [app-view evaluation-context]
-         (camera-2d? (active-scene-view app-view evaluation-context)
-                     evaluation-context)))
+    (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context)) evaluation-context)))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :scene.toggle-camera-type :workbench
   (active? [app-view evaluation-context]
            (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
-            (and (not (camera-2d? (active-scene-view app-view evaluation-context)
+            (and (not (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context))
                                   evaluation-context))
                  (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
        (when-some [view (active-scene-view app-view)]
-         (set-camera-type! view
-                           (case (g/node-value view :camera-type)
-                             :orthographic :perspective
-                             :perspective :orthographic))))
+         (c/set-camera-type! (view->camera view)
+                             (case (g/node-value view :camera-type)
+                               :orthographic :perspective
+                               :perspective :orthographic))))
   (state [app-view evaluation-context]
          (some-> (active-scene-view app-view evaluation-context)
                  (g/node-value :camera-type evaluation-context)
                  (= :perspective))))
+
+(handler/defhandler :scene.free-camera.activate :workbench
+  (run [app-view]
+    (when-let [scene-view (active-scene-view app-view)]
+      (let [input-state (g/user-data scene-view ::input-state)
+            camera (view->camera scene-view)
+            image-view (g/node-value scene-view :image-view)]
+        (c/start-free-cam-mode! image-view camera (:cursor-pos input-state))))))
+
+;; NOTE: If we don't register these commands deleting the commands default shortcut makes the command unreachable unless
+;; we clear player prefs, so add these dummy commands to keep them active
+(handler/defhandler :scene.free-camera.up :free-camera (run []))
+(handler/defhandler :scene.free-camera.down :free-camera (run []))
+(handler/defhandler :scene.free-camera.left :free-camera (run []))
+(handler/defhandler :scene.free-camera.forward :free-camera (run []))
+(handler/defhandler :scene.free-camera.right :free-camera (run []))
+(handler/defhandler :scene.free-camera.backward :free-camera (run []))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
@@ -1439,11 +1375,18 @@
    {:label (localization/message "command.scene.realign-camera")
     :command :scene.realign-camera}])
 
-(defn dispatch-input [input-handlers action user-data]
+(defn dispatch-input [input-handlers input-state action user-data]
   (reduce (fn [action [node-id label]]
             (when action
-              ((g/node-value node-id label) node-id action user-data)))
+              ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
+
+;; TODO: Can we merge this with dispatch-input?
+(defn dispatch-update-tick [update-tick-handlers input-state dt]
+  (reduce (fn [input-state [node-id label]]
+            (when input-state
+              ((g/node-value node-id label) node-id input-state dt)))
+          input-state update-tick-handlers))
 
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
@@ -1457,71 +1400,78 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
-  (when-let [view-id (ui/user-data image-view ::view-id)]
-    (let [[action-queue render-mode tool-user-data play-mode active-updatables updatable-states]
+(defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
+  (let [action-queue (g/user-data view-id ::input-action-queue)
+        [render-mode tool-user-data play-mode active-updatables updatable-states]
+        (g/with-auto-evaluation-context evaluation-context
+          [(g/node-value view-id :render-mode evaluation-context)
+           (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
+           (g/node-value view-id :play-mode evaluation-context)
+           (g/node-value view-id :active-updatables evaluation-context)
+           (g/node-value view-id :updatable-states evaluation-context)])
+        has-active-updatables (not (coll/empty? active-updatables))
+        new-updatable-states (if has-active-updatables
+                               (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
+                               updatable-states)
+        renderables (g/node-value view-id :all-renderables)
+        last-renderables (ui/user-data image-view ::last-renderables)
+        last-frame-version (ui/user-data image-view ::last-frame-version)
+        frame-version (cond-> (or last-frame-version 0)
+                        (or (nil? last-renderables)
+                            (not (identical? last-renderables renderables))
+                            (and has-active-updatables (= :playing play-mode)))
+                        inc)]
+    (profiler/profile "input-dispatch" -1
+      (let [input-handlers (g/sources-of view-id :input-handlers)]
+        (g/user-data! view-id ::input-state
+                      (reduce (fn [input-state action]
+                                (let [input-state (i/update-input-state input-state action)]
+                                  (dispatch-input input-handlers input-state action tool-user-data)
+                                  input-state))
+                              (g/user-data view-id ::input-state)
+                              action-queue))
+        (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
+          (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
+    (profiler/profile "update-tick" -1
+      (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
+            input-state (g/user-data view-id ::input-state)]
+        (dispatch-update-tick update-tick-handlers input-state dt)))
+    (when (seq action-queue)
+      (g/user-data! view-id ::input-action-queue [])
+      (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
+    (when has-active-updatables
+      (g/set-property! view-id :updatable-states new-updatable-states))
+    (profiler/profile "render" -1
+      (when (not= last-frame-version frame-version)
+        (gl/with-drawable-as-current drawable
+          (let [[viewport pass->render-args]
+                (g/with-auto-evaluation-context evaluation-context
+                  [(g/node-value view-id :viewport evaluation-context)
+                   (g/node-value view-id :pass->render-args evaluation-context)])]
+            (scene-cache/process-pending-deletions! gl)
+            (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
+            (ui/user-data! image-view ::last-renderables renderables)
+            (ui/user-data! image-view ::last-frame-version frame-version)
+            (scene-cache/prune-context! gl)
+            (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
+    ;; call frame-selection if it's the very first aabb change for the scene
+    (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+          [scene-aabb reframing-info]
           (g/with-auto-evaluation-context evaluation-context
-            [(g/node-value view-id :input-action-queue evaluation-context)
-             (g/node-value view-id :render-mode evaluation-context)
-             (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
-             (g/node-value view-id :play-mode evaluation-context)
-             (g/node-value view-id :active-updatables evaluation-context)
-             (g/node-value view-id :updatable-states evaluation-context)])
+            (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
+                  reframing-info (when (and prev-aabb
+                                            (geom/predefined-aabb? prev-aabb)
+                                            (not (geom/predefined-aabb? scene-aabb)))
+                                   (aabb-framing-info view-id scene-aabb evaluation-context))]
+              (pair scene-aabb
+                    reframing-info)))]
 
-          has-active-updatables (not (coll/empty? active-updatables))
-          new-updatable-states (if has-active-updatables
-                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
-                                 updatable-states)
-          renderables (g/node-value view-id :all-renderables)
-          last-renderables (ui/user-data image-view ::last-renderables)
-          last-frame-version (ui/user-data image-view ::last-frame-version)
-          frame-version (cond-> (or last-frame-version 0)
-                                (or (nil? last-renderables)
-                                    (not (identical? last-renderables renderables))
-                                    (and has-active-updatables (= :playing play-mode)))
-                                inc)]
-      (when (seq action-queue)
-        (g/set-property! view-id :input-action-queue []))
-      (profiler/profile "input-dispatch" -1
-        (let [input-handlers (g/sources-of view-id :input-handlers)]
-          (doseq [action action-queue]
-            (dispatch-input input-handlers action tool-user-data))
-          (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
-            (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-      (when has-active-updatables
-        (g/set-property! view-id :updatable-states new-updatable-states))
-      (profiler/profile "render" -1
-        (when (not= last-frame-version frame-version)
-          (gl/with-drawable-as-current drawable
-            (let [[viewport pass->render-args]
-                  (g/with-auto-evaluation-context evaluation-context
-                    [(g/node-value view-id :viewport evaluation-context)
-                     (g/node-value view-id :pass->render-args evaluation-context)])]
-              (scene-cache/process-pending-deletions! gl)
-              (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
-              (ui/user-data! image-view ::last-renderables renderables)
-              (ui/user-data! image-view ::last-frame-version frame-version)
-              (scene-cache/prune-context! gl)
-              (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
-      ;; call frame-selection if it's the very first aabb change for the scene
-      (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
-
-            [scene-aabb reframing-info]
-            (g/with-auto-evaluation-context evaluation-context
-              (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
-                    reframing-info (when (and prev-aabb
-                                              (geom/predefined-aabb? prev-aabb)
-                                              (not (geom/predefined-aabb? scene-aabb)))
-                                     (aabb-framing-info view-id scene-aabb evaluation-context))]
-                (pair scene-aabb
-                      reframing-info)))]
-
-        (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
-        (when reframing-info
-          (apply-framing-info! reframing-info true)))
-      (let [new-image (scene-async/image @async-copy-state-atom)]
-        (when-not (identical? (.getImage image-view) new-image)
-          (.setImage image-view new-image))))))
+      (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
+      (when reframing-info
+        (apply-framing-info! reframing-info true)))
+    (let [new-image (scene-async/image @async-copy-state-atom)]
+      (when-not (identical? (.getImage image-view) new-image)
+        (.setImage image-view new-image)))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
@@ -1568,72 +1518,81 @@
   (active? [selection evaluation-context] (selection->movable selection evaluation-context))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
-(defn- handle-key-pressed! [^KeyEvent event]
-  ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
-  ;; would be consumed by the TabPane and will trigger next/prev tab selection.
-  ;; Because of that, such key presses will not reach the workbench view and
-  ;; will not trigger the commands as might be expected
-  (when (not= ::unhandled
-              (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
-                ::unhandled
-                (condp = (.getCode event)
-                  KeyCode/UP (ui/run-command (.getSource event) :scene.move-up)
-                  KeyCode/DOWN (ui/run-command (.getSource event) :scene.move-down)
-                  KeyCode/LEFT (ui/run-command (.getSource event) :scene.move-left)
-                  KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
-                  ::unhandled)))
-    (.consume event)))
+(defn- attempt-handle-arrow-key-commands! [^KeyEvent event]
+  (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
+    ::unhandled
+    (condp = (.getCode event)
+      KeyCode/UP (ui/run-command (.getSource event) :scene.move-up)
+      KeyCode/DOWN (ui/run-command (.getSource event) :scene.move-down)
+      KeyCode/LEFT (ui/run-command (.getSource event) :scene.move-left)
+      KeyCode/RIGHT (ui/run-command (.getSource event) :scene.move-right)
+      ::unhandled)))
 
-(defn register-event-handler! [^Parent parent view-id]
+(defn register-event-handler! [^Parent parent image-view view-id]
+  (g/user-data! view-id ::input-state (i/make-input-state))
+  (g/user-data! view-id ::input-action-queue [])
   (let [process-events? (atom true)
-        event-handler (ui/event-handler e
-                        (when @process-events?
-                          (try
-                            (profiler/profile "input-event" -1
-                              (let [action (augment-action view-id (i/action-from-jfx e))
-                                    x (:x action)
-                                    y (:y action)
-                                    pos [x y 0.0]
-                                    picking-rect (selection/calc-picking-rect pos pos)]
-                                (when (= :mouse-pressed (:type action))
-                                  ;; Request focus and consume event to prevent someone else from stealing focus
-                                  (.requestFocus parent)
-                                  (.consume e))
-                                (when (= :mouse-moved (:type action))
-                                  (ui/user-data! parent ::last-mouse-action action))
-                                (g/transact
-                                  (concat
-                                    (g/set-property view-id :cursor-pos [x y])
-                                    (g/set-property view-id :tool-picking-rect picking-rect)
-                                    (g/update-property view-id :input-action-queue conj action)))))
-                            (catch Throwable error
-                              (reset! process-events? false)
-                              (error-reporting/report-exception! error)))))
-        simulate-mouse-on-modifier-keys! (fn [^KeyEvent e]
-                                           (when (and @process-events? (.isEmpty (.getText e)))
-                                             (when-let [last-action (ui/user-data parent ::last-mouse-action)]
-                                               (let [updated-action (assoc last-action
-                                                                      :alt (.isAltDown e)
-                                                                      :shift (.isShiftDown e)
-                                                                      :meta (.isMetaDown e)
-                                                                      :control (.isControlDown e))]
-                                                 (g/update-property! view-id :input-action-queue conj updated-action)))))]
-    (ui/on-mouse! parent (fn [type e] (cond
-                                        (= type :exit)
-                                        (g/set-property! view-id :cursor-pos nil))))
-    (.setOnMousePressed parent event-handler)
-    (.setOnMouseReleased parent event-handler)
-    (.setOnMouseClicked parent event-handler)
-    (.setOnMouseMoved parent event-handler)
-    (.setOnMouseDragged parent event-handler)
-    (.setOnDragOver parent event-handler)
-    (.setOnDragDropped parent event-handler)
-    (.setOnScroll parent event-handler)
-    (.setOnKeyReleased parent simulate-mouse-on-modifier-keys!)
-    (.setOnKeyPressed parent (ui/event-handler e
-                               (when @process-events?
-                                 (handle-key-pressed! e)
-                                 (simulate-mouse-on-modifier-keys! e))))))
+        camera-id (view->camera view-id)
+        event-handler
+        (ui/event-handler e
+          (when @process-events?
+            (try
+              (profiler/profile "input-event" -1
+                (if (c/free-cam-mode-active? camera-id)
+                  (g/user-data-swap! view-id ::input-action-queue conj (i/action-from-jfx e))
+                  (let [{:keys [x y screen-x screen-y] :as action} (augment-action view-id (i/action-from-jfx e))
+                        pos [x y 0.0]
+                        picking-rect (selection/calc-picking-rect pos pos)]
+                    (when (= :mouse-pressed (:type action))
+                      (.requestFocus parent)
+                      (.consume e))
+                    (g/user-data-swap! view-id ::input-action-queue conj action)
+                    (g/transact
+                      (concat
+                        (when screen-x
+                          (g/set-property view-id :cursor-pos [screen-x screen-y]))
+                        (g/set-property view-id :tool-picking-rect picking-rect))))))
+              (catch Throwable error
+                (reset! process-events? false)
+                (error-reporting/report-exception! error)))))]
+    (ui/observe (.focusedProperty parent)
+      (fn [_ _ focused]
+        (when (and (not focused)
+                   (c/free-cam-mode-active? camera-id))
+          (c/stop-free-cam-mode! image-view camera-id))))
+    (doto parent
+      (ui/on-mouse! (fn [type _]
+                      (cond (= type :exit)
+                            (g/set-property! view-id :cursor-pos [0.0 0.0]))))
+      (.setOnMousePressed event-handler)
+      (.setOnMouseReleased event-handler)
+      (.setOnMouseClicked event-handler)
+      (.setOnMouseMoved event-handler)
+      (.setOnMouseDragged event-handler)
+      (.setOnDragDetected event-handler)
+      (.setOnDragOver event-handler)
+      (.setOnDragDropped event-handler)
+      (.setOnScroll event-handler)
+      (.addEventFilter KeyEvent/KEY_RELEASED
+        (ui/event-handler e
+          (let [action (i/action-from-jfx e)
+                input-state (i/update-input-state (g/user-data view-id ::input-state) action)]
+            (g/user-data-swap! view-id ::input-action-queue conj action)
+            (when (contains? (:mouse-buttons input-state) :secondary)
+              (.consume e)))))
+      (.addEventFilter KeyEvent/KEY_PRESSED
+        (ui/event-handler e
+          (when @process-events?
+            (let [action (i/action-from-jfx e)]
+              (g/user-data-swap! view-id ::input-action-queue conj action)
+              ;; Always interpret UP/DOWN/LEFT/RIGHT as move commands because otherwise they
+              ;; would be consumed by the TabPane and will trigger next/prev tab selection.
+              ;; Because of that, such key presses will not reach the workbench view and
+              ;; will not trigger the commands as might be expected
+              (when (or (c/free-cam-mode-active? camera-id)
+                        (contains? (:mouse-buttons (g/user-data view-id ::input-state)) :secondary)
+                        (not= ::unhandled (attempt-handle-arrow-key-commands! e)))
+                (.consume e)))))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
@@ -1662,7 +1621,7 @@
                            (let [drawable (gl/offscreen-drawable width height)
                                  picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)]
                              (ui/user-data! image-view ::view-id view-id)
-                             (register-event-handler! this view-id)
+                             (register-event-handler! this image-view view-id)
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
@@ -1691,7 +1650,7 @@
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
+  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {} :app-view (:app-view opts))
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
     (ui/with-controls scene-view-pane [overlay-anchor-pane]
@@ -1721,6 +1680,7 @@
   (property picking-drawable GLAutoDrawable)
 
   (input input-handlers Runnable :array)
+  (input update-tick-handlers Runnable :array)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input localization g/Any)
@@ -1790,7 +1750,9 @@
                                                                                    (g/operation-sequence op-seq)
                                                                                    (g/operation-label (localization/message "operation.select"))
                                                                                    (select-fn selection))))]
-                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
+                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))
+                                                       :image-view (g/node-value view-id :image-view)
+                                                       :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
                    rulers          [rulers/Rulers]]
@@ -1801,6 +1763,7 @@
 
                   (g/connect camera          :camera                        view-id         :camera)
                   (g/connect camera          :input-handler                 view-id         :input-handlers)
+                  (g/connect camera          :update-tick-handler           view-id         :update-tick-handlers)
                   (g/connect camera          :cursor-type                   view-id         :cursor-type)
                   (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                   (g/connect view-id         :viewport                      camera          :viewport)
@@ -1813,6 +1776,7 @@
                   (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
                   (g/connect app-view-id     :keymap                        view-id         :keymap)
                   (g/connect app-view-id     :localization                  view-id         :localization)
+                  (g/connect app-view-id     :keymap                        camera          :keymap)
 
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
