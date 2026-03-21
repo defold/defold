@@ -38,13 +38,45 @@ extern uint32_t PROFILER_HTML_SIZE;
 namespace dmEngineService
 {
     static const char INFO_TEMPLATE[] =
-    "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\"}";
+    "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\", \"log_port\": \"${DEFOLD_LOG_PORT}\"}";
     static const char STATE_TEMPLATE[] =
     "{\"connection_mode\": ${CONNECTION_MODE}}";
     static const char MDNS_SCHEMA_VERSION[] = "1";
+    static const uint32_t MDNS_MAX_LABEL_LENGTH = 63;
 
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
     const char* const FOURCC_RESOURCES = "RESS";
+
+    static void BuildServiceInstanceName(const char* display_name, const char* port_text, char* out, uint32_t out_size)
+    {
+        if (out_size == 0)
+            return;
+
+        char sanitized[128];
+        dmStrlCpy(sanitized, (display_name && display_name[0]) ? display_name : "defold", sizeof(sanitized));
+        for (char* c = sanitized; *c; ++c)
+        {
+            if (*c == '.')
+                *c = '-';
+        }
+
+        char suffix[32];
+        suffix[0] = 0;
+        if (port_text && port_text[0])
+            dmSnPrintf(suffix, sizeof(suffix), "-%s", port_text);
+
+        const uint32_t max_label_length = dmMath::Min((uint32_t) out_size - 1, MDNS_MAX_LABEL_LENGTH);
+        const uint32_t suffix_length = (uint32_t) strlen(suffix);
+        const uint32_t max_base_length = suffix_length < max_label_length ? max_label_length - suffix_length : 0;
+
+        uint32_t base_length = (uint32_t) strlen(sanitized);
+        if (base_length > max_base_length)
+            base_length = max_base_length;
+
+        memcpy(out, sanitized, base_length);
+        out[base_length] = 0;
+        dmStrlCat(out, suffix, out_size);
+    }
 
     struct EngineService
     {
@@ -251,8 +283,6 @@ namespace dmEngineService
 
         bool Init(uint16_t port)
         {
-            dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
-
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
 
@@ -289,18 +319,6 @@ namespace dmEngineService
             dmStrlCat(m_Name, " - ", sizeof(m_Name));
             dmStrlCat(m_Name, info.m_SystemName, sizeof(m_Name));
 
-            // DNS-SD instance labels cannot contain raw dots.
-            // Keep m_Name as display text (TXT "name"), but advertise a
-            // sanitized label for the DNS-SD instance name.
-            dmStrlCpy(m_ServiceInstanceName, m_Name, sizeof(m_ServiceInstanceName));
-            for (char* c = m_ServiceInstanceName; *c; ++c)
-            {
-                if (*c == '.')
-                {
-                    *c = '-';
-                }
-            }
-
             dmWebServer::NewParams params;
             params.m_Port = port;
             dmWebServer::HServer web_server;
@@ -315,6 +333,10 @@ namespace dmEngineService
             dmWebServer::GetName(web_server, &address, &m_Port);
             dmSnPrintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
             dmSnPrintf(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLog::GetPort());
+
+            // DNS-SD instance labels must be unique per engine instance and
+            // fit within a single DNS label.
+            BuildServiceInstanceName(m_Name, m_PortText, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
 
             // The redirect server
             params.m_Port = 8002;
@@ -353,6 +375,8 @@ namespace dmEngineService
             dmStrlCat(m_ServiceId, m_PortText, sizeof(m_ServiceId));
             dmStrlCat(m_ServiceId, "-", sizeof(m_ServiceId));
             dmStrlCat(m_ServiceId, info.m_DeviceModel, sizeof(m_ServiceId));
+
+            dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 
             dmMDNS::Params mdns_params;
             mdns_params.m_AnnounceInterval = 30;

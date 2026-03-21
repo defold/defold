@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.targets
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [editor.console :as console]
             [editor.dialogs :as dialogs]
@@ -147,6 +148,9 @@
       (finally
         (.close input)))))
 
+(defn- http-get-json [^URL url]
+  (json/read-str (http-get url) :key-fn keyword))
+
 (defn- log [message]
   (swap! event-log (fn [xs]
                      (if (not= (last xs) message)
@@ -179,6 +183,17 @@
                :local-address local-address}
         (:log-port device)
         (assoc :log-port (:log-port device))))))
+
+(defn- manual-target-device [ip port local-address info]
+  (let [log-port (some-> (:log_port info) str)]
+    (cond-> {:id (format "manual-%s:%s" ip port)
+             :name (format "%s:%s" ip port)
+             :instance-name ip
+             :address ip
+             :local-address local-address
+             :port (Integer/parseInt port)}
+      log-port
+      (assoc :log-port log-port))))
 
 (defn- local-target? [target]
   (or (= (:address target) (:local-address target))
@@ -388,14 +403,9 @@
           n-ifs (MDNS/getMCastInterfaces)
           device (when-let [^NetworkInterface n-if (first (filter (fn [^NetworkInterface n-if] (.isReachable inet-addr n-if MDNS/MDNS_MCAST_TTL timeout)) n-ifs))]
                    (when-let [^InetAddress local-address (first (MDNS/getIPv4Addresses n-if))]
-                     (let [url (URL. (format "http://%s:%s/ping" ip port))]
-                       (http-get url)
-                       {:id (format "manual-%s:%s" ip port)
-                        :name (format "%s:%s" ip port)
-                        :instance-name ip
-                        :address ip
-                        :local-address (.getHostAddress local-address)
-                        :port (Integer/parseInt port)})))]
+                     (let [info-url (URL. (format "http://%s:%s/info" ip port))
+                           info (http-get-json info-url)]
+                       (manual-target-device ip port (.getHostAddress local-address) info))))]
       (if device
         device
         (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))

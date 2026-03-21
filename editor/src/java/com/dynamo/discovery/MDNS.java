@@ -47,6 +47,7 @@ public class MDNS {
         String fullName;
         String instanceName;
         String host;
+        String address;
         String localAddress;
         int port;
         long expires;
@@ -395,7 +396,8 @@ public class MDNS {
                 try {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     connection.socket.receive(packet);
-                    parsePacket(packet.getData(), packet.getLength(), connection.localAddress);
+                    String remoteAddress = packet.getAddress() != null ? packet.getAddress().getHostAddress() : null;
+                    parsePacket(packet.getData(), packet.getLength(), connection.localAddress, remoteAddress);
                 } catch (SocketTimeoutException e) {
                     keepReading = false;
                 } catch (IOException e) {
@@ -406,7 +408,7 @@ public class MDNS {
         }
     }
 
-    private void parsePacket(byte[] data, int size, String localAddress) {
+    private void parsePacket(byte[] data, int size, String localAddress, String remoteAddress) {
         if (size < 12) {
             return;
         }
@@ -460,7 +462,7 @@ public class MDNS {
                 return;
             }
 
-            parseRecord(data, size, name, type, klass, ttl, rdLength, offset, localAddress, (flags & 0x8000) != 0);
+            parseRecord(data, size, name, type, klass, ttl, rdLength, offset, localAddress, remoteAddress, (flags & 0x8000) != 0);
             offset += rdLength;
         }
     }
@@ -474,6 +476,7 @@ public class MDNS {
                              int rdLength,
                              int rdataOffset,
                              String localAddress,
+                             String remoteAddress,
                              boolean response) {
         voidUnused(klass);
         voidUnused(response);
@@ -496,6 +499,9 @@ public class MDNS {
             ServiceAccumulator service = getOrCreateService(key, fullServiceName);
             service.instanceName = instanceName(fullServiceName);
             service.localAddress = localAddress;
+            if (response && remoteAddress != null) {
+                service.address = remoteAddress;
+            }
             service.expires = expires;
             service.hasPtr = true;
             return;
@@ -503,10 +509,7 @@ public class MDNS {
 
         if (type == DNS_TYPE_SRV) {
             String key = lower(name);
-            ServiceAccumulator service = services.get(key);
-            if (service == null) {
-                return;
-            }
+            ServiceAccumulator service = getOrCreateService(key, name);
 
             if (ttl == 0) {
                 services.remove(key);
@@ -530,6 +533,9 @@ public class MDNS {
             service.host = host;
             service.port = port;
             service.localAddress = localAddress;
+            if (response && remoteAddress != null) {
+                service.address = remoteAddress;
+            }
             service.expires = expires;
             service.hasSrv = true;
             return;
@@ -537,10 +543,7 @@ public class MDNS {
 
         if (type == DNS_TYPE_TXT) {
             String key = lower(name);
-            ServiceAccumulator service = services.get(key);
-            if (service == null) {
-                return;
-            }
+            ServiceAccumulator service = getOrCreateService(key, name);
 
             if (ttl == 0) {
                 services.remove(key);
@@ -550,6 +553,9 @@ public class MDNS {
             Map<String, String> txt = parseTxt(data, rdLength, rdataOffset);
             service.txt = txt;
             service.localAddress = localAddress;
+            if (response && remoteAddress != null) {
+                service.address = remoteAddress;
+            }
             service.expires = expires;
             service.hasTxt = true;
             return;
@@ -655,15 +661,18 @@ public class MDNS {
                 continue;
             }
 
-            HostAddress hostAddress = hosts.get(lower(service.host));
-            if (hostAddress == null) {
-                continue;
-            }
-
             String id = service.txt.containsKey("id") ? service.txt.get("id") : service.fullName;
             String name = service.txt.containsKey("name") ? service.txt.get("name") : service.instanceName;
             String logPort = service.txt.get("log_port");
             String localAddress = service.localAddress != null ? service.localAddress : defaultLocalAddress;
+            String address = service.address;
+            if (address == null) {
+                HostAddress hostAddress = hosts.get(lower(service.host));
+                if (hostAddress == null) {
+                    continue;
+                }
+                address = hostAddress.address;
+            }
 
             MDNSServiceInfo info = new MDNSServiceInfo(
                     service.expires,
@@ -671,7 +680,7 @@ public class MDNS {
                     name,
                     service.fullName,
                     service.host,
-                    hostAddress.address,
+                    address,
                     localAddress,
                     service.port,
                     logPort,

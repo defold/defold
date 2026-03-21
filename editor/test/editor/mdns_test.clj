@@ -104,9 +104,11 @@
     (.invoke m obj (object-array args))))
 
 (defn- parse-and-rebuild!
-  [^MDNS mdns ^bytes packet]
-  (invoke-private! mdns "parsePacket" [(Class/forName "[B") Integer/TYPE String] packet (alength packet) "127.0.0.1")
-  (invoke-private! mdns "rebuildDiscovered" []))
+  ([^MDNS mdns ^bytes packet]
+   (parse-and-rebuild! mdns packet "127.0.0.1" "127.0.0.1"))
+  ([^MDNS mdns ^bytes packet ^String local-address ^String remote-address]
+   (invoke-private! mdns "parsePacket" [(Class/forName "[B") Integer/TYPE String String] packet (alength packet) local-address remote-address)
+   (invoke-private! mdns "rebuildDiscovered" [])))
 
 (defn- service-records
   [service-type full-name host-name port ttl]
@@ -138,6 +140,36 @@
         (is (= 8123 (.port d)))
         (is (= "7001" (.logPort d)))
         (is (= "1" (get (.txt d) "schema")))))))
+
+(deftest mdns-discovers-service-when-records-arrive-out-of-order
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetReordered." service-type)
+        host-name "target-reordered.local"
+        records (service-records service-type full-name host-name 8124 120)
+        packet (make-response-packet [(second records) (nth records 2) (nth records 3) (first records)])]
+    (parse-and-rebuild! mdns packet)
+    (let [devices ^"[Lcom.dynamo.discovery.MDNSServiceInfo;" (.getDevices mdns)]
+      (is (= 1 (alength devices)))
+      (let [^MDNSServiceInfo d (aget devices 0)]
+        (is (= full-name (.serviceName d)))
+        (is (= 8124 (.port d)))
+        (is (= "127.0.0.1" (.address d)))))))
+
+(deftest mdns-keeps-packet-source-address-when-host-address-flaps
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetSourceAddress." service-type)
+        host-name "target-source-address.local"
+        service-packet (make-response-packet (service-records service-type full-name host-name 8125 120))
+        host-only-packet (make-response-packet [(make-record host-name dns-type-a 120 (make-a-rdata 10 0 0 99))])]
+    (parse-and-rebuild! mdns service-packet "192.168.0.10" "192.168.0.42")
+    (parse-and-rebuild! mdns host-only-packet "10.0.0.10" "10.0.0.99")
+    (let [devices ^"[Lcom.dynamo.discovery.MDNSServiceInfo;" (.getDevices mdns)]
+      (is (= 1 (alength devices)))
+      (let [^MDNSServiceInfo d (aget devices 0)]
+        (is (= "192.168.0.42" (.address d)))
+        (is (= "192.168.0.10" (.localAddress d)))))))
 
 (deftest mdns-removes-service-on-zero-ttl-records
   (let [mdns (MDNS. (dummy-logger))

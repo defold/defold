@@ -269,6 +269,18 @@ TEST(MDNS, RegisterLifecycle)
     ASSERT_EQ(dmMDNS::RESULT_INVALID_ARGS, dmMDNS::RegisterService(mdns, 0));
     ASSERT_EQ(dmMDNS::RESULT_INVALID_ARGS, dmMDNS::DeregisterService(mdns, 0));
 
+    char long_instance_name[80];
+    memset(long_instance_name, 'a', sizeof(long_instance_name) - 1);
+    long_instance_name[sizeof(long_instance_name) - 1] = 0;
+
+    dmMDNS::ServiceDesc invalid_service;
+    memset(&invalid_service, 0, sizeof(invalid_service));
+    invalid_service.m_Id = "mdns-invalid-01";
+    invalid_service.m_InstanceName = long_instance_name;
+    invalid_service.m_ServiceType = SERVICE_TYPE;
+    invalid_service.m_Port = 18001;
+    ASSERT_EQ(dmMDNS::RESULT_INVALID_ARGS, dmMDNS::RegisterService(mdns, &invalid_service));
+
     dmMDNS::TxtEntry txt_entries[] =
     {
         {"id", "mdns-lifecycle-01"},

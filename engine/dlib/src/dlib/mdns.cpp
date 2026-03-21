@@ -29,6 +29,8 @@ namespace dmMDNS
     static const char* MDNS_MULTICAST_IPV4 = "224.0.0.251";
     static const uint16_t MDNS_PORT = 5353;
     static const uint32_t MDNS_MAX_TXT_ENTRIES = 16;
+    static const uint32_t MDNS_INTERFACE_REFRESH_INTERVAL = 5;
+    static const uint32_t MDNS_MAX_INTERFACES = 32;
 
     static const uint16_t DNS_TYPE_A = 1;
     static const uint16_t DNS_TYPE_PTR = 12;
@@ -61,7 +63,7 @@ namespace dmMDNS
         char m_FullServiceName[256];
         char m_Host[256];
         char m_HostLocal[256];
-        char m_HostAddress[64];
+        dmSocket::Address m_HostAddress;
         uint16_t m_Port;
         uint32_t m_Ttl;
         StoredTxt m_Txt[MDNS_MAX_TXT_ENTRIES];
@@ -75,18 +77,23 @@ namespace dmMDNS
             memset(this, 0, sizeof(*this));
             m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             m_Services.SetCapacity(4);
+            m_InterfaceAddresses.SetCapacity(4);
+            m_MembershipAddresses.SetCapacity(4);
         }
 
         Params m_Params;
         dmSocket::Socket m_Socket;
         dmArray<RegisteredService> m_Services;
+        dmArray<dmSocket::Address> m_InterfaceAddresses;
+        dmArray<dmSocket::Address> m_MembershipAddresses;
         uint8_t m_Buffer[1500];
 
         char m_DefaultHost[256];
         char m_DefaultHostLocal[256];
-        char m_DefaultAddress[64];
+        dmSocket::Address m_DefaultAddress;
 
         uint64_t m_NextAnnounce;
+        uint64_t m_NextInterfaceRefresh;
     };
 
     struct BrowserHost
@@ -136,6 +143,8 @@ namespace dmMDNS
             m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             m_Services.SetCapacity(16);
             m_Hosts.SetCapacity(16);
+            m_InterfaceAddresses.SetCapacity(4);
+            m_MembershipAddresses.SetCapacity(4);
             m_QueryInterval = 2 * 1000000ULL;
         }
 
@@ -148,11 +157,14 @@ namespace dmMDNS
 
         dmArray<BrowserService> m_Services;
         dmArray<BrowserHost> m_Hosts;
+        dmArray<dmSocket::Address> m_InterfaceAddresses;
+        dmArray<dmSocket::Address> m_MembershipAddresses;
 
         uint8_t m_Buffer[1500];
 
         uint64_t m_NextQuery;
         uint64_t m_QueryInterval;
+        uint64_t m_NextInterfaceRefresh;
     };
 
     static uint64_t GetNow()
@@ -223,6 +235,56 @@ namespace dmMDNS
         }
 
         dmStrlCpy(out, full_name, out_size);
+    }
+
+    static bool ContainsAddress(const dmArray<dmSocket::Address>& addresses, dmSocket::Address address)
+    {
+        for (uint32_t i = 0; i < addresses.Size(); ++i)
+        {
+            if (addresses[i] == address)
+                return true;
+        }
+        return false;
+    }
+
+    static void CollectInterfaceAddresses(dmArray<dmSocket::Address>* addresses)
+    {
+        dmSocket::IfAddr interfaces[MDNS_MAX_INTERFACES];
+        uint32_t interface_count = 0;
+        dmSocket::GetIfAddresses(interfaces, MDNS_MAX_INTERFACES, &interface_count);
+
+        addresses->SetSize(0);
+
+        for (uint32_t i = 0; i < interface_count; ++i)
+        {
+            const dmSocket::IfAddr& interface = interfaces[i];
+            if (interface.m_Address.m_family != dmSocket::DOMAIN_IPV4)
+                continue;
+            if (dmSocket::Empty(interface.m_Address))
+                continue;
+            if ((interface.m_Flags & dmSocket::FLAGS_UP) == 0)
+                continue;
+            if (ContainsAddress(*addresses, interface.m_Address))
+                continue;
+
+            if (addresses->Full())
+                addresses->OffsetCapacity(4);
+            addresses->Push(interface.m_Address);
+        }
+    }
+
+    static void RefreshInterfaceAddresses(MDNS* mdns)
+    {
+        CollectInterfaceAddresses(&mdns->m_InterfaceAddresses);
+        if (mdns->m_InterfaceAddresses.Size() > 0)
+        {
+            mdns->m_DefaultAddress = mdns->m_InterfaceAddresses[0];
+        }
+    }
+
+    static void RefreshBrowserInterfaceAddresses(Browser* browser)
+    {
+        CollectInterfaceAddresses(&browser->m_InterfaceAddresses);
     }
 
     static bool ReadU16(const uint8_t* data, uint32_t size, uint32_t* offset, uint16_t* out)
@@ -379,10 +441,6 @@ namespace dmMDNS
         if (sr != dmSocket::RESULT_OK)
             goto bail;
 
-        sr = dmSocket::AddMembership(socket, dmSocket::AddressFromIPString(MDNS_MULTICAST_IPV4), dmSocket::AddressFromIPString("0.0.0.0"), 255);
-        if (sr != dmSocket::RESULT_OK)
-            goto bail;
-
         return socket;
 
     bail:
@@ -397,11 +455,55 @@ namespace dmMDNS
         return sr == dmSocket::RESULT_OK;
     }
 
-    static bool SendPacketTo(dmSocket::Socket socket, const uint8_t* data, uint32_t size, dmSocket::Address addr, uint16_t port)
+    static bool SendPacketOnInterface(dmSocket::Socket socket, const uint8_t* data, uint32_t size, const dmSocket::Address& interface_address)
     {
-        int sent = 0;
-        dmSocket::Result sr = dmSocket::SendTo(socket, data, (int) size, &sent, addr, port);
-        return sr == dmSocket::RESULT_OK;
+        dmSocket::Result sr = dmSocket::SetMulticastIf(socket, interface_address);
+        if (sr != dmSocket::RESULT_OK)
+            return false;
+
+        return SendPacket(socket, data, size);
+    }
+
+    static void EnsureMemberships(dmSocket::Socket socket, const dmArray<dmSocket::Address>& interface_addresses, dmArray<dmSocket::Address>* membership_addresses)
+    {
+        const dmSocket::Address multicast_address = dmSocket::AddressFromIPString(MDNS_MULTICAST_IPV4);
+        const dmSocket::Address any_address = dmSocket::AddressFromIPString("0.0.0.0");
+
+        if (!ContainsAddress(*membership_addresses, any_address))
+        {
+            dmSocket::Result sr = dmSocket::AddMembership(socket, multicast_address, any_address, 255);
+            if (sr == dmSocket::RESULT_OK)
+            {
+                if (membership_addresses->Full())
+                    membership_addresses->OffsetCapacity(4);
+                membership_addresses->Push(any_address);
+            }
+        }
+
+        for (uint32_t i = 0; i < interface_addresses.Size(); ++i)
+        {
+            const dmSocket::Address& interface_address = interface_addresses[i];
+            if (ContainsAddress(*membership_addresses, interface_address))
+                continue;
+
+            dmSocket::Result sr = dmSocket::AddMembership(socket, multicast_address, interface_address, 255);
+            if (sr == dmSocket::RESULT_OK)
+            {
+                if (membership_addresses->Full())
+                    membership_addresses->OffsetCapacity(4);
+                membership_addresses->Push(interface_address);
+            }
+        }
+    }
+
+    static void SendPacketOnInterfaces(dmSocket::Socket socket, const uint8_t* data, uint32_t size, const dmArray<dmSocket::Address>& interface_addresses)
+    {
+        SendPacket(socket, data, size);
+
+        for (uint32_t i = 0; i < interface_addresses.Size(); ++i)
+        {
+            SendPacketOnInterface(socket, data, size, interface_addresses[i]);
+        }
     }
 
     static bool WriteRecordHeader(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
@@ -515,13 +617,9 @@ namespace dmMDNS
     }
 
     static bool WriteRecordA(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
-                             const RegisteredService& service, uint32_t ttl)
+                             const RegisteredService& service, const dmSocket::Address& host_address, uint32_t ttl)
     {
-        if (service.m_HostAddress[0] == 0)
-            return false;
-
-        dmSocket::Address address = dmSocket::AddressFromIPString(service.m_HostAddress);
-        if (address.m_family != dmSocket::DOMAIN_IPV4)
+        if (host_address.m_family != dmSocket::DOMAIN_IPV4 || dmSocket::Empty(host_address))
             return false;
 
         if (!WriteRecordHeader(buffer, buffer_size, offset,
@@ -534,6 +632,7 @@ namespace dmMDNS
             return false;
         }
 
+        dmSocket::Address address = host_address;
         uint32_t ipv4 = *dmSocket::IPv4(&address);
         if (*offset + 4 > buffer_size)
             return false;
@@ -546,7 +645,7 @@ namespace dmMDNS
         return true;
     }
 
-    static uint32_t BuildResponseMessage(const RegisteredService& service, uint32_t ttl, uint8_t* buffer, uint32_t buffer_size)
+    static uint32_t BuildResponseMessage(const RegisteredService& service, const dmSocket::Address* host_address, uint32_t ttl, uint8_t* buffer, uint32_t buffer_size)
     {
         uint32_t offset = 0;
         uint16_t answer_count = 0;
@@ -570,7 +669,8 @@ namespace dmMDNS
         if (WriteRecordTxt(buffer, buffer_size, &offset, service, ttl))
             ++answer_count;
 
-        if (WriteRecordA(buffer, buffer_size, &offset, service, ttl))
+        const dmSocket::Address& service_address = host_address ? *host_address : service.m_HostAddress;
+        if (WriteRecordA(buffer, buffer_size, &offset, service, service_address, ttl))
             ++answer_count;
 
         if (answer_count == 0)
@@ -611,12 +711,25 @@ namespace dmMDNS
         return -1;
     }
 
-    static void HandleAnnounceResponse(MDNS* mdns, const RegisteredService& service, uint32_t ttl)
+    static void HandleAnnounceResponse(MDNS* mdns, const RegisteredService& service, const dmSocket::Address* interface_address, uint32_t ttl)
     {
-        uint32_t size = BuildResponseMessage(service, ttl, mdns->m_Buffer, sizeof(mdns->m_Buffer));
+        uint32_t size = BuildResponseMessage(service, interface_address, ttl, mdns->m_Buffer, sizeof(mdns->m_Buffer));
         if (size > 0)
         {
-            SendPacket(mdns->m_Socket, mdns->m_Buffer, size);
+            if (interface_address != 0)
+                SendPacketOnInterface(mdns->m_Socket, mdns->m_Buffer, size, *interface_address);
+            else
+                SendPacket(mdns->m_Socket, mdns->m_Buffer, size);
+        }
+    }
+
+    static void AnnounceService(MDNS* mdns, const RegisteredService& service, uint32_t ttl)
+    {
+        HandleAnnounceResponse(mdns, service, 0, ttl);
+
+        for (uint32_t i = 0; i < mdns->m_InterfaceAddresses.Size(); ++i)
+        {
+            HandleAnnounceResponse(mdns, service, &mdns->m_InterfaceAddresses[i], ttl);
         }
     }
 
@@ -774,18 +887,43 @@ namespace dmMDNS
 
             if (should_announce)
             {
+                const dmSocket::Address* response_interface = 0;
+                if (mdns->m_InterfaceAddresses.Size() > 0)
+                {
+                    response_interface = &mdns->m_InterfaceAddresses[0];
+
+                    if (from_address.m_family == dmSocket::DOMAIN_IPV4)
+                    {
+                        uint32_t best_match = ~0u;
+                        for (uint32_t i = 0; i < mdns->m_InterfaceAddresses.Size(); ++i)
+                        {
+                            uint32_t match = dmSocket::BitDifference(mdns->m_InterfaceAddresses[i], from_address);
+                            if (match < best_match)
+                            {
+                                best_match = match;
+                                response_interface = &mdns->m_InterfaceAddresses[i];
+                            }
+                        }
+                    }
+                }
+
                 for (uint32_t s = 0; s < mdns->m_Services.Size(); ++s)
                 {
-                    uint32_t response_size = BuildResponseMessage(mdns->m_Services[s], mdns->m_Services[s].m_Ttl, mdns->m_Buffer, sizeof(mdns->m_Buffer));
-                    if (response_size > 0)
-                    {
-                        // Always multicast responses for compatibility with mDNS browsers
-                        // that ignore unicast replies to multicast queries.
-                        SendPacket(mdns->m_Socket, mdns->m_Buffer, response_size);
-                    }
+                    // Always multicast responses for compatibility with mDNS browsers
+                    // that ignore unicast replies to multicast queries.
+                    HandleAnnounceResponse(mdns, mdns->m_Services[s], 0, mdns->m_Services[s].m_Ttl);
+                    if (response_interface != 0)
+                        HandleAnnounceResponse(mdns, mdns->m_Services[s], response_interface, mdns->m_Services[s].m_Ttl);
                 }
             }
         } while (incoming_data);
+    }
+
+    static bool IsEncodableDnsName(const char* name)
+    {
+        uint8_t buffer[512];
+        uint32_t offset = 0;
+        return WriteName(buffer, sizeof(buffer), &offset, name);
     }
 
     static int32_t FindBrowserHost(dmArray<BrowserHost>& hosts, const char* host)
@@ -1162,13 +1300,6 @@ namespace dmMDNS
             return RESULT_INVALID_ARGS;
         }
 
-        instance->m_Socket = CreateSocket();
-        if (instance->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
-        {
-            delete instance;
-            return RESULT_NETWORK_ERROR;
-        }
-
         char host_name[128];
         if (dmSocket::GetHostname(host_name, sizeof(host_name)) != dmSocket::RESULT_OK)
         {
@@ -1180,16 +1311,21 @@ namespace dmMDNS
 
         dmSocket::Address local_address;
         if (dmSocket::GetLocalAddress(&local_address) == dmSocket::RESULT_OK && local_address.m_family == dmSocket::DOMAIN_IPV4)
+            instance->m_DefaultAddress = local_address;
+
+        RefreshInterfaceAddresses(instance);
+
+        instance->m_Socket = CreateSocket();
+        if (instance->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
         {
-            char* str = dmSocket::AddressToIPString(local_address);
-            if (str)
-            {
-                dmStrlCpy(instance->m_DefaultAddress, str, sizeof(instance->m_DefaultAddress));
-                free(str);
-            }
+            delete instance;
+            return RESULT_NETWORK_ERROR;
         }
 
+        EnsureMemberships(instance->m_Socket, instance->m_InterfaceAddresses, &instance->m_MembershipAddresses);
+
         instance->m_NextAnnounce = GetNow();
+        instance->m_NextInterfaceRefresh = GetNow();
         *mdns = instance;
         return RESULT_OK;
     }
@@ -1224,9 +1360,19 @@ namespace dmMDNS
             dmStrlCpy(service.m_HostLocal, mdns->m_DefaultHostLocal, sizeof(service.m_HostLocal));
         }
 
-        dmStrlCpy(service.m_HostAddress, mdns->m_DefaultAddress, sizeof(service.m_HostAddress));
+        if (mdns->m_InterfaceAddresses.Size() > 0)
+            service.m_HostAddress = mdns->m_InterfaceAddresses[0];
+        else
+            service.m_HostAddress = mdns->m_DefaultAddress;
         service.m_Port = desc->m_Port;
         service.m_Ttl = desc->m_Ttl ? desc->m_Ttl : mdns->m_Params.m_Ttl;
+
+        if (!IsEncodableDnsName(service.m_ServiceTypeLocal)
+            || !IsEncodableDnsName(service.m_FullServiceName)
+            || !IsEncodableDnsName(service.m_HostLocal))
+        {
+            return RESULT_INVALID_ARGS;
+        }
 
         service.m_TxtCount = 0;
         if (desc->m_Txt)
@@ -1242,7 +1388,7 @@ namespace dmMDNS
         }
 
         mdns->m_Services.Push(service);
-        HandleAnnounceResponse(mdns, mdns->m_Services.Back(), mdns->m_Services.Back().m_Ttl);
+        AnnounceService(mdns, mdns->m_Services.Back(), mdns->m_Services.Back().m_Ttl);
         return RESULT_OK;
     }
 
@@ -1255,7 +1401,7 @@ namespace dmMDNS
         if (index < 0)
             return RESULT_NOT_REGISTERED;
 
-        HandleAnnounceResponse(mdns, mdns->m_Services[(uint32_t) index], 0);
+        AnnounceService(mdns, mdns->m_Services[(uint32_t) index], 0);
         mdns->m_Services.EraseSwap((uint32_t) index);
         return RESULT_OK;
     }
@@ -1265,14 +1411,21 @@ namespace dmMDNS
         if (mdns == 0)
             return;
 
+        const uint64_t now = GetNow();
+        if (now >= mdns->m_NextInterfaceRefresh)
+        {
+            RefreshInterfaceAddresses(mdns);
+            EnsureMemberships(mdns->m_Socket, mdns->m_InterfaceAddresses, &mdns->m_MembershipAddresses);
+            mdns->m_NextInterfaceRefresh = now + SecondsToMicroSeconds(MDNS_INTERFACE_REFRESH_INTERVAL);
+        }
+
         HandleIncomingQueries(mdns);
 
-        const uint64_t now = GetNow();
         if (now >= mdns->m_NextAnnounce)
         {
             for (uint32_t i = 0; i < mdns->m_Services.Size(); ++i)
             {
-                HandleAnnounceResponse(mdns, mdns->m_Services[i], mdns->m_Services[i].m_Ttl);
+                AnnounceService(mdns, mdns->m_Services[i], mdns->m_Services[i].m_Ttl);
             }
             mdns->m_NextAnnounce = now + SecondsToMicroSeconds(mdns->m_Params.m_AnnounceInterval);
         }
@@ -1285,7 +1438,7 @@ namespace dmMDNS
 
         for (uint32_t i = 0; i < mdns->m_Services.Size(); ++i)
         {
-            HandleAnnounceResponse(mdns, mdns->m_Services[i], 0);
+            AnnounceService(mdns, mdns->m_Services[i], 0);
         }
 
         if (mdns->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
@@ -1313,6 +1466,7 @@ namespace dmMDNS
         instance->m_Callback = params->m_Callback;
         instance->m_Context = params->m_Context;
 
+        RefreshBrowserInterfaceAddresses(instance);
         instance->m_Socket = CreateSocket();
         if (instance->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
         {
@@ -1320,7 +1474,9 @@ namespace dmMDNS
             return RESULT_NETWORK_ERROR;
         }
 
+        EnsureMemberships(instance->m_Socket, instance->m_InterfaceAddresses, &instance->m_MembershipAddresses);
         instance->m_NextQuery = 0;
+        instance->m_NextInterfaceRefresh = 0;
         *browser = instance;
         return RESULT_OK;
     }
@@ -1331,12 +1487,19 @@ namespace dmMDNS
             return;
 
         const uint64_t now = GetNow();
+        if (now >= browser->m_NextInterfaceRefresh)
+        {
+            RefreshBrowserInterfaceAddresses(browser);
+            EnsureMemberships(browser->m_Socket, browser->m_InterfaceAddresses, &browser->m_MembershipAddresses);
+            browser->m_NextInterfaceRefresh = now + SecondsToMicroSeconds(MDNS_INTERFACE_REFRESH_INTERVAL);
+        }
+
         if (now >= browser->m_NextQuery)
         {
             uint32_t query_size = BuildQueryMessage(browser->m_ServiceTypeLocal, browser->m_Buffer, sizeof(browser->m_Buffer));
             if (query_size > 0)
             {
-                SendPacket(browser->m_Socket, browser->m_Buffer, query_size);
+                SendPacketOnInterfaces(browser->m_Socket, browser->m_Buffer, query_size, browser->m_InterfaceAddresses);
             }
             browser->m_NextQuery = now + browser->m_QueryInterval;
         }
