@@ -257,19 +257,19 @@ namespace dmMDNS
 
         for (uint32_t i = 0; i < interface_count; ++i)
         {
-            const dmSocket::IfAddr& interface = interfaces[i];
-            if (interface.m_Address.m_family != dmSocket::DOMAIN_IPV4)
+            const dmSocket::IfAddr& if_addr = interfaces[i];
+            if (if_addr.m_Address.m_family != dmSocket::DOMAIN_IPV4)
                 continue;
-            if (dmSocket::Empty(interface.m_Address))
+            if (dmSocket::Empty(if_addr.m_Address))
                 continue;
-            if ((interface.m_Flags & dmSocket::FLAGS_UP) == 0)
+            if ((if_addr.m_Flags & dmSocket::FLAGS_UP) == 0)
                 continue;
-            if (ContainsAddress(*addresses, interface.m_Address))
+            if (ContainsAddress(*addresses, if_addr.m_Address))
                 continue;
 
             if (addresses->Full())
                 addresses->OffsetCapacity(4);
-            addresses->Push(interface.m_Address);
+            addresses->Push(if_addr.m_Address);
         }
     }
 
