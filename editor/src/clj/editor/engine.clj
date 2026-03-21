@@ -23,7 +23,8 @@
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.system :as system])
+            [editor.system :as system]
+            [service.log :as log])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
@@ -160,7 +161,12 @@
               nil)))
         (catch Exception e
           (.close socket)
-          (throw e))))))
+          (log/warn :msg "Failed to connect remote log service, continuing without log stream."
+                    :target-id (:id target)
+                    :address (:address target)
+                    :log-port (:log-port target)
+                    :error (or (ex-message e) (.getSimpleName (class e))))
+          nil)))))
 
 (def ^:private loopback-address "127.0.0.1")
 

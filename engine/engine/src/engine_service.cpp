@@ -21,7 +21,6 @@
 #include <dlib/math.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
-#include <dlib/mdns.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/template.h>
@@ -30,6 +29,7 @@
 #include <gameobject/gameobject.h>
 #include <gamesys/components/comp_gui.h> 
 #include "engine_service.h"
+#include "engine_service_discovery.h"
 #include "engine_version.h"
 
 extern unsigned char PROFILER_HTML[];
@@ -378,48 +378,17 @@ namespace dmEngineService
 
             dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 
-            dmMDNS::Params mdns_params;
-            mdns_params.m_AnnounceInterval = 30;
-            mdns_params.m_Ttl = 120;
-            dmMDNS::HMDNS mdns = 0;
-            dmMDNS::Result mr = dmMDNS::New(&mdns_params, &mdns);
-            if (mr == dmMDNS::RESULT_OK)
+            DiscoveryTxtEntry txt_entries[] =
             {
-                dmMDNS::TxtEntry txt_entries[] =
-                {
-                    {"id", m_ServiceId},
-                    {"name", m_Name},
-                    {"log_port", m_LogPortText},
-                    {"version", dmEngineVersion::VERSION},
-                    {"platform", dmEngineVersion::PLATFORM},
-                    {"sha1", dmEngineVersion::VERSION_SHA1},
-                    {"schema", MDNS_SCHEMA_VERSION},
-                };
-
-                dmMDNS::ServiceDesc mdns_desc;
-                memset(&mdns_desc, 0, sizeof(mdns_desc));
-                mdns_desc.m_Id = m_ServiceId;
-                mdns_desc.m_InstanceName = m_ServiceInstanceName;
-                mdns_desc.m_ServiceType = "_defold._tcp";
-                mdns_desc.m_Host = 0;
-                mdns_desc.m_Port = m_Port;
-                mdns_desc.m_Txt = txt_entries;
-                mdns_desc.m_TxtCount = sizeof(txt_entries) / sizeof(txt_entries[0]);
-                mdns_desc.m_Ttl = mdns_params.m_Ttl;
-
-                mr = dmMDNS::RegisterService(mdns, &mdns_desc);
-                if (mr != dmMDNS::RESULT_OK)
-                {
-                    dmMDNS::Delete(mdns);
-                    mdns = 0;
-                    dmLogWarning("Unable to register mDNS service (%d)", mr);
-                }
-            }
-            else
-            {
-                mdns = 0;
-                dmLogWarning("Unable to create mDNS service (%d)", mr);
-            }
+                {"id", m_ServiceId},
+                {"name", m_Name},
+                {"log_port", m_LogPortText},
+                {"version", dmEngineVersion::VERSION},
+                {"platform", dmEngineVersion::PLATFORM},
+                {"sha1", dmEngineVersion::VERSION_SHA1},
+                {"schema", MDNS_SCHEMA_VERSION},
+            };
+            HDiscoveryService discovery_service = DiscoveryServiceNew(m_ServiceId, m_ServiceInstanceName, m_Port, txt_entries, sizeof(txt_entries) / sizeof(txt_entries[0]));
 
             dmWebServer::HandlerParams post_params;
             post_params.m_Handler = PostHandler;
@@ -452,7 +421,7 @@ namespace dmEngineService
 
             m_WebServer = web_server;
             m_WebServerRedirect = web_server_redirect;
-            m_MDNS = mdns;
+            m_DiscoveryService = discovery_service;
             m_Profile = 0; // Set during the update
 
             dmLogInfo("Target listening with name: %s", m_Name);
@@ -469,11 +438,7 @@ namespace dmEngineService
                 dmWebServer::Delete(m_WebServerRedirect);
             }
 
-            if (m_MDNS)
-            {
-                dmMDNS::DeregisterService(m_MDNS, m_ServiceId);
-                dmMDNS::Delete(m_MDNS);
-            }
+            DiscoveryServiceDelete(m_DiscoveryService);
         }
 
         void FillState(EngineState* state)
@@ -491,7 +456,7 @@ namespace dmEngineService
         char                 m_LocalAddress[128];
 
         char                 m_ServiceId[128];
-        dmMDNS::HMDNS        m_MDNS;
+        HDiscoveryService    m_DiscoveryService;
 
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
         char                 m_StateJson[sizeof(STATE_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
@@ -537,10 +502,7 @@ namespace dmEngineService
 
         engine_service->m_Profile = 0; // Don't leave a dangling pointer
 
-        if (engine_service->m_MDNS)
-        {
-            dmMDNS::Update(engine_service->m_MDNS);
-        }
+        DiscoveryServiceUpdate(engine_service->m_DiscoveryService);
     }
 
     uint16_t GetPort(HEngineService engine_service)

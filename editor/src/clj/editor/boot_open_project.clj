@@ -222,9 +222,9 @@
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
-                       (http-server/start! server-handler :port server-port)
+                       (http-server/start! server-handler :host "0.0.0.0" :port server-port)
                        (catch Exception e
-                         (let [server (http-server/start! server-handler)]
+                         (let [server (http-server/start! server-handler :host "0.0.0.0")]
                            (notifications/show!
                              (workspace/notifications workspace)
                              {:type :warning

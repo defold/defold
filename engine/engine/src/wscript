@@ -12,9 +12,13 @@ def build(bld):
     platform_bin_install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM'])
     platform_lib_install_path = os.path.join(bld.env["PREFIX"], 'lib', bld.env['PLATFORM'])
 
+    engine_service_source = ['engine_service.cpp', 'engine_service_discovery.cpp']
+    if 'ios' in bld.env.PLATFORM:
+        engine_service_source.append('engine_service_discovery_ios.mm')
+
     bld.stlib(features = 'cxx embed',
               includes = '. ..',
-              source = 'engine_service.cpp',
+              source = engine_service_source,
               target = 'engine_service',
               install_path = platform_lib_install_path,
               embed_source = '../content/profiler.html')
