@@ -110,6 +110,11 @@
    (invoke-private! mdns "parsePacket" [(Class/forName "[B") Integer/TYPE String String] packet (alength packet) local-address remote-address)
    (invoke-private! mdns "rebuildDiscovered" [])))
 
+(defn- expire-and-rebuild!
+  [^MDNS mdns]
+  (invoke-private! mdns "expireEntries" [])
+  (invoke-private! mdns "rebuildDiscovered" []))
+
 (defn- service-records
   [service-type full-name host-name port ttl]
   [(make-record service-type dns-type-ptr ttl (make-ptr-rdata full-name))
@@ -181,6 +186,22 @@
     (parse-and-rebuild! mdns add-packet)
     (is (= 1 (alength (.getDevices mdns))))
     (parse-and-rebuild! mdns remove-packet)
+    (is (= 0 (alength (.getDevices mdns))))))
+
+(deftest mdns-expires-service-using-shortest-required-record-ttl
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetShortTtl." service-type)
+        host-name "target-short-ttl.local"
+        ptr-record (make-record service-type dns-type-ptr 120 (make-ptr-rdata full-name))
+        srv-record (make-record full-name dns-type-srv 1 (make-srv-rdata 9021 host-name))
+        txt-record (make-record full-name dns-type-txt 1 (make-txt-rdata ["id=test-id" "name=Test Device" "log_port=7001" "schema=1"]))
+        a-record (make-record host-name dns-type-a 120 (make-a-rdata 127 0 0 1))
+        packet (make-response-packet [srv-record txt-record a-record ptr-record])]
+    (parse-and-rebuild! mdns packet)
+    (is (= 1 (alength (.getDevices mdns))))
+    (Thread/sleep 1100)
+    (expire-and-rebuild! mdns)
     (is (= 0 (alength (.getDevices mdns))))))
 
 (deftest mdns-live-multicast-integration

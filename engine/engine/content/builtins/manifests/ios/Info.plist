@@ -115,7 +115,7 @@
                 {{#application-queries-schemes}}<string>{{.}}</string>{{/application-queries-schemes}}
         </array>
 
-        {{#shader.exclude_gles_sm100}}
+        {{^variant_release}}
         <key>NSBonjourServices</key>
         <array>
                 <string>_defold._tcp</string>
@@ -123,7 +123,7 @@
 
         <key>NSLocalNetworkUsageDescription</key>
         <string>Discover Defold targets on the local network.</string>
-        {{/shader.exclude_gles_sm100}}
+        {{/variant_release}}
 
         <key>UILaunchStoryboardName</key>
         <string>{{launch-screen}}</string>

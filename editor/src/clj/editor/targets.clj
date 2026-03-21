@@ -195,18 +195,51 @@
       log-port
       (assoc :log-port log-port))))
 
+(defn- manual-target-id? [target]
+  (str/starts-with? (str (:id target)) "manual-"))
+
+(defn- merge-target [existing incoming]
+  (let [existing-manual? (manual-target-id? existing)
+        incoming-manual? (manual-target-id? incoming)
+        manual-target (cond
+                        existing-manual? existing
+                        incoming-manual? incoming
+                        :else nil)
+        discovered-target (cond
+                            (not existing-manual?) existing
+                            (not incoming-manual?) incoming
+                            :else nil)]
+    (cond-> (merge existing incoming)
+      manual-target
+      (assoc :id (:id manual-target))
+
+      discovered-target
+      (assoc :name (:name discovered-target)))))
+
+(defn- dedupe-targets-by-url [targets]
+  (vals
+    (reduce (fn [targets-by-url target]
+              (update targets-by-url (:url target)
+                      (fn [existing]
+                        (if existing
+                          (merge-target existing target)
+                          target))))
+            (array-map)
+            targets)))
+
 (defn- local-target? [target]
   (or (= (:address target) (:local-address target))
       (launched-target? target)))
 
 (defn update-targets! [{:keys [targets-atom on-targets-changed-fn]} devices]
   (let [devices (if-let [manual-device @manual-device]
-                  (conj devices manual-device)
+                  (cons manual-device devices)
                   devices)
         old-targets @targets-atom
         targets (->> devices
                   (pmap device->target)
-                  (filter some?))
+                  (filter some?)
+                  (dedupe-targets-by-url))
         {external-targets false local-targets true} (group-by local-target? targets)
         targets (into [] (comp cat (distinct)) [(sort-by :url local-targets)
                                                 (sort-by :url external-targets)])]
@@ -313,9 +346,7 @@
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set! prefs [:run :selected-target-id] (:id target))
-  (let [log-stream (engine/get-log-service-stream target)]
-    (when log-stream
-      (console/set-log-service-stream log-stream)))
+  (console/set-log-service-stream (engine/get-log-service-stream target))
   target)
 
 (defn- url-message

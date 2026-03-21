@@ -50,7 +50,9 @@ public class MDNS {
         String address;
         String localAddress;
         int port;
-        long expires;
+        long ptrExpires;
+        long srvExpires;
+        long txtExpires;
         boolean hasPtr;
         boolean hasSrv;
         boolean hasTxt;
@@ -502,19 +504,21 @@ public class MDNS {
             if (response && remoteAddress != null) {
                 service.address = remoteAddress;
             }
-            service.expires = expires;
+            service.ptrExpires = expires;
             service.hasPtr = true;
             return;
         }
 
         if (type == DNS_TYPE_SRV) {
             String key = lower(name);
-            ServiceAccumulator service = getOrCreateService(key, name);
-
             if (ttl == 0) {
-                services.remove(key);
+                ServiceAccumulator service = services.get(key);
+                if (service != null) {
+                    clearSrv(service);
+                }
                 return;
             }
+            ServiceAccumulator service = getOrCreateService(key, name);
 
             int pos = rdataOffset;
             if (pos + 6 > size) {
@@ -536,19 +540,21 @@ public class MDNS {
             if (response && remoteAddress != null) {
                 service.address = remoteAddress;
             }
-            service.expires = expires;
+            service.srvExpires = expires;
             service.hasSrv = true;
             return;
         }
 
         if (type == DNS_TYPE_TXT) {
             String key = lower(name);
-            ServiceAccumulator service = getOrCreateService(key, name);
-
             if (ttl == 0) {
-                services.remove(key);
+                ServiceAccumulator service = services.get(key);
+                if (service != null) {
+                    clearTxt(service);
+                }
                 return;
             }
+            ServiceAccumulator service = getOrCreateService(key, name);
 
             Map<String, String> txt = parseTxt(data, rdLength, rdataOffset);
             service.txt = txt;
@@ -556,7 +562,7 @@ public class MDNS {
             if (response && remoteAddress != null) {
                 service.address = remoteAddress;
             }
-            service.expires = expires;
+            service.txtExpires = expires;
             service.hasTxt = true;
             return;
         }
@@ -584,6 +590,24 @@ public class MDNS {
 
     private static void voidUnused(Object ignored) {
         // Explicitly consume vars to silence static analyzers where applicable.
+    }
+
+    private static void clearSrv(ServiceAccumulator service) {
+        service.host = null;
+        service.port = 0;
+        service.srvExpires = 0;
+        service.hasSrv = false;
+    }
+
+    private static void clearTxt(ServiceAccumulator service) {
+        service.txt = new HashMap<String, String>();
+        service.txtExpires = 0;
+        service.hasTxt = false;
+    }
+
+    private static long serviceExpires(ServiceAccumulator service) {
+        long expires = Math.min(service.ptrExpires, Math.min(service.srvExpires, service.txtExpires));
+        return expires > 0 ? expires : 0;
     }
 
     private ServiceAccumulator getOrCreateService(String key, String fullServiceName) {
@@ -639,8 +663,18 @@ public class MDNS {
         long now = System.currentTimeMillis();
 
         for (Iterator<Map.Entry<String, ServiceAccumulator>> it = services.entrySet().iterator(); it.hasNext();) {
-            Map.Entry<String, ServiceAccumulator> entry = it.next();
-            if (now >= entry.getValue().expires) {
+            ServiceAccumulator service = it.next().getValue();
+            if (service.hasPtr && now >= service.ptrExpires) {
+                it.remove();
+                continue;
+            }
+            if (service.hasSrv && now >= service.srvExpires) {
+                clearSrv(service);
+            }
+            if (service.hasTxt && now >= service.txtExpires) {
+                clearTxt(service);
+            }
+            if (!service.hasPtr && !service.hasSrv && !service.hasTxt) {
                 it.remove();
             }
         }
@@ -666,16 +700,21 @@ public class MDNS {
             String logPort = service.txt.get("log_port");
             String localAddress = service.localAddress != null ? service.localAddress : defaultLocalAddress;
             String address = service.address;
+            long expires = serviceExpires(service);
+            if (expires == 0) {
+                continue;
+            }
             if (address == null) {
                 HostAddress hostAddress = hosts.get(lower(service.host));
                 if (hostAddress == null) {
                     continue;
                 }
                 address = hostAddress.address;
+                expires = Math.min(expires, hostAddress.expires);
             }
 
             MDNSServiceInfo info = new MDNSServiceInfo(
-                    service.expires,
+                    expires,
                     id,
                     name,
                     service.fullName,

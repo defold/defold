@@ -14,6 +14,9 @@
 
 (ns editor.targets-test
   (:require [clojure.test :refer :all]
+            [editor.console :as console]
+            [editor.engine :as engine]
+            [editor.prefs :as prefs]
             [editor.targets :as targets]
             [util.fn :as fn]))
 
@@ -82,3 +85,25 @@
     (targets/update-targets! context [(make-local-device-info) malformed-device])
     (is (= ["127.0.0.1"] (targets-hostnames @targets-atom)))
     (is (= 1 (call-count on-targets-changed-fn)))))
+
+(deftest update-targets-deduplicates-manual-and-discovered-targets
+  (let [{:keys [targets-atom] :as context} (make-context)
+        manual-device-atom (deref #'editor.targets/manual-device)
+        manual-device (#'editor.targets/manual-target-device "192.168.0.10" "8001" "127.0.0.1" {:log_port "12345"})]
+    (try
+      (reset! manual-device-atom manual-device)
+      (targets/update-targets! context [(make-local-device-info) (make-iphone-device-info)])
+      (is (= ["127.0.0.1" "192.168.0.10"] (targets-hostnames @targets-atom)))
+      (let [iphone-target (some #(when (= "192.168.0.10" (:address %)) %) @targets-atom)]
+        (is (= "manual-192.168.0.10:8001" (:id iphone-target)))
+        (is (= "iPhone" (:name iphone-target))))
+      (finally
+        (reset! manual-device-atom nil)))))
+
+(deftest select-target-clears-log-service-stream-when-unreachable
+  (let [selected-stream (atom ::unset)]
+    (with-redefs [engine/get-log-service-stream (constantly nil)
+                  console/set-log-service-stream (fn [stream] (reset! selected-stream stream))
+                  prefs/set! (fn [& _] nil)]
+      (targets/select-target! nil (make-iphone-device-info))
+      (is (nil? @selected-stream)))))

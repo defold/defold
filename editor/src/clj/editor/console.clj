@@ -138,7 +138,8 @@
 
 (defn set-log-service-stream [log-stream]
   (reset-console-stream! log-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream))))
+  (reset-remote-log-pump-thread! (when log-stream
+                                   (start-log-pump! log-stream (make-remote-log-sink log-stream)))))
 
 (defn pipe-log-stream-to-console! [input-stream]
   (reset-console-stream! input-stream)
