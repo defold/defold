@@ -20,6 +20,7 @@
 #include <testmain/testmain.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
+#include <dlib/dstrings.h>
 #include <script/script.h>
 #include <font/font.h>
 #include <font/fontcollection.h>
@@ -824,6 +825,80 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
 
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
+TEST_F(dmRenderTest, TestRenderObjectMaxTextureBindings)
+{
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {};
+    char tex_names[dmRender::RenderObject::MAX_TEXTURE_COUNT][16] = {}; // Ensure enough space for the longest texture name
+    char fs_buf[2048];
+    size_t off = 0;
+
+    // Generate a fs-shader with MAX_TEXTURE_COUNT samplers
+    for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        off += dmSnPrintf(fs_buf + off, sizeof(fs_buf) - off, "uniform lowp sampler2D tex%u;\n", i);
+        dmSnPrintf(tex_names[i], sizeof(tex_names[i]), "tex%u", i);
+
+        shader_desc_builder.AddTexture(tex_names[i], i, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+        textures[i] = MakeDummyTexture(m_GraphicsContext);
+    }
+
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fs_buf, (uint32_t) strlen(fs_buf));
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+
+    for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(tex_names[i]), i, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
+    }
+
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer    = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    TestEnableTextureByHashDispatchCtx user_ctx;
+    user_ctx.m_Context           = m_Context;
+    user_ctx.m_Material          = material;
+    user_ctx.m_VertexDeclaration = vx_decl;
+    user_ctx.m_VertexBuffer      = vx_buffer;
+    user_ctx.m_Textures          = textures;
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::RenderListEntry* out   = dmRender::RenderListAlloc(m_Context, 1);
+    dmRender::RenderListEntry& entry = out[0];
+    entry.m_WorldPosition            = Point3(0, 0, 0);
+    entry.m_MajorOrder               = 0;
+    entry.m_MinorOrder               = 0;
+    entry.m_TagListKey               = 0;
+    entry.m_Order                    = 1;
+    entry.m_BatchKey                 = 0;
+    entry.m_Dispatch                 = dmRender::RenderListMakeDispatch(m_Context, TestEnableTextureByHashDispatch, 0, &user_ctx);
+    entry.m_UserData                 = 0;
+
+    dmRender::RenderListSubmit(m_Context, out, out + 1);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+
+    // Note: After a render, the textures are unbound from the context.
+    //       Hence we need to check the last bound unit for each texture.
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        dmGraphics::Texture* tex = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_AssetHandleContainer, textures[i]);
+        ASSERT_EQ((int32_t) i, tex->m_LastBoundUnit[0]);
+        dmGraphics::DeleteTexture(m_GraphicsContext, textures[i]);
+    }
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
