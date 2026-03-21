@@ -1314,6 +1314,38 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
     }
 }
 
+TEST_F(ComponentTest, ModelTexturePropertyAllTextureSlots)
+{
+    const char* go_path = "/resource/res_getset_prop.goc";
+    const char* tex_path = "/tile/mario_tileset.texturec";
+    dmhash_t tex_hash = dmHashString64(tex_path);
+    dmhash_t comp_name = dmHashString64("model");
+
+    void* tex_res = 0x0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, tex_path, &tex_res));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    char prop_buf[32];
+    dmGameObject::PropertyOptions opt;
+    for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        dmSnPrintf(prop_buf, sizeof(prop_buf), "texture%u", i);
+        dmhash_t prop = dmHashString64(prop_buf);
+        dmGameObject::PropertyVar v(tex_hash);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, comp_name, prop, opt, v));
+
+        dmGameObject::PropertyDesc desc;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, comp_name, prop, opt, desc));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_HASH, desc.m_Variant.m_Type);
+        ASSERT_EQ(tex_hash, desc.m_Variant.m_Hash);
+    }
+
+    DeleteInstance(m_Collection, go);
+    dmResource::Release(m_Factory, tex_res);
+}
+
 // Test that go.delete() does not influence other sprite animations in progress
 TEST_F(SpriteTest, GoDeletion)
 {
