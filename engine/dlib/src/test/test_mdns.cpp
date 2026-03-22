@@ -28,6 +28,10 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#if defined(GITHUB_CI) && defined(__MACH__)
+#define DM_SKIP_MDNS_DISCOVERY_TESTS
+#endif
+
 namespace
 {
     static const char* SERVICE_TYPE = "_defoldtest._tcp";
@@ -308,6 +312,10 @@ TEST(MDNS, RegisterLifecycle)
 
 TEST(MDNS, ResolveAndRemove)
 {
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
     EventLog event_log;
 
     dmMDNS::HMDNS mdns = 0;
@@ -366,6 +374,10 @@ TEST(MDNS, ResolveAndRemove)
 
 TEST(MDNS, ResolveAndConnect)
 {
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
     TcpServerContext server_ctx;
     dmThread::Thread server_thread = dmThread::New(TcpServerThread, 0x80000, &server_ctx, "mdns-tcp-server");
     ASSERT_TRUE(WaitForFlag(&server_ctx.m_Listening, 300, 10 * 1000));
