@@ -1037,8 +1037,9 @@
 
 (defn- warp-mouse-around-edges
   [^ImageView image-view [^double cursor-x ^double cursor-y] [last-x last-y]]
+  ;; NOTE: Unfortunately, Wayland doesn't support XWarpPointer, so we can't support this feature on Wayland just yet
   ;; TODO: We shouldn't have to check for image-view here, we shold be doing it before
-  (if (and image-view cursor-x last-x)
+  (if (and (not i/is-wayland) image-view cursor-x last-x)
     (let [screen-w (.getFitWidth image-view)
           screen-h (.getFitHeight image-view)
           padding 1

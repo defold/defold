@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
+  (:require [editor.os :as os])
   (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
            [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
@@ -37,6 +38,10 @@
   (->InputState #{} #{} #{} [0.0 0.0] [0.0 0.0] [0.0 0.0]))
 
 (def ^:private mouse-capture-context (atom nil))
+
+(def is-wayland (and (os/is-linux?)
+                     (or (some? (System/getenv "WAYLAND_DISPLAY"))
+                         (= "wayland" (System/getenv "XDG_SESSION_TYPE")))))
 
 ;; NOTE: JavaFX provides Robot for this sort of thing, however, it requires Accessibility Permissions
 ;; on macos, so we need to make native calls
