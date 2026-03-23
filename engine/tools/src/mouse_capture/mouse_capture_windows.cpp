@@ -32,46 +32,43 @@ namespace dmMouseCapture
         int        m_SavedCursorY;
     };
 
-    static void ProcessRawInput(HContext context)
+    static void DrainRawInput(MouseDelta* out_delta)
     {
+        // NOTE from MSDN: WOW64: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputbuffer
+        // To ensure GetRawInputBuffer behaves properly on WOW64, you must align the RAWINPUT structure by 8 bytes.
+        // 1024 * 6 = 6144 bytes = 768 elements seems to be large enough to avoid multiple iterations
         static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
-        uint64_t                raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
-        MouseDelta              frame_mouse_delta = {};
+        uint64_t raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
 
         while (true)
         {
             PRAWINPUT rawinput_buffer_ptr = (PRAWINPUT)&raw_input_buffer;
-            UINT      out_buffer_size = sizeof(raw_input_buffer);
-            UINT      rawinput_count = 0;
-            rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
-            if (rawinput_count == 0)
-            {
+            UINT out_buffer_size = sizeof(raw_input_buffer);
+            UINT rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
+            if (rawinput_count == 0 || rawinput_count == ~UINT(0))
                 break;
-            }
-            if (rawinput_count == ~UINT(0))
-            {
-                break;
-            }
 
-            PRAWINPUT rawinput_ptr = rawinput_buffer_ptr;
-            for (size_t i = 0; i < rawinput_count; i++)
+            if (out_delta)
             {
-                switch (rawinput_ptr->header.dwType)
+                PRAWINPUT rawinput_ptr = rawinput_buffer_ptr;
+                for (size_t i = 0; i < rawinput_count; i++)
                 {
-                    case RIM_TYPEMOUSE:
+                    if (rawinput_ptr->header.dwType == RIM_TYPEMOUSE &&
+                        (rawinput_ptr->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
                     {
-                        if (rawinput_ptr->header.dwType == RIM_TYPEMOUSE && (rawinput_ptr->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
-                        {
-                            frame_mouse_delta.dx += rawinput_ptr->data.mouse.lLastX;
-                            frame_mouse_delta.dy += rawinput_ptr->data.mouse.lLastY;
-                        }
-                        break;
+                        out_delta->dx += rawinput_ptr->data.mouse.lLastX;
+                        out_delta->dy += rawinput_ptr->data.mouse.lLastY;
                     }
+                    rawinput_ptr = NEXTRAWINPUTBLOCK(rawinput_ptr);
                 }
-                rawinput_ptr = NEXTRAWINPUTBLOCK(rawinput_ptr);
             }
         }
+    }
 
+    static void ProcessRawInput(HContext context)
+    {
+        MouseDelta frame_mouse_delta = {};
+        DrainRawInput(&frame_mouse_delta);
         context->m_AccumulatedDelta.dx += frame_mouse_delta.dx;
         context->m_AccumulatedDelta.dy += frame_mouse_delta.dy;
     }
@@ -128,31 +125,7 @@ namespace dmMouseCapture
     // Just in case we accumulated some deltas between the stop and start capture, let's clear them
     static void DiscardRawInput()
     {
-        static constexpr size_t raw_input_buffer_size_in_u64s = (1024 * 6) / sizeof(uint64_t);
-        uint64_t                raw_input_buffer[raw_input_buffer_size_in_u64s] = {};
-        MouseDelta              frame_mouse_delta = {};
-
-        while (true)
-        {
-            PRAWINPUT rawinput_buffer_ptr = (PRAWINPUT)&raw_input_buffer;
-            UINT      out_buffer_size = sizeof(raw_input_buffer);
-            UINT      rawinput_count = 0;
-            rawinput_count = GetRawInputBuffer(rawinput_buffer_ptr, &out_buffer_size, sizeof(RAWINPUTHEADER));
-            if (rawinput_count == 0)
-            {
-                break;
-            }
-            if (rawinput_count == ~UINT(0))
-            {
-                break;
-            }
-
-            PRAWINPUT rawinput_ptr = rawinput_buffer_ptr;
-            for (size_t i = 0; i < rawinput_count; i++)
-            {
-                rawinput_ptr = NEXTRAWINPUTBLOCK(rawinput_ptr);
-            }
-        }
+        DrainRawInput(nullptr);
     }
 
     HContext StartCapture(int save_cursor_x, int save_cursor_y)
