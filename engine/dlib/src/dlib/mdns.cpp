@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "mdns.h"
@@ -126,7 +124,9 @@ namespace dmMDNS
         StoredTxt m_Txt[MDNS_MAX_TXT_ENTRIES];
         uint32_t m_TxtCount;
 
-        uint64_t m_Expires;
+        uint64_t m_PtrExpires;
+        uint64_t m_SrvExpires;
+        uint64_t m_TxtExpires;
 
         uint8_t m_HasPtr : 1;
         uint8_t m_HasSrv : 1;
@@ -1012,9 +1012,19 @@ namespace dmMDNS
         browser->m_Callback(browser->m_Context, &event);
     }
 
+    static void EmitBrowserRemoved(Browser* browser, BrowserService* service)
+    {
+        if (service->m_HasPtr || service->m_Resolved)
+        {
+            EmitBrowserEvent(browser, *service, EVENT_REMOVED);
+        }
+        service->m_Resolved = 0;
+    }
+
     static void RefreshServiceAddress(Browser* browser, BrowserService* service)
     {
         service->m_HasAddress = 0;
+        service->m_HostAddress[0] = 0;
 
         int32_t host_index = FindBrowserHost(browser->m_Hosts, service->m_Host);
         if (host_index >= 0)
@@ -1029,10 +1039,18 @@ namespace dmMDNS
         RefreshServiceAddress(browser, service);
 
         const bool complete = service->m_HasPtr && service->m_HasSrv && service->m_HasTxt && service->m_HasAddress;
-        if (complete && !service->m_Resolved)
+        if (complete)
         {
-            service->m_Resolved = 1;
-            EmitBrowserEvent(browser, *service, EVENT_RESOLVED);
+            if (!service->m_Resolved)
+            {
+                service->m_Resolved = 1;
+                EmitBrowserEvent(browser, *service, EVENT_RESOLVED);
+            }
+        }
+        else if (service->m_Resolved)
+        {
+            EmitBrowserEvent(browser, *service, EVENT_REMOVED);
+            service->m_Resolved = 0;
         }
     }
 
@@ -1092,13 +1110,13 @@ namespace dmMDNS
 
             if (ttl == 0)
             {
-                EmitBrowserEvent(browser, service, EVENT_REMOVED);
+                EmitBrowserRemoved(browser, &service);
                 browser->m_Services.EraseSwap((uint32_t) service_index);
                 return;
             }
 
             service.m_HasPtr = 1;
-            service.m_Expires = GetNow() + SecondsToMicroSeconds(ttl);
+            service.m_PtrExpires = GetNow() + SecondsToMicroSeconds(ttl);
             if (created)
             {
                 EmitBrowserEvent(browser, service, EVENT_ADDED);
@@ -1130,9 +1148,19 @@ namespace dmMDNS
             (void) priority;
             (void) weight;
 
+            if (ttl == 0)
+            {
+                service.m_HasSrv = 0;
+                service.m_SrvExpires = 0;
+                service.m_Host[0] = 0;
+                service.m_Port = 0;
+                TryResolveService(browser, &service);
+                return;
+            }
+
             service.m_Port = port;
             service.m_HasSrv = 1;
-            service.m_Expires = GetNow() + SecondsToMicroSeconds(ttl);
+            service.m_SrvExpires = GetNow() + SecondsToMicroSeconds(ttl);
             TryResolveService(browser, &service);
             return;
         }
@@ -1144,13 +1172,23 @@ namespace dmMDNS
                 return;
 
             BrowserService& service = browser->m_Services[(uint32_t) service_index];
+            if (ttl == 0)
+            {
+                service.m_HasTxt = 0;
+                service.m_TxtExpires = 0;
+                service.m_TxtCount = 0;
+                service.m_Id[0] = 0;
+                TryResolveService(browser, &service);
+                return;
+            }
+
             uint32_t txt_count = 0;
             if (!ParseTxtRData(data + rdata_offset, rdlength, service.m_Txt, MDNS_MAX_TXT_ENTRIES, &txt_count))
                 return;
 
             service.m_TxtCount = txt_count;
             service.m_HasTxt = 1;
-            service.m_Expires = GetNow() + SecondsToMicroSeconds(ttl);
+            service.m_TxtExpires = GetNow() + SecondsToMicroSeconds(ttl);
 
             service.m_Id[0] = 0;
             for (uint32_t i = 0; i < txt_count; ++i)
@@ -1176,6 +1214,10 @@ namespace dmMDNS
             {
                 if (host_index >= 0)
                     browser->m_Hosts.EraseSwap((uint32_t) host_index);
+                for (uint32_t i = 0; i < browser->m_Services.Size(); ++i)
+                {
+                    TryResolveService(browser, &browser->m_Services[i]);
+                }
                 return;
             }
 
@@ -1292,12 +1334,14 @@ namespace dmMDNS
     static void ExpireBrowserEntries(Browser* browser)
     {
         const uint64_t now = GetNow();
+        bool hosts_changed = false;
 
         for (uint32_t i = 0; i < browser->m_Hosts.Size();)
         {
             if (now >= browser->m_Hosts[i].m_Expires)
             {
                 browser->m_Hosts.EraseSwap(i);
+                hosts_changed = true;
             }
             else
             {
@@ -1308,13 +1352,33 @@ namespace dmMDNS
         for (uint32_t i = 0; i < browser->m_Services.Size();)
         {
             BrowserService& service = browser->m_Services[i];
-            if (now >= service.m_Expires)
+            if (service.m_HasPtr && now >= service.m_PtrExpires)
             {
-                EmitBrowserEvent(browser, service, EVENT_REMOVED);
+                EmitBrowserRemoved(browser, &service);
                 browser->m_Services.EraseSwap(i);
             }
             else
             {
+                if (service.m_HasSrv && now >= service.m_SrvExpires)
+                {
+                    service.m_HasSrv = 0;
+                    service.m_SrvExpires = 0;
+                    service.m_Host[0] = 0;
+                    service.m_Port = 0;
+                }
+
+                if (service.m_HasTxt && now >= service.m_TxtExpires)
+                {
+                    service.m_HasTxt = 0;
+                    service.m_TxtExpires = 0;
+                    service.m_TxtCount = 0;
+                    service.m_Id[0] = 0;
+                }
+
+                if (hosts_changed || (service.m_Resolved && (!service.m_HasSrv || !service.m_HasTxt)))
+                {
+                    TryResolveService(browser, &service);
+                }
                 ++i;
             }
         }

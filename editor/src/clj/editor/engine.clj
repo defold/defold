@@ -23,8 +23,7 @@
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.system :as system]
-            [service.log :as log])
+            [editor.system :as system])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
@@ -155,18 +154,13 @@
             (do
               ;; Setting to 0 means wait indefinitely for new data
               (.setSoTimeout socket 0)
-              is)
-            (do
-              (.close socket)
-              nil)))
+               is)
+             (do
+               (.close socket)
+               nil)))
         (catch Exception e
           (.close socket)
-          (log/warn :msg "Failed to connect remote log service, continuing without log stream."
-                    :target-id (:id target)
-                    :address (:address target)
-                    :log-port (:log-port target)
-                    :error (or (ex-message e) (.getSimpleName (class e))))
-          nil)))))
+          (throw e))))))
 
 (def ^:private loopback-address "127.0.0.1")
 

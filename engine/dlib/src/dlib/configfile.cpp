@@ -28,7 +28,6 @@
 #include "dstrings.h"
 #include "math.h"
 #include "sys.h"
-#include "time.h"
 #include "static_assert.h"
 
 struct ConfigFileEntry
@@ -505,20 +504,17 @@ namespace dmConfigFile
     {
         HttpContext()
         {
-            m_StatusCode = -1;
         }
         dmArray<char> m_Buffer;
-        int           m_StatusCode;
     };
 
     static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         (void) response;
+        (void) user_data;
+        (void) status_code;
         (void) key;
         (void) value;
-
-        HttpContext* context = (HttpContext*) user_data;
-        context->m_StatusCode = status_code;
     }
 
     static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
@@ -527,7 +523,6 @@ namespace dmConfigFile
     {
         (void) method; // unused
         HttpContext* context = (HttpContext*) user_data;
-        context->m_StatusCode = status_code;
         if (status_code != 200)
             return;
 
@@ -699,57 +694,28 @@ namespace dmConfigFile
 
     static Result LoadFromHttpInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)
     {
-        static const uint32_t max_attempts = 5;
-        static const uint32_t retry_sleep_useconds = 100 * 1000;
-
         HttpContext context;
-        dmHttpClient::Result http_result = dmHttpClient::RESULT_UNKNOWN;
 
-        for (uint32_t attempt = 0; attempt < max_attempts; ++attempt)
+        dmHttpClient::NewParams params;
+        params.m_Userdata = &context;
+        params.m_HttpContent = &HttpContent;
+        params.m_HttpHeader = &HttpHeader;
+        dmHttpClient::HClient client = dmHttpClient::New(&params, &uri_parts, 0);
+        if (client == 0x0)
         {
-            context.m_Buffer.SetSize(0);
-            context.m_StatusCode = -1;
-
-            dmHttpClient::NewParams params;
-            params.m_Userdata = &context;
-            params.m_HttpContent = &HttpContent;
-            params.m_HttpHeader = &HttpHeader;
-
-            dmHttpClient::HClient client = dmHttpClient::New(&params, &uri_parts, 0);
-            if (client == 0x0)
-            {
-                http_result = dmHttpClient::RESULT_SOCKET_ERROR;
-                break;
-            }
-            else
-            {
-                http_result = dmHttpClient::Get(client, uri_parts.m_Path);
-                dmHttpClient::Delete(client);
-            }
-
-            if (http_result == dmHttpClient::RESULT_OK)
-            {
-                Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
-                return r;
-            }
-
-            const bool retryable = http_result == dmHttpClient::RESULT_SOCKET_ERROR
-                                || http_result == dmHttpClient::RESULT_IO_ERROR
-                                || http_result == dmHttpClient::RESULT_UNEXPECTED_EOF;
-
-            if (!(retryable && attempt + 1 < max_attempts))
-            {
-                break;
-            }
-
-            dmTime::Sleep(retry_sleep_useconds);
+            return RESULT_FILE_NOT_FOUND;
         }
 
-        dmLogError("Unable to load config over HTTP: '%s' (%s, status=%d)",
-                   url,
-                   dmHttpClient::ResultToString(http_result),
-                   context.m_StatusCode);
-        return RESULT_FILE_NOT_FOUND;
+        dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
+        dmHttpClient::Delete(client);
+
+        if (http_result != dmHttpClient::RESULT_OK)
+        {
+            return RESULT_FILE_NOT_FOUND;
+        }
+
+        Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
+        return r;
     }
 
     Result LoadFromBuffer(const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
