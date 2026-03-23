@@ -192,3 +192,18 @@
                 "id_color" :id-color}}
     "shaders/selection-uniform-paged.vp"
     "shaders/selection-uniform-paged.fp"))
+
+(def particle-line-id-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj
+                "id_color" :id}}
+    "shaders/particle-line-id.vp"
+    "shaders/particle-line-id.fp"))
+
+(def manipulator-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/manipulator.vp"
+    "shaders/manipulator.fp"))

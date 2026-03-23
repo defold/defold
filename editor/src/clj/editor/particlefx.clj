@@ -46,6 +46,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -126,32 +127,9 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
+(def line-shader shaders/basic-color-world-space)
 
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
-
-(shader/defshader line-id-vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader line-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+(def line-id-shader shaders/particle-line-id-world-space)
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
@@ -262,7 +240,15 @@
         scale-f (camera/scale-factor camera viewport)
         shader (if (= pass/selection (:pass render-args))
                  line-id-shader
-                 line-shader)]
+                 line-shader)
+        ;; Vertices are transformed to world space on the CPU; use view*proj only.
+        render-args-world-verts
+        (assoc render-args
+               :view-proj (:view-proj (math/derive-render-transforms
+                                        geom/Identity4d
+                                        (:view render-args)
+                                        (:projection render-args)
+                                        (or (:texture render-args) geom/Identity4d))))]
     (doseq [renderable renderables
             :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
@@ -273,11 +259,11 @@
             color (colors/renderable-outline-color renderable)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
-            render-args (if (= pass/selection (:pass render-args))
-                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
-                          render-args)
+            line-render-args (cond-> render-args-world-verts
+                              (= pass/selection (:pass render-args))
+                              (assoc :id (scene-picking/renderable-picking-id-uniform renderable)))
             vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+        (gl/with-gl-bindings gl line-render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry

@@ -39,6 +39,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
@@ -338,29 +339,6 @@
   (vec3 position)
   (vec2 texcoord0))
 
-(shader/defshader tile-map-id-vertex-shader
-  (uniform mat4 view_proj)
-  (uniform mat4 world)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq mat4 mvp (* view_proj world))
-    (setq gl_Position (* mvp (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader tile-map-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D DIFFUSE_TEXTURE)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def tile-map-id-shader (shader/make-shader ::tile-map-id-shader tile-map-id-vertex-shader tile-map-id-fragment-shader {"view_proj" :view-proj "world" :world "id" :id}))
-
 (defn render-layer
   [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)]
@@ -391,6 +369,7 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
+              (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
               (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))))
 
@@ -398,11 +377,16 @@
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
             {:keys [node-id vbuf gpu-texture]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
-            (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
-              (gl/gl-push-matrix gl
-                (gl/gl-mult-matrix-4d gl world-transform)
-                (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
+          (let [sel-render-args (merge render-args
+                                       (math/derive-render-transforms world-transform
+                                                                      (:view render-args)
+                                                                      (:projection render-args)
+                                                                      (:texture render-args)))
+                vertex-binding (vtx/use-with node-id vbuf shaders/selection-uniform-local-space)]
+            (gl/with-gl-bindings gl (assoc sel-render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables)))
+              [shaders/selection-uniform-local-space vertex-binding gpu-texture]
+              (shader/set-samplers-by-index shaders/selection-uniform-local-space gl 0 (:texture-units gpu-texture))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
 
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
@@ -741,40 +725,13 @@
 ;;--------------------------------------------------------------------
 ;; tool
 
-(shader/defshader pos-uv-vert
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
-
-(def tex-shader (shader/make-shader ::tex-shader pos-uv-vert pos-uv-frag))
+(def tex-shader shaders/basic-texture-local-space)
 
 (vtx/defvertex color-vtx
   (vec3 position)
   (vec4 color))
 
-(shader/defshader pos-color-vert
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader pos-color-frag
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
+(def color-shader shaders/basic-color-local-space)
 
 (def ^:private white-color (double-array (map #(/ % 255.0) [255 255 255])))
 (def ^:private blue-color (double-array (map #(/ % 255.0) [0 191 255])))
@@ -798,17 +755,22 @@
             x1 (+ x0 (* width tile-width))
             y1 (+ y0 (* height tile-height))
             z 0.0
-            c color]
-        (.glMatrixMode gl GL2/GL_MODELVIEW)
-        (gl/gl-push-matrix gl
-          (gl/gl-mult-matrix-4d gl world-transform)
-          (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-          (.glBegin gl GL2/GL_LINE_LOOP)
-          (.glVertex3d gl x0 y0 z)
-          (.glVertex3d gl x1 y0 z)
-          (.glVertex3d gl x1 y1 z)
-          (.glVertex3d gl x0 y1 z)
-          (.glEnd gl))))))
+            [cr cg cb] color
+            ca 1.0
+            brush-ra (merge render-args
+                            (math/derive-render-transforms world-transform
+                                                           (:view render-args)
+                                                           (:projection render-args)
+                                                           (:texture render-args)))
+            vbuf (-> (->color-vtx 4)
+                     (color-vtx-put! x0 y0 z cr cg cb ca)
+                     (color-vtx-put! x1 y0 z cr cg cb ca)
+                     (color-vtx-put! x1 y1 z cr cg cb ca)
+                     (color-vtx-put! x0 y1 z cr cg cb ca)
+                     (vtx/flip!))
+            vb (vtx/use-with ::brush-outline vbuf color-shader)]
+        (gl/with-gl-bindings gl brush-ra [color-shader vb]
+          (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf)))))))
 
 (defn conj-brush-quad!
   [vbuf {:keys [tile h-flip v-flip rotate90]} uvs w h x y]
@@ -863,13 +825,15 @@
         local-transform (doto (Matrix4d. geom/Identity4d)
                           (.set (Vector3d. (* x w) (* y h) 0.001)))
         brush-transform (doto (Matrix4d. local-transform)
-                          (.mul layer-transform))]
-    (.glMatrixMode gl GL2/GL_MODELVIEW)
-    (gl/gl-push-matrix gl
-      (gl/gl-mult-matrix-4d gl brush-transform)
-      (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
-        (shader/set-uniform tex-shader gl "texture_sampler" 0)
-        (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+                          (.mul layer-transform))
+        brush-ra (merge render-args
+                        (math/derive-render-transforms brush-transform
+                                                       (:view render-args)
+                                                       (:projection render-args)
+                                                       (:texture render-args)))]
+    (gl/with-gl-bindings gl brush-ra [tex-shader vb gpu-texture]
+      (shader/set-samplers-by-index tex-shader gl 0 (:texture-units gpu-texture))
+      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 
 ;; palette
@@ -997,7 +961,7 @@
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
-      (shader/set-uniform tex-shader gl "texture_sampler" 0)
+      (shader/set-samplers-by-index tex-shader gl 0 (:texture-units gpu-texture))
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 
@@ -1082,15 +1046,17 @@
         (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 (defn render-palette-background
-  [^GL2 gl viewport]
-  (let [{:keys [top left right bottom]} viewport]
-    (.glColor4d gl 0.0 0.0 0.0 0.7)
-    (.glBegin gl GL2/GL_QUADS)
-    (.glVertex2d gl 0.0 0.0)
-    (.glVertex2d gl right 0.0)
-    (.glVertex2d gl right bottom)
-    (.glVertex2d gl 0.0 bottom)
-    (.glEnd gl)))
+  [^GL2 gl render-args viewport]
+  (let [{:keys [right bottom]} viewport
+        vbuf (-> (->color-vtx 4)
+                 (color-vtx-put! 0.0 0.0 0.0 0.0 0.0 0.0 0.7)
+                 (color-vtx-put! right 0.0 0.0 0.0 0.0 0.0 0.7)
+                 (color-vtx-put! right bottom 0.0 0.0 0.0 0.0 0.7)
+                 (color-vtx-put! 0.0 bottom 0.0 0.0 0.0 0.0 0.7)
+                 (vtx/flip!))
+        vb (vtx/use-with ::palette-bg vbuf shaders/basic-color-world-space)]
+    (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space vb]
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLE_FAN 0 (count vbuf)))))
 
 (defn render-palette
   [^GL2 gl render-args renderables count]
@@ -1099,13 +1065,15 @@
         [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
                                 [start-tile end-tile]
                                 [end-tile (or start-tile end-tile)])]
-    (render-palette-background gl viewport)
-    (.glMatrixMode gl GL2/GL_MODELVIEW)
-    (gl/gl-push-matrix gl
-      (gl/gl-mult-matrix-4d gl palette-transform)
-      (render-palette-tiles gl render-args tile-source-attributes texture-set-data gpu-texture)
-      (render-palette-grid gl render-args tile-source-attributes)
-      (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
+    (render-palette-background gl render-args viewport)
+    (let [palette-ra (merge render-args
+                            (math/derive-render-transforms palette-transform
+                                                           (:view render-args)
+                                                           (:projection render-args)
+                                                           (:texture render-args)))]
+      (render-palette-tiles gl palette-ra tile-source-attributes texture-set-data gpu-texture)
+      (render-palette-grid gl palette-ra tile-source-attributes)
+      (render-palette-active gl palette-ra tile-source-attributes start-tile end-tile))))
 
 (defn render-editor-select-outline
   [^GL2 gl render-args renderables count]
@@ -1122,17 +1090,22 @@
             x1 (* tile-width (inc (max-l sx ex)))
             y1 (* tile-height (inc (max-l sy ey)))
             z 0.0
-            c color]
-        (.glMatrixMode gl GL2/GL_MODELVIEW)
-        (gl/gl-push-matrix gl
-          (gl/gl-mult-matrix-4d gl world-transform)
-          (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-          (.glBegin gl GL2/GL_LINE_LOOP)
-          (.glVertex3d gl x0 y0 z)
-          (.glVertex3d gl x1 y0 z)
-          (.glVertex3d gl x1 y1 z)
-          (.glVertex3d gl x0 y1 z)
-          (.glEnd gl))))))
+            [cr cg cb] color
+            ca 1.0
+            sel-ra (merge render-args
+                          (math/derive-render-transforms world-transform
+                                                         (:view render-args)
+                                                         (:projection render-args)
+                                                         (:texture render-args)))
+            vbuf (-> (->color-vtx 4)
+                     (color-vtx-put! x0 y0 z cr cg cb ca)
+                     (color-vtx-put! x1 y0 z cr cg cb ca)
+                     (color-vtx-put! x1 y1 z cr cg cb ca)
+                     (color-vtx-put! x0 y1 z cr cg cb ca)
+                     (vtx/flip!))
+            vb (vtx/use-with ::editor-select-outline vbuf color-shader)]
+        (gl/with-gl-bindings gl sel-ra [color-shader vb]
+          (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
 
 (defn render-editor-select
   [^GL2 gl render-args renderables n]

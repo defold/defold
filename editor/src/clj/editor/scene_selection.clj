@@ -16,7 +16,10 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.geom :as geom]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
+            [editor.shaders :as shaders]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
@@ -56,36 +59,43 @@
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
-(defn render-selection-box [^GL2 gl _render-args renderables _count]
+(vtx/defvertex selection-color-vtx
+  (vec3 position)
+  (vec4 color))
+
+(defn render-selection-box [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]
     (when (and start current)
-     (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
-           max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
-           min-p (reduce min-fn [start current])
-           min-x (nth min-p 0)
-           min-y (nth min-p 1)
-           max-p (reduce max-fn [start current])
-           max-x (nth max-p 0)
-           max-y (nth max-p 1)
-           z 0.0
-           c (double-array (map #(/ % 255.0) [131 188 212]))]
-       (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-       (.glBegin gl GL2/GL_LINE_LOOP)
-       (.glVertex3d gl min-x min-y z)
-       (.glVertex3d gl min-x max-y z)
-       (.glVertex3d gl max-x max-y z)
-       (.glVertex3d gl max-x min-y z)
-       (.glEnd gl)
-
-       (.glBegin gl GL2/GL_QUADS)
-       (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
-       (.glVertex3d gl min-x, min-y, z);
-       (.glVertex3d gl min-x, max-y, z);
-       (.glVertex3d gl max-x, max-y, z);
-       (.glVertex3d gl max-x, min-y, z);
-       (.glEnd gl)))))
+      (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
+            max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
+            min-p (reduce min-fn [start current])
+            min-x (nth min-p 0)
+            min-y (nth min-p 1)
+            max-p (reduce max-fn [start current])
+            max-x (nth max-p 0)
+            max-y (nth max-p 1)
+            z 0.0
+            [cr cg cb] (map #(/ % 255.0) [131 188 212])
+            line-vbuf (-> (->selection-color-vtx 4)
+                           (selection-color-vtx-put! min-x min-y z cr cg cb 1.0)
+                           (selection-color-vtx-put! min-x max-y z cr cg cb 1.0)
+                           (selection-color-vtx-put! max-x max-y z cr cg cb 1.0)
+                           (selection-color-vtx-put! max-x min-y z cr cg cb 1.0)
+                           (vtx/flip!))
+            fill-vbuf (-> (->selection-color-vtx 4)
+                          (selection-color-vtx-put! min-x min-y z cr cg cb 0.2)
+                          (selection-color-vtx-put! min-x max-y z cr cg cb 0.2)
+                          (selection-color-vtx-put! max-x max-y z cr cg cb 0.2)
+                          (selection-color-vtx-put! max-x min-y z cr cg cb 0.2)
+                          (vtx/flip!))
+            line-vb (vtx/use-with ::selection-box-line line-vbuf shaders/basic-color-world-space)
+            fill-vb (vtx/use-with ::selection-box-fill fill-vbuf shaders/basic-color-world-space)]
+        (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space line-vb]
+          (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count line-vbuf)))
+        (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space fill-vb]
+          (gl/gl-draw-arrays gl GL2/GL_TRIANGLE_FAN 0 (count fill-vbuf)))))))
 
 (defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)

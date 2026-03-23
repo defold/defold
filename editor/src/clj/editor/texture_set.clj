@@ -43,6 +43,10 @@
    (vector-of :double -1.0 1.0)    ; flip h
    (vector-of :double -1.0 -1.0)]) ; flip vh
 
+(vtx/defvertex overlay-color-vtx
+  (vec3 position)
+  (vec4 color))
+
 (defn- ->uv-vertex
   [^long vert-index ^FloatBuffer tex-coords]
   (let [index (int (* vert-index 2))]
@@ -400,21 +404,25 @@
                     x1 (+ x0 (* (/ 1.0 sx) image-width))
                     y1 (- y0 (* (/ 1.0 sy) image-height))
                     [cr cg cb ca] colors/outline-color
-                    [xr xg xb xa] colors/scene-background]
-                (.glColor4d gl xr xg xb xa)
-                (.glBegin gl GL2/GL_QUADS)
-                (.glVertex3d gl x0 y0 0)
-                (.glVertex3d gl x0 y1 0)
-                (.glVertex3d gl x1 y1 0)
-                (.glVertex3d gl x1 y0 0)
-                (.glEnd gl)
-                (.glColor4d gl cr cg cb ca)
-                (.glBegin gl GL2/GL_LINE_LOOP)
-                (.glVertex3d gl x0 y0 0)
-                (.glVertex3d gl x0 y1 0)
-                (.glVertex3d gl x1 y1 0)
-                (.glVertex3d gl x1 y0 0)
-                (.glEnd gl)
+                    [xr xg xb xa] colors/scene-background
+                    bg-vbuf (-> (->overlay-color-vtx 4)
+                                (overlay-color-vtx-put! x0 y0 0 xr xg xb xa)
+                                (overlay-color-vtx-put! x0 y1 0 xr xg xb xa)
+                                (overlay-color-vtx-put! x1 y1 0 xr xg xb xa)
+                                (overlay-color-vtx-put! x1 y0 0 xr xg xb xa)
+                                (vtx/flip!))
+                    outline-vbuf (-> (->overlay-color-vtx 4)
+                                     (overlay-color-vtx-put! x0 y0 0 cr cg cb ca)
+                                     (overlay-color-vtx-put! x0 y1 0 cr cg cb ca)
+                                     (overlay-color-vtx-put! x1 y1 0 cr cg cb ca)
+                                     (overlay-color-vtx-put! x1 y0 0 cr cg cb ca)
+                                     (vtx/flip!))
+                    bg-vb (vtx/use-with ::anim-overlay-bg bg-vbuf shaders/basic-color-world-space)
+                    outline-vb (vtx/use-with ::anim-overlay-outline outline-vbuf shaders/basic-color-world-space)]
+                (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space bg-vb]
+                  (gl/gl-draw-arrays gl GL2/GL_TRIANGLE_FAN 0 (count bg-vbuf)))
+                (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space outline-vb]
+                  (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count outline-vbuf)))
                 (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

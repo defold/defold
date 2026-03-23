@@ -20,9 +20,10 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.math :as math]
+            [editor.shaders :as shaders]
             [editor.prefs :as prefs]
-            [editor.scene-cache :as scene-cache]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
@@ -38,7 +39,6 @@
            [javafx.scene.layout HBox Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]
-           [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -52,62 +52,57 @@
 (def y-axis-color colors/scene-grid-y-axis)
 (def z-axis-color colors/scene-grid-z-axis)
 
-(defn- make-grid-vertex-buffer [_1 _2]
-  (-> (ByteBuffer/allocateDirect (* 3 8))
-      (.order (ByteOrder/nativeOrder))
-      (.asDoubleBuffer)))
+(defn- rgba-floats [c]
+  [(float (nth c 0)) (float (nth c 1)) (float (nth c 2)) (float (nth c 3))])
 
-(defn- ignore-grid-vertex-buffer [_1 _2 _3] nil)
+(defn- append-line! [buf ^float x0 ^float y0 ^float z0 ^float x1 ^float y1 ^float z1 r g b a]
+  (vtx/buf-push-floats! buf [x0 y0 z0 r g b a x1 y1 z1 r g b a]))
 
-(scene-cache/register-object-cache! ::grid-vertex
-                                    make-grid-vertex-buffer
-                                    ignore-grid-vertex-buffer
-                                    ignore-grid-vertex-buffer)
+(defn- append-grid-axis!
+  [buf ^long fixed-axis ^long uidx start stop ^double step ^long vidx ^double vmin ^double vmax r g b a]
+  (doseq [u (range start stop step)]
+    (let [^floats p0 (float-array 3)
+          ^floats p1 (float-array 3)]
+      (aset p0 fixed-axis 0.0)
+      (aset p0 uidx (float u))
+      (aset p0 vidx (float vmin))
+      (aset p1 fixed-axis 0.0)
+      (aset p1 uidx (float u))
+      (aset p1 vidx (float vmax))
+      (append-line! buf (aget p0 0) (aget p0 1) (aget p0 2)
+                    (aget p1 0) (aget p1 1) (aget p1 2) r g b a))))
 
-(defn render-grid-axis
-  [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]
-  (doseq [u (range start stop size)]
-    (.put vx ^int uidx ^double u)
-    (.put vx ^int vidx ^double min)
-    (gl/gl-vertex-3dv gl vx)
-    (.put vx ^int vidx ^double max)
-    (gl/gl-vertex-3dv gl vx)))
-
-(defn render-grid
-  [gl fixed-axis u-size v-size aabb]
+(defn- append-grid-lines!
+  [buf ^long fixed-axis u-size v-size ^AABB aabb r g b a]
   (let [min-values (geom/as-array (types/min-p aabb))
         max-values (geom/as-array (types/max-p aabb))
-        u-axis ^double (mod (inc ^int fixed-axis) 3)
+        u-axis (long (mod (inc (int fixed-axis)) 3))
         u-min (nth min-values u-axis)
         u-max (nth max-values u-axis)
-        v-axis ^double (mod (inc ^int u-axis) 3)
+        v-axis (long (mod (inc u-axis) 3))
         v-min (nth min-values v-axis)
-        v-max (nth max-values v-axis)
-        vertex ^DoubleBuffer (scene-cache/request-object! ::grid-vertex :grid-vertex {} nil)]
-    (.put vertex ^int fixed-axis 0.0)
-    (render-grid-axis gl vertex u-axis u-min u-max u-size v-axis v-min v-max)
-    (render-grid-axis gl vertex v-axis v-min v-max v-size u-axis u-min u-max)))
+        v-max (nth max-values v-axis)]
+    (append-grid-axis! buf fixed-axis u-axis u-min u-max u-size v-axis v-min v-max r g b a)
+    (append-grid-axis! buf fixed-axis v-axis v-min v-max v-size u-axis u-min u-max r g b a)))
 
-(defn render-primary-axes
-  [^GL2 gl ^AABB aabb options]
+(defn- append-primary-axes!
+  [buf ^AABB aabb options]
   (let [{:keys [axes-colors active-plane]} options]
     (when-not (= active-plane :x)
-      (gl/gl-color gl (or (:x axes-colors) x-axis-color))
-      (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
-      (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0))
-
+      (let [[r g b a] (rgba-floats (or (:x axes-colors) x-axis-color))]
+        (append-line! buf (float (-> aabb types/min-p .x)) 0.0 0.0
+                      (float (-> aabb types/max-p .x)) 0.0 0.0 r g b a)))
     (when-not (= active-plane :y)
-      (gl/gl-color gl (or (:y axes-colors) y-axis-color))
-      (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
-      (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0))
-
+      (let [[r g b a] (rgba-floats (or (:y axes-colors) y-axis-color))]
+        (append-line! buf 0.0 (float (-> aabb types/min-p .y)) 0.0
+                      0.0 (float (-> aabb types/max-p .y)) 0.0 r g b a)))
     (when-not (= active-plane :z)
-      (gl/gl-color gl (or (:z axes-colors) z-axis-color))
-      (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
-      (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))))
+      (let [[r g b a] (rgba-floats (or (:z axes-colors) z-axis-color))]
+        (append-line! buf 0.0 0.0 (float (-> aabb types/min-p .z))
+                      0.0 0.0 (float (-> aabb types/max-p .z)) r g b a)))))
 
-(defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids options is-2d]
+(defn- append-grid-sizes!
+  [buf ^doubles dir grids options is-2d]
   (let [{:keys [^double opacity color auto-scale]} options]
     (doseq [grid-index (range (if auto-scale 2 1))
             :let [^double fixed-axis (:plane grids)
@@ -121,10 +116,9 @@
                   u-axis-key (nth axes u-axis)
                   v-axis-key (nth axes v-axis)
                   u-size (get size-map u-axis-key)
-                  v-size (get size-map v-axis-key)]]
-      (doto gl
-        (gl/gl-color (colors/alpha color alpha))
-        (render-grid fixed-axis u-size v-size (nth (:aabbs grids) grid-index))))))
+                  v-size (get size-map v-axis-key)
+                  [r g b a] (rgba-floats (colors/alpha color alpha))]]
+      (append-grid-lines! buf (long fixed-axis) u-size v-size (nth (:aabbs grids) grid-index) r g b a))))
 
 (defn- enable-fog
   [^GL2 gl camera]
@@ -138,19 +132,26 @@
       (.glFogf GL2/GL_FOG_END (* 2 fog-start)))))
 
 (defn render-scaled-grids
-  [^GL2 gl _pass renderables _count]
+  [^GL2 gl render-args renderables _count]
   (let [renderable (first renderables)
         {:keys [camera grids options]} (:user-render-data renderable)
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
         is-2d (c/mode-2d? camera)
         is-perspective (= :perspective (:type camera))
-        _ (.getRow view-matrix 2 dir)]
+        _ (.getRow view-matrix 2 dir)
+        vertex-description (shaders/vertex-description shaders/basic-color-world-space)
+        vbuf (vtx/make-vertex-buffer vertex-description :stream 65536)
+        buf (vtx/buf vbuf)]
     (when is-perspective
       (enable-fog gl camera))
-    (gl/gl-lines gl
-      (render-grid-sizes dir grids options is-2d)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))
+    (append-grid-sizes! buf dir grids options is-2d)
+    (append-primary-axes! buf (apply geom/aabb-union (:aabbs grids)) options)
+    (vtx/flip! vbuf)
+    (when (pos? (count vbuf))
+      (let [vb (vtx/use-with ::scaled-grid vbuf shaders/basic-color-world-space)]
+        (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space vb]
+          (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf)))))
     (when is-perspective
       (.glDisable gl GL2/GL_FOG))))
 

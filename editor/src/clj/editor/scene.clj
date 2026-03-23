@@ -59,7 +59,6 @@
             [util.coll :as coll :refer [pair]]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
-           [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
@@ -209,13 +208,8 @@
   (.glViewport gl (.left viewport) (.top viewport) (- (.right viewport) (.left viewport)) (- (.bottom viewport) (.top viewport))))
 
 (defn setup-pass
-  [^GL2 gl pass render-args]
-  (let [glu (GLU.)]
-    (.glMatrixMode gl GL2/GL_PROJECTION)
-    (gl/gl-load-matrix-4d gl (:projection render-args))
-    (.glMatrixMode gl GL2/GL_MODELVIEW)
-    (gl/gl-load-matrix-4d gl (:world-view render-args))
-    (pass/prepare-gl pass gl glu)))
+  [^GL2 gl pass _render-args]
+  (pass/prepare-gl pass gl))
 
 (defn- render-nodes
   [^GL2 gl render-args [first-renderable :as renderables] count]
@@ -331,7 +325,6 @@
   (let [^GL2 gl (.getGL context)
         batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl 0.0 0.0 0.0 1)
-    (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
     (doseq [pass (render-mode-passes render-mode)
             :let [pass-render-args (cond-> (pass->render-args pass)

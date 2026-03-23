@@ -23,6 +23,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.gl.pass :as pass]
             [editor.image-util :as image-util]
+            [editor.shaders :as shaders]
             [editor.types :as types])
   (:import  [com.jogamp.opengl GL GL2]
             [java.awt.image BufferedImage]
@@ -74,29 +75,11 @@
                                     xs))))
 
 (vtx/defvertex color-uv-vtx
-  (vec2 position)
+  (vec3 position)
   (vec2 texcoord0)
   (vec4 color))
 
-(shader/defshader tex-vertex-shader
-  (attribute vec2 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 0.0 1.0)))))
-
-(shader/defshader tex-fragment-shader
-  (varying vec4 var_color)
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (* (texture2D texture_sampler var_texcoord0.xy) var_color))))
-
-(def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader))
+(def tex-shader shaders/basic-texture-color-local-space)
 
 ;; Render functions
 
@@ -116,33 +99,33 @@
               u1 (* (+ cx cw) img-w-recip)]
           (if hori?
             (do
-              (color-uv-vtx-put! vb cursor bottom u0 0 r g b a)
-              (color-uv-vtx-put! vb cursor' bottom u1 0 r g b a)
-              (color-uv-vtx-put! vb cursor top u0 1 r g b a)
-              (color-uv-vtx-put! vb cursor' bottom u1 0 r g b a)
-              (color-uv-vtx-put! vb cursor' top u1 1 r g b a)
-              (color-uv-vtx-put! vb cursor top u0 1 r g b a))
+              (color-uv-vtx-put! vb cursor bottom 0 u0 0 r g b a)
+              (color-uv-vtx-put! vb cursor' bottom 0 u1 0 r g b a)
+              (color-uv-vtx-put! vb cursor top 0 u0 1 r g b a)
+              (color-uv-vtx-put! vb cursor' bottom 0 u1 0 r g b a)
+              (color-uv-vtx-put! vb cursor' top 0 u1 1 r g b a)
+              (color-uv-vtx-put! vb cursor top 0 u0 1 r g b a))
             (do
-              (color-uv-vtx-put! vb bottom cursor u0 0 r g b a)
-              (color-uv-vtx-put! vb bottom cursor' u1 0 r g b a)
-              (color-uv-vtx-put! vb top cursor u0 1 r g b a)
-              (color-uv-vtx-put! vb bottom cursor' u1 0 r g b a)
-              (color-uv-vtx-put! vb top cursor' u1 1 r g b a)
-              (color-uv-vtx-put! vb top cursor u0 1 r g b a)))
+              (color-uv-vtx-put! vb bottom cursor 0 u0 0 r g b a)
+              (color-uv-vtx-put! vb bottom cursor' 0 u1 0 r g b a)
+              (color-uv-vtx-put! vb top cursor 0 u0 1 r g b a)
+              (color-uv-vtx-put! vb bottom cursor' 0 u1 0 r g b a)
+              (color-uv-vtx-put! vb top cursor' 0 u1 1 r g b a)
+              (color-uv-vtx-put! vb top cursor 0 u0 1 r g b a)))
           (recur cursor' (rest text)))
         vb))))
 
 (defn- quad! [vb x0 y0 x1 y1 r g b a]
-  (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
-  (color-uv-vtx-put! vb x1 y0 1 1 r g b a)
-  (color-uv-vtx-put! vb x0 y1 1 1 r g b a)
-  (color-uv-vtx-put! vb x1 y0 1 1 r g b a)
-  (color-uv-vtx-put! vb x1 y1 1 1 r g b a)
-  (color-uv-vtx-put! vb x0 y1 1 1 r g b a))
+  (color-uv-vtx-put! vb x0 y0 0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y0 0 1 1 r g b a)
+  (color-uv-vtx-put! vb x0 y1 0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y0 0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y1 0 1 1 r g b a)
+  (color-uv-vtx-put! vb x0 y1 0 1 1 r g b a))
 
 (defn- line! [vb x0 y0 x1 y1 r g b a]
-  (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
-  (color-uv-vtx-put! vb x1 y1 1 1 r g b a))
+  (color-uv-vtx-put! vb x0 y0 0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y1 0 1 1 r g b a))
 
 (defn render-rulers [^GL2 gl render-args renderables rcount]
   (doseq [renderable renderables
@@ -150,7 +133,7 @@
                 {:keys [vb tri-count line-count]} user-data]]
     (let [vertex-binding (vtx/use-with ::vertex-buffer vb tex-shader)]
       (gl/with-gl-bindings gl render-args [tex-shader vertex-binding @numbers-texture]
-        (shader/set-uniform tex-shader gl "texture_sampler" 0)
+        (shader/set-samplers-by-index tex-shader gl 0 (:texture-units @numbers-texture))
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 tri-count)
         (gl/gl-draw-arrays gl GL/GL_LINES tri-count line-count)))))
 

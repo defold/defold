@@ -25,7 +25,8 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.scene-picking :as scene-picking])
+            [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
@@ -64,18 +65,7 @@
 (vtx/defvertex pos-vtx
   (vec3 position))
 
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+(def shader shaders/manipulator-local-space)
 
 ; Rendering
 
@@ -146,17 +136,15 @@
                 (:color user-data))
         vertex-buffers (:vertex-buffers user-data)]
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
-      (gl/gl-push-matrix gl
-        (gl/gl-mult-matrix-4d gl world-transform)
-        (doseq [[mode vertex-buffer vertex-count] vertex-buffers
-                :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
-                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
-                              (float-array (assoc color 3 1.0))
-                              (float-array color))]
-                :when (> vertex-count 0)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding]
-            (shader/set-uniform shader gl "color" color)
-            (gl/gl-draw-arrays gl mode 0 vertex-count)))))))
+      (doseq [[mode vertex-buffer vertex-count] vertex-buffers
+              :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
+                    color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
+                            (float-array (assoc color 3 1.0))
+                            (float-array color))]
+              :when (> vertex-count 0)]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (shader/set-uniform shader gl "color" color)
+          (gl/gl-draw-arrays gl mode 0 vertex-count))))))
 
 ; Vertex generation and transformations
 

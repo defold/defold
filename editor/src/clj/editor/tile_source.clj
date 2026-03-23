@@ -27,6 +27,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
@@ -83,6 +84,10 @@
   (vec4 color))
 
 (def ^:private color-shader shaders/basic-color-local-space)
+
+(vtx2/defvertex ts-outline-color-vtx
+  (vec3 position)
+  (vec4 color))
 
 (def ^:private tile-border-size 3.0)
 
@@ -249,14 +254,16 @@
             (let [user-data (:user-data renderable)
                   {:keys [start-tile tile-source-attributes]} user-data
                   [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
-                  [cr cg cb ca] colors/selected-outline-color]
-              (.glColor4d gl cr cg cb ca)
-              (.glBegin gl GL2/GL_LINE_LOOP)
-              (.glVertex3d gl x0 y0 0)
-              (.glVertex3d gl x0 y1 0)
-              (.glVertex3d gl x1 y1 0)
-              (.glVertex3d gl x1 y0 0)
-              (.glEnd gl)))))
+                  [cr cg cb ca] colors/selected-outline-color
+                  vbuf (-> (->ts-outline-color-vtx 4)
+                           (ts-outline-color-vtx-put! x0 y0 0 cr cg cb ca)
+                           (ts-outline-color-vtx-put! x0 y1 0 cr cg cb ca)
+                           (ts-outline-color-vtx-put! x1 y1 0 cr cg cb ca)
+                           (ts-outline-color-vtx-put! x1 y0 0 cr cg cb ca)
+                           (vtx2/flip!))
+                  vb (vtx2/use-with ::tile-source-anim-outline vbuf shaders/basic-color-world-space)]
+              (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space vb]
+                (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
 
       pass/overlay
       (texture-set/render-animation-overlay gl render-args renderables))))

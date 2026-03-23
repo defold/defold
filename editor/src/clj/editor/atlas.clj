@@ -86,20 +86,26 @@
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
 
+(vtx/defvertex atlas-sel-color-vtx
+  (vec3 position)
+  (vec4 color))
+
 (defn- render-rect
-  [^GL2 gl rect color offset-x]
+  [^GL2 gl render-args rect color offset-x]
   (let [x0 (+ offset-x (:x rect))
         y0 (:y rect)
         x1 (+ x0 (:width rect))
         y1 (+ y0 (:height rect))
-        [cr cg cb ca] color]
-    (.glColor4d gl cr cg cb ca)
-    (.glBegin gl GL2/GL_QUADS)
-    (.glVertex3d gl x0 y0 0)
-    (.glVertex3d gl x0 y1 0)
-    (.glVertex3d gl x1 y1 0)
-    (.glVertex3d gl x1 y0 0)
-    (.glEnd gl)))
+        [cr cg cb ca] color
+        vbuf (-> (->atlas-sel-color-vtx 4)
+                 (atlas-sel-color-vtx-put! x0 y0 0 cr cg cb ca)
+                 (atlas-sel-color-vtx-put! x0 y1 0 cr cg cb ca)
+                 (atlas-sel-color-vtx-put! x1 y1 0 cr cg cb ca)
+                 (atlas-sel-color-vtx-put! x1 y0 0 cr cg cb ca)
+                 (vtx/flip!))
+        vb (vtx/use-with ::atlas-selection-rect vbuf shaders/basic-color-local-space)]
+    (gl/with-gl-bindings gl render-args [shaders/basic-color-local-space vb]
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLE_FAN 0 (count vbuf)))))
 
 (defn- renderables->outline-vertex-component-count
   [renderables]
@@ -159,8 +165,9 @@
         id-color (scene-picking/picking-id->color picking-id)
         user-data (-> renderable :user-data)
         rect (:rect user-data)
-        page-offset-x (get-rect-page-offset (:layout-width user-data) (:page rect))]
-    (render-rect gl (:rect user-data) id-color page-offset-x)))
+        page-offset-x (get-rect-page-offset (:layout-width user-data) (:page rect))
+        [^double r ^double g ^double b ^double a] [(.x id-color) (.y id-color) (.z id-color) (.w id-color)]]
+    (render-rect gl render-args rect [r g b a] page-offset-x)))
 
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))

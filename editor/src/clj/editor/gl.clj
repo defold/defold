@@ -24,8 +24,7 @@
            [com.jogamp.opengl.util.awt TextRenderer]
            [java.awt Font]
            [java.nio IntBuffer]
-           [java.util.concurrent.atomic AtomicLong]
-           [javax.vecmath Matrix4d]))
+           [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -197,11 +196,7 @@
 
 (defn text-renderer [font-name font-style font-size]
   (doto (TextRenderer. (Font. font-name font-style font-size) false false)
-    ;; NOTE: the TextRenderer implementation has two modes, one using
-    ;; vertex arrays and VBOs, and one using immediate mode. This
-    ;; forces the use of the immediate mode implementation as we've
-    ;; seen issues on some platforms with the other one.
-    (.setUseVertexArrays false)))
+    (.setUseVertexArrays true)))
 
 (defn gl-clear [^GL2 gl r g b a]
   (.glClearColor gl r g b a)
@@ -216,22 +211,6 @@
   (.glDepthMask gl false)
   (.glDisable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0x0))
-
-(defmacro gl-begin [gl type & body]
-  `(do
-     (.glBegin ~gl ~type)
-     (doto ~gl
-       ~@body)
-     (.glEnd ~gl)))
-
-(defmacro gl-quads [gl & body]
-  `(gl-begin ~gl GL2/GL_QUADS ~@body))
-
-(defmacro gl-lines [gl & body]
-  `(gl-begin ~gl GL/GL_LINES ~@body))
-
-(defmacro gl-triangles [gl & body]
-  `(gl-begin ~gl GL2/GL_TRIANGLES ~@body))
 
 (defmacro on-canvas [canvas & body]
   `(do
@@ -521,46 +500,9 @@
        (with-gl-bindings ~glsymb ~render-args ~(into [] bound-syms)
          ~@body))))
 
-(defmacro gl-push-matrix [gl & body]
-  `(let [^GL2 gl# ~gl]
-     (try
-       (.glPushMatrix gl#)
-       ~@body
-       (finally
-         (.glPopMatrix gl#)))))
-
-(defn matrix->floats [^Matrix4d mat]
-  (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)]))
-
-(defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (.glLoadMatrixf gl (matrix->floats mat) 0))
-
-(defn gl-mult-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (.glMultMatrixf gl (matrix->floats mat) 0))
-
 (defmacro color
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
   ([r g b a]      `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
-
-(defmacro gl-color       [gl c]     `(.glColor4d ~gl (nth ~c 0) (nth ~c 1) (nth ~c 2) (nth ~c 3)))
-(defmacro gl-color-3f    [gl r g b]     `(.glColor3f ~gl ~r ~g ~b))
-(defmacro gl-color-4d    [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
-(defmacro gl-color-3dv+a [gl dv alpha]  `(gl-color-4d ~gl (first ~dv) (second ~dv) (nth ~dv 2) ~alpha))
-(defmacro gl-color-3dv   [gl cv off]    `(.glColor3dv ~gl ~cv ~off))
-(defmacro gl-color-3fv   [gl cv off]    `(.glColor3fv ~gl ~cv ~off))
-
-(defmacro gl-vertex-2f   [gl x y]       `(.glVertex2f ~gl ~x ~y))
-(defmacro gl-vertex-3d   [gl x y z]     `(.glVertex3d ~gl ~x ~y ~z))
-(defmacro gl-vertex-3dv
-  ([gl vtx]
-   `(.glVertex3dv ~gl ~vtx))
-  ([gl vtx off]
-   `(.glVertex3dv ~gl ~vtx ~off)))
-
-(defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
 (defmacro gl-draw-arrays [gl prim-type start count]
   `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
@@ -569,9 +511,6 @@
   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
-
-(defmacro glu-ortho [glu region]
-  `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
 
 (def red                    GL2/GL_RED)
 (def green                  GL2/GL_GREEN)
@@ -622,15 +561,12 @@
    (overlay gl text-renderer chars xloc yloc 1 1 1 1))
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a]
    (overlay gl text-renderer chars xloc yloc r g b a 0.0))
-  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float rot-z]
-   (gl-push-matrix gl
-                   (.glScaled gl 1 -1 1)
-                   (.glTranslated gl xloc yloc 0)
-                   (.glRotated gl rot-z 0 0 1)
-                   (.setColor text-renderer r g b a)
-                   (.begin3DRendering text-renderer)
-                   (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
-                   (.end3DRendering text-renderer))))
+  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float _rot-z]
+   ;; Screen Y is flipped vs TextRenderer 3D coords; fixed-function matrix stack removed.
+   (.setColor text-renderer r g b a)
+   (.begin3DRendering text-renderer)
+   (.draw3D text-renderer chars (double xloc) (double (- yloc)) 0.0 1.0)
+   (.end3DRendering text-renderer)))
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination

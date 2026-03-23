@@ -16,8 +16,7 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s]
             [editor.types :as types])
-  (:import [com.jogamp.opengl GL GL2]
-           [com.jogamp.opengl.glu GLU]))
+  (:import [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
 
@@ -62,10 +61,10 @@
                        (s/optional-key selection)             s/Any
                        (s/optional-key manipulator-selection) s/Any})
 
-(defmulti prepare-gl (fn [pass gl glu] pass))
+(defmulti prepare-gl (fn [pass gl] pass))
 
 (defmethod prepare-gl background
-  [_ ^GL2 gl ^GLU glu]
+  [_ ^GL2 gl]
   (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
   (.glDisable gl GL/GL_BLEND)
   (.glDisable gl GL/GL_DEPTH_TEST)
@@ -77,7 +76,7 @@
   (.glDisable gl GL2/GL_LINE_STIPPLE))
 
 (defmethod prepare-gl infinity-grid
-  [_ ^GL2 gl ^GLU glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -91,7 +90,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl opaque
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
@@ -104,7 +103,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl outline
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
     (.glDisable GL/GL_BLEND)
@@ -117,7 +116,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl transparent
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -131,7 +130,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl opaque-selection
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
@@ -144,7 +143,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl selection
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -158,7 +157,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl manipulator
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -172,7 +171,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl manipulator-selection
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -186,7 +185,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl overlay
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)

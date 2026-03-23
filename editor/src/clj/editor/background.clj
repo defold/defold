@@ -14,27 +14,37 @@
 
 (ns editor.background
   (:require [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.colors :as colors]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
+            [editor.shaders :as shaders])
   (:import [com.jogamp.opengl GL2]
            [editor.types Region]))
 
 (set! *warn-on-reflection* true)
+
+(vtx/defvertex bg-color-vtx
+  (vec3 position)
+  (vec4 color))
 
 (defn render-background [^GL2 gl render-args renderables count]
   (let [viewport ^Region (:viewport render-args)
         x0 (.left viewport)
         x1 (.right viewport)
         y0 (.top viewport)
-        y1 (.bottom viewport)]
-    (gl/gl-quads gl
-      (gl/gl-color colors/scene-background)
-      (gl/gl-vertex-2f x0 y1)
-      (gl/gl-vertex-2f x1 y1)
-      (gl/gl-vertex-2f x1 y0)
-      (gl/gl-vertex-2f x0 y0))))
+        y1 (.bottom viewport)
+        [cr cg cb ca] colors/scene-background
+        vbuf (-> (->bg-color-vtx 4)
+                 (bg-color-vtx-put! x0 y1 0 cr cg cb ca)
+                 (bg-color-vtx-put! x1 y1 0 cr cg cb ca)
+                 (bg-color-vtx-put! x1 y0 0 cr cg cb ca)
+                 (bg-color-vtx-put! x0 y0 0 cr cg cb ca)
+                 (vtx/flip!))
+        vb (vtx/use-with ::background vbuf shaders/basic-color-world-space)]
+    (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space vb]
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLE_FAN 0 (count vbuf)))))
 
 (g/defnode Background
   (output renderable pass/RenderData (g/fnk [] {pass/background [{:world-transform geom/Identity4d :render-fn render-background}]})))
