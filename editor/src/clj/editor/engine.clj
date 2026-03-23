@@ -154,10 +154,10 @@
             (do
               ;; Setting to 0 means wait indefinitely for new data
               (.setSoTimeout socket 0)
-               is)
-             (do
-               (.close socket)
-               nil)))
+              is)
+            (do
+              (.close socket)
+              nil)))
         (catch Exception e
           (.close socket)
           (throw e))))))
