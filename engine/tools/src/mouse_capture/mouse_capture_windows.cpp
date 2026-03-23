@@ -83,15 +83,15 @@ namespace dmMouseCapture
     {
         if (msg == WM_INPUT)
         {
-            Context*  context = (Context*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-            UINT      size = sizeof(RAWINPUTHEADER) * 2;
-            RAWINPUT* raw = (RAWINPUT*)_alloca(size);
-            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
+            Context* context = (Context*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+            RAWINPUT raw = {};
+            UINT     size = sizeof(raw);
+            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
 
-            if (raw->header.dwType == RIM_TYPEMOUSE)
+            if (raw.header.dwType == RIM_TYPEMOUSE)
             {
-                context->m_AccumulatedDelta.dx += raw->data.mouse.lLastX;
-                context->m_AccumulatedDelta.dy += raw->data.mouse.lLastY;
+                context->m_AccumulatedDelta.dx += raw.data.mouse.lLastX;
+                context->m_AccumulatedDelta.dy += raw.data.mouse.lLastY;
             }
             ProcessRawInput(context);
             return 0;
