@@ -2199,7 +2199,7 @@ namespace dmGameSystem
         const ModelComponent* component = render_item->m_Component;
 
         dmRender::HMaterial render_context_material = dmRender::GetContextMaterial(render_context);
-        dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, 0);
+        dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, render_item->m_MaterialIndex);
 
         switch(GetRenderMaterialVertexSpace(material))
         {
