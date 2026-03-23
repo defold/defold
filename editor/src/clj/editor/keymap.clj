@@ -829,7 +829,9 @@
 (defn shortcut-key-codes
   "Returns a set of KeyCodes for a command's shortcuts, ignoring modifiers"
   [keymap shortcuts]
-  (into #{} (map #(.getCode ^KeyCodeCombination %)) shortcuts))
+  (coll/into-> shortcuts #{}
+    (filter #(instance? KeyCodeCombination %))
+    (map #(.getCode ^KeyCodeCombination %))))
 
 ;; TODO: remove migration from legacy keymap file after sufficient time has passed (e.g. after 2026-04-08)
 
