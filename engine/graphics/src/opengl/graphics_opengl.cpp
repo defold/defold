@@ -691,6 +691,21 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static inline GLenum GetOpenGLBlendEquation(BlendEquation equation)
+    {
+        switch (equation)
+        {
+            case BLEND_EQUATION_ADD:              return GL_FUNC_ADD;
+            case BLEND_EQUATION_SUBTRACT:         return GL_FUNC_SUBTRACT;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return GL_FUNC_REVERSE_SUBTRACT;
+            case BLEND_EQUATION_MIN:              return GL_MIN;
+            case BLEND_EQUATION_MAX:              return GL_MAX;
+            default:
+                assert(0 && "Unsupported blend equation");
+                return GL_FUNC_ADD;
+        }
+    }
+
     static void ApplyPipelineState(OpenGLContext* context)
     {
         PipelineState& ps_applied = context->m_PipelineState;
@@ -780,10 +795,21 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // Blend factors
-        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor) ||
+            HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
-            glBlendFunc(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
-                        GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor));
+            glBlendFuncSeparate(GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactor),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactor),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendSrcFactorAlpha),
+                                GetOpenGLBlendFactor((BlendFactor) ps_dirty.m_BlendDstFactorAlpha));
+            CHECK_GL_ERROR;
+        }
+
+        // Blend equations
+        if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
+        {
+            glBlendEquationSeparate(GetOpenGLBlendEquation((BlendEquation) ps_dirty.m_BlendEquationColor),
+                                    GetOpenGLBlendEquation((BlendEquation) ps_dirty.m_BlendEquationAlpha));
             CHECK_GL_ERROR;
         }
 
@@ -5259,8 +5285,25 @@ static void LogFrameBufferError(GLenum status)
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        context->m_PipelineStateDirty.m_BlendSrcFactor = source_factor;
-        context->m_PipelineStateDirty.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineStateDirty.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineStateDirty.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineStateDirty.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void OpenGLSetBlendState(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        context->m_PipelineStateDirty.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineStateDirty.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineStateDirty.m_BlendDstFactorAlpha = dst_factor_alpha;
+        context->m_PipelineStateDirty.m_BlendEquationColor  = equation_color;
+        context->m_PipelineStateDirty.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void OpenGLSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
