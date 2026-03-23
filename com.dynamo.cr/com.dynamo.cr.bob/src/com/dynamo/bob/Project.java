@@ -14,46 +14,25 @@
 
 package com.dynamo.bob;
 
-import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
-
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.net.ConnectException;
-import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URI;
-import java.nio.file.attribute.FileTime;
-import java.text.ParseException;
-import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
-import java.util.jar.Attributes;
-import java.util.jar.JarFile;
-import java.util.jar.Manifest;
-import java.util.logging.Level;
-import java.util.stream.Collectors;
-import java.util.zip.ZipException;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
-
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderResource;
 import com.defold.extension.pipeline.ILuaTranspiler;
+import com.defold.extension.pipeline.texture.ITextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.archive.publisher.AWSPublisher;
 import com.dynamo.bob.archive.publisher.FolderPublisher;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.bundle.BundlerParams;
+import com.dynamo.bob.bundle.IBundler;
+import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -63,46 +42,75 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.plugin.PluginScanner;
-import com.dynamo.bob.util.BuildInputDataCollector;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.codec.binary.Base64;
-
-import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.ExtenderClientException;
-import com.defold.extender.client.ExtenderResource;
-
-import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.archive.publisher.AWSPublisher;
-import com.dynamo.bob.archive.publisher.NullPublisher;
-import com.dynamo.bob.archive.publisher.Publisher;
-import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.archive.publisher.ZipPublisher;
-
-import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.IBundler;
-import com.dynamo.bob.bundle.BundlerParams;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
-import com.defold.extension.pipeline.texture.TextureCompression;
-import com.defold.extension.pipeline.texture.ITextureCompressor;
 import com.dynamo.bob.plugin.IPlugin;
-import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.LibraryUtil;
-import com.dynamo.bob.util.ReportGenerator;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.MinifyPathCollector;
+import com.dynamo.bob.util.ReportGenerator;
+import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
-
-import com.dynamo.bob.cache.ResourceCache;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
+import java.util.logging.Level;
+import java.util.stream.Collectors;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
+
+import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -127,6 +135,7 @@ public class Project {
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
+    private final ProjectResourceWalker resourceWalker;
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
@@ -140,7 +149,6 @@ public class Project {
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
-    private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private BobProjectProperties projectProperties;
     private Publisher publisher;
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
@@ -165,9 +173,9 @@ public class Project {
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
+        this.resourceWalker = new ProjectResourceWalker(this, fileSystem);
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
-        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -175,9 +183,9 @@ public class Project {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
+        this.resourceWalker = new ProjectResourceWalker(this, fileSystem);
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
-        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -187,15 +195,15 @@ public class Project {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
+        this.resourceWalker = new ProjectResourceWalker(this, fileSystem);
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
-        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
     // For tests
     public void cleanupResourcePathsCache() {
-        allResourcePathsCache = null;
+        resourceWalker.clearCaches();
     }
 
     public void dispose() {
@@ -1491,7 +1499,7 @@ public class Project {
     // the texture compressor handler.
     private void installTextureCompressorPresets() throws IOException, CompileExceptionError {
         ArrayList<String> paths = new ArrayList<>();
-        findResourcePathsByExtension("", ".texc_json", paths);
+        resourceWalker.findResourcePathsByExtension("", ".texc_json", paths);
 
         for (String p : paths) {
             IResource r = getResource(p);
@@ -1515,15 +1523,12 @@ public class Project {
                 IResource buildFileResource = getResource(transpiler.getBuildFileResourcePath());
                 if (buildFileResource.exists()) {
                     String ext = "." + transpiler.getSourceExt();
-                    ArrayList<IResource> sources = new ArrayList<>();
-                    fileSystem.walk("", new FileSystemWalker() {
-                        @Override
-                        public void handleFile(String path, Collection<String> results) {
-                            if (path.endsWith(ext)) {
-                                sources.add(fileSystem.get(path));
-                            }
-                        }
-                    }, new ArrayList<>());
+                    ArrayList<String> sourcePaths = new ArrayList<>();
+                    resourceWalker.findResourcePathsByExtension("", ext, sourcePaths);
+                    ArrayList<IResource> sources = new ArrayList<>(sourcePaths.size());
+                    for (String sourcePath : sourcePaths) {
+                        sources.add(fileSystem.get(sourcePath));
+                    }
                     if (!sources.isEmpty()) {
                         // We transpile to lua from the project dir only if all the source code files exist on disc. Since
                         // some source file may come as dependencies in zip archives, the transpiler will not be able to
@@ -1728,6 +1733,7 @@ public class Project {
         monitor.beginTask(IProgress.Task.WORKING, 100);
         // it should be done before scanJavaClasses to have updated options
         configurePreBuildProjectOptions();
+        resourceWalker.primeIgnorePatterns();
         {
             TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
@@ -2253,69 +2259,13 @@ public class Project {
         return maxThreads;
     }
 
-    private void findResourcePathsByExtension(String _path, String ext, Collection<String> result) {
-        TimeProfiler.start("findResourcePathsByExtension");
-        TimeProfiler.addData("path", _path);
-        TimeProfiler.addData("ext", ext);
-        // Initialize and cache all paths only once
-        if (allResourcePathsCache == null) {
-            List<String> allPaths = new ArrayList<>();
-            fileSystem.walk("", new FileSystemWalker() {
-                public void handleFile(String filePath, Collection<String> results) {
-                    results.add(FilenameUtils.normalize(filePath, true));
-                }
-            }, allPaths);
-            allResourcePathsCache = allPaths;
-        }
-        _path = FilenameUtils.normalize(_path, true);
-        _path = stripLeadingSlash(_path);
-        // Fast path: if no filter, return everything
-        if ((ext == null || ext.isEmpty()) && (_path == null || _path.isEmpty())) {
-            result.addAll(allResourcePathsCache);
-            TimeProfiler.stop();
-            return;
-        }
-        IResource res = fileSystem.get(_path);
-        try {
-            if ( (_path != null && !_path.isEmpty()) && (!res.isFile() || res.getContent() == null)) {
-                if (!_path.endsWith("/")) {
-                    _path += "/";
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        final String path =_path;
-
-        // Filter the cached list in parallel, collect safely, then add to result
-        List<String> filteredPaths = allResourcePathsCache.parallelStream()
-            .filter(p -> (ext == null || p.endsWith(ext)) &&
-                         (path == null || path.isEmpty() || p.startsWith(path)))
-            .collect(Collectors.toList());
-        result.addAll(filteredPaths);
-        TimeProfiler.stop();
-    }
-
     public void findResourcePaths(String _path, Collection<String> result) {
-        findResourcePathsByExtension(_path, null, result);
+        resourceWalker.findResourcePathsByExtension(_path, null, result);
     }
 
     // Finds the first level of directories in a path
     public void findResourceDirs(String _path, Collection<String> result) {
-        // Make sure the path has Unix separators, since this is how
-        // paths are specified game project relative internally.
-        final String path = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(_path));
-        fileSystem.walk(path, new FileSystemWalker() {
-            public boolean handleDirectory(String dir, Collection<String> results) {
-                if (path.equals(dir)) {
-                    return true;
-                }
-                results.add(FilenameUtils.getName(FilenameUtils.normalizeNoEndSeparator(dir)));
-                return false; // skip recursion
-            }
-            public void handleFile(String path, Collection<String> results) { // skip any files
-            }
-        }, result);
+        resourceWalker.findResourceDirs(_path, result);
     }
 
     public List<Task> getTasks() {
