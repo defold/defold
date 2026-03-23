@@ -1040,7 +1040,6 @@
   (let [w4 (c/camera-unproject camera viewport screen-pos)]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
-;; TODO: We have an evaluation-context provided usually when we call this, maybe change the behavior
 (defn- view->camera
   ([view]
    (view->camera (g/now) view))
@@ -1386,13 +1385,6 @@
               ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
 
-;; TODO: Can we merge this with dispatch-input?
-(defn dispatch-update-tick [update-tick-handlers input-state dt]
-  (reduce (fn [input-state [node-id label]]
-            (when input-state
-              ((g/node-value node-id label) node-id input-state dt)))
-          input-state update-tick-handlers))
-
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
   (let [context {:dt (if (= play-mode :playing) dt 0)}]
@@ -1440,7 +1432,10 @@
     (profiler/profile "update-tick" -1
       (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
             input-state (g/user-data view-id ::input-state)]
-        (dispatch-update-tick update-tick-handlers input-state dt)))
+        (reduce (fn [input-state [node-id label]]
+                  (when input-state
+                    ((g/node-value node-id label) node-id input-state dt)))
+                input-state update-tick-handlers)))
     (when (seq action-queue)
       (g/user-data! view-id ::input-action-queue [])
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
