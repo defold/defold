@@ -934,8 +934,7 @@
 
       nil)))
 
-(defn handle-input
-  [self _input-action action tool-user-data]
+(defn handle-input [self _input-action action tool-user-data]
   (let [txs (input-txs self action tool-user-data)]
     (when (seq txs)
       (g/transact txs)

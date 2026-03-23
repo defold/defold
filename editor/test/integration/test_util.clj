@@ -753,7 +753,8 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers {} action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
