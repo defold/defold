@@ -67,7 +67,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: "${{ env.BUILD_BRANCH }}"
+          ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
 
       - name: Setup NDK (r25b)
         if: "${{ matrix.platforms.target == 'android' }}"
@@ -171,7 +171,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: "${{ env.BUILD_BRANCH }}"
+          ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
           fetch-depth: 0
 
       - name: Download artifacts to packages
@@ -199,4 +199,4 @@ jobs:
           fi
 
           git commit -m "packages: update ${{ inputs.result_folder_name }} ${{ inputs.package_version }}"
-          git push origin "HEAD:${{ env.BUILD_BRANCH }}"
+          git push origin "HEAD:${{ env.BUILD_BRANCH || github.ref_name }}"
