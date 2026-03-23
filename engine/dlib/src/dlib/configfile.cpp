@@ -719,6 +719,7 @@ namespace dmConfigFile
             if (client == 0x0)
             {
                 http_result = dmHttpClient::RESULT_SOCKET_ERROR;
+                break;
             }
             else
             {

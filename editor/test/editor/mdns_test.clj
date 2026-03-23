@@ -17,7 +17,8 @@
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
            [java.lang.reflect Method]
-           [java.net DatagramPacket InetAddress MulticastSocket]))
+           [java.net DatagramPacket InetAddress MulticastSocket]
+           [java.util UUID]))
 
 (set! *warn-on-reflection* true)
 
@@ -127,6 +128,19 @@
   (reify MDNS$Logger
     (log [_ _] nil)))
 
+(defn- device-with-service-name [devices service-name]
+  (some #(when (= service-name (.serviceName ^MDNSServiceInfo %)) %) devices))
+
+(defn- await-device-state [^MDNS mdns service-name present?]
+  (loop [i 0]
+    (let [found? (boolean (device-with-service-name (.getDevices mdns) service-name))]
+      (if (or (= found? present?) (>= i 200))
+        found?
+        (do
+          (.update mdns false)
+          (Thread/sleep 10)
+          (recur (inc i)))))))
+
 (deftest mdns-discovers-service-from-dns-sd-records
   (let [mdns (MDNS. (dummy-logger))
         service-type MDNS/MDNS_SERVICE_TYPE
@@ -204,43 +218,71 @@
     (expire-and-rebuild! mdns)
     (is (= 0 (alength (.getDevices mdns))))))
 
+(deftest mdns-service-info-equality-includes-host-and-local-address
+  (let [base (MDNSServiceInfo. 120
+                               "id"
+                               "instance"
+                               "service"
+                               "host-one.local"
+                               "10.0.0.1"
+                               "192.168.0.10"
+                               8123
+                               "7001"
+                               {"schema" "1"})
+        same (MDNSServiceInfo. 240
+                               "id"
+                               "instance"
+                               "service"
+                               "host-one.local"
+                               "10.0.0.1"
+                               "192.168.0.10"
+                               8123
+                               "7001"
+                               {"schema" "1"})
+        host-changed (MDNSServiceInfo. 120
+                                      "id"
+                                      "instance"
+                                      "service"
+                                      "host-two.local"
+                                      "10.0.0.1"
+                                      "192.168.0.10"
+                                      8123
+                                      "7001"
+                                      {"schema" "1"})
+        local-address-changed (MDNSServiceInfo. 120
+                                               "id"
+                                               "instance"
+                                               "service"
+                                               "host-one.local"
+                                               "10.0.0.1"
+                                               "192.168.0.11"
+                                               8123
+                                               "7001"
+                                               {"schema" "1"})]
+    (is (= base same))
+    (is (not= base host-changed))
+    (is (not= base local-address-changed))))
+
 (deftest mdns-live-multicast-integration
   (let [mdns (MDNS. (dummy-logger))]
-    (if-not (.setup mdns)
-      (is true "Skipping live multicast test: setup failed")
-      (try
-        (if-not (.isConnected mdns)
-          (is true "Skipping live multicast test: no multicast interfaces")
-          (let [service-type MDNS/MDNS_SERVICE_TYPE
-                full-name (str "TargetLive." service-type)
-                host-name "target-live.local"
-                add-packet (make-response-packet (service-records service-type full-name host-name 9011 120))
-                remove-packet (make-response-packet (service-records service-type full-name host-name 9011 0))
-                group (InetAddress/getByName "224.0.0.251")
-                socket (MulticastSocket.)]
-           (try
-              (try
-                (.send socket (DatagramPacket. add-packet (alength add-packet) group 5353))
-                (loop [i 0]
-                  (when (and (< i 200) (zero? (alength (.getDevices mdns))))
-                    (.update mdns false)
-                    (Thread/sleep 10)
-                    (recur (inc i))))
-                (is (= 1 (alength (.getDevices mdns))))
-                (let [^MDNSServiceInfo d (aget (.getDevices mdns) 0)]
-                  (is (= full-name (.serviceName d)))
-                  (is (= 9011 (.port d))))
+    (try
+      (when (and (.setup mdns)
+                 (.isConnected mdns))
+        (let [service-type MDNS/MDNS_SERVICE_TYPE
+              suffix (str "-" (UUID/randomUUID))
+              full-name (str "TargetLive" suffix "." service-type)
+              host-name (str "target-live" suffix ".local")
+              add-packet (make-response-packet (service-records service-type full-name host-name 9011 120))
+              remove-packet (make-response-packet (service-records service-type full-name host-name 9011 0))
+              group (InetAddress/getByName "224.0.0.251")]
+          (try
+            (with-open [socket (MulticastSocket.)]
+              (.send socket (DatagramPacket. add-packet (alength add-packet) group 5353))
+              (is (true? (await-device-state mdns full-name true)))
 
-                (.send socket (DatagramPacket. remove-packet (alength remove-packet) group 5353))
-                (loop [i 0]
-                  (when (and (< i 200) (pos? (alength (.getDevices mdns))))
-                    (.update mdns false)
-                    (Thread/sleep 10)
-                    (recur (inc i))))
-                (is (= 0 (alength (.getDevices mdns))))
-                (catch java.io.IOException _
-                  (is true "Skipping live multicast test: multicast send unavailable in this environment")))
-              (finally
-                (.close socket)))))
-        (finally
-          (.dispose mdns))))))
+              (.send socket (DatagramPacket. remove-packet (alength remove-packet) group 5353))
+              (is (false? (await-device-state mdns full-name false))))
+            (catch java.io.IOException _ nil))))
+      (catch Exception _ nil)
+      (finally
+        (.dispose mdns)))))

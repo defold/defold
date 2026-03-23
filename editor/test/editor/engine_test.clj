@@ -18,7 +18,7 @@
   (:import [java.net ServerSocket]))
 
 (deftest get-log-service-stream-returns-nil-when-unreachable
-  (let [port (with-open [server-socket (ServerSocket. 0)]
-               (.getLocalPort server-socket))]
-    (is (nil? (engine/get-log-service-stream {:address "127.0.0.1"
-                                              :log-port (str port)})))))
+  (with-open [server-socket (ServerSocket. 0)]
+    (let [port (.getLocalPort server-socket)]
+      (is (nil? (engine/get-log-service-stream {:address "127.0.0.1"
+                                                :log-port (str port)}))))))

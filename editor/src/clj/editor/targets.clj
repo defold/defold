@@ -198,6 +198,11 @@
 (defn- manual-target-id? [target]
   (str/starts-with? (str (:id target)) "manual-"))
 
+(defn- manual-target-id->address-port [target-id]
+  (when-let [[_ address port] (re-matches #"manual-(.+):(\d+)" (str target-id))]
+    {:address address
+     :port (Long/parseLong port)}))
+
 (defn- merge-target [existing incoming]
   (let [existing-manual? (manual-target-id? existing)
         incoming-manual? (manual-target-id? incoming)
@@ -324,8 +329,16 @@
          (fn [selected-target]
            (if (not= ::undefined selected-target)
              selected-target
-             (let [target-id (prefs/get prefs [:run :selected-target-id])]
-               (find-by-id (all-targets) target-id))))))
+             (let [target-id (prefs/get prefs [:run :selected-target-id])
+                   targets (all-targets)]
+               (or (find-by-id targets target-id)
+                   (when-let [{:keys [address port]} (manual-target-id->address-port target-id)]
+                     (some (fn [target]
+                             (when (and (remote-target? target)
+                                        (= address (:address target))
+                                        (= port (:port target)))
+                               target))
+                           targets))))))))
 
 (defn controllable-target? [target]
   (some? (:url target)))

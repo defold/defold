@@ -116,8 +116,8 @@
   (with-open [server (http-server/start!
                        (http-server/router-handler
                          {"/" {"GET" (constantly (http-server/response 200 "OK"))}})
-                       :host "0.0.0.0")]
-    (let [response @(http/request (http-server/local-url server) :as :string)]
+                       :host "127.0.0.1")]
+    (let [response @(http/request (http-server/url server) :as :string)]
       (is (= 200 (:status response)))
       (is (= "OK" (:body response))))))
 

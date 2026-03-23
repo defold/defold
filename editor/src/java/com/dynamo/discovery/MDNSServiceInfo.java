@@ -56,6 +56,8 @@ public class MDNSServiceInfo {
     public int hashCode() {
         int result = serviceName.hashCode();
         result = 31 * result + address.hashCode();
+        result = 31 * result + (host != null ? host.hashCode() : 0);
+        result = 31 * result + (localAddress != null ? localAddress.hashCode() : 0);
         result = 31 * result + port;
         result = 31 * result + txt.hashCode();
         return result;
@@ -67,6 +69,8 @@ public class MDNSServiceInfo {
             MDNSServiceInfo s = (MDNSServiceInfo) other;
             return serviceName.equals(s.serviceName)
                     && address.equals(s.address)
+                    && (host != null ? host.equals(s.host) : s.host == null)
+                    && (localAddress != null ? localAddress.equals(s.localAddress) : s.localAddress == null)
                     && port == s.port
                     && txt.equals(s.txt);
         }

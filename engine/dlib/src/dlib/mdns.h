@@ -59,13 +59,11 @@ namespace dmMDNS
             m_AnnounceInterval = 60;
             m_Ttl = 120;
             m_UseIPv4 = 1;
-            m_UseIPv6 = 0;
         }
 
         uint32_t m_AnnounceInterval;
         uint32_t m_Ttl;
         uint32_t m_UseIPv4 : 1;
-        uint32_t m_UseIPv6 : 1;
     };
 
     enum EventType

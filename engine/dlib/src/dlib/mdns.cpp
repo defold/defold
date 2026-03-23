@@ -792,12 +792,40 @@ namespace dmMDNS
 
     static bool QueryMatchesService(const RegisteredService& service, const char* qname, uint16_t qtype)
     {
-        if (qtype != DNS_TYPE_PTR && qtype != DNS_TYPE_SRV && qtype != DNS_TYPE_TXT && qtype != DNS_TYPE_A && qtype != DNS_TYPE_ANY)
+        switch (qtype)
+        {
+        case DNS_TYPE_PTR:
+            return NameEquals(qname, service.m_ServiceTypeLocal);
+        case DNS_TYPE_SRV:
+        case DNS_TYPE_TXT:
+            return NameEquals(qname, service.m_FullServiceName);
+        case DNS_TYPE_A:
+            return NameEquals(qname, service.m_HostLocal);
+        case DNS_TYPE_ANY:
+            return NameEquals(qname, service.m_ServiceTypeLocal)
+                   || NameEquals(qname, service.m_FullServiceName)
+                   || NameEquals(qname, service.m_HostLocal);
+        default:
             return false;
+        }
+    }
 
-        return NameEquals(qname, service.m_ServiceTypeLocal)
-               || NameEquals(qname, service.m_FullServiceName)
-               || NameEquals(qname, service.m_HostLocal);
+    static bool IsValidTxtPayload(const RegisteredService& service)
+    {
+        uint32_t encoded_size = 0;
+        for (uint32_t i = 0; i < service.m_TxtCount; ++i)
+        {
+            uint32_t key_len = (uint32_t) strlen(service.m_Txt[i].m_Key);
+            uint32_t value_len = (uint32_t) strlen(service.m_Txt[i].m_Value);
+            uint32_t entry_len = key_len + 1 + value_len;
+            if (entry_len > 255)
+                return false;
+            if (encoded_size + 1 + entry_len > 1024)
+                return false;
+            encoded_size += 1 + entry_len;
+        }
+
+        return true;
     }
 
     static void HandleIncomingQueries(MDNS* mdns)
@@ -858,7 +886,15 @@ namespace dmMDNS
             if ((flags & 0x8000) != 0)
                 continue;
 
-            bool should_announce = false;
+            dmArray<uint8_t> should_announce;
+            bool should_respond = false;
+            should_announce.SetCapacity(mdns->m_Services.Size());
+            should_announce.SetSize(mdns->m_Services.Size());
+            for (uint32_t s = 0; s < should_announce.Size(); ++s)
+            {
+                should_announce[s] = 0;
+            }
+
             for (uint16_t i = 0; i < qdcount; ++i)
             {
                 char qname[256];
@@ -869,7 +905,8 @@ namespace dmMDNS
                     || !ReadU16(mdns->m_Buffer, size, &offset, &qtype)
                     || !ReadU16(mdns->m_Buffer, size, &offset, &qclass))
                 {
-                    should_announce = false;
+                    should_announce.SetSize(0);
+                    should_respond = false;
                     break;
                 }
 
@@ -879,13 +916,13 @@ namespace dmMDNS
                 {
                     if (QueryMatchesService(mdns->m_Services[s], qname, qtype))
                     {
-                        should_announce = true;
-                        break;
+                        should_announce[s] = 1;
+                        should_respond = true;
                     }
                 }
             }
 
-            if (should_announce)
+            if (should_respond)
             {
                 const dmSocket::Address* response_interface = 0;
                 if (mdns->m_InterfaceAddresses.Size() > 0)
@@ -909,6 +946,9 @@ namespace dmMDNS
 
                 for (uint32_t s = 0; s < mdns->m_Services.Size(); ++s)
                 {
+                    if (!should_announce[s])
+                        continue;
+
                     // Always multicast responses for compatibility with mDNS browsers
                     // that ignore unicast replies to multicast queries.
                     HandleAnnounceResponse(mdns, mdns->m_Services[s], 0, mdns->m_Services[s].m_Ttl);
@@ -1374,6 +1414,9 @@ namespace dmMDNS
             return RESULT_INVALID_ARGS;
         }
 
+        if (desc->m_TxtCount > MDNS_MAX_TXT_ENTRIES)
+            return RESULT_INVALID_ARGS;
+
         service.m_TxtCount = 0;
         if (desc->m_Txt)
         {
@@ -1386,6 +1429,9 @@ namespace dmMDNS
                 ++service.m_TxtCount;
             }
         }
+
+        if (!IsValidTxtPayload(service))
+            return RESULT_INVALID_ARGS;
 
         mdns->m_Services.Push(service);
         AnnounceService(mdns, mdns->m_Services.Back(), mdns->m_Services.Back().m_Ttl);

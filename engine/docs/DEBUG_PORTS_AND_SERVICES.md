@@ -40,7 +40,7 @@ This endpoint will accept a GET request and reply with a "pong". This can be use
 This endpoint will accept a GET request and reply with a JSON formatted string containing information about the engine:
 
 ```json
-{"version": "1.4.1", "platform": "x86_64-macos", "sha1": "8f96e450ddfb006a99aa134fdd373cace3760571"}
+{"version": "1.4.1", "platform": "x86_64-macos", "sha1": "8f96e450ddfb006a99aa134fdd373cace3760571", "log_port": "7001"}
 ```
 
 ## Redirect service

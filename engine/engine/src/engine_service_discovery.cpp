@@ -27,6 +27,7 @@ namespace dmEngineService
     static const char DISCOVERY_SERVICE_TYPE[] = "_defold._tcp";
     static const uint32_t DISCOVERY_ANNOUNCE_INTERVAL = 30;
     static const uint32_t DISCOVERY_TTL = 120;
+    static const uint32_t DISCOVERY_HOST_LABEL_MAX_LENGTH = 63;
 
     struct DiscoveryService
     {
@@ -39,6 +40,52 @@ namespace dmEngineService
         dmMDNS::HMDNS m_MDNS;
         char          m_ServiceId[128];
     };
+
+    static void BuildDiscoveryHostName(const char* service_id, char* out, uint32_t out_size)
+    {
+        if (out_size == 0)
+            return;
+
+        const char* source = (service_id && service_id[0]) ? service_id : "defold";
+        uint32_t max_length = out_size - 1;
+        if (max_length > DISCOVERY_HOST_LABEL_MAX_LENGTH)
+            max_length = DISCOVERY_HOST_LABEL_MAX_LENGTH;
+
+        uint32_t offset = 0;
+        bool last_was_dash = false;
+        while (*source && offset < max_length)
+        {
+            char c = *source++;
+            if (c >= 'A' && c <= 'Z')
+                c = (char) (c - 'A' + 'a');
+
+            const bool is_alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+            if (is_alnum)
+            {
+                out[offset++] = c;
+                last_was_dash = false;
+            }
+            else if (!last_was_dash && offset < max_length)
+            {
+                out[offset++] = '-';
+                last_was_dash = true;
+            }
+        }
+
+        while (offset > 0 && out[offset - 1] == '-')
+            --offset;
+
+        if (offset == 0)
+        {
+            dmStrlCpy(out, "defold", out_size);
+            return;
+        }
+
+        if (out[0] == '-')
+            out[0] = 'd';
+
+        out[offset] = 0;
+    }
 
     HDiscoveryService DiscoveryServiceNew(const char* service_id, const char* instance_name, uint16_t port, const DiscoveryTxtEntry* txt_entries, uint32_t txt_count)
     {
@@ -73,10 +120,13 @@ namespace dmEngineService
 
         dmMDNS::ServiceDesc mdns_desc;
         memset(&mdns_desc, 0, sizeof(mdns_desc));
+        char host_name[64];
+        BuildDiscoveryHostName(service_id, host_name, sizeof(host_name));
+
         mdns_desc.m_Id = service_id;
         mdns_desc.m_InstanceName = instance_name;
         mdns_desc.m_ServiceType = DISCOVERY_SERVICE_TYPE;
-        mdns_desc.m_Host = 0;
+        mdns_desc.m_Host = host_name;
         mdns_desc.m_Port = port;
         mdns_desc.m_Txt = mdns_txt_entries;
         mdns_desc.m_TxtCount = txt_count;

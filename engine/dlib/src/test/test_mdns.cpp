@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <map>
 #include <string>
@@ -150,6 +151,11 @@ namespace
         return false;
     }
 
+    static void MakeUniqueName(char* buffer, size_t buffer_size, const char* prefix, uint64_t nonce)
+    {
+        snprintf(buffer, buffer_size, "%s-%llu", prefix, (unsigned long long) nonce);
+    }
+
     struct TcpServerContext
     {
         TcpServerContext()
@@ -159,6 +165,7 @@ namespace
             dmAtomicStore32(&m_Listening, 0);
             dmAtomicStore32(&m_Accepted, 0);
             dmAtomicStore32(&m_Completed, 0);
+            dmAtomicStore32(&m_Stop, 0);
         }
 
         uint16_t        m_Port;
@@ -166,6 +173,41 @@ namespace
         int32_atomic_t  m_Listening;
         int32_atomic_t  m_Accepted;
         int32_atomic_t  m_Completed;
+        int32_atomic_t  m_Stop;
+    };
+
+    struct ScopedMdnsTestResources
+    {
+        ScopedMdnsTestResources()
+        : m_Mdns(0)
+        , m_Browser(0)
+        , m_ClientSocket(dmSocket::INVALID_SOCKET_HANDLE)
+        , m_ServerThread(0)
+        , m_HasServerThread(false)
+        , m_ServerCtx(0)
+        {
+        }
+
+        ~ScopedMdnsTestResources()
+        {
+            if (m_ServerCtx)
+                dmAtomicStore32(&m_ServerCtx->m_Stop, 1);
+            if (m_HasServerThread)
+                dmThread::Join(m_ServerThread);
+            if (m_ClientSocket != dmSocket::INVALID_SOCKET_HANDLE)
+                dmSocket::Delete(m_ClientSocket);
+            if (m_Browser != 0)
+                dmMDNS::DeleteBrowser(m_Browser);
+            if (m_Mdns != 0)
+                dmMDNS::Delete(m_Mdns);
+        }
+
+        dmMDNS::HMDNS m_Mdns;
+        dmMDNS::HBrowser m_Browser;
+        dmSocket::Socket m_ClientSocket;
+        dmThread::Thread m_ServerThread;
+        bool m_HasServerThread;
+        TcpServerContext* m_ServerCtx;
     };
 
     static void TcpServerThread(void* ctx_ptr)
@@ -210,7 +252,7 @@ namespace
 
         dmAtomicStore32(&ctx->m_Listening, 1);
 
-        for (uint32_t i = 0; i < 500; ++i)
+        for (uint32_t i = 0; i < 500 && !dmAtomicGet32(&ctx->m_Stop); ++i)
         {
             dmSocket::Address client_address;
             r = dmSocket::Accept(server_socket, &client_address, &client_socket);
@@ -317,47 +359,54 @@ TEST(MDNS, ResolveAndRemove)
 #endif
 
     EventLog event_log;
+    ScopedMdnsTestResources cleanup;
 
-    dmMDNS::HMDNS mdns = 0;
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_id[128];
+    char instance_name[128];
+    char advertised_id[128];
+    MakeUniqueName(service_id, sizeof(service_id), "mdns-resolve", nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "resolve-target", nonce);
+    MakeUniqueName(advertised_id, sizeof(advertised_id), "mdns-resolve-txt", nonce);
+
     dmMDNS::Params params;
     params.m_AnnounceInterval = 1;
     params.m_Ttl = 2;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns));
 
-    dmMDNS::HBrowser browser = 0;
     dmMDNS::BrowserParams browser_params;
     browser_params.m_ServiceType = SERVICE_TYPE;
     browser_params.m_Callback = EventLog::Callback;
     browser_params.m_Context = &event_log;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &browser));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
 
     dmMDNS::TxtEntry txt_entries[] =
     {
-        {"id", "mdns-resolve-01"},
-        {"name", "resolve-target"},
+        {"id", advertised_id},
+        {"name", instance_name},
         {"log_port", "19001"},
         {"schema", "1"},
     };
 
     dmMDNS::ServiceDesc service;
     memset(&service, 0, sizeof(service));
-    service.m_Id = "mdns-resolve-01";
-    service.m_InstanceName = "resolve-target";
+    service.m_Id = service_id;
+    service.m_InstanceName = instance_name;
     service.m_ServiceType = SERVICE_TYPE;
     service.m_Port = 19001;
     service.m_Txt = txt_entries;
     service.m_TxtCount = sizeof(txt_entries) / sizeof(txt_entries[0]);
     service.m_Ttl = 2;
 
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
-    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_RESOLVED, service.m_InstanceName, mdns, browser, 15000));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup.m_Mdns, &service));
+    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_RESOLVED, service.m_InstanceName, cleanup.m_Mdns, cleanup.m_Browser, 15000));
 
     const EventSnapshot* resolved = event_log.FindInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName);
     ASSERT_NE((const EventSnapshot*) 0, resolved);
     ASSERT_EQ(service.m_Port, resolved->m_Port);
     ASSERT_TRUE(!resolved->m_Host.empty());
-    ASSERT_EQ(std::string("resolve-target"), resolved->m_InstanceName);
-    ASSERT_TRUE(resolved->m_Id == "mdns-resolve-01" || resolved->m_Id == "resolve-target._defoldtest._tcp.local");
+    ASSERT_EQ(std::string(instance_name), resolved->m_InstanceName);
+    ASSERT_EQ(std::string(advertised_id), resolved->m_Id);
     std::map<std::string, std::string>::const_iterator log_port_it = resolved->m_Txt.find("log_port");
     ASSERT_TRUE(log_port_it != resolved->m_Txt.end());
     ASSERT_EQ(std::string("19001"), log_port_it->second);
@@ -365,11 +414,8 @@ TEST(MDNS, ResolveAndRemove)
     ASSERT_TRUE(schema_it != resolved->m_Txt.end());
     ASSERT_EQ(std::string("1"), schema_it->second);
 
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeregisterService(mdns, service.m_Id));
-    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_REMOVED, service.m_InstanceName, mdns, browser, 15000));
-
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeleteBrowser(browser));
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeregisterService(cleanup.m_Mdns, service.m_Id));
+    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_REMOVED, service.m_InstanceName, cleanup.m_Mdns, cleanup.m_Browser, 15000));
 }
 
 TEST(MDNS, ResolveAndConnect)
@@ -379,52 +425,64 @@ TEST(MDNS, ResolveAndConnect)
 #endif
 
     TcpServerContext server_ctx;
-    dmThread::Thread server_thread = dmThread::New(TcpServerThread, 0x80000, &server_ctx, "mdns-tcp-server");
+    ScopedMdnsTestResources cleanup;
+    cleanup.m_ServerCtx = &server_ctx;
+    cleanup.m_ServerThread = dmThread::New(TcpServerThread, 0x80000, &server_ctx, "mdns-tcp-server");
+    ASSERT_TRUE(cleanup.m_ServerThread != (dmThread::Thread) 0);
+    cleanup.m_HasServerThread = true;
     ASSERT_TRUE(WaitForFlag(&server_ctx.m_Listening, 300, 10 * 1000));
     ASSERT_TRUE(server_ctx.m_Port != 0);
 
     EventLog event_log;
 
-    dmMDNS::HMDNS mdns = 0;
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_id[128];
+    char instance_name[128];
+    char advertised_id[128];
+    MakeUniqueName(service_id, sizeof(service_id), "mdns-connect", nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "connect-target", nonce);
+    MakeUniqueName(advertised_id, sizeof(advertised_id), "mdns-connect-txt", nonce);
+
     dmMDNS::Params params;
     params.m_AnnounceInterval = 1;
     params.m_Ttl = 2;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns));
 
-    dmMDNS::HBrowser browser = 0;
     dmMDNS::BrowserParams browser_params;
     browser_params.m_ServiceType = SERVICE_TYPE;
     browser_params.m_Callback = EventLog::Callback;
     browser_params.m_Context = &event_log;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &browser));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
 
     dmMDNS::TxtEntry txt_entries[] =
     {
-        {"id", "mdns-connect-01"},
-        {"name", "connect-target"},
+        {"id", advertised_id},
+        {"name", instance_name},
         {"log_port", "19999"},
     };
 
     dmMDNS::ServiceDesc service;
     memset(&service, 0, sizeof(service));
-    service.m_Id = "mdns-connect-01";
-    service.m_InstanceName = "connect-target";
+    service.m_Id = service_id;
+    service.m_InstanceName = instance_name;
     service.m_ServiceType = SERVICE_TYPE;
     service.m_Port = server_ctx.m_Port;
     service.m_Txt = txt_entries;
     service.m_TxtCount = sizeof(txt_entries) / sizeof(txt_entries[0]);
     service.m_Ttl = 2;
 
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup.m_Mdns, &service));
 
-    for (uint32_t i = 0; i < 300 && !event_log.Has(dmMDNS::EVENT_RESOLVED, service.m_Id); ++i)
+    for (uint32_t i = 0; i < 300 && !event_log.HasInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName); ++i)
     {
-        Pump(mdns, browser, 1, 10 * 1000);
+        Pump(cleanup.m_Mdns, cleanup.m_Browser, 1, 10 * 1000);
     }
 
-    const EventSnapshot* resolved = event_log.Find(dmMDNS::EVENT_RESOLVED, service.m_Id);
+    const EventSnapshot* resolved = event_log.FindInstance(dmMDNS::EVENT_RESOLVED, service.m_InstanceName);
     ASSERT_NE((const EventSnapshot*) 0, resolved);
     ASSERT_TRUE(!resolved->m_Host.empty());
+    ASSERT_EQ(std::string(instance_name), resolved->m_InstanceName);
+    ASSERT_EQ(std::string(advertised_id), resolved->m_Id);
 
     dmSocket::Address address = dmSocket::AddressFromIPString(resolved->m_Host.c_str());
     if (address.m_family != dmSocket::DOMAIN_IPV4)
@@ -432,26 +490,19 @@ TEST(MDNS, ResolveAndConnect)
         ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::GetHostByName(resolved->m_Host.c_str(), &address, true, false));
     }
 
-    dmSocket::Socket client_socket = dmSocket::INVALID_SOCKET_HANDLE;
-    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client_socket));
-    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Connect(client_socket, address, resolved->m_Port));
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &cleanup.m_ClientSocket));
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Connect(cleanup.m_ClientSocket, address, resolved->m_Port));
 
     int written = 0;
-    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Send(client_socket, "PING", 4, &written));
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Send(cleanup.m_ClientSocket, "PING", 4, &written));
     ASSERT_EQ(4, written);
 
     char response[4] = {0};
     int read = 0;
-    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Receive(client_socket, response, sizeof(response), &read));
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Receive(cleanup.m_ClientSocket, response, sizeof(response), &read));
     ASSERT_EQ(4, read);
     ASSERT_TRUE(memcmp(response, "PONG", 4) == 0);
 
-    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Delete(client_socket));
-
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeleteBrowser(browser));
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));
-
-    dmThread::Join(server_thread);
     ASSERT_TRUE(dmAtomicGet32(&server_ctx.m_Accepted) == 1);
     ASSERT_EQ(dmSocket::RESULT_OK, server_ctx.m_Result);
 }

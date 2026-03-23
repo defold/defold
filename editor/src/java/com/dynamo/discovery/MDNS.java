@@ -221,17 +221,16 @@ public class MDNS {
 
     private void refreshNetworks() throws IOException {
         List<NetworkInterface> newInterfaces = getMCastInterfaces();
-        if (newInterfaces.equals(interfaces)) {
-            return;
+        boolean interfacesChanged = !newInterfaces.equals(interfaces);
+        if (interfacesChanged) {
+            interfaces = newInterfaces;
+            closeConnections();
+            services.clear();
+            hosts.clear();
+            clearDiscovered();
+
+            defaultLocalAddress = null;
         }
-
-        interfaces = newInterfaces;
-        closeConnections();
-        services.clear();
-        hosts.clear();
-        clearDiscovered();
-
-        defaultLocalAddress = null;
 
         for (NetworkInterface networkInterface : interfaces) {
             List<InetAddress> addresses = getIPv4Addresses(networkInterface);
@@ -244,9 +243,17 @@ public class MDNS {
                 defaultLocalAddress = localAddress;
             }
 
-            Connection connection = new Connection(networkInterface, localAddress);
-            if (connection.connect(multicastAddress)) {
-                connections.add(connection);
+            Connection connection = findConnection(networkInterface);
+            if (connection != null) {
+                if (connection.socket != null && !connection.socket.isClosed()) {
+                    continue;
+                }
+                removeConnection(connection);
+            }
+
+            Connection newConnection = new Connection(networkInterface, localAddress);
+            if (newConnection.connect(multicastAddress)) {
+                connections.add(newConnection);
                 log(String.format("Connected to multicast network %s: %s", networkInterface.getDisplayName(), localAddress));
             }
         }
@@ -261,6 +268,22 @@ public class MDNS {
             connection.disconnect(multicastAddress);
         }
         connections.clear();
+    }
+
+    private Connection findConnection(NetworkInterface networkInterface) {
+        for (Connection connection : connections) {
+            if (connection.networkInterface.equals(networkInterface)) {
+                return connection;
+            }
+        }
+        return null;
+    }
+
+    private void removeConnection(Connection connection) {
+        if (connection != null) {
+            connection.disconnect(multicastAddress);
+            connections.remove(connection);
+        }
     }
 
     private static int writeU16(byte[] out, int offset, int value) {
