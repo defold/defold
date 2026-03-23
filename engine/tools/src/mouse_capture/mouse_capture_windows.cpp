@@ -14,7 +14,6 @@
 
 #include "mouse_capture.h"
 #include <windows.h>
-#include <malloc.h>
 #include <limits.h> // INT_MAX
 
 #ifndef QWORD
