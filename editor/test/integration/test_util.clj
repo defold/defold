@@ -31,6 +31,7 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as i]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.material :as material]
