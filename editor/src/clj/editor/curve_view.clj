@@ -634,10 +634,10 @@
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       background background/Background
-                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
+                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
+                                                                                      :movements-enabled #{:dolly :track}]
                                                       grid CurveGrid
                                                       rulers [rulers/Rulers]]
-                                   (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                                    (g/connect camera :_node-id view-id :camera-id)
                                    (g/connect grid :_node-id view-id :grid-id)
@@ -700,7 +700,7 @@
                    (let [this ^CheckBoxListCell this]
                      (proxy-super updateItem item empty)
                      (when (and item (not empty))
-                       (let [[r g b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
+                       (let [[^double r ^double g ^double b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
                          (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))))))))))))))
      node-id)))
 

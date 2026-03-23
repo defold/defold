@@ -903,6 +903,7 @@
              (not (g/node-value camera-node :animating)))
     ;; NOTE: If the dolly is animating, this prevents funkiness
     (reset-dolly! camera-node)
+    (.requestFocus image-view)
     (let [local-camera (g/node-value camera-node :local-camera)
           current-camera (cond-> local-camera
                            (= :orthographic (:type local-camera))
@@ -984,7 +985,8 @@
           action))
 
       :drag-detected
-      (if is-secondary
+      (if (and is-secondary
+               (movements-enabled :look))
         (start-free-cam-mode! image-view self (:cursor-pos input-state))
         action)
 
@@ -1155,7 +1157,7 @@
   (property local-camera Camera)
   (property cached-3d-camera Camera)
   (property animating g/Bool)
-  (property movements-enabled g/Any (default #{:dolly :track :tumble}))
+  (property movements-enabled g/Any (default #{:dolly :track :tumble :look}))
   (property cursor-type g/Keyword)
 
   (input scene-aabb AABB)

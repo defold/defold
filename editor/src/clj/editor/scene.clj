@@ -1277,6 +1277,11 @@
                  (= :perspective))))
 
 (handler/defhandler :scene.free-camera.activate :workbench
+  (enabled? [app-view evaluation-context]
+    (some-> (active-scene-view app-view)
+            (view->camera)
+            (g/node-value :movements-enabled)
+            (contains? :look)))
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
       (let [input-state (g/user-data scene-view ::input-state)
