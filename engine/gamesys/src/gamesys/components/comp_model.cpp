@@ -196,6 +196,10 @@ namespace dmGameSystem
         uint32_t                         m_StatisticsVertexCount;
         uint32_t                         m_StatisticsVertexDataSize;
         uint8_t                          m_CurrentFrameTick;
+        // Test data:
+        uint8_t                          m_RenderBatchLocalVSInstancedCount;
+        uint8_t                          m_RenderBatchLocalVSUninstancedCount;
+        uint8_t                          m_RenderBatchWorldVSCount;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -1940,10 +1944,12 @@ namespace dmGameSystem
         if (inst_decl)
         {
             RenderBatchLocalVSInstanced(world, render_context, render_context_material, material_index, component, buf, begin, end, inst_decl);
+            world->m_RenderBatchLocalVSInstancedCount++;
         }
         else
         {
             RenderBatchLocalVSUninstanced(world, render_context, render_context_material, material_index, component, buf, begin, end);
+            world->m_RenderBatchLocalVSUninstancedCount++;
         }
     }
 
@@ -2166,6 +2172,9 @@ namespace dmGameSystem
         // Update statistics
         world->m_StatisticsVertexCount    += ro.m_VertexCount;
         world->m_StatisticsVertexDataSize += ro.m_VertexCount * vertex_stride;
+
+        // Update test data
+        world->m_RenderBatchWorldVSCount++;
     }
 
     static inline dmRenderDDF::MaterialDesc::VertexSpace GetRenderMaterialVertexSpace(dmRender::HMaterial material)
@@ -2199,7 +2208,7 @@ namespace dmGameSystem
         const ModelComponent* component = render_item->m_Component;
 
         dmRender::HMaterial render_context_material = dmRender::GetContextMaterial(render_context);
-        dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, 0);
+        dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, render_item->m_MaterialIndex);
 
         switch(GetRenderMaterialVertexSpace(material))
         {
@@ -2569,6 +2578,12 @@ namespace dmGameSystem
         }
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+
+        // Update test data
+        world->m_RenderBatchLocalVSInstancedCount   = 0;
+        world->m_RenderBatchLocalVSUninstancedCount = 0;
+        world->m_RenderBatchWorldVSCount            = 0;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -3063,7 +3078,9 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompModelIterPropertiesGetNext;
     }
 
-    // For tests
+    //////////////////////////////////////
+    // TEST FUNCTIONS
+    //////////////////////////////////////
     void GetModelWorldRenderBuffers(void* model_world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count)
     {
         ModelWorld* world = (ModelWorld*) model_world;
@@ -3071,7 +3088,14 @@ namespace dmGameSystem
         *vx_buffers_count = VERTEX_BUFFER_MAX_BATCHES;
     }
 
-    // For tests
+    void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count)
+    {
+        ModelWorld* world            = (ModelWorld*) model_world;
+        *world_batch_count           = world->m_RenderBatchWorldVSCount;
+        *local_batch_count           = world->m_RenderBatchLocalVSUninstancedCount;
+        *local_instanced_batch_count = world->m_RenderBatchLocalVSInstancedCount;
+    }
+
     void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants)
     {
         ModelComponent* component = (ModelComponent*) model_component;
@@ -3084,7 +3108,6 @@ namespace dmGameSystem
         *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
     }
 
-    // For tests
     void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl)
     {
         ModelComponent* component = (ModelComponent*) model_component;
