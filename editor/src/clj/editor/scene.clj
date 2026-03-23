@@ -1555,7 +1555,7 @@
                     (g/transact
                       (concat
                         (when screen-x
-                          (g/set-property view-id :cursor-pos [screen-x screen-y]))
+                          (g/set-property view-id :cursor-pos [x y]))
                         (g/set-property view-id :tool-picking-rect picking-rect))))))
               (catch Throwable error
                 (reset! process-events? false)
