@@ -161,7 +161,7 @@
        :value))
 
 (deftest displayed-node-properties-preview-overrides
-  (testing "Scene view shows preview overrides in displayed node properties during drag"
+  (testing "Scene view shows preview overrides in displayed node properties during drag."
     (test-util/with-loaded-project
       (let [path "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
@@ -180,7 +180,7 @@
                  (displayed-property-value view go-node :position))))))))
 
 (deftest scene-camera-clip-planes-follow-preview-overrides
-  (testing "Scene view camera clip planes respond to preview overrides before commit"
+  (testing "Scene view camera clip planes respond to preview overrides before commit."
     (test-util/with-loaded-project
       (let [path "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)

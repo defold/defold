@@ -1524,7 +1524,7 @@
           (g/with-auto-evaluation-context evaluation-context
             [(g/node-value view-id :input-action-queue evaluation-context)
              (g/node-value view-id :render-mode evaluation-context)
-             (g/node-value view-id :selected-tool-renderables evaluation-context)
+             (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
              (g/node-value view-id :play-mode evaluation-context)
              (g/node-value view-id :active-updatables evaluation-context)
              (g/node-value view-id :updatable-states evaluation-context)])
