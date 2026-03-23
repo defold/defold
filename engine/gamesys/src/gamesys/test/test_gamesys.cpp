@@ -6671,7 +6671,7 @@ TEST_F(ModelTest, PbrProperties)
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IOR_IOR_FACTOR, &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
-    exp = dmVMath::Vector4(0.17f, 0.0f, 0.0f, 0.0f);
+    exp = dmVMath::Vector4(1.17f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &constant));
@@ -6703,7 +6703,7 @@ TEST_F(ModelTest, PbrProperties)
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
-    exp = dmVMath::Vector4(0.25f, 0.255f, 0.260f, 0.265f);
+    exp = dmVMath::Vector4(0.25f, 1.255f, 0.260f, 0.265f);
     ASSERT_VEC4(exp, values[0]);
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &constant));
