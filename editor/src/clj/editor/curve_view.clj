@@ -364,6 +364,7 @@
   (input sub-selection g/Any)
   (input curve-handle g/Any)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- pick-control-points [visible-curves picking-rect camera viewport]
