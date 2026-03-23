@@ -1,6 +1,8 @@
 #version 140
 
-uniform lowp vec4 color;
+uniform fragment_uniforms {
+    lowp vec4 color;
+};
 
 out vec4 out_color;
 

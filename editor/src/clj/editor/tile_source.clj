@@ -263,7 +263,7 @@
                            (vtx2/flip!))
                   vb (vtx2/use-with ::tile-source-anim-outline vbuf shaders/basic-color-world-space)]
               (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space vb]
-                (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
+                (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf)))))))
 
       pass/overlay
       (texture-set/render-animation-overlay gl render-args renderables))))

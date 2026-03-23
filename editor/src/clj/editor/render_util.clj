@@ -98,7 +98,16 @@
 
 (defn- render-aabb-outline
   [^GL2 gl render-args renderables _renderable-count]
-  (let [vertex-description (shaders/vertex-description aabb-outline-shader)
+  ;; Corners are baked in world space (see make-aabb-outline-vertex-buffer). Batched
+  ;; outline draws still use render-nodes' first renderable :world-transform for the
+  ;; whole batch; override to identity so every box is not sheared by the first object.
+  (let [render-args (coll/merge render-args
+                     (math/derive-render-transforms
+                       math/identity-mat4
+                       (:view render-args)
+                       (:projection render-args)
+                       (or (:texture render-args) math/identity-mat4)))
+        vertex-description (shaders/vertex-description aabb-outline-shader)
         vertex-buffer (make-aabb-outline-vertex-buffer vertex-description renderables)
         vertex-binding (vtx/use-with ::aabb-outline vertex-buffer aabb-outline-shader)]
     (gl/with-gl-bindings gl render-args [aabb-outline-shader vertex-binding]

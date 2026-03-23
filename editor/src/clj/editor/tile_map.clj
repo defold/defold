@@ -386,7 +386,7 @@
             (gl/with-gl-bindings gl (assoc sel-render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables)))
               [shaders/selection-uniform-local-space vertex-binding gpu-texture]
               (shader/set-samplers-by-index shaders/selection-uniform-local-space gl 0 (:texture-units gpu-texture))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))))
 
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
@@ -741,7 +741,7 @@
 ;; brush
 
 (defn render-brush-outline
-  [^GL2 gl render-args renderables count]
+  [^GL2 gl render-args renderables n]
   (let [renderable (first renderables)
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
@@ -1059,7 +1059,7 @@
       (gl/gl-draw-arrays gl GL2/GL_TRIANGLE_FAN 0 (count vbuf)))))
 
 (defn render-palette
-  [^GL2 gl render-args renderables count]
+  [^GL2 gl render-args renderables n]
   (let [user-data (:user-data (first renderables))
         {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data
         [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
@@ -1076,7 +1076,7 @@
       (render-palette-active gl palette-ra tile-source-attributes start-tile end-tile))))
 
 (defn render-editor-select-outline
-  [^GL2 gl render-args renderables count]
+  [^GL2 gl render-args renderables n]
   (let [renderable (first renderables)
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
@@ -1105,7 +1105,7 @@
                      (vtx/flip!))
             vb (vtx/use-with ::editor-select-outline vbuf color-shader)]
         (gl/with-gl-bindings gl sel-ra [color-shader vb]
-          (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
+          (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf)))))))
 
 (defn render-editor-select
   [^GL2 gl render-args renderables n]

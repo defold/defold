@@ -1051,7 +1051,7 @@
                     :dep-resources dep-resources}
         :deps dep-build-targets})]))
 
-(defn- render-pfx [^GL2 gl render-args renderables count])
+(defn- render-pfx [^GL2 gl render-args renderables _n])
 
 (g/defnk produce-scene [_node-id child-scenes scene-updatable]
   (let [scene {:node-id _node-id

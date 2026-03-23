@@ -565,7 +565,7 @@
    ;; Screen Y is flipped vs TextRenderer 3D coords; fixed-function matrix stack removed.
    (.setColor text-renderer r g b a)
    (.begin3DRendering text-renderer)
-   (.draw3D text-renderer chars (double xloc) (double (- yloc)) 0.0 1.0)
+   (.draw3D text-renderer chars (double xloc) (double (- (double yloc))) 0.0 1.0)
    (.end3DRendering text-renderer)))
 
 (defn set-blend-mode [^GL gl blend-mode]

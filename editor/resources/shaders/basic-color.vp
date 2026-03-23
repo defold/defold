@@ -10,6 +10,8 @@ uniform vertex_uniforms {
 out lowp vec4 var_color;
 
 void main() {
-    var_color = vec4(color.rgb * color.a, color.a);
+    // Straight alpha: blending uses glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA).
+    // Premultiplying rgb by a here double-applies alpha and makes lines/grids too faint.
+    var_color = color;
     gl_Position = mtx_world_view_proj * vec4(position, 1.0);
 }

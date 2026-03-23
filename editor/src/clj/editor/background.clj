@@ -29,7 +29,7 @@
   (vec3 position)
   (vec4 color))
 
-(defn render-background [^GL2 gl render-args renderables count]
+(defn render-background [^GL2 gl render-args renderables n]
   (let [viewport ^Region (:viewport render-args)
         x0 (.left viewport)
         x1 (.right viewport)

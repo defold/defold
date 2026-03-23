@@ -27,7 +27,9 @@
             [editor.graphics.types :as graphics.types]
             [editor.localization :as localization]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.pipeline :as pipeline]
+            [editor.shaders :as shaders]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -68,22 +70,6 @@
 (vtx/defvertex color-vtx
   (vec3 position)
   (vec4 color))
-
-(shader/defshader outline-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader outline-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-; TODO - macro of this
-(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
 (defn- renderable-data [renderable]
   (let [{:keys [world-transform updatable user-data]} renderable
@@ -220,8 +206,16 @@
 (defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
   (let [num-quads (count-quads renderables)
-        outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
-    (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
+        ;; Outline verts are world-space (gen-outline-vertex). Batched draws still
+        ;; derive uniforms from the first renderable's world-transform; use identity.
+        render-args (coll/merge render-args
+                     (math/derive-render-transforms
+                       math/identity-mat4
+                       (:view render-args)
+                       (:projection render-args)
+                       (or (:texture render-args) math/identity-mat4)))
+        outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) shaders/basic-color-world-space)]
+    (gl/with-gl-bindings gl render-args [shaders/basic-color-world-space outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
 ; Node defs
@@ -261,7 +255,7 @@
              :children [{:node-id _node-id
                          :aabb aabb
                          :renderable {:render-fn render-sprite-outlines
-                                      :batch-key [outline-shader]
+                                      :batch-key [shaders/basic-color-world-space]
                                       :tags #{:sprite :outline}
                                       :select-batch-key _node-id
                                       :user-data {:animation first-animation

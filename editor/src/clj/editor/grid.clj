@@ -55,11 +55,11 @@
 (defn- rgba-floats [c]
   [(float (nth c 0)) (float (nth c 1)) (float (nth c 2)) (float (nth c 3))])
 
-(defn- append-line! [buf ^float x0 ^float y0 ^float z0 ^float x1 ^float y1 ^float z1 r g b a]
+(defn- append-line! [buf x0 y0 z0 x1 y1 z1 r g b a]
   (vtx/buf-push-floats! buf [x0 y0 z0 r g b a x1 y1 z1 r g b a]))
 
 (defn- append-grid-axis!
-  [buf ^long fixed-axis ^long uidx start stop ^double step ^long vidx ^double vmin ^double vmax r g b a]
+  [buf fixed-axis uidx start stop step vidx vmin vmax r g b a]
   (doseq [u (range start stop step)]
     (let [^floats p0 (float-array 3)
           ^floats p1 (float-array 3)]
@@ -73,7 +73,7 @@
                     (aget p1 0) (aget p1 1) (aget p1 2) r g b a))))
 
 (defn- append-grid-lines!
-  [buf ^long fixed-axis u-size v-size ^AABB aabb r g b a]
+  [buf fixed-axis u-size v-size ^AABB aabb r g b a]
   (let [min-values (geom/as-array (types/min-p aabb))
         max-values (geom/as-array (types/max-p aabb))
         u-axis (long (mod (inc (int fixed-axis)) 3))
@@ -102,23 +102,24 @@
                       0.0 0.0 (float (-> aabb types/max-p .z)) r g b a)))))
 
 (defn- append-grid-sizes!
-  [buf ^doubles dir grids options is-2d]
-  (let [{:keys [^double opacity color auto-scale]} options]
+  [buf dir grids options is-2d]
+  (let [^doubles dir dir
+        {:keys [^double opacity color auto-scale]} options]
     (doseq [grid-index (range (if auto-scale 2 1))
-            :let [^double fixed-axis (:plane grids)
+            :let [plane-idx (long (:plane grids))
                   ^double ratio (nth (:ratios grids) grid-index)
-                  ratio (Math/abs (* ^double (aget dir fixed-axis) ratio))
+                  ratio (Math/abs (* (aget dir plane-idx) ratio))
                   ratio (cond-> ratio (not is-2d) (max 0.5))
                   alpha (cond-> opacity auto-scale (* ratio))
                   size-map (nth (:sizes grids) grid-index)
-                  ^double u-axis (mod (inc fixed-axis) 3)
-                  ^double v-axis (mod (inc u-axis) 3)
-                  u-axis-key (nth axes u-axis)
-                  v-axis-key (nth axes v-axis)
+                  u-idx (long (mod (inc plane-idx) 3))
+                  v-idx (long (mod (inc u-idx) 3))
+                  u-axis-key (nth axes u-idx)
+                  v-axis-key (nth axes v-idx)
                   u-size (get size-map u-axis-key)
                   v-size (get size-map v-axis-key)
                   [r g b a] (rgba-floats (colors/alpha color alpha))]]
-      (append-grid-lines! buf (long fixed-axis) u-size v-size (nth (:aabbs grids) grid-index) r g b a))))
+      (append-grid-lines! buf plane-idx u-size v-size (nth (:aabbs grids) grid-index) r g b a))))
 
 (defn- enable-fog
   [^GL2 gl camera]
@@ -241,7 +242,11 @@
 (g/defnk produce-grids
   [camera merged-options]
   (let [{:keys [size active-plane auto-scale]} merged-options
-        plane (.indexOf axes active-plane)
+        ;; Nil or unknown :active-plane yields index -1, which breaks aabb math and
+        ;; (aget dir plane) in append-grid-sizes!, causing the grid pass to throw
+        ;; and render-nodes to skip the renderable.
+        plane (let [idx (.indexOf ^List axes (or active-plane :z))]
+                (long (if (neg? idx) 0 idx)))
         aabb (if (= :perspective (:type camera))
                (perspective-aabb camera)
                (orthographic-aabb (c/viewproj-frustum-planes camera) plane))

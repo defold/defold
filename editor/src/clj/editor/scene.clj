@@ -212,7 +212,7 @@
   (pass/prepare-gl pass gl))
 
 (defn- render-nodes
-  [^GL2 gl render-args [first-renderable :as renderables] count]
+  [^GL2 gl render-args [first-renderable :as renderables] batch-n]
   (when-let [render-fn (:render-fn first-renderable)]
     (try
       (let [shared-world-transform (:world-transform first-renderable math/identity-mat4) ; rulers apparently don't have world-transform
@@ -230,7 +230,7 @@
                     (:projection render-args)
                     (:texture render-args))))]
 
-        (render-fn gl shared-render-args renderables count))
+        (render-fn gl shared-render-args renderables batch-n))
       (catch Exception e
         (log/error :message "skipping renderable"
                    :pass-name (:name (:pass render-args))

@@ -166,7 +166,10 @@
         user-data (-> renderable :user-data)
         rect (:rect user-data)
         page-offset-x (get-rect-page-offset (:layout-width user-data) (:page rect))
-        [^double r ^double g ^double b ^double a] [(.x id-color) (.y id-color) (.z id-color) (.w id-color)]]
+        r (double (nth id-color 0))
+        g (double (nth id-color 1))
+        b (double (nth id-color 2))
+        a (double (nth id-color 3))]
     (render-rect gl render-args rect [r g b a] page-offset-x)))
 
 (defn- atlas-rect->editor-rect [rect]
