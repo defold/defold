@@ -590,7 +590,8 @@
 
 (defn load-material [project self resource material-desc]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)

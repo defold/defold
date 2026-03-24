@@ -512,7 +512,8 @@
 
 (defn- load-mesh [_project self resource pb]
   {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         resolve-resources #(mapv resolve-resource %)]
     (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
       primitive-type :primitive-type

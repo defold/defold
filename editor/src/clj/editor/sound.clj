@@ -154,7 +154,8 @@
 
 (defn load-sound [_project self resource sound-desc]
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Sound$SoundDesc sound-desc
       sound (resolve-resource :sound)
       looping (protobuf/int->boolean :looping)

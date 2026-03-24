@@ -577,7 +577,7 @@
                 template (or (workspace/template workspace rt) "")]
             (create-template-file! template new-file))
           (workspace/resource-sync! workspace)
-          (let [resource-map (g/node-value workspace :resource-map)
+          (let [resource-map (g/raw-property-value (g/now) workspace :resource-map)
                 new-resource-path (resource/file->proj-path project-directory new-file)
                 resource (resource-map new-resource-path)]
             (when (resource/loaded? resource)
@@ -585,18 +585,21 @@
             (select-resource! asset-browser resource))))))
   (options [workspace user-data localization evaluation-context]
     (when (not user-data)
-      (let [base-columns
+      (let [basis (:basis evaluation-context)
+
+            base-columns
             (mapv #(mapv localization/message %)
                   [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
                    ["resource.category.components"]
                    ["resource.category.resources"]
                    ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]])
+
             predefined-categories (into #{} cat base-columns)
             all-items (coll/into->
-                        (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+                        (resource/resource-types-by-type-ext basis workspace :editable)
                         []
                         (keep (fn [[_ext resource-type]]
-                                (when (workspace/has-template? workspace resource-type evaluation-context)
+                                (when (workspace/has-template? basis workspace resource-type)
                                   {:label (or (:label resource-type) (:ext resource-type))
                                    :icon (:icon resource-type)
                                    :category (or (:category resource-type)

@@ -2237,11 +2237,12 @@
 
 (defn- contains-resource?
   [project gui-scene resource evaluation-context]
-  (let [workspace (project/workspace project evaluation-context)
+  (let [basis (:basis evaluation-context)
+        workspace (project/workspace project evaluation-context)
         acc-fn (fn [target-node]
                  (->> (g/node-value target-node :node-msgs evaluation-context)
                       (filter #(= :type-template (:type %)))
-                      (keep #(workspace/resolve-workspace-resource workspace (:template %) evaluation-context))))]
+                      (keep #(workspace/resolve-workspace-resource basis workspace (:template %)))))]
     (project/node-refers-to-resource? project gui-scene resource acc-fn)))
 
 (g/defnode TemplateNode
@@ -4043,7 +4044,8 @@
         custom-data        (for [loader-fn custom-loader-fns
                                  :let [result (loader-fn project self scene graph-id resource)]]
                              result)
-        resolve-resource #(workspace/resolve-resource resource %)]
+        basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       ;; TODO(save-value-cleanup): We could use set-properties-from-pb-map when setting Gui$NodeDesc properties as well.
       (gu/set-properties-from-pb-map self Gui$SceneDesc scene
@@ -4092,7 +4094,7 @@
         (g/connect materials-node :node-outline self :child-outlines)
         (g/connect materials-node :add-handler-info self :handler-infos)
         (for [materials-desc (:materials scene)
-              :let [resource (workspace/resolve-resource resource (:material materials-desc))]]
+              :let [resource (resolve-resource (:material materials-desc))]]
           (g/make-nodes graph-id [material [MaterialNode :name (:name materials-desc) :material resource]]
             (attach-material self materials-node material))))
 
