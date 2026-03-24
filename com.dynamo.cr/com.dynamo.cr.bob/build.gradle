@@ -167,6 +167,14 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
+        def bundletoolJar = file("${project.bobDir}/bundletool/bundletool-all.jar")
+        if (bundletoolJar.exists()) {
+            copy {
+                from bundletoolJar
+                into "${project.bobDir}/libexec"
+            }
+        }
+
         def platformFiles = [
                 'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint', 'gltf_validator'],
                 'arm64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint', 'gltf_validator'],

@@ -24,6 +24,8 @@ mkdir -p lib/x86_64-macos
 mkdir -p lib/arm64-macos
 mkdir -p lib/x86-win32
 mkdir -p lib/x86_64-win32
+mkdir -p libexec
+
 mkdir -p libexec/x86_64-linux
 mkdir -p libexec/arm64-linux
 mkdir -p libexec/x86_64-macos
@@ -37,6 +39,9 @@ mkdir -p libexec/arm64-android
 # mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
+
+# Android bundletool (source of truth: bundletool/bundletool-all.jar)
+cp -v "${DIR}/../bundletool/bundletool-all.jar" libexec/bundletool-all.jar
 
 SHA1=`git log --pretty=%H -n1`
 
