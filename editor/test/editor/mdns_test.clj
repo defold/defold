@@ -140,7 +140,7 @@
         host-name "target-host.local"
         packet (make-response-packet (service-records service-type full-name host-name 8123 120))]
     (parse-and-rebuild! mdns packet)
-    (let [devices ^"[Lcom.dynamo.discovery.MDNSServiceInfo;" (.getDevices mdns)]
+    (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
       (is (= 1 (alength devices)))
       (let [^MDNSServiceInfo d (aget devices 0)]
         (is (= "test-id" (.id d)))
@@ -160,7 +160,7 @@
         records (service-records service-type full-name host-name 8124 120)
         packet (make-response-packet [(second records) (nth records 2) (nth records 3) (first records)])]
     (parse-and-rebuild! mdns packet)
-    (let [devices ^"[Lcom.dynamo.discovery.MDNSServiceInfo;" (.getDevices mdns)]
+    (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
       (is (= 1 (alength devices)))
       (let [^MDNSServiceInfo d (aget devices 0)]
         (is (= full-name (.serviceName d)))
@@ -176,7 +176,7 @@
         host-only-packet (make-response-packet [(make-record host-name dns-type-a 120 (make-a-rdata 10 0 0 99))])]
     (parse-and-rebuild! mdns service-packet "192.168.0.10" "192.168.0.42")
     (parse-and-rebuild! mdns host-only-packet "10.0.0.10" "10.0.0.99")
-    (let [devices ^"[Lcom.dynamo.discovery.MDNSServiceInfo;" (.getDevices mdns)]
+    (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
       (is (= 1 (alength devices)))
       (let [^MDNSServiceInfo d (aget devices 0)]
         (is (= "192.168.0.42" (.address d)))
