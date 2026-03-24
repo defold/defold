@@ -32,6 +32,9 @@ public record MDNSServiceInfo(long expires,
         txt = Collections.unmodifiableMap(txt);
     }
 
+    // Equality is used to detect meaningful discovery changes in MDNS.
+    // id, instanceName, and logPort are derived from txt/serviceName, while
+    // expires is expected to change as records are refreshed.
     @Override
     public int hashCode() {
         int result = serviceName.hashCode();
