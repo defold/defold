@@ -14,9 +14,8 @@
 
 (ns editor.mdns-test
   (:require [clojure.test :refer :all])
-  (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
+  (:import [com.dynamo.discovery MDNS MDNS$Logger MDNS$TestHooks MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
-           [java.lang.reflect Method]
            [java.util HashMap UUID]
            [java.net DatagramPacket InetAddress MulticastSocket]))
 
@@ -98,23 +97,16 @@
       (.write out record 0 (alength record)))
     (.toByteArray out)))
 
-(defn- invoke-private!
-  [obj ^String method-name param-types & args]
-  (let [^Method m (.getDeclaredMethod (class obj) method-name (into-array Class param-types))]
-    (.setAccessible m true)
-    (.invoke m obj (object-array args))))
-
 (defn- parse-and-rebuild!
   ([^MDNS mdns ^bytes packet]
    (parse-and-rebuild! mdns packet "127.0.0.1" "127.0.0.1"))
   ([^MDNS mdns ^bytes packet ^String local-address ^String remote-address]
-   (invoke-private! mdns "parsePacket" [(Class/forName "[B") Integer/TYPE String String] packet (alength packet) local-address remote-address)
-   (invoke-private! mdns "rebuildDiscovered" [])))
+   (MDNS$TestHooks/parsePacket mdns packet local-address remote-address)
+   (.update mdns false)))
 
 (defn- expire-and-rebuild!
   [^MDNS mdns]
-  (invoke-private! mdns "expireEntries" [])
-  (invoke-private! mdns "rebuildDiscovered" []))
+  (.update mdns false))
 
 (defn- service-records
   [service-type full-name host-name port ttl]

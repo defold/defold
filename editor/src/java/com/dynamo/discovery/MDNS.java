@@ -38,6 +38,15 @@ public class MDNS {
         void log(String msg);
     }
 
+    public static final class TestHooks {
+        private TestHooks() {
+        }
+
+        public static void parsePacket(MDNS mdns, byte[] data, String localAddress, String remoteAddress) {
+            mdns.parsePacket(data, data.length, localAddress, remoteAddress);
+        }
+    }
+
     private static class HostAddress {
         String address;
         long expires;
