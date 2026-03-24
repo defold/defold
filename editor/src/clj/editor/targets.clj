@@ -49,15 +49,26 @@
 (def ^:const search-interval-connected (* 30 1000))
 (def ^:const update-interval 1000)
 (def ^:const timeout 200)
+(def ^:const graceful-exit-timeout 500)
 (def ^:const max-log-entries 512)
 
 (defn- clear-selected-target-hint! []
   (reset! selected-target-atom ::undefined))
 
+(defn- destroy-launched-target-process! [^Process process]
+  (when (.isAlive process)
+    (.destroy process)))
+
 (defn kill-launched-target! [target]
   (let [^Process process (:process target)]
     (when (.isAlive process)
-      (.destroy process))))
+      (when-let [_ (:url target)]
+        (try
+          (engine/exit! target 0)
+          (.waitFor process graceful-exit-timeout java.util.concurrent.TimeUnit/MILLISECONDS)
+          (catch Exception _
+            (destroy-launched-target-process! process))))
+      (destroy-launched-target-process! process))))
 
 (defn kill-launched-targets! []
   (doseq [launched-target @launched-targets]
