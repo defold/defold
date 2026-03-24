@@ -49,7 +49,7 @@ class ProjectResourceWalker {
         ignoredResourcePathPatterns = null;
     }
 
-    public void primeIgnorePatterns() throws CompileExceptionError {
+    public void initIgnorePatterns() throws CompileExceptionError {
         loadIgnoredResourcePathPatterns();
     }
 
@@ -206,8 +206,7 @@ class ProjectResourceWalker {
 
     private static String normalizeIgnoredPathPattern(String path) {
         path = FilenameUtils.separatorsToUnix(path);
-        path = Project.stripLeadingSlash(path);
-        return stripTrailingSlash(path);
+        return Project.stripLeadingAndTrailingSlashes(path);
     }
 
     private static String normalizeResourcePathForMatching(String path) {
@@ -215,14 +214,6 @@ class ProjectResourceWalker {
         if (path.startsWith("./")) {
             path = path.substring(2);
         }
-        path = Project.stripLeadingSlash(path);
-        return stripTrailingSlash(path);
-    }
-
-    private static String stripTrailingSlash(String path) {
-        while (path.length() > 0 && path.charAt(path.length() - 1) == '/') {
-            path = path.substring(0, path.length() - 1);
-        }
-        return path;
+        return Project.stripLeadingAndTrailingSlashes(path);
     }
 }

@@ -1733,7 +1733,7 @@ public class Project {
         monitor.beginTask(IProgress.Task.WORKING, 100);
         // it should be done before scanJavaClasses to have updated options
         configurePreBuildProjectOptions();
-        resourceWalker.primeIgnorePatterns();
+        resourceWalker.initIgnorePatterns();
         {
             TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
@@ -2245,6 +2245,20 @@ public class Project {
             path = path.substring(1);
         }
         return path;
+    }
+
+    public static String stripLeadingAndTrailingSlashes(String path) {
+        int start = 0;
+        int end = path.length();
+
+        while (start < end && path.charAt(start) == '/') {
+            start++;
+        }
+        while (end > start && path.charAt(end - 1) == '/') {
+            end--;
+        }
+
+        return start == 0 && end == path.length() ? path : path.substring(start, end);
     }
 
     public static int getDefaultMaxCpuThreads() {
