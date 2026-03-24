@@ -47,9 +47,7 @@ public class MDNS {
         }
     }
 
-    private static class HostAddress {
-        String address;
-        long expires;
+    private record HostAddress(String address, long expires) {
     }
 
     private static class ServiceAccumulator {
@@ -613,10 +611,7 @@ public class MDNS {
                     data[rdataOffset + 2] & 0xff,
                     data[rdataOffset + 3] & 0xff);
 
-            HostAddress hostAddress = new HostAddress();
-            hostAddress.address = address;
-            hostAddress.expires = expires;
-            hosts.put(hostKey, hostAddress);
+            hosts.put(hostKey, new HostAddress(address, expires));
         }
     }
 
@@ -713,7 +708,7 @@ public class MDNS {
 
         for (Iterator<Map.Entry<String, HostAddress>> it = hosts.entrySet().iterator(); it.hasNext();) {
             Map.Entry<String, HostAddress> entry = it.next();
-            if (now >= entry.getValue().expires) {
+            if (now >= entry.getValue().expires()) {
                 it.remove();
             }
         }
@@ -741,8 +736,8 @@ public class MDNS {
                 if (hostAddress == null) {
                     continue;
                 }
-                address = hostAddress.address;
-                expires = Math.min(expires, hostAddress.expires);
+                address = hostAddress.address();
+                expires = Math.min(expires, hostAddress.expires());
             }
 
             MDNSServiceInfo info = new MDNSServiceInfo(
