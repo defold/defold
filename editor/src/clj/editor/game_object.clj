@@ -244,34 +244,6 @@
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-targets g/Any produce-embedded-component-build-targets))
 
-;; -----------------------------------------------------------------------------
-;; Currently some source resources have scale properties. This was done so
-;; that particular component types such as the Label component could support
-;; scaling. This is not ideal, since the scaling cannot differ between
-;; instances of the component. We probably want to remove this and move the
-;; scale attribute to the Component instance in the future.
-;;
-;; Here we delegate scaling to the embedded resource node. To support scaling,
-;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
-
-(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
-  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
-      (contains? (g/node-value node-id :transform-properties) :scale)))
-
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [evaluation-context node-id ^Vector3d delta]
-  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
-    (cond
-      (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale evaluation-context embedded-resource-id delta)
-
-      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale)
-      (scene/manip-scale-scene-node evaluation-context node-id delta)
-
-      :else
-      nil)))
-
-;; -----------------------------------------------------------------------------
-
 (defn- get-all-comp-exts [workspace]
   (keep (fn [[ext {:keys [tags :as _resource-type]}]]
           (when (or (contains? tags :component)
