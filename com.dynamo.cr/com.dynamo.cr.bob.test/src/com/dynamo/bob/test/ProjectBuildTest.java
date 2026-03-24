@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -219,12 +221,16 @@ public class ProjectBuildTest {
         try {
             List<String> paths = new ArrayList<>();
             project.findResourcePaths("", paths);
-            assertTrue(paths.contains("visible/keep.txt"));
-            assertTrue(paths.contains("ignored-dir-sibling.txt"));
-            assertTrue(paths.contains("sub/ignored-dir/keep.txt"));
-            assertTrue(paths.contains("ignored-without-leading-slash.txt"));
-            assertFalse(paths.contains("ignored-dir/skip.txt"));
-            assertFalse(paths.contains("ignored-file.txt"));
+            assertEquals(7, paths.size());
+            assertEquals(new HashSet<>(Arrays.asList(
+                    ".defignore",
+                    "game.project",
+                    "ignored-dir-sibling.txt",
+                    "ignored-without-leading-slash.txt",
+                    "sub/ignored-dir/keep.txt",
+                    "test.png",
+                    "visible/keep.txt")),
+                    new HashSet<>(paths));
 
             List<String> ignoredPaths = new ArrayList<>();
             project.findResourcePaths("ignored-dir", ignoredPaths);
@@ -232,8 +238,8 @@ public class ProjectBuildTest {
 
             List<String> dirs = new ArrayList<>();
             project.findResourceDirs("", dirs);
-            assertTrue(dirs.contains("visible"));
-            assertFalse(dirs.contains("ignored-dir"));
+            assertEquals(2, dirs.size());
+            assertEquals(new HashSet<>(Arrays.asList("sub", "visible")), new HashSet<>(dirs));
         } finally {
             project.dispose();
         }
