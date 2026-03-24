@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
@@ -664,7 +665,7 @@ public class MDNS {
                 break;
             }
 
-            String entry = new String(data, pos, len);
+            String entry = new String(data, pos, len, StandardCharsets.UTF_8);
             int eq = entry.indexOf('=');
             if (eq >= 0) {
                 txt.put(entry.substring(0, eq), entry.substring(eq + 1));

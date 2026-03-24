@@ -167,6 +167,27 @@
         (is (= 8124 (.port d)))
         (is (= "127.0.0.1" (.address d)))))))
 
+(deftest mdns-discovers-utf8-name-from-txt-record
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetUtf8." service-type)
+        host-name "target-utf8.local"
+        utf8-name "Tést Näme"
+        packet (make-response-packet
+                 [(make-record service-type dns-type-ptr 120 (make-ptr-rdata full-name))
+                  (make-record full-name dns-type-srv 120 (make-srv-rdata 8126 host-name))
+                  (make-record full-name dns-type-txt 120 (make-txt-rdata [(str "id=test-id")
+                                                                           (str "name=" utf8-name)
+                                                                           "log_port=7001"
+                                                                           "schema=1"]))
+                  (make-record host-name dns-type-a 120 (make-a-rdata 127 0 0 1))])]
+    (parse-and-rebuild! mdns packet)
+    (let [devices ^"[Lcom.dynamo.discovery.MDNSServiceInfo;" (.getDevices mdns)]
+      (is (= 1 (alength devices)))
+      (let [^MDNSServiceInfo d (aget devices 0)]
+        (is (= utf8-name (.instanceName d)))
+        (is (= utf8-name (get (.txt d) "name")))))))
+
 (deftest mdns-keeps-packet-source-address-when-host-address-flaps
   (let [mdns (MDNS. (dummy-logger))
         service-type MDNS/MDNS_SERVICE_TYPE

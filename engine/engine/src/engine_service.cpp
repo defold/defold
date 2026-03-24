@@ -47,17 +47,43 @@ namespace dmEngineService
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
     const char* const FOURCC_RESOURCES = "RESS";
 
-    static void BuildServiceInstanceName(const char* display_name, const char* port_text, char* out, uint32_t out_size)
+    static void BuildServiceInstanceName(const char* local_address, const char* port_text, char* out, uint32_t out_size)
     {
         if (out_size == 0)
             return;
 
-        char sanitized[128];
-        dmStrlCpy(sanitized, (display_name && display_name[0]) ? display_name : "defold", sizeof(sanitized));
-        for (char* c = sanitized; *c; ++c)
+        char sanitized_address[128];
+        const char* source = (local_address && local_address[0]) ? local_address : "localhost";
+        uint32_t sanitized_length = 0;
+        bool last_was_dash = true;
+        while (*source && sanitized_length + 1 < sizeof(sanitized_address))
         {
-            if (*c == '.')
-                *c = '-';
+            char c = *source++;
+            if (c >= 'A' && c <= 'Z')
+                c = (char) (c - 'A' + 'a');
+
+            const bool is_alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+            if (is_alnum)
+            {
+                sanitized_address[sanitized_length++] = c;
+                last_was_dash = false;
+            }
+            else if (!last_was_dash)
+            {
+                sanitized_address[sanitized_length++] = '-';
+                last_was_dash = true;
+            }
+        }
+        while (sanitized_length > 0 && sanitized_address[sanitized_length - 1] == '-')
+            --sanitized_length;
+
+        if (sanitized_length == 0)
+        {
+            dmStrlCpy(sanitized_address, "localhost", sizeof(sanitized_address));
+        }
+        else
+        {
+            sanitized_address[sanitized_length] = 0;
         }
 
         char suffix[32];
@@ -65,16 +91,19 @@ namespace dmEngineService
         if (port_text && port_text[0])
             dmSnPrintf(suffix, sizeof(suffix), "-%s", port_text);
 
+        static const char prefix[] = "defold-";
         const uint32_t max_label_length = dmMath::Min((uint32_t) out_size - 1, MDNS_MAX_LABEL_LENGTH);
+        const uint32_t prefix_length = (uint32_t) strlen(prefix);
         const uint32_t suffix_length = (uint32_t) strlen(suffix);
-        const uint32_t max_base_length = suffix_length < max_label_length ? max_label_length - suffix_length : 0;
+        const uint32_t max_address_length = prefix_length + suffix_length < max_label_length ? max_label_length - prefix_length - suffix_length : 0;
 
-        uint32_t base_length = (uint32_t) strlen(sanitized);
-        if (base_length > max_base_length)
-            base_length = max_base_length;
+        uint32_t address_length = (uint32_t) strlen(sanitized_address);
+        if (address_length > max_address_length)
+            address_length = max_address_length;
 
-        memcpy(out, sanitized, base_length);
-        out[base_length] = 0;
+        dmStrlCpy(out, prefix, out_size);
+        memcpy(out + prefix_length, sanitized_address, address_length);
+        out[prefix_length + address_length] = 0;
         dmStrlCat(out, suffix, out_size);
     }
 
@@ -334,10 +363,6 @@ namespace dmEngineService
             dmSnPrintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
             dmSnPrintf(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLog::GetPort());
 
-            // DNS-SD instance labels must be unique per engine instance and
-            // fit within a single DNS label.
-            BuildServiceInstanceName(m_Name, m_PortText, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
-
             // The redirect server
             params.m_Port = 8002;
             dmWebServer::HServer web_server_redirect = 0;
@@ -358,6 +383,10 @@ namespace dmEngineService
             {
                 dmStrlCpy(m_LocalAddress, "localhost", sizeof(m_LocalAddress));
             }
+
+            // DNS-SD instance labels are protocol identifiers, while the
+            // human-readable target name is published separately in TXT.
+            BuildServiceInstanceName(m_LocalAddress, m_PortText, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
 
             // Service id must be unique and this scheme is probably unique enough.
             dmStrlCpy(m_ServiceId, "defold-", sizeof(m_ServiceId));
