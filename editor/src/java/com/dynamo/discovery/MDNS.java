@@ -483,8 +483,7 @@ public class MDNS {
 
             int type = readU16(data, offset);
             offset += 2;
-            int klass = readU16(data, offset);
-            offset += 2;
+            offset += 2; // class
             long ttl = readU32(data, offset);
             offset += 4;
             int rdLength = readU16(data, offset);
@@ -494,7 +493,7 @@ public class MDNS {
                 return;
             }
 
-            parseRecord(data, size, name, type, klass, ttl, rdLength, offset, localAddress, remoteAddress, (flags & 0x8000) != 0);
+            parseRecord(data, size, name, type, ttl, rdLength, offset, localAddress, remoteAddress, (flags & 0x8000) != 0);
             offset += rdLength;
         }
     }
@@ -503,16 +502,12 @@ public class MDNS {
                              int size,
                              String name,
                              int type,
-                             int klass,
                              long ttl,
                              int rdLength,
                              int rdataOffset,
                              String localAddress,
                              String remoteAddress,
                              boolean response) {
-        voidUnused(klass);
-        voidUnused(response);
-
         long expires = System.currentTimeMillis() + ttl * 1000;
 
         if (type == DNS_TYPE_PTR && name.equalsIgnoreCase(MDNS_SERVICE_TYPE)) {
@@ -613,10 +608,6 @@ public class MDNS {
 
             hosts.put(hostKey, new HostAddress(address, expires));
         }
-    }
-
-    private static void voidUnused(Object ignored) {
-        // Explicitly consume vars to silence static analyzers where applicable.
     }
 
     private static void clearSrv(ServiceAccumulator service) {
