@@ -426,7 +426,8 @@
 (defn load-collision-object
   [project self resource collision-object-desc]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         to-comma-separated-string #(some->> % (string/join ", "))]
     (concat
       (gu/set-properties-from-pb-map self Physics$CollisionObjectDesc collision-object-desc

@@ -97,7 +97,7 @@
               (g/with-auto-evaluation-context evaluation-context
                 (let [basis (:basis evaluation-context)]
                   (doseq [proj-path loadable-resource-proj-paths]
-                    (let [resource (workspace/find-resource workspace proj-path evaluation-context)
+                    (let [resource (workspace/find-resource basis workspace proj-path)
                           resource-node (project/get-resource-node project resource evaluation-context)
                           resource-type (resource/resource-type resource)]
                       (testing proj-path

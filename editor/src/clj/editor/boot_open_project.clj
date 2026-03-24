@@ -401,7 +401,7 @@
 
           ;; If the project was just created, we automatically open the readme.
           (if newly-created?
-            (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+            (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
 
