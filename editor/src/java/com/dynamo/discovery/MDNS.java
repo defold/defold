@@ -43,8 +43,61 @@ public class MDNS {
         private TestHooks() {
         }
 
+        // Added so parser tests can inject raw packets without relying on multicast sockets.
         public static void parsePacket(MDNS mdns, byte[] data, String localAddress, String remoteAddress) {
             mdns.parsePacket(data, data.length, localAddress, remoteAddress);
+        }
+
+        // Added so query tests can assert the exact DNS-SD query bytes produced by the editor implementation.
+        public static byte[] buildQuery(MDNS mdns) {
+            return mdns.buildQuery();
+        }
+
+        // Added so query tests can exercise socket send behavior without going through live multicast discovery.
+        public static void sendQuery(MDNS mdns) {
+            mdns.sendQuery();
+        }
+
+        // Added so packet-read tests can feed deterministic socket data into the private receive loop.
+        public static void readPackets(MDNS mdns) {
+            mdns.readPackets();
+        }
+
+        // Added so packet-read tests can rebuild the public device list after injecting records.
+        public static void rebuildDiscovered(MDNS mdns) {
+            mdns.rebuildDiscovered();
+        }
+
+        // Added so interface-change tests can drive the private network refresh logic directly.
+        public static void refreshNetworks(MDNS mdns) throws IOException {
+            mdns.refreshNetworks();
+        }
+
+        // Added so socket-plumbing tests can inject the multicast destination without calling setup().
+        public static void setMulticastAddress(MDNS mdns, InetAddress multicastAddress) {
+            mdns.multicastAddress = multicastAddress;
+        }
+
+        // Added so interface-change tests can control the previous interface snapshot before refresh().
+        public static void setInterfaces(MDNS mdns, List<NetworkInterface> interfaces) {
+            mdns.interfaces = interfaces;
+        }
+
+        // Added so socket-plumbing tests can attach synthetic sockets to MDNS without exposing Connection publicly.
+        public static void addConnection(MDNS mdns, NetworkInterface networkInterface, String localAddress, MulticastSocket socket) {
+            Connection connection = new Connection(networkInterface, localAddress);
+            connection.socket = socket;
+            mdns.connections.add(connection);
+        }
+
+        // Added so interface-change tests can assert that refresh() clears stale service accumulators.
+        public static int serviceCount(MDNS mdns) {
+            return mdns.services.size();
+        }
+
+        // Added so interface-change tests can assert that refresh() clears cached host addresses.
+        public static int hostCount(MDNS mdns) {
+            return mdns.hosts.size();
         }
     }
 
