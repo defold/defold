@@ -17,8 +17,8 @@
   (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
            [java.io ByteArrayOutputStream]
            [java.lang.reflect Method]
-           [java.net DatagramPacket InetAddress MulticastSocket]
-           [java.util UUID]))
+           [java.util HashMap UUID]
+           [java.net DatagramPacket InetAddress MulticastSocket]))
 
 (set! *warn-on-reflection* true)
 
@@ -262,6 +262,22 @@
     (is (= base same))
     (is (not= base host-changed))
     (is (not= base local-address-changed))))
+
+(deftest mdns-service-info-txt-is-unmodifiable
+  (let [txt (doto (HashMap.)
+              (.put "schema" "1"))
+        info (MDNSServiceInfo. 120
+                               "id"
+                               "instance"
+                               "service"
+                               "host.local"
+                               "10.0.0.1"
+                               "192.168.0.10"
+                               8123
+                               "7001"
+                               txt)]
+    (is (thrown? UnsupportedOperationException
+                 (.put (.txt info) "name" "changed")))))
 
 (deftest mdns-live-multicast-integration
   (let [mdns (MDNS. (dummy-logger))]

@@ -17,39 +17,19 @@ package com.dynamo.discovery;
 import java.util.Collections;
 import java.util.Map;
 
-public class MDNSServiceInfo {
+public record MDNSServiceInfo(long expires,
+                              String id,
+                              String instanceName,
+                              String serviceName,
+                              String host,
+                              String address,
+                              String localAddress,
+                              int port,
+                              String logPort,
+                              Map<String, String> txt) {
 
-    public final long expires;
-    public final String id;
-    public final String instanceName;
-    public final String serviceName;
-    public final String host;
-    public final String address;
-    public final String localAddress;
-    public final int port;
-    public final String logPort;
-    public final Map<String, String> txt;
-
-    public MDNSServiceInfo(long expires,
-                           String id,
-                           String instanceName,
-                           String serviceName,
-                           String host,
-                           String address,
-                           String localAddress,
-                           int port,
-                           String logPort,
-                           Map<String, String> txt) {
-        this.expires = expires;
-        this.id = id;
-        this.instanceName = instanceName;
-        this.serviceName = serviceName;
-        this.host = host;
-        this.address = address;
-        this.localAddress = localAddress;
-        this.port = port;
-        this.logPort = logPort;
-        this.txt = Collections.unmodifiableMap(txt);
+    public MDNSServiceInfo {
+        txt = Collections.unmodifiableMap(txt);
     }
 
     @Override
@@ -65,8 +45,7 @@ public class MDNSServiceInfo {
 
     @Override
     public boolean equals(Object other) {
-        if (other instanceof MDNSServiceInfo) {
-            MDNSServiceInfo s = (MDNSServiceInfo) other;
+        if (other instanceof MDNSServiceInfo s) {
             return serviceName.equals(s.serviceName)
                     && address.equals(s.address)
                     && (host != null ? host.equals(s.host) : s.host == null)
