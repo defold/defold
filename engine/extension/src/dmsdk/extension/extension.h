@@ -353,6 +353,7 @@ void ExtensionRegister(void* desc,
     FExtensionOnEvent       on_event);
 
 /** currently internal
+ * @name ExtensionRegisterCallback
  * Used for registing a pre or post render callback
  */
 bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCallback func);
