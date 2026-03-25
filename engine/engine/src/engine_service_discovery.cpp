@@ -16,11 +16,13 @@
 
 #include <string.h>
 
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/mdns.h>
 
 #include "engine_service_discovery.h"
+#include "engine_service_private.h"
 
 namespace dmEngineService
 {
@@ -46,45 +48,13 @@ namespace dmEngineService
         if (out_size == 0)
             return;
 
-        const char* source = (service_id && service_id[0]) ? service_id : "defold";
-        uint32_t max_length = out_size - 1;
-        if (max_length > DISCOVERY_HOST_LABEL_MAX_LENGTH)
-            max_length = DISCOVERY_HOST_LABEL_MAX_LENGTH;
+        uint32_t sanitized_out_size = out_size;
+        if (sanitized_out_size > DISCOVERY_HOST_LABEL_MAX_LENGTH + 1)
+            sanitized_out_size = DISCOVERY_HOST_LABEL_MAX_LENGTH + 1;
 
-        uint32_t offset = 0;
-        bool last_was_dash = false;
-        while (*source && offset < max_length)
-        {
-            char c = *source++;
-            if (c >= 'A' && c <= 'Z')
-                c = (char) (c - 'A' + 'a');
-
-            const bool is_alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
-            if (is_alnum)
-            {
-                out[offset++] = c;
-                last_was_dash = false;
-            }
-            else if (!last_was_dash && offset < max_length)
-            {
-                out[offset++] = '-';
-                last_was_dash = true;
-            }
-        }
-
-        while (offset > 0 && out[offset - 1] == '-')
-            --offset;
-
-        if (offset == 0)
-        {
-            dmStrlCpy(out, "defold", out_size);
-            return;
-        }
-
-        if (out[0] == '-')
-            out[0] = 'd';
-
-        out[offset] = 0;
+        // Keep interior separators from the service id, but rewrite a leading
+        // dash to 'd' so the resulting host label still starts validly.
+        SanitizeMDNSLabel(service_id, "defold", true, 'd', out, sanitized_out_size);
     }
 
     HDiscoveryService DiscoveryServiceNew(const char* service_id, const char* instance_name, uint16_t port, const DiscoveryTxtEntry* txt_entries, uint32_t txt_count)
@@ -93,7 +63,7 @@ namespace dmEngineService
             return 0;
 
         dmMDNS::TxtEntry mdns_txt_entries[16];
-        const uint32_t mdns_txt_entries_count = sizeof(mdns_txt_entries) / sizeof(mdns_txt_entries[0]);
+        const uint32_t mdns_txt_entries_count = DM_ARRAY_SIZE(mdns_txt_entries);
         if (txt_count > mdns_txt_entries_count)
         {
             dmLogWarning("Unable to register mDNS service, too many TXT entries (%u)", txt_count);

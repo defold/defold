@@ -29,6 +29,7 @@
 #include <gameobject/gameobject.h>
 #include <gamesys/components/comp_gui.h> 
 #include "engine_service.h"
+#include "engine_service_private.h"
 #include "engine_service_discovery.h"
 #include "engine_version.h"
 
@@ -42,70 +43,8 @@ namespace dmEngineService
     static const char STATE_TEMPLATE[] =
     "{\"connection_mode\": ${CONNECTION_MODE}}";
     static const char MDNS_SCHEMA_VERSION[] = "1";
-    static const uint32_t MDNS_MAX_LABEL_LENGTH = 63;
-
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
     const char* const FOURCC_RESOURCES = "RESS";
-
-    static void BuildServiceInstanceName(const char* local_address, const char* port_text, char* out, uint32_t out_size)
-    {
-        if (out_size == 0)
-            return;
-
-        char sanitized_address[128];
-        const char* source = (local_address && local_address[0]) ? local_address : "localhost";
-        uint32_t sanitized_length = 0;
-        bool last_was_dash = true;
-        while (*source && sanitized_length + 1 < sizeof(sanitized_address))
-        {
-            char c = *source++;
-            if (c >= 'A' && c <= 'Z')
-                c = (char) (c - 'A' + 'a');
-
-            const bool is_alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
-            if (is_alnum)
-            {
-                sanitized_address[sanitized_length++] = c;
-                last_was_dash = false;
-            }
-            else if (!last_was_dash)
-            {
-                sanitized_address[sanitized_length++] = '-';
-                last_was_dash = true;
-            }
-        }
-        while (sanitized_length > 0 && sanitized_address[sanitized_length - 1] == '-')
-            --sanitized_length;
-
-        if (sanitized_length == 0)
-        {
-            dmStrlCpy(sanitized_address, "localhost", sizeof(sanitized_address));
-        }
-        else
-        {
-            sanitized_address[sanitized_length] = 0;
-        }
-
-        char suffix[32];
-        suffix[0] = 0;
-        if (port_text && port_text[0])
-            dmSnPrintf(suffix, sizeof(suffix), "-%s", port_text);
-
-        static const char prefix[] = "defold-";
-        const uint32_t max_label_length = dmMath::Min((uint32_t) out_size - 1, MDNS_MAX_LABEL_LENGTH);
-        const uint32_t prefix_length = (uint32_t) strlen(prefix);
-        const uint32_t suffix_length = (uint32_t) strlen(suffix);
-        const uint32_t max_address_length = prefix_length + suffix_length < max_label_length ? max_label_length - prefix_length - suffix_length : 0;
-
-        uint32_t address_length = (uint32_t) strlen(sanitized_address);
-        if (address_length > max_address_length)
-            address_length = max_address_length;
-
-        dmStrlCpy(out, prefix, out_size);
-        memcpy(out + prefix_length, sanitized_address, address_length);
-        out[prefix_length + address_length] = 0;
-        dmStrlCat(out, suffix, out_size);
-    }
 
     struct EngineService
     {
@@ -389,9 +328,6 @@ namespace dmEngineService
             BuildServiceInstanceName(m_LocalAddress, m_PortText, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
 
             // Service id must be unique and this scheme is probably unique enough.
-            dmStrlCpy(m_ServiceId, "defold-", sizeof(m_ServiceId));
-            dmStrlCat(m_ServiceId, m_LocalAddress, sizeof(m_ServiceId));
-            dmStrlCat(m_ServiceId, ":", sizeof(m_ServiceId));
             /*
              * Note that we use the engine service port for
              * distinguishing the dmengine instances rather than the
@@ -401,9 +337,7 @@ namespace dmEngineService
              * devices is pointless since we can't determine which one
              * we're connecting to anyhow (port reuse).
              */
-            dmStrlCat(m_ServiceId, m_PortText, sizeof(m_ServiceId));
-            dmStrlCat(m_ServiceId, "-", sizeof(m_ServiceId));
-            dmStrlCat(m_ServiceId, info.m_DeviceModel, sizeof(m_ServiceId));
+            dmSnPrintf(m_ServiceId, sizeof(m_ServiceId), "defold-%s:%s-%s", m_LocalAddress, m_PortText, info.m_DeviceModel);
 
             dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 

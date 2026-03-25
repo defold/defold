@@ -13,6 +13,7 @@ It is possible to connect to and interact with a debug version of the engine thr
 mDNS/DNS-SD is used by the running engine to broadcast its existence on the network so that the editor can discover it and connect to issue commands.
 
 The service type is `_defold._tcp.local` and discovery metadata is provided through TXT records. The editor uses this metadata directly to build targets.
+The advertised instance name is a protocol identifier, not display text: it is emitted as `defold[-<sanitized-address>][-<port>]`, must fit within one 63-byte DNS label, and may omit the address segment when keeping the port makes the label more useful.
 
 <details><summary>Example of discovery using `dns-sd` (macOS)</summary><p>
 

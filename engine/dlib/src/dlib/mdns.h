@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_MDNS
-#define DM_MDNS
+#ifndef DM_MDNS_H
+#define DM_MDNS_H
 
 #include <stdint.h>
 #include <string.h>
@@ -85,7 +85,7 @@ namespace dmMDNS
         uint32_t        m_TxtCount;
     };
 
-    typedef void (*ServiceCallback)(void* context, const ServiceEvent* event);
+    typedef void (*FServiceCallback)(void* context, const ServiceEvent* event);
 
     struct BrowserParams
     {
@@ -95,7 +95,7 @@ namespace dmMDNS
         }
 
         const char*      m_ServiceType; // e.g. "_defold._tcp"
-        ServiceCallback  m_Callback;
+        FServiceCallback  m_Callback;
         void*            m_Context;
     };
 
@@ -110,4 +110,4 @@ namespace dmMDNS
     Result DeleteBrowser(HBrowser browser);
 }
 
-#endif // DM_MDNS
+#endif // DM_MDNS_H

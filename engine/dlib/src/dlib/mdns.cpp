@@ -24,6 +24,17 @@
 
 namespace dmMDNS
 {
+    // Minimal IPv4-only mDNS/DNS-SD responder and browser.
+    //
+    // References:
+    // RFC 6762: Multicast DNS transport rules, query/response behavior,
+    //           cache-flush semantics, and probing/announcing flow.
+    // RFC 6763: DNS-Based Service Discovery record layout (PTR + SRV + TXT)
+    //           and TXT key/value encoding rules.
+    // RFC 1035 section 4.1.4: DNS message compression used by ReadName().
+    //
+    // The implementation below focuses on basic advertise/browse behavior and
+    // keeps names in dotted presentation form between wire-format conversions.
     static const char* MDNS_MULTICAST_IPV4 = "224.0.0.251";
     static const uint16_t MDNS_PORT = 5353;
     static const uint32_t MDNS_MAX_TXT_ENTRIES = 16;
@@ -149,7 +160,7 @@ namespace dmMDNS
         }
 
         dmSocket::Socket m_Socket;
-        ServiceCallback m_Callback;
+        FServiceCallback m_Callback;
         void* m_Context;
 
         char m_ServiceType[64];
@@ -184,12 +195,8 @@ namespace dmMDNS
 
     static bool EndsWithLocal(const char* value)
     {
-        uint32_t n = (uint32_t) strlen(value);
-        static const char suffix[] = ".local";
-        uint32_t suffix_n = (uint32_t) strlen(suffix);
-        if (n < suffix_n)
-            return false;
-        return dmStrCaseCmp(value + n - suffix_n, suffix) == 0;
+        const char* last_dot = strrchr(value, '.');
+        return last_dot && dmStrCaseCmp(last_dot, ".local") == 0;
     }
 
     static void BuildLocalName(const char* value, char* out, uint32_t out_size)
@@ -209,6 +216,11 @@ namespace dmMDNS
 
     static void BuildFullServiceName(const char* instance_name, const char* service_type_local, char* out, uint32_t out_size)
     {
+        // RFC 6763 composes a service instance name as:
+        // <Instance>.<Service>.<Domain>
+        //
+        // This helper currently concatenates presentation-form strings and
+        // relies on WriteName() to turn them into DNS labels on the wire.
         dmStrlCpy(out, instance_name, out_size);
         if (out[0] && out[strlen(out) - 1] != '.')
             dmStrlCat(out, ".", out_size);
@@ -332,6 +344,9 @@ namespace dmMDNS
 
     static bool ReadName(const uint8_t* data, uint32_t size, uint32_t* offset, char* out, uint32_t out_size)
     {
+        // RFC 1035 section 4.1.4 name parser with support for compression
+        // pointers. The jump limit keeps malformed packets from looping
+        // forever when they contain cyclic pointers.
         uint32_t pos = *offset;
         uint32_t out_len = 0;
         bool jumped = false;
@@ -647,6 +662,8 @@ namespace dmMDNS
 
     static uint32_t BuildResponseMessage(const RegisteredService& service, const dmSocket::Address* host_address, uint32_t ttl, uint8_t* buffer, uint32_t buffer_size)
     {
+        // RFC 6763 service advertisement record set:
+        // PTR(<service type>) -> <instance>, then SRV/TXT/A for that instance.
         uint32_t offset = 0;
         uint16_t answer_count = 0;
 
@@ -830,6 +847,9 @@ namespace dmMDNS
 
     static void HandleIncomingQueries(MDNS* mdns)
     {
+        // Minimal RFC 6762 responder loop:
+        // parse multicast questions, match them against locally registered
+        // authoritative records, and emit the corresponding record set.
         bool incoming_data = false;
         do
         {
@@ -1036,6 +1056,11 @@ namespace dmMDNS
 
     static void TryResolveService(Browser* browser, BrowserService* service)
     {
+        // RFC 6763 service resolution completes when browsing has yielded:
+        // PTR  -> the service instance exists
+        // SRV  -> host name + port
+        // TXT  -> metadata for the instance
+        // A    -> an IPv4 address for the SRV target host
         RefreshServiceAddress(browser, service);
 
         const bool complete = service->m_HasPtr && service->m_HasSrv && service->m_HasTxt && service->m_HasAddress;
