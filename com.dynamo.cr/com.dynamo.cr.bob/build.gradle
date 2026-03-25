@@ -167,7 +167,7 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
-        def bundletoolJar = file("${project.bobDir}/bundletool/bundletool-all.jar")
+        def bundletoolJar = file("${project.dynamoHome}/ext/share/java/bundletool-all.jar")
         if (bundletoolJar.exists()) {
             copy {
                 from bundletoolJar

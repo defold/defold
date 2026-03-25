@@ -121,6 +121,7 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
+    "bundletool-all",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",

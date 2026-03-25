@@ -40,8 +40,8 @@ mkdir -p libexec/arm64-android
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
 
-# Android bundletool (source of truth: bundletool/bundletool-all.jar)
-cp -v "${DIR}/../bundletool/bundletool-all.jar" libexec/bundletool-all.jar
+# Android bundletool (from common package bundletool-all-common.tar.gz → ext/share/java/)
+cp -v "$DYNAMO_HOME/ext/share/java/bundletool-all.jar" libexec/bundletool-all.jar
 
 SHA1=`git log --pretty=%H -n1`
 
