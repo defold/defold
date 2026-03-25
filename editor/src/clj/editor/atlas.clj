@@ -722,7 +722,7 @@
         image-keys (:image-keys texture-set-data)]
     (reduce (fn [result {:keys [path x y width height index page]}]
               (let [image-key (get image-keys index)]
-                (if (contains? image-keys image-key)
+                (if (contains? result image-key)
                   result
                   (let [geometry (get geometries index)
                         rotated-vertices (if (:rotated geometry)
