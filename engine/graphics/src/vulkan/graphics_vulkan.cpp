@@ -109,6 +109,47 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STR_CASE
 
+    static const char* VkPhysicalDeviceTypeToStr(VkPhysicalDeviceType device_type)
+    {
+        switch (device_type)
+        {
+            case VK_PHYSICAL_DEVICE_TYPE_OTHER:          return "other";
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "integrated_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   return "discrete_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    return "virtual_gpu";
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:            return "cpu";
+            default:                                     return "unknown";
+        }
+    }
+
+    static const char* VkVendorIdToStr(uint32_t vendor_id)
+    {
+        switch (vendor_id)
+        {
+            case 0x1002: return "AMD";
+            case 0x1010: return "Imagination Technologies";
+            case 0x10DE: return "NVIDIA";
+            case 0x13B5: return "ARM";
+            case 0x5143: return "Qualcomm";
+            case 0x8086: return "Intel";
+            default:     return "Unknown";
+        }
+    }
+
+    static void VulkanPrintDeviceInfo(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        const VkPhysicalDeviceProperties& properties = context->m_PhysicalDevice.m_Properties;
+
+        dmLogInfo("Device: Vulkan %u.%u.%u  %s",
+            VK_VERSION_MAJOR(properties.apiVersion),
+            VK_VERSION_MINOR(properties.apiVersion),
+            VK_VERSION_PATCH(properties.apiVersion),
+            properties.deviceName);
+        dmLogInfo("Device ID: 0x%04x  Type: %s", properties.deviceID, VkPhysicalDeviceTypeToStr(properties.deviceType));
+        dmLogInfo("Vendor: %s (0x%04x) driver version: 0x%08x", VkVendorIdToStr(properties.vendorID), properties.vendorID, properties.driverVersion);
+    }
+
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
     {
         memset(this, 0, sizeof(*this));
@@ -117,6 +158,7 @@ namespace dmGraphics
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
@@ -1150,6 +1192,12 @@ namespace dmGraphics
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
         void* device_pNext_chain = 0;
+        VkPhysicalDevicePresentIdFeaturesKHR present_id_feature_support = {};
+        VkPhysicalDevicePresentWaitFeaturesKHR present_wait_feature_support = {};
+        VkPhysicalDevicePresentIdFeaturesKHR device_present_id_features = {};
+        VkPhysicalDevicePresentWaitFeaturesKHR device_present_wait_features = {};
+        VkPhysicalDeviceFeatures2 present_features = {};
+        bool supports_present_wait_extensions = false;
 
         uint16_t validation_layers_count;
         const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers);
@@ -1162,9 +1210,48 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
+        if (context->m_PrintDeviceInfo)
+        {
+            VulkanPrintDeviceInfo(context);
+        }
+
         SetupSupportedTextureFormats(context);
 
-    #if defined(__MACH__)
+        present_id_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+        present_wait_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+        present_id_feature_support.pNext = &present_wait_feature_support;
+
+        supports_present_wait_extensions =
+            VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
+            VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+
+        if (supports_present_wait_extensions)
+        {
+            present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            present_features.pNext = &present_id_feature_support;
+            vkGetPhysicalDeviceFeatures2(context->m_PhysicalDevice.m_Device, &present_features);
+        }
+
+        if (supports_present_wait_extensions &&
+            present_id_feature_support.presentId &&
+            present_wait_feature_support.presentWait)
+        {
+            device_extensions.OffsetCapacity(2);
+            device_extensions.Push(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+            device_extensions.Push(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+
+            device_present_wait_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+            device_present_wait_features.pNext = device_pNext_chain;
+            device_present_wait_features.presentWait = VK_TRUE;
+
+            device_present_id_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+            device_present_id_features.pNext = &device_present_wait_features;
+            device_present_id_features.presentId = VK_TRUE;
+
+            device_pNext_chain = &device_present_id_features;
+        }
+
+#if defined(__MACH__)
         // Check for optional extensions so that we can enable them if they exist
         if (VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
@@ -1177,20 +1264,20 @@ namespace dmGraphics
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
         }
+#endif
 
-        #ifdef DM_VULKAN_VALIDATION
+#if defined(__MACH__) && defined(DM_VULKAN_VALIDATION)
         if (context->m_UseValidationLayers)
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push("VK_KHR_portability_subset");
         }
-        #endif
-    #endif
+#endif
 
         if (VulkanIsExtensionSupported((HContext) context, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
         {
             context->m_FragmentShaderInterlockFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
-            context->m_FragmentShaderInterlockFeatures.pNext = NULL;
+            context->m_FragmentShaderInterlockFeatures.pNext = device_pNext_chain;
 
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
@@ -1207,12 +1294,13 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
+        context->m_WaitForPresent   = (PFN_vkWaitForPresentKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkWaitForPresentKHR");
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, &context->m_ResolveTexture);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, &context->m_ResolveTexture, context->m_WaitForPresent);
 
         res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
@@ -1294,8 +1382,10 @@ bail:
         extensionNameCount         = 1;
     #endif
 
+        uint32_t vk_api_version = VK_MAKE_API_VERSION(0, 1, 0, 0);
+
         VkInstance inst;
-        VkResult res = CreateInstance(&inst, extensionNames, extensionNameCount, 0, 0, 0, 0);
+        VkResult res = CreateInstance(&inst, vk_api_version, extensionNames, extensionNameCount, 0, 0, 0, 0);
 
         if (res == VK_SUCCESS)
         {
@@ -1325,8 +1415,11 @@ bail:
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
+            uint32_t vk_api_version = VK_MAKE_API_VERSION(0, params.m_GraphicsApiVersionMajorHint, params.m_GraphicsApiVersionMinorHint, 0);
+
             VkInstance vk_instance;
             if (CreateInstance(&vk_instance,
+                                vk_api_version,
                                 extension_names, extension_names_count,
                                 validation_layers, validation_layers_count,
                                 validation_layers_ext, validation_layers_ext_count) != VK_SUCCESS)
@@ -1356,26 +1449,21 @@ bail:
         {
             dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
-            DeleteRenderTarget(_context, context->m_MainRenderTarget);
-            DeleteTexture(_context, context->m_CurrentSwapchainTexture);
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                delete context->m_MainResourcesToDestroy[i];
+            }
 
             if (context->m_Instance != VK_NULL_HANDLE)
             {
-                vkDestroyInstance(context->m_Instance, 0);
-                context->m_Instance = VK_NULL_HANDLE;
-            }
-
-            if (context->m_AssetHandleContainerMutex)
-            {
-                dmMutex::Delete(context->m_AssetHandleContainerMutex);
+                DestroyInstance(&context->m_Instance);
             }
 
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
-            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            if (context->m_AssetHandleContainerMutex)
             {
-                FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
-                delete context->m_MainResourcesToDestroy[i];
+                dmMutex::Delete(context->m_AssetHandleContainerMutex);
             }
 
             delete context;
@@ -1527,7 +1615,23 @@ bail:
         presentInfo.pImageIndices      = &swapchainImageIndex;
         presentInfo.pResults           = nullptr;
 
+        VkPresentIdKHR present_id_info = {};
+        uint64_t present_id = 0;
+        if (context->m_WaitForPresent)
+        {
+            present_id = context->m_SwapChain->m_LastPresentId + 1;
+            present_id_info.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
+            present_id_info.swapchainCount = 1;
+            present_id_info.pPresentIds = &present_id;
+            presentInfo.pNext = &present_id_info;
+        }
+
         res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
+        {
+            context->m_SwapChain->m_LastPresentId = present_id;
+        }
+
         if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
         {
             CHECK_VK_ERROR(res);
@@ -4363,6 +4467,18 @@ bail:
 
         FlushFenceResourcesToDestroy(context);
 
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+            if (main_render_target)
+            {
+                context->m_AssetHandleContainer.Release(context->m_MainRenderTarget);
+                delete main_render_target;
+                context->m_MainRenderTarget    = 0x0;
+                context->m_CurrentRenderTarget = 0x0;
+            }
+        }
+
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
             vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
@@ -4370,6 +4486,18 @@ bail:
         }
 
         DestroySwapChain(vk_device, context->m_SwapChain);
+
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            if (current_swapchain_texture)
+            {
+                context->m_AssetHandleContainer.Release(context->m_CurrentSwapchainTexture);
+                delete current_swapchain_texture;
+                context->m_CurrentSwapchainTexture = 0x0;
+            }
+        }
+
         DestroyLogicalDevice(&context->m_LogicalDevice);
         DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }

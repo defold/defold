@@ -86,6 +86,7 @@ namespace dmGameSystem
     extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
     extern void GetSpriteComponentScale(void* sprite_component, dmVMath::Vector3* scale_out);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
     extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
     extern void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
@@ -1389,6 +1390,36 @@ TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(SoundTest, LuaSetSpeedToZero)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/sound/set_speed_zero.goc";
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    EXPECT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
+
+    dmGameObject::PropertyDesc property_desc;
+    dmGameObject::PropertyOptions property_opt;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, dmHashString64("sound"), dmHashString64("speed"), property_opt, property_desc));
+    ASSERT_EQ(0.0f, property_desc.m_Variant.m_Number);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    DeleteInstance(m_Collection, go);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 
 TEST_P(ResourcePropTest, ResourceRefCounting)
 {
@@ -1479,6 +1510,38 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
             dmResource::Release(m_Factory, resources[i]);
         }
     }
+}
+
+TEST_F(ComponentTest, ModelTexturePropertyAllTextureSlots)
+{
+    const char* go_path = "/resource/res_getset_prop.goc";
+    const char* tex_path = "/tile/mario_tileset.texturec";
+    dmhash_t tex_hash = dmHashString64(tex_path);
+    dmhash_t comp_name = dmHashString64("model");
+
+    void* tex_res = 0x0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, tex_path, &tex_res));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    char prop_buf[32];
+    dmGameObject::PropertyOptions opt;
+    for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        dmSnPrintf(prop_buf, sizeof(prop_buf), "texture%u", i);
+        dmhash_t prop = dmHashString64(prop_buf);
+        dmGameObject::PropertyVar v(tex_hash);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, comp_name, prop, opt, v));
+
+        dmGameObject::PropertyDesc desc;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, comp_name, prop, opt, desc));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_HASH, desc.m_Variant.m_Type);
+        ASSERT_EQ(tex_hash, desc.m_Variant.m_Hash);
+    }
+
+    DeleteInstance(m_Collection, go);
+    dmResource::Release(m_Factory, tex_res);
 }
 
 // Test that go.delete() does not influence other sprite animations in progress
@@ -6725,6 +6788,39 @@ TEST_F(ModelTest, PlayAnimMessage)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// A single mesh with multiple materials that have different coordinate spaces
+// should generate the corresponding batch types. In this case the .gltf file
+// has two sub-meshes (RenderItems) with one world space material and one
+// local space material. Hence there should be one of each batch rendered.
+TEST_F(ModelTest, MultiMaterialVertexSpaceRenderBatching)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/one_mesh_two_materials.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    uint8_t world_batch_count;
+    uint8_t local_batch_count;
+    uint8_t local_instanced_batch_count;
+    dmGameSystem::GetModelWorldRenderBatchStats(model_world, &world_batch_count, &local_batch_count, &local_instanced_batch_count);
+    ASSERT_EQ(1, world_batch_count);
+    ASSERT_EQ(1, local_batch_count);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, DynamicVertexAttributes)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -6895,7 +6991,7 @@ TEST_F(ModelTest, PbrProperties)
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IOR_IOR_FACTOR, &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
-    exp = dmVMath::Vector4(0.17f, 0.0f, 0.0f, 0.0f);
+    exp = dmVMath::Vector4(1.17f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &constant));
@@ -6927,7 +7023,7 @@ TEST_F(ModelTest, PbrProperties)
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
-    exp = dmVMath::Vector4(0.25f, 0.255f, 0.260f, 0.265f);
+    exp = dmVMath::Vector4(0.25f, 1.255f, 0.260f, 0.265f);
     ASSERT_VEC4(exp, values[0]);
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &constant));

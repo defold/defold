@@ -107,6 +107,21 @@ public class ShaderUtil {
             return rewriter.getText();
         }
 
+        private static void writeGlesSM100PrecisionDirective(PrintWriter writer, ShaderDesc.ShaderType shaderType, Shaderc.ShaderPrecision defaultPrecision, String typeKeyword) {
+            String prec = defaultPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
+
+            // GLSL ES 2.0 might not support highp/mediump precision for fragment shaders, so we need to guard for that.
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT && defaultPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP) {
+                writer.println("#ifdef GL_FRAGMENT_PRECISION_HIGH");
+                writer.println("    precision highp " + typeKeyword + ";");
+                writer.println("#else");
+                writer.println("    precision mediump " + typeKeyword + ";");
+                writer.println("#endif");
+            } else {
+                writer.println("precision " + prec + " " + typeKeyword + ";");
+            }
+        }
+
         public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
                                          boolean isDebug, boolean useLatestFeatures, boolean splitTextureSamplers,
                                          Shaderc.ShaderPrecision defaultFloatPrecision, Shaderc.ShaderPrecision defaultIntPrecision) throws CompileExceptionError {
@@ -162,11 +177,8 @@ public class ShaderUtil {
 
                 // Write our directives.
                 if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
-                    // Normally, the ES2ToES3Converter would do this
-                    String floatPrec = defaultFloatPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                    writer.println("precision " + floatPrec + " float;");
-                    String intPrec = defaultIntPrecision == Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP ? "highp" : "mediump";
-                    writer.println("precision " + intPrec + " int;");
+                    writeGlesSM100PrecisionDirective(writer, shaderType, defaultFloatPrecision, "float");
+                    writeGlesSM100PrecisionDirective(writer, shaderType, defaultIntPrecision, "int");
                 }
 
                 if (!gles) {

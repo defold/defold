@@ -1899,6 +1899,10 @@ form.label.project.graphics.opengl_version_hint = OpenGL Version Hint
 form.help.project.graphics.opengl_version_hint = OpenGL context version hint. If a specific version is selected, this will be used as the minimum version required (does not apply to OpenGL ES). Defaults to OpenGL 3.3
 form.label.project.graphics.opengl_core_profile_hint = OpenGL Core Profile Hint
 form.help.project.graphics.opengl_core_profile_hint = Set the 'core' OpenGL profile hint when creating the context. The core profile removes deprecated OpenGL features such as immediate mode rendering. Does not apply to OpenGL ES.
+form.label.project.graphics.vulkan_version_major = Vulkan Version Major
+form.help.project.graphics.vulkan_version_major = Vulkan context major version hint. Only applies when using the Vulkan graphics backend.
+form.label.project.graphics.vulkan_version_minor = Vulkan Version Minor
+form.help.project.graphics.vulkan_version_minor = Vulkan context minor version hint. Only applies when using the Vulkan graphics backend.
 form.label.project.graphics.memory_size = Memory Size
 form.help.project.graphics.memory_size = How much memory the driver is allowed to use (MB)
 
@@ -2264,7 +2268,7 @@ error.property-must-be-between = "{property}" must be between {min} and {max}.
 error.attribute-components-must-be-between = Components in vertex attribute "{attribute}" must be between {min} and {max}.
 error.vertex-attribute = Vertex attribute "{attribute}": {error}
 error.vertex-attribute-normalize-float-data-type = Vertex attribute "{attribute}" uses Normalize with Float data type.
-error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas.
+error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas. GLES 2.0 support must be excluded in game.project > Runtime > Shader settings
 error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right_size}\n{left} = {left_size}\n{top} = {top_size}\n{bottom} = {bottom_size}\n{front} = {front_size}\n{back} = {back_size}.
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.transpiler-compilation-failed = Compilation failed: {error}

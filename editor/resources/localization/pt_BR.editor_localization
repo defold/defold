@@ -2099,7 +2099,6 @@ error.property-must-be-between = "{property}" deve estar entre {min} e {max}.
 error.attribute-components-must-be-between = Componentes no atributo de vértices "{attribute}" deve estar entre {min} e {max}.
 error.vertex-attribute = Atributo de vértice "{attribute}"\: {error}
 error.vertex-attribute-normalize-float-data-type = Atributo de vértice "{attribute}" usa Normalizar com tipo de dados Float.
-error.atlas-page-count-cannot-exceed = Contagem de páginas do Atlas ({count}) não pode exceder {max} páginas por atlas.
 error.lua-preprocessing-failed = Pré-processamento Lua falhou.\n{error}
 error.transpiler-compilation-failed = Compilação falhou\: {error}
 error.animation-set-build-failed = Falha ao construir {resource}\: {error}

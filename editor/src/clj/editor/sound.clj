@@ -164,7 +164,7 @@
       speed :speed
       loopcount :loopcount)))
 
-(def prop-sound-speed? (partial validation/prop-outside-range? [0.1 5.0]))
+(def prop-sound-speed? (partial validation/prop-outside-range? [0.0 50.0]))
 
 (g/defnode SoundNode
   (inherits resource-node/ResourceNode)

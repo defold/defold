@@ -45,7 +45,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (common)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-common.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-common.tar.gz
@@ -53,7 +53,7 @@ jobs:
           retention-days: 1
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -97,7 +97,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -141,7 +141,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -192,7 +192,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.lib' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -236,7 +236,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -255,7 +255,7 @@ jobs:
           ref: "${{ env.BUILD_BRANCH }}"
 
       - name: Setup NDK (r25b)
-        uses: nttld/setup-ndk@v1
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
         id: setup-ndk
         with:
           ndk-version: r25b
@@ -308,7 +308,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
@@ -327,12 +327,12 @@ jobs:
           ref: "${{ env.BUILD_BRANCH }}"
 
       - name: Setup emsdk
-        uses: mymindstorm/setup-emsdk@v14
+        uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
         with:
           version: "4.0.6"
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: 3.13
 
@@ -361,7 +361,7 @@ jobs:
           tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz

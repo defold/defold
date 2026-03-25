@@ -35,6 +35,11 @@ import org.codehaus.jackson.map.ObjectMapper;
 public class GLTFValidator {
     private static String gltfValidatorExePath;
 
+    // Skip external validation of textures, since we don't support those yet.
+    private static boolean isTextureRelatedPointer(String pointer) {
+        return pointer.startsWith("/images/") || pointer.startsWith("/textures/");
+    }
+
     public static record ValidateError(String message, String pointer, String code) {}
 
     public static record ValidateResult(boolean result, List<ValidateError> errors) {}
@@ -95,11 +100,14 @@ public class GLTFValidator {
 
             // 0: error, we only look at errors in validation.
             if (severityNode.asInt() == 0) {
-                ValidateError err = new ValidateError(
-                    messageNode.asText(),
-                    msgNode.get("pointer").asText(),
-                    msgNode.get("code").asText()
-                );
+                String pointer = msgNode.get("pointer").asText();
+                String code = msgNode.get("code").asText();
+
+                if (isTextureRelatedPointer(pointer)) {
+                    continue;
+                }
+
+                ValidateError err = new ValidateError(messageNode.asText(), pointer, code);
                 errors.add(err);
             }
         }

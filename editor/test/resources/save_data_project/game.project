@@ -213,6 +213,8 @@ verify_graphics_calls = 0
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512
+vulkan_version_minor = 1
+vulkan_version_major = 0
 
 [iap]
 auto_finish_transactions = 0
@@ -290,3 +292,4 @@ glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
+
