@@ -166,10 +166,10 @@
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
 (g/defnk produce-image-scene
-  [_node-id image-resource order layout-size image-path->rect animation-updatable pivot-x pivot-y sprite-trim-mode]
+  [_node-id image-resource order layout-size image-key->rect animation-updatable pivot-x pivot-y sprite-trim-mode]
   (let [path (resource/proj-path image-resource)
         image-key [path [pivot-x pivot-y] sprite-trim-mode]
-        rect (get image-path->rect image-key)
+        rect (get image-key->rect image-key)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
         page-index (:page rect)
@@ -276,7 +276,7 @@
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
-  (input image-path->rect g/Any)
+  (input image-key->rect g/Any)
   (input rename-patterns g/Str)
 
   (input child->order g/Any)
@@ -345,7 +345,7 @@
     (g/connect atlas-node :layout-size      image-node :layout-size)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
-    (g/connect atlas-node :image-path->rect image-node :image-path->rect)
+    (g/connect atlas-node :image-key->rect image-node :image-key->rect)
     (g/connect atlas-node :updatable        image-node :animation-updatable)
     (g/connect atlas-node :rename-patterns  image-node :rename-patterns)))
 
@@ -359,7 +359,7 @@
     (g/connect image-node     :node-outline     animation-node :child-outlines)
     (g/connect image-node     :scene            animation-node :child-scenes)
     (g/connect animation-node :child->order     image-node     :child->order)
-    (g/connect animation-node :image-path->rect image-node     :image-path->rect)
+    (g/connect animation-node :image-key->rect image-node     :image-key->rect)
     (g/connect animation-node :layout-size      image-node     :layout-size)
     (g/connect animation-node :updatable        image-node     :animation-updatable)
     (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
@@ -379,7 +379,7 @@
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
     (g/connect atlas-node     :layout-size      animation-node :layout-size)
-    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)
+    (g/connect atlas-node     :image-key->rect animation-node :image-key->rect)
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
@@ -452,8 +452,8 @@
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
 
-  (input image-path->rect g/Any)
-  (output image-path->rect g/Any (gu/passthrough image-path->rect))
+  (input image-key->rect g/Any)
+  (output image-key->rect g/Any (gu/passthrough image-key->rect))
 
   (input gpu-texture g/Any)
 
@@ -711,7 +711,7 @@
                         [y (- x)])))
         vertices))
 
-(g/defnk produce-image-path->rect
+(g/defnk produce-image-key->rect
   [layout-size layout-rects texture-set-data]
   (let [[w h] layout-size
         geometries (:geometries (:texture-set texture-set-data))
@@ -831,7 +831,7 @@
                   texture))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
-  (output image-path->rect g/Any               :cached produce-image-path->rect)
+  (output image-key->rect g/Any               :cached produce-image-key->rect)
 
   (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
   (output id-counts        NameCounts          :cached (g/fnk [anim-ids] (frequencies anim-ids)))
