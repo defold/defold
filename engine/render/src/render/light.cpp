@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>
-
 #include "render.h"
 #include "render_private.h"
 
@@ -310,22 +308,31 @@ namespace dmRender
         return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyCount;
     }
 
-    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count)
+    void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
     {
-        render_context->m_MaxLightCount = max_light_count;
-        render_context->m_LightUniformBuffer = 0;
-        render_context->m_LightBufferDirtyStart  = 0;
-        render_context->m_LightBufferDirtyEnd  = 0;
-        render_context->m_LightBufferDirtyCount  = 0;
-        render_context->m_LightBufferDataWriteStart  = 0;
+        assert(render_context);
+        assert(render_context->m_RenderLightsIndices.Size() == 0);
+
+        if (render_context->m_LightUniformBuffer)
+        {
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+            render_context->m_LightUniformBuffer = 0;
+        }
+
+        render_context->m_MaxLightCount               = (uint16_t) max_lights;
+        render_context->m_LightBufferDirtyStart       = 0;
+        render_context->m_LightBufferDirtyEnd         = 0;
+        render_context->m_LightBufferDirtyCount       = 0;
+        render_context->m_LightBufferDataWriteStart   = 0;
         render_context->m_LightBufferLastWrittenCount = 0;
 
-        if (max_light_count > 0)
+        if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
         {
-            render_context->m_RenderLightsIndices.SetCapacity(max_light_count);
-            render_context->m_LightBufferScratch.SetCapacity(max_light_count);
-            GenerateUniformBuffer(render_context, max_light_count);
+            render_context->m_RenderLightsIndices.SetCapacity(max_lights);
         }
+        render_context->m_LightBufferScratch.SetCapacity(max_lights);
+        render_context->m_LightBufferScratch.SetSize(0);
+        GenerateUniformBuffer(render_context, (int) max_lights);
     }
 
     void FinalizeLightData(HRenderContext render_context)

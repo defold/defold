@@ -101,7 +101,6 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
-    , m_MaxLights(0)
     {
 
     }
@@ -168,7 +167,8 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
-        InitializeLightData(context, params.m_MaxLights);
+        context->m_LightUniformBuffer = 0;
+        SetLightBufferCount(context, 0);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);

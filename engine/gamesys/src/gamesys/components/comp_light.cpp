@@ -161,6 +161,8 @@ namespace dmGameSystem
         light_context->m_RenderContext = *(dmRender::HRenderContext*) ctx->m_Contexts.Get(dmHashString64("render"));
         light_context->m_MaxLightCount = (uint32_t) dmMath::Max(0, dmConfigFile::GetInt(ctx->m_Config, LIGHT_MAX_COUNT_KEY, 64));
 
+        dmRender::SetLightBufferCount(light_context->m_RenderContext, light_context->m_MaxLightCount);
+
         ComponentTypeSetPrio(type, 1000);
 
         ComponentTypeSetContext(type, light_context);
