@@ -23,7 +23,6 @@
 #include <dlib/profile.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
-#include <dlib/time.h>
 #include <dlib/template.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
@@ -324,12 +323,9 @@ namespace dmEngineService
                 dmStrlCpy(m_LocalAddress, "localhost", sizeof(m_LocalAddress));
             }
 
-            char service_instance_suffix[9];
-            dmSnPrintf(service_instance_suffix, sizeof(service_instance_suffix), "%08x", (uint32_t) (dmTime::GetMonotonicTime() & 0xffffffffULL));
-
             // DNS-SD instance labels are protocol identifiers, while the
             // human-readable target name is published separately in TXT.
-            BuildServiceInstanceName(m_LocalAddress, m_PortText, service_instance_suffix, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
+            BuildServiceInstanceName(m_LocalAddress, m_PortText, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
 
             // Service id must be unique and this scheme is probably unique enough.
             /*

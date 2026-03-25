@@ -18,7 +18,7 @@
 TEST_F(EngineTest, ServiceInstanceNameSanitizesAddress)
 {
     char out[64];
-    dmEngineService::BuildServiceInstanceName("Local Host", "8001", 0, out, sizeof(out));
+    dmEngineService::BuildServiceInstanceName("Local Host", "8001", out, sizeof(out));
     ASSERT_STREQ("defold-local-host-8001", out);
 }
 
@@ -32,27 +32,13 @@ TEST_F(EngineTest, SanitizeMDNSLabelReplacesLeadingDashWhenRequested)
 TEST_F(EngineTest, ServiceInstanceNameDropsAddressBeforeDanglingSeparator)
 {
     char out[12];
-    dmEngineService::BuildServiceInstanceName("very-long-local-address", "8001", 0, out, sizeof(out));
+    dmEngineService::BuildServiceInstanceName("very-long-local-address", "8001", out, sizeof(out));
     ASSERT_STREQ("defold-8001", out);
 }
 
 TEST_F(EngineTest, ServiceInstanceNameAvoidsTrailingDashWithoutPort)
 {
     char out[8];
-    dmEngineService::BuildServiceInstanceName("very-long-local-address", 0, 0, out, sizeof(out));
+    dmEngineService::BuildServiceInstanceName("very-long-local-address", 0, out, sizeof(out));
     ASSERT_STREQ("defold", out);
-}
-
-TEST_F(EngineTest, ServiceInstanceNameIncludesSuffix)
-{
-    char out[64];
-    dmEngineService::BuildServiceInstanceName("Local Host", "8001", "89abcdef", out, sizeof(out));
-    ASSERT_STREQ("defold-local-host-8001-89abcdef", out);
-}
-
-TEST_F(EngineTest, ServiceInstanceNamePreservesSuffixWhenTruncatingAddress)
-{
-    char out[64];
-    dmEngineService::BuildServiceInstanceName("very-long-local-address-name-for-discovery-target-node", "8001", "89abcdef", out, sizeof(out));
-    ASSERT_STREQ("defold-very-long-local-address-name-for-discovery-8001-89abcdef", out);
 }
