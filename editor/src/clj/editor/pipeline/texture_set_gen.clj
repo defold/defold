@@ -153,10 +153,7 @@
 
 (defn atlas->texture-set-data
   [animations images margin inner-padding extrude-borders max-page-size]
-  ;; NOTE: Images order matters when generating the layouts, especially if they are of the same size.
-  ;; Since the SHA1 for the packed-page-images-generator is insensitive to order, things could get out of sync
-  (let [images (sort-by #(-> % :path resource/proj-path) images)
-        sprite-geometries (mapv make-image-sprite-geometry images)]
+  (let [sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
       (let [img-to-index (into {}
                                (map-indexed #(pair %2 (Integer/valueOf ^int %1)))
@@ -181,12 +178,18 @@
                               (reset! anim-imgs-atom [])))
             rects (mapv texture-set-layout-rect images)
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
+            image-keys (mapv (fn [img]
+                               [(resource/proj-path (:path img))
+                                [(:pivot-x img) (:pivot-y img)]
+                                (:sprite-trim-mode img)])
+                             images)
             result (TextureSetGenerator/calculateLayout
                      rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
                      true false nil (get max-page-size 0) (get max-page-size 1))]
         (doto (.builder result)
           (.setTexture "unknown"))
-        (TextureSetResult->result result)))))
+        (assoc (TextureSetResult->result result)
+               :image-keys image-keys)))))
 
 (defn- calc-tile-start [{:keys [spacing margin]} size tile-index]
   (let [actual-tile-size (+ size spacing (* 2 margin))]

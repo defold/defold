@@ -166,9 +166,10 @@
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
 (g/defnk produce-image-scene
-  [_node-id image-resource order layout-size image-path->rect animation-updatable]
+  [_node-id image-resource order layout-size image-path->rect animation-updatable pivot-x pivot-y sprite-trim-mode]
   (let [path (resource/proj-path image-resource)
-        rect (get image-path->rect path)
+        image-key [path [pivot-x pivot-y] sprite-trim-mode]
+        rect (get image-path->rect image-key)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
         page-index (:page rect)
@@ -711,16 +712,18 @@
         vertices))
 
 (g/defnk produce-image-path->rect
-  [layout-size layout-rects texture-set]
+  [layout-size layout-rects texture-set-data]
   (let [[w h] layout-size
-        geometries (:geometries texture-set)]
+        geometries (:geometries (:texture-set texture-set-data))
+        image-keys (:image-keys texture-set-data)]
     (into {} (map (fn [{:keys [path x y width height index page]}]
                     (let [geometry (get geometries index)
                           rotated-vertices (if (:rotated geometry)
                                              (rotate-vertices-90-cw (:vertices geometry))
                                              (:vertices geometry))]
-                      [path (->AtlasRect path x (- h height y) width height page
-                                         (assoc geometry :vertices rotated-vertices))])))
+                      [(get image-keys index)
+                       (->AtlasRect path x (- h height y) width height page
+                                    (assoc geometry :vertices rotated-vertices))])))
           layout-rects)))
 
 (defn- atlas-outline-sort-by-fn [basis v]
@@ -780,8 +783,15 @@
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
-  (output all-atlas-images [Image] :cached (g/fnk [animation-images]
-                                             (into [] (distinct) (flatten animation-images))))
+  (output all-atlas-images [Image] :cached
+          (g/fnk [animation-images]
+            ;; NOTE: Images order matters when generating the layouts, especially if they are of the same size.
+            ;; Since the SHA1 for the packed-page-images-generator is insensitive to order, things could get out of sync
+            ;; If not, you will get rects rendered laying on top of the wrong atlas images
+            (vec (sort-by #(-> % :path resource/proj-path)
+                          (coll/into-> (flatten animation-images)
+                                       []
+                                       (distinct))))))
 
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
