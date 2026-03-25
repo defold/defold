@@ -62,6 +62,8 @@ namespace dmEngineService
 
     static void RunOnMainThreadSync(dispatch_block_t block)
     {
+        // NSNetService is bound to the run loop it is scheduled on, so create,
+        // publish, stop, and teardown all on the main run loop.
         if ([NSThread isMainThread])
         {
             block();
@@ -91,6 +93,8 @@ namespace dmEngineService
 
     HDiscoveryService DiscoveryServiceNew(const char* service_id, const char* instance_name, uint16_t port, const DiscoveryTxtEntry* txt_entries, uint32_t txt_count)
     {
+        // Bonjour registration on iOS is handled by NSNetService; the stable
+        // Defold identity still travels in the TXT payload built by the caller.
         (void) service_id;
 
         if (instance_name == 0 || port == 0 || txt_entries == 0)
