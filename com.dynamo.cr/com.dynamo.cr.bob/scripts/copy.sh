@@ -27,6 +27,7 @@ copy_if_exists() {
         cp -v "$1" "$2"
     fi
 }
+
 mkdir -p lib/x86_64-linux
 mkdir -p lib/arm64-linux
 mkdir -p lib/x86_64-macos
@@ -45,7 +46,7 @@ mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
 # mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
-mkdir -p libexec/js-web
+# mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
 
@@ -158,7 +159,14 @@ copy_if_exists "$DYNAMO_HOME/ext/bin/x86_64-macos/oggz-validate" libexec/x86_64-
 copy_if_exists "$DYNAMO_HOME/ext/bin/arm64-macos/oggz-validate" libexec/arm64-macos/oggz-validate
 copy_if_exists "$DYNAMO_HOME/ext/bin/x86_64-win32/oggz-validate.exe" libexec/x86_64-win32/oggz-validate.exe
 
+# Internal / vendored tool (not in Android SDK); place under ext/bin if you ship it.
+copy_if_exists "$DYNAMO_HOME/ext/bin/x86_64-linux/apkc" libexec/x86_64-linux/apkc
+copy_if_exists "$DYNAMO_HOME/ext/bin/x86_64-win32/apkc.exe" libexec/x86_64-win32/apkc.exe
+
 # Android SDK build-tools (host matches CI machine — see README_ANDROID.md).
+# aapt2/zipalign/strip_android are copied only for the *current* runner OS/arch. A fat bob.jar with
+# every host's Android tools (as in some manual libexec trees) requires merging outputs from
+# multiple CI jobs or copy_private.sh.
 if [ -f "$ANDROID_SDK_BT/aapt2" ] || [ -f "$ANDROID_SDK_BT/aapt2.exe" ]; then
     case "$(uname -s)_$(uname -m)" in
         Linux_x86_64)
@@ -267,10 +275,10 @@ copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
 # copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
-copy js-web/dmengine.js js-web/dmengine.js
-copy js-web/dmengine.js.mem js-web/dmengine.js.mem
-copy js-web/dmengine_release.js js-web/dmengine_release.js
-copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
+# copy js-web/dmengine.js js-web/dmengine.js
+# copy js-web/dmengine.js.mem js-web/dmengine.js.mem
+# copy js-web/dmengine_release.js js-web/dmengine_release.js
+# copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
 copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
