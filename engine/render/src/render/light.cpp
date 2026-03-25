@@ -78,7 +78,7 @@ namespace dmRender
         }
 
         LightInstance* light_instance      = new LightInstance;
-        light_instance->m_Position         = dmVMath::Point3();
+        light_instance->m_Position         = dmVMath::Point3(0.0f, 0.0f, 0.0f);
         light_instance->m_Direction        = light_prototype->m_Direction;
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
