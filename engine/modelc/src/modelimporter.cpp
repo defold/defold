@@ -48,9 +48,28 @@ struct ModelImporterInitializer
     }
 } g_ModelImporterInitializer;
 
-
 namespace dmModelImporter
 {
+
+static char g_ModelLoadError[512];
+
+void ClearLoadError()
+{
+    g_ModelLoadError[0] = 0;
+}
+
+void SetLoadError(const char* message)
+{
+    if (message)
+        dmStrlCpy(g_ModelLoadError, message, sizeof(g_ModelLoadError));
+    else
+        g_ModelLoadError[0] = 0;
+}
+
+const char* GetLoadError()
+{
+    return g_ModelLoadError[0] ? g_ModelLoadError : 0;
+}
 
 Options::Options()
 {
@@ -234,9 +253,12 @@ void DestroyScene(Scene* scene)
 
 Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size)
 {
+    ClearLoadError();
+
     if (suffix == 0)
     {
         printf("ModelImporter: No suffix specified!\n");
+        SetLoadError("No file suffix specified");
         return 0;
     }
 
@@ -244,6 +266,7 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
         return LoadGltfFromBuffer(options, data, file_size);
 
     printf("ModelImporter: File type not supported: %s\n", suffix);
+    SetLoadError("Model file type not supported");
     return 0;
 }
 
@@ -299,6 +322,9 @@ Scene* LoadFromPath(Options* options, const char* path)
 
     if (!dmModelImporter::LoadFinalize(scene))
     {
+        const char* err = GetLoadError();
+        if (err)
+            dmLogError("%s", err);
         DestroyScene(scene);
         printf("Failed to load '%s'\n", path);
         return 0;

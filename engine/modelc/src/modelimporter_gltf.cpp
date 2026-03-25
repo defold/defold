@@ -779,7 +779,38 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
     for (size_t i = 0; i < gltf_mesh->primitives_count; ++i)
     {
+        if (scene->m_HasFatalLoadError)
+            return;
+
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
+
+        for (cgltf_size ai = 0; ai < prim->attributes_count; ++ai)
+        {
+            cgltf_attribute* attr = &prim->attributes[ai];
+            if (attr->type == cgltf_attribute_type_joints && attr->index > 0)
+            {
+                char buf[512];
+                dmSnPrintf(buf, sizeof(buf),
+                    "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. JOINTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex; reduce influences in your export settings or merge skin sets in your DCC tool.",
+                    model->m_Name, i, (unsigned)attr->index);
+                dmLogError("%s", buf);
+                SetLoadError(buf);
+                scene->m_HasFatalLoadError = true;
+                return;
+            }
+            if (attr->type == cgltf_attribute_type_weights && attr->index > 0)
+            {
+                char buf[512];
+                dmSnPrintf(buf, sizeof(buf),
+                    "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. WEIGHTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex; reduce influences in your export settings or merge skin sets in your DCC tool.",
+                    model->m_Name, i, (unsigned)attr->index);
+                dmLogError("%s", buf);
+                SetLoadError(buf);
+                scene->m_HasFatalLoadError = true;
+                return;
+            }
+        }
+
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateNameFromHash("mesh", i);
 
@@ -1699,7 +1730,7 @@ static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
     LoadScene(scene, data->m_Data);
-    return true;
+    return !scene->m_HasFatalLoadError;
 }
 
 static bool ValidateGltf(Scene* scene)
@@ -1731,6 +1762,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
+        SetLoadError("Failed to parse GLTF/GLB file");
         return 0;
     }
 
@@ -1741,6 +1773,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        SetLoadError("Failed to load GLTF external buffers");
         return 0;
     }
 
@@ -1766,7 +1799,12 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (!NeedsResolve(scene))
     {
         scene->m_LoadFinalizeFn = 0;
-        LoadFinalizeGltf(scene);
+        if (!LoadFinalizeGltf(scene))
+        {
+            DestroyGltf(scene);
+            delete scene;
+            return 0;
+        }
         ValidateGltf(scene);
     }
 

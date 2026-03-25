@@ -340,6 +340,9 @@ namespace dmModelImporter
 
         // When we need to dynamically create materials
         dmArray<Material*>  m_DynamicMaterials;
+
+        // GLTF: set when the file uses unsupported mesh features (e.g. multi-set skinning)
+        bool                m_HasFatalLoadError;
     };
 
     struct Options
@@ -378,6 +381,10 @@ namespace dmModelImporter
 
     // Switches between warning and debug level
     extern "C" DM_DLLEXPORT void EnableDebugLogging(bool enable);
+
+    void ClearLoadError();
+    void SetLoadError(const char* message);
+    const char* GetLoadError();
 
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);

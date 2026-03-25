@@ -614,7 +614,12 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
 
     if (resolved && !dmModelImporter::NeedsResolve(scene))
     {
-        dmModelImporter::LoadFinalize(scene);
+        if (!dmModelImporter::LoadFinalize(scene))
+        {
+            dmModelImporter::DestroyScene(scene);
+            env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+            return 0;
+        }
         dmModelImporter::Validate(scene);
     }
 
@@ -646,6 +651,23 @@ JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* e
         jscene = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jscene;
+}
+
+static jstring GetLoadErrorInternal(JNIEnv* env, jclass /*cls*/)
+{
+    const char* msg = dmModelImporter::GetLoadError();
+    if (!msg || !msg[0])
+        return 0;
+    return env->NewStringUTF(msg);
+}
+
+JNIEXPORT jstring JNICALL Java_ModelImporterJni_getLoadErrorInternal(JNIEnv* env, jclass cls)
+{
+    jstring out;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        out = GetLoadErrorInternal(env, cls);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return out;
 }
 
 // JNIEXPORT jint JNICALL Java_ModelImporterJni_AddressOf(JNIEnv* env, jclass cls, jobject object)
@@ -683,6 +705,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
         {(char*)"LoadFromBufferInternal", (char*)"(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_ModelImporterJni_LoadFromBufferInternal)},
+        {(char*)"getLoadErrorInternal", (char*)"()Ljava/lang/String;", reinterpret_cast<void*>(Java_ModelImporterJni_getLoadErrorInternal)},
         //{"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporterJni_AddressOf)},
         {(char*)"TestException", (char*)"(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_ModelImporterJni_TestException)},
     };

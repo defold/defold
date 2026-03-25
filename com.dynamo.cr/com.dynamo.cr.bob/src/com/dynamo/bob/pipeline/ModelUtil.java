@@ -75,8 +75,9 @@ public class ModelUtil {
 
         Scene scene = ModelImporterJni.LoadFromBuffer(options, path, content, dataResolver);
 
-        if (scene == null)
-            return null;
+        if (scene == null) {
+            throw new IOException(ModelImporterJni.getLoadError());
+        }
 
         for (Modelimporter.Buffer buffer : scene.buffers)
         {

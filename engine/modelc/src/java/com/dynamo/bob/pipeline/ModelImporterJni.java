@@ -72,6 +72,14 @@ public class ModelImporterJni {
 
     // The suffix of the path dictates which loader it will use
     public static native Modelimporter.Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
+
+    private static native String getLoadErrorInternal();
+
+    /** Last native model load error; meaningful after {@link #LoadFromBufferInternal} returns null. */
+    public static String getLoadError() {
+        String s = getLoadErrorInternal();
+        return s != null ? s : "";
+    }
     //public static native int AddressOf(Object o);
     public static native void TestException(String message);
 
