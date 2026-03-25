@@ -96,6 +96,7 @@ namespace dmMDNS
         uint8_t m_ProbeCount;
         uint8_t m_StartupAnnounceCount;
         uint8_t m_State;
+        uint8_t m_ProbeHost;
     };
 
     struct MDNS
@@ -910,18 +911,28 @@ namespace dmMDNS
     static uint32_t BuildProbeMessage(const RegisteredService& service, uint8_t* buffer, uint32_t buffer_size)
     {
         uint32_t offset = 0;
+        // Probe the service-type PTR to verify the instance name is unique.
+        // Probe the host A record only when the service owns a custom host name;
+        // the default machine .local host is already advertised independently and
+        // must not be treated as a service-level naming conflict.
+        const uint16_t question_count = service.m_ProbeHost ? 2 : 1;
         if (!WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteU16(buffer, buffer_size, &offset, 0)
-            || !WriteU16(buffer, buffer_size, &offset, 2)
+            || !WriteU16(buffer, buffer_size, &offset, question_count)
             || !WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteName(buffer, buffer_size, &offset, service.m_ServiceTypeLocal)
             || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_PTR)
-            || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN)
-            || !WriteName(buffer, buffer_size, &offset, service.m_HostLocal)
-            || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_A)
             || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN))
+        {
+            return 0;
+        }
+
+        if (service.m_ProbeHost
+            && (!WriteName(buffer, buffer_size, &offset, service.m_HostLocal)
+                || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_A)
+                || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN)))
         {
             return 0;
         }
@@ -1120,7 +1131,7 @@ namespace dmMDNS
                     continue;
                 }
 
-                if (type == DNS_TYPE_A && rdlength == 4 && NameEquals(name, service.m_HostLocal))
+                if (service.m_ProbeHost && type == DNS_TYPE_A && rdlength == 4 && NameEquals(name, service.m_HostLocal))
                 {
                     dmSocket::Address address = service.m_HostAddress;
                     if (address.m_family != dmSocket::DOMAIN_IPV4 || memcmp(dmSocket::IPv4(&address), data + rdata_offset, 4) != 0)
@@ -1977,11 +1988,13 @@ namespace dmMDNS
         {
             dmStrlCpy(service.m_Host, desc->m_Host, sizeof(service.m_Host));
             BuildLocalName(service.m_Host, service.m_HostLocal, sizeof(service.m_HostLocal));
+            service.m_ProbeHost = 1;
         }
         else
         {
             dmStrlCpy(service.m_Host, mdns->m_DefaultHost, sizeof(service.m_Host));
             dmStrlCpy(service.m_HostLocal, mdns->m_DefaultHostLocal, sizeof(service.m_HostLocal));
+            service.m_ProbeHost = 0;
         }
 
         if (mdns->m_InterfaceAddresses.Size() > 0)
