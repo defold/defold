@@ -2271,6 +2271,7 @@ error.vertex-attribute-normalize-float-data-type = Vertex attribute "{attribute}
 error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas. GLES 2.0 support must be excluded in game.project > Runtime > Shader settings
 error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right_size}\n{left} = {left_size}\n{top} = {top_size}\n{bottom} = {bottom_size}\n{front} = {front_size}\n{back} = {back_size}.
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
+error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
 error.blend-mode-add-alpha-replaced = "{old}" has been replaced by "{new}".
