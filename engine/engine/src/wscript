@@ -152,11 +152,15 @@ def build(bld):
 
     additional_libs.extend(font_lib)
 
+    resource_provider_symbols = []
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        resource_provider_symbols.append('ResourceProviderHttp')
+
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
-        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
+        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + resource_provider_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',

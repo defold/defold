@@ -28,14 +28,12 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
 #include <dlib/path.h>
 #include <dlib/profile.h>
 #include <dlib/socket.h>
-#include <dlib/sslsocket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <platform/window.hpp>
@@ -71,6 +69,9 @@
 
 #if defined(__EMSCRIPTEN__)
     #include "engine_web.h"
+#else
+	#include <dlib/http_client.h>
+	#include <dlib/sslsocket.h>
 #endif
 
 // Embedded resources
@@ -398,7 +399,9 @@ namespace dmEngine
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
+#if !defined(__EMSCRIPTEN__)
         dmHttpClient::ShutdownConnectionPool();
+#endif
 
         // Reregister the types before the rest of the contexts are deleted
         if (engine->m_Factory && engine->m_ResourceTypeContexts.Size() > 0) {
@@ -426,7 +429,9 @@ namespace dmEngine
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
         }
 
+#if !defined(__EMSCRIPTEN__)
         dmHttpClient::ReopenConnectionPool();
+#endif
 
         dmGameObject::DeleteRegister(engine->m_Register);
 
@@ -616,6 +621,7 @@ namespace dmEngine
         return false;
     }
 
+#if !defined(__EMSCRIPTEN__)
     static bool LoadAndSetSslKeys(const char* ssl_keys_path)
     {
         if (!dmSys::ResourceExists(ssl_keys_path))
@@ -646,6 +652,7 @@ namespace dmEngine
         free(ssl_keys_buf);
         return loadind_key_result == dmSSLSocket::RESULT_OK;
     }
+#endif
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
@@ -855,6 +862,7 @@ namespace dmEngine
         int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
         dmLogSetLevel((LogSeverity)minimum_log_level);
 
+#if !defined(__EMSCRIPTEN__)
         // Try loading SSL keys
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
@@ -874,6 +882,7 @@ namespace dmEngine
                 break;
             }
         }
+#endif
 
         // Set HTML5 console banner "MadeWithDefold"
         #if defined(__EMSCRIPTEN__)
@@ -1140,7 +1149,7 @@ namespace dmEngine
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         engine->m_HttpCache = 0;
-#if !defined(DM_NO_HTTP_CACHE)
+#if !defined(DM_NO_HTTP_CACHE) && !defined(__EMSCRIPTEN__)
         int http_cache_enabled = dmConfigFile::GetInt(engine->m_Config, "network.http_cache_enabled", 1);
         if (http_cache_enabled)
         {
@@ -2524,7 +2533,9 @@ void dmEngineInitialize()
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
+#if !defined(__EMSCRIPTEN__)
     dmSSLSocket::Initialize();
+#endif
     dmMemProfile::Initialize();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
@@ -2545,7 +2556,9 @@ void dmEngineFinalize()
     dmGraphics::Finalize();
     dmLog::LogFinalize();
     dmMemProfile::Finalize();
+#if !defined(__EMSCRIPTEN__)
     dmSSLSocket::Finalize();
+#endif
     dmSocket::Finalize();
 
     dmEngine::PlatformFinalize();

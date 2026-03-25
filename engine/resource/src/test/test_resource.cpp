@@ -991,6 +991,17 @@ TEST(dmResource, InvalidUri)
 }
 #endif
 
+#if defined(__EMSCRIPTEN__)
+TEST(dmResource, HttpResourceRootUnsupportedOnHtml5)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, "https://example.com/liveupdate");
+    ASSERT_EQ((void*) 0, factory);
+}
+#endif
+
 dmResource::Result AdResourceCreate(const dmResource::ResourceCreateParams* params)
 {
     uint32_t data_size = params->m_BufferSize;

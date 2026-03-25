@@ -228,6 +228,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+#if defined(__EMSCRIPTEN__)
+    if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0 || strcmp(factory->m_UriParts.m_Scheme, "https") == 0)
+    {
+        dmLogError("Remote resource roots via HTTP(S) are not supported on HTML5: %s", uri);
+        dmMessage::DeleteSocket(socket);
+        delete factory;
+        return 0;
+    }
+#endif
+
     factory->m_HttpCache = params->m_HttpCache;
 
     factory->m_Mounts = 0;

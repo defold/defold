@@ -5,6 +5,9 @@ from waf_dynamo import dmsdk_add_files
 def configure(conf):
     pass
 
+def remove_from_node_list(lst, name):
+    return [x for x in lst if not x.abspath().endswith(name)]
+
 def build(bld):
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '. ../proto',
@@ -12,6 +15,9 @@ def build(bld):
                          protoc_includes = '../proto',
                          proto_gen_py = True,
                          target = 'resource')
+
+    if 'web' in bld.env.PLATFORM:
+        resource.source = remove_from_node_list(resource.source, 'provider_http.cpp')
 
     resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
@@ -47,4 +53,3 @@ def build(bld):
     bld.install_files('${PREFIX}/include/resource/providers', 'providers/provider.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
-

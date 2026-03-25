@@ -425,6 +425,16 @@ const TestParam params_extension[] = {
 INSTANTIATE_TEST_CASE_P(ConfigfileExtension, ConfigfileExtension, jc_test_values_in(params_extension));
 
 
+#if defined(__EMSCRIPTEN__)
+TEST(ConfigFile, HttpLoadUnsupportedOnHtml5)
+{
+    dmConfigFile::HConfig config = 0;
+    dmConfigFile::Result result = dmConfigFile::Load("https://example.com/game.projectc", 1, DEFAULT_ARGV, &config);
+    ASSERT_EQ(dmConfigFile::RESULT_INVALID_URI, result);
+    ASSERT_EQ((dmConfigFile::HConfig)0, config);
+}
+#endif
+
 
 static void Usage()
 {

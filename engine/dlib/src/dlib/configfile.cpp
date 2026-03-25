@@ -20,7 +20,6 @@
 #include <assert.h>
 #include "hash.h"
 #include "log.h"
-#include "http_client.h"
 #include "uri.h"
 
 #include "configfile.h"
@@ -29,6 +28,10 @@
 #include "math.h"
 #include "sys.h"
 #include "static_assert.h"
+
+#if !defined(__EMSCRIPTEN__)
+#include "http_client.h"
+#endif
 
 struct ConfigFileEntry
 {
@@ -500,6 +503,7 @@ namespace dmConfigFile
         }
     }
 
+#if !defined(__EMSCRIPTEN__)
     struct HttpContext
     {
         HttpContext()
@@ -542,6 +546,7 @@ namespace dmConfigFile
         assert(content_data);
         buffer.PushArray((const char*) content_data, content_data_size);
     }
+#endif
 
     static Result LoadFromBufferInternal(const char* url, const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
     {
@@ -692,6 +697,7 @@ namespace dmConfigFile
 #endif
     }
 
+#if !defined(__EMSCRIPTEN__)
     static Result LoadFromHttpInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)
     {
         HttpContext context;
@@ -717,6 +723,7 @@ namespace dmConfigFile
         Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
         return r;
     }
+#endif
 
     Result LoadFromBuffer(const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
     {
@@ -741,7 +748,12 @@ namespace dmConfigFile
         {
             if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
             {
+#if defined(__EMSCRIPTEN__)
+                dmLogError("HTTP(S) config loading is not supported on HTML5: %s", url);
+                return RESULT_INVALID_URI;
+#else
                 return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
+#endif
             }
             else if (strcmp(uri_parts.m_Scheme, "file") == 0)
             {
