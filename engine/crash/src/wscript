@@ -21,11 +21,11 @@ def build(bld):
     is_win32 = bld.env['PLATFORM'] in ['win32', 'x86_64-win32']
     if 'android' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_libunwind_ndk.cpp'
-        load_addrs = 'load_addrs_proc_smap.cpp'
+        load_addrs = 'load_addrs_elf.cpp'
         file_handler = 'file_posix.cpp'
     elif 'linux' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_execinfo.cpp'
-        load_addrs = 'load_addrs_proc_smap.cpp'
+        load_addrs = 'load_addrs_elf.cpp'
         file_handler = 'file_posix.cpp'
     elif not ('web' in bld.env['PLATFORM'] or is_win32):
         file_handler = 'file_posix.cpp'

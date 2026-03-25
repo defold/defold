@@ -19,18 +19,18 @@ function test_crash()
     if u ~= nil then
         crash.release(u);
     end
-    
+
     -- crash should not be available any longer
     local v = crash.load_previous();
-    assert(n ~= 0);
+    assert(v == nil);
 
-    -- test reloading 
+    -- test reloading
     local userdata = {
     	"This is the first user field",
     	"These fields can contain user defined application state",
     	"Such as breadcrumbs and so on",
     	"Maybe even user-id:s when they are logged on, user-123456",
-    	
+
     	"255b255b255b255b255b255b255b255b255b255b255b255b255b255b255b255b" ..
     	"255b255b255b255b255b255b255b255b255b255b255b255b255b255b255b255b" ..
     	"255b255b255b255b255b255b255b255b255b255b255b255b255b255b255b255b" ..
@@ -40,7 +40,7 @@ function test_crash()
     	"256b256b256b256b256b256b256b256b256b256b256b256b256b256b256b256b" ..
     	"256b256b256b256b256b256b256b256b256b256b256b256b256b256b256b256b" ..
     	"256b256b256b256b256b256b256b256b256b256b256b256b256b256b256b256b",
-    	
+
     	"Here is a long long long long long long long long long long long long long long long " ..
     	"long long long long long long long long long long long long long long long long long " ..
     	"long long long long long long long long long long long long long long long long long " ..
@@ -53,16 +53,16 @@ function test_crash()
     	"long long long long long long long long long long long long long long long long long " ..
     	"long long long long long long long long long long long long long long long long long string."
     }
-    
+
     crash.set_user_field(0, "Custom")
     for k,v in ipairs(userdata) do
          crash.set_user_field(k, v)
-    end    
-       
+    end
+
     crash.write_dump();
     u = crash.load_previous();
     assert(u ~= nil);
-    
+
     assert(crash.get_signum(u) == 0xDEAD)
     assert(crash.get_user_field(u, 0) == "Custom")
     assert(crash.get_user_field(u, 1) == userdata[1])

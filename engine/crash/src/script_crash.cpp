@@ -145,7 +145,12 @@ namespace dmCrash
     /*# get all loaded modules from when the crash occured
      *
      * The function returns a table containing entries with sub-tables that
-     * have fields 'name' and 'address' set for all loaded modules.
+     * have fields 'name', 'address', and 'size' set for all loaded modules.
+     * If available, module tables will also have 'build_id' set to a unique
+     * identifier for finding symbol data in a symbol server or similar.
+     *
+     * Build IDs are currently set to the PDB GUID on Windows, the Mach-O
+     * UUID on macOS & iOS, and the ELF Build ID on Linux & Android.
      *
      * @name crash.get_modules
      * @param handle [type:number] crash dump handle
@@ -161,7 +166,9 @@ namespace dmCrash
         for (uint32_t i=0;true;i++)
         {
             void* addr = GetModuleAddr(h, i);
+            uint32_t size  = GetModuleSize(h, i);
             const char* name = GetModuleName(h, i);
+            const char* build_id = GetModuleBuildID(h, i);
             assert((!addr && !name) || (addr && name));
             if (!addr)
             {
@@ -171,15 +178,23 @@ namespace dmCrash
             lua_pushnumber(L, i+1);
 
             lua_newtable(L);
-            lua_pushliteral(L, "name");
             lua_pushstring(L, name);
-            lua_settable(L, -3);
+            lua_setfield(L, -2, "name");
+
+            if (build_id)
+            {
+                lua_pushstring(L, build_id);
+                lua_setfield(L, -2, "build_id");
+            }
 
             char str[64];
             dmSnPrintf(str, sizeof(str), "%p", addr);
-            lua_pushliteral(L, "address");
             lua_pushstring(L, str);
-            lua_settable(L, -3);
+            lua_setfield(L, -2, "address");
+
+            dmSnPrintf(str, sizeof(str), "%u", size);
+            lua_pushstring(L, str);
+            lua_setfield(L, -2, "size");
 
             lua_settable(L, -3);
         }

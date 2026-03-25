@@ -65,7 +65,7 @@ namespace dmCrash
         for (uint32_t i = 0; i < state->m_PtrCount; ++i)
         {
             // Write each symbol on a separate line, just like
-            // backgrace_symbols_fd would do.
+            // backtrace_symbols_fd would do.
             uint32_t stacktrace_length = strnlen(stacktrace[i], dmCrash::AppState::EXTRA_MAX - 1);
             if ((offset + stacktrace_length) < (dmCrash::AppState::EXTRA_MAX - 1))
             {

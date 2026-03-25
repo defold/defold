@@ -200,6 +200,14 @@ namespace dmCrash
      * @return size of the module, 0 if there are no size available
      */
     uint32_t GetModuleSize(HDump dump, uint32_t index);
+
+    /**
+     * Read out module build ID from the table stored in a crash dump.
+     * @param dump crash dump handle
+     * @param index index of the module to read
+     * @return build ID of the module, null if unknown
+     */
+    const char* GetModuleBuildID(HDump dump, uint32_t index);
 }
 
 #endif
