@@ -129,9 +129,7 @@ def build(bld):
     if is_web:
         skip_http_test = ['skip_test']
 
-    resource_http_provider_symbols = []
-    if not is_web:
-        resource_http_provider_symbols.append('ResourceProviderHttp')
+    resource_http_provider_symbols = ['ResourceProviderHttp']
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',

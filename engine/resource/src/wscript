@@ -18,6 +18,8 @@ def build(bld):
 
     if 'web' in bld.env.PLATFORM:
         resource.source = remove_from_node_list(resource.source, 'provider_http.cpp')
+    else:
+        resource.source = remove_from_node_list(resource.source, 'provider_http_null.cpp')
 
     resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
