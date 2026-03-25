@@ -443,20 +443,20 @@ namespace dmGraphics
                 assert(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED));
             }
 
-            if (!DX12Initialize(context))
+            if (!DX12Initialize((HContext) context))
             {
-                DeleteContext(context);
+                DeleteContext((HContext) context);
                 return 0;
             }
 
-            return context;
+            return (HContext) context;
         }
         return 0x0;
     }
 
     static HContext DX12GetContext()
     {
-        return g_DX12Context;
+        return (HContext) g_DX12Context;
     }
 
     static void DX12DeleteContext(HContext _context)

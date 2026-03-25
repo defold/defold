@@ -179,7 +179,7 @@ namespace dmGraphics
 
     HContext VulkanGetContext()
     {
-        return g_VulkanContext;
+        return (HContext) g_VulkanContext;
     }
 
     template <typename T>
@@ -1212,7 +1212,7 @@ namespace dmGraphics
 
         if (context->m_PrintDeviceInfo)
         {
-            VulkanPrintDeviceInfo(context);
+            VulkanPrintDeviceInfo(_context);
         }
 
         SetupSupportedTextureFormats(context);
@@ -1434,7 +1434,7 @@ bail:
 
             g_VulkanContext = new VulkanContext(params, vk_instance);
 
-            if (NativeInitializeContext(g_VulkanContext))
+            if (NativeInitializeContext((HContext) g_VulkanContext))
             {
                 return (HContext) g_VulkanContext;
             }
@@ -1486,7 +1486,7 @@ bail:
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        NativeBeginFrame(context);
+        NativeBeginFrame(_context);
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         uint32_t frameInFlight = context->m_CurrentFrameInFlight;
@@ -1961,7 +1961,7 @@ bail:
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
-            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+            VulkanDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
@@ -3125,7 +3125,7 @@ bail:
         VulkanProgram* program_ptr = (VulkanProgram*) program;
         VulkanContext* context = (VulkanContext*) _context;
 
-        DestroyProgram(context, program_ptr);
+        DestroyProgram(_context, program_ptr);
 
         DestroyShader(context, program_ptr->m_VertexModule);
         DestroyShader(context, program_ptr->m_FragmentModule);
@@ -3235,7 +3235,7 @@ bail:
             if (!ReloadShader(context, program->m_ComputeModule, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT))
                 return false;
 
-            DestroyProgram(context, program);
+            DestroyProgram(_context, program);
             CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
             CreateComputeProgram(context, program, program->m_ComputeModule);
         }
@@ -3246,7 +3246,7 @@ bail:
             if (!ReloadShader(context, program->m_FragmentModule, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT))
                 return false;
 
-            DestroyProgram(context, program);
+            DestroyProgram(_context, program);
             CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
             CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
         }
@@ -3774,7 +3774,7 @@ bail:
                     vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
                 }
 
-                HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
+                HTexture new_texture_color_handle = NewTexture((HContext) context, params.m_ColorBufferCreationParams[i]);
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, new_texture_color_handle);
 
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
@@ -3840,7 +3840,7 @@ bail:
                 GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            texture_depth_stencil                    = NewTexture(context, stencil_depth_create_params);
+            texture_depth_stencil                    = NewTexture((HContext) context, stencil_depth_create_params);
             VulkanTexture* texture_depth_stencil_ptr = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_depth_stencil);
 
             // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
@@ -3871,13 +3871,13 @@ bail:
         {
             if (rt->m_TextureColor[i])
             {
-                DeleteTexture(context, rt->m_TextureColor[i]);
+                DeleteTexture(_context, rt->m_TextureColor[i]);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
-            DeleteTexture(context, rt->m_TextureDepthStencil);
+            DeleteTexture(_context, rt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(context, rt);

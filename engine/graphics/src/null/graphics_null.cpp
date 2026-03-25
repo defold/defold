@@ -110,12 +110,12 @@ namespace dmGraphics
         {
             g_NullContext = new NullContext(params);
 
-            if (NullInitialize(g_NullContext, params))
+            if (NullInitialize((HContext) g_NullContext, params))
             {
-                return g_NullContext;
+                return (HContext) g_NullContext;
             }
 
-            DeleteContext(g_NullContext);
+            DeleteContext((HContext) g_NullContext);
         }
         return 0x0;
     }
@@ -127,7 +127,7 @@ namespace dmGraphics
 
     static HContext NullGetContext()
     {
-        return g_NullContext;
+        return (HContext) g_NullContext;
     }
 
     static void NullDeleteContext(HContext _context)
@@ -183,7 +183,7 @@ namespace dmGraphics
             dmLogInfo("Device: null");
         }
 
-        SetSwapInterval(context, params.m_SwapInterval);
+        SetSwapInterval((HContext) context, params.m_SwapInterval);
 
         return true;
     }
@@ -356,7 +356,7 @@ namespace dmGraphics
         {
             if (dmPlatform::TriggerCloseCallback(context->m_Window))
             {
-                CloseWindow(context);
+                CloseWindow((HContext) context);
             }
         }
 
@@ -430,7 +430,7 @@ namespace dmGraphics
 
         if (context->m_UniformBuffers[set][binding])
         {
-            NullDisableUniformBuffer(context, (HUniformBuffer) context->m_UniformBuffers[set][binding]);
+            NullDisableUniformBuffer(_context, (HUniformBuffer) context->m_UniformBuffers[set][binding]);
         }
 
         context->m_UniformBuffers[set][binding] = ubo;
@@ -438,7 +438,6 @@ namespace dmGraphics
 
     static void NullDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
-        NullContext* context = (NullContext*)_context;
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
         NullDisableUniformBuffer(_context, uniform_buffer);
@@ -678,7 +677,7 @@ namespace dmGraphics
             if (stream.m_Size > 0)
             {
                 stream.m_Location = i;
-                EnableVertexStream(context, binding_index, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
+                EnableVertexStream(_context, binding_index, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
                 offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
         }
@@ -715,7 +714,7 @@ namespace dmGraphics
         {
             if (vertex_declaration->m_Streams[i].m_Size > 0)
             {
-                DisableVertexStream(context, binding_index, i);
+                DisableVertexStream(_context, binding_index, i);
             }
         }
 
@@ -1221,7 +1220,7 @@ namespace dmGraphics
                 ClearTextureParamsData(rt->m_ColorTextureParams[i]);
                 uint32_t buffer_size                    = GetBufferSize(params.m_ColorBufferParams[i]);
                 rt->m_ColorTextureParams[i].m_DataSize  = buffer_size;
-                rt->m_ColorBufferTexture[i]             = NewTexture(context, params.m_ColorBufferCreationParams[i]);
+                rt->m_ColorBufferTexture[i]             = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
                 Texture* attachment_tex = 0x0;
                 {
                     attachment_tex                 = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
@@ -1240,7 +1239,7 @@ namespace dmGraphics
             {
                 uint32_t buffer_size               = sizeof(float) * params.m_DepthBufferParams.m_Width * params.m_DepthBufferParams.m_Height;
                 rt->m_DepthBufferParams.m_DataSize = buffer_size;
-                rt->m_DepthBufferTexture           = NewTexture(context, params.m_DepthBufferCreationParams);
+                rt->m_DepthBufferTexture           = NewTexture(_context, params.m_DepthBufferCreationParams);
                 Texture* attachment_tex = 0x0;
                 {
                     attachment_tex            = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_DepthBufferTexture);
@@ -1263,7 +1262,7 @@ namespace dmGraphics
             {
                 uint32_t buffer_size                 = sizeof(float) * params.m_StencilBufferParams.m_Width * params.m_StencilBufferParams.m_Height;
                 rt->m_StencilBufferParams.m_DataSize = buffer_size;
-                rt->m_StencilBufferTexture           = NewTexture(context, params.m_StencilBufferCreationParams);
+                rt->m_StencilBufferTexture           = NewTexture(_context, params.m_StencilBufferCreationParams);
                 Texture* attachment_tex = 0x0;
                 {
                     attachment_tex              = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_StencilBufferTexture);
@@ -1575,7 +1574,7 @@ namespace dmGraphics
         while(i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
         {
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-            if(!(dmGraphics::GetTextureStatusFlags(context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            if(!(dmGraphics::GetTextureStatusFlags((HContext) context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
                 NullDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
@@ -1593,7 +1592,7 @@ namespace dmGraphics
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
             // If they're not uploaded yet, we cannot delete them
-            if(dmGraphics::GetTextureStatusFlags(g_NullContext, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            if(dmGraphics::GetTextureStatusFlags(_context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
                 PushSetTextureAsyncDeleteTexture(g_NullContext->m_SetTextureAsyncState, texture);
             }
@@ -1881,8 +1880,9 @@ namespace dmGraphics
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(HJobContext, HJob hjob, void* _context, void* data)
+    static int AsyncProcessCallback(HJobContext, HJob hjob, void* pcontext, void* data)
     {
+        HContext _context          = (HContext)pcontext;
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
