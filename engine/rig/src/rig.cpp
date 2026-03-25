@@ -577,6 +577,18 @@ namespace dmRig
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
         if (!IsAnimating(instance))
         {
+            // Skinned meshes sample the pose matrix cache every frame. If we skip the cache write while
+            // idle, the vertex shader falls back to non-skinned positions which can cause a disparity
+            // between authoring tools and animated result. Instead, we write the non-animated
+            // skeleton bind pose whenever this instance owns cache space.
+            if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
+            {
+                dmArray<BonePose>& pose = instance->m_Pose;
+                const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+                ResetPose(skeleton, pose);
+                UpdatePoseTransforms(skeleton, pose);
+                CommitPoseMatrixToCache(context, instance);
+            }
             return;
         }
 
