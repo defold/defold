@@ -12,35 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <string.h>
-
-#include <dlib/log.h>
-
 #include "provider.h"
 #include "provider_private.h"
 
 namespace dmResourceProviderHttp
 {
-    static const char* SafeString(const char* value)
-    {
-        return value ? value : "";
-    }
-
     static bool MatchesUri(const dmURI::Parts* uri)
     {
-        return strcmp(uri->m_Scheme, "http") == 0 || strcmp(uri->m_Scheme, "https") == 0;
+        (void) uri;
+        return false;
     }
 
     static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
     {
+        (void) uri;
         (void) base_archive;
         (void) out_archive;
-
-        if (!MatchesUri(uri))
-            return dmResourceProvider::RESULT_NOT_SUPPORTED;
-
-        dmLogError("Remote resource roots via HTTP(S) are not supported on HTML5: %s://%s%s",
-            SafeString(uri->m_Scheme), SafeString(uri->m_Location), SafeString(uri->m_Path));
         return dmResourceProvider::RESULT_NOT_SUPPORTED;
     }
 

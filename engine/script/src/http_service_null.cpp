@@ -20,43 +20,21 @@
 
 namespace dmHttpService
 {
-    #define HTTP_SOCKET_NAME "@http"
-
-    struct HttpService
-    {
-        dmMessage::HSocket m_Socket;
-    };
-
     HHttpService New(const Params* params)
     {
         (void) params;
-
-        HttpService* service = new HttpService;
-        service->m_Socket = 0;
-
-        dmMessage::Result result = dmMessage::NewSocket(HTTP_SOCKET_NAME, &service->m_Socket);
-        if (result != dmMessage::RESULT_OK)
-        {
-            dmLogError("Unable to create HTTP service socket: %d", result);
-            delete service;
-            return 0;
-        }
-
-        return service;
+        dmLogError("HTTP service is not supported on HTML5.");
+        return 0;
     }
 
     dmMessage::HSocket GetSocket(HHttpService http_service)
     {
-        return http_service ? http_service->m_Socket : 0;
+        (void) http_service;
+        return 0;
     }
 
     void Delete(HHttpService http_service)
     {
-        if (!http_service)
-            return;
-
-        if (http_service->m_Socket)
-            dmMessage::DeleteSocket(http_service->m_Socket);
-        delete http_service;
+        (void) http_service;
     }
 }

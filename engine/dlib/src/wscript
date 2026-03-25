@@ -139,7 +139,7 @@ def build(bld):
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
     if 'web' in bld.env.PLATFORM:
-        dlib.source += bld.path.ant_glob(['dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
