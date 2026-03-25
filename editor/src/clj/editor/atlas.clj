@@ -617,7 +617,10 @@
 
 (g/defnk produce-packed-page-images-generator
   [_node-id extrude-borders image-resources all-atlas-images inner-padding margin layout-data-generator max-page-size texture-page-count]
-  (let [flat-image-resources (filterv some? (flatten image-resources))
+  (let [flat-image-resources (coll/into-> image-resources []
+                                          (mapcat identity)
+                                          (filter some?)
+                                          (distinct))
         image-sha1s (pmap (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
                               (resource/resource->path-inclusive-sha1 resource)))
@@ -889,6 +892,11 @@
   ; used by tests
   (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
     (make-image-nodes-in-atlas atlas-node image-msgs)))
+
+(defn add-images-to-animation [animation-node image-resources]
+  ; used by tests
+  (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
+    (make-image-nodes-in-animation animation-node image-msgs)))
 
 (defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
   (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]

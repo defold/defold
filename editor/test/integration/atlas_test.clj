@@ -16,9 +16,11 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.atlas :as atlas]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.texture-util :as texture-util]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]))
@@ -127,3 +129,19 @@
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
           (is (not (g/error? (g/node-value atlas :save-data)))))))))
+
+(deftest duplicate-image-different-trim-mode-triggers-regeneration
+  (test-util/with-loaded-project "test/resources/test_project"
+    (let [atlas (test-util/resource-node project "/switcher/fish_animations.atlas")
+          sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))
+          anim1 (test-util/outline atlas [0])
+          img-path "/switcher/images/red_fish.png"]
+      (is (= (count (:children (test-util/outline atlas [0]))) 2))
+      (g/transact
+        (atlas/add-images-to-animation (:node-id anim1) [(workspace/resolve-resource (g/node-value atlas :resource) img-path)]))
+      (is (= (count (:children (test-util/outline atlas [0]))) 3))
+      (let [sha1-after (:sha1 (g/node-value atlas :packed-page-images-generator))
+            new-fish (:node-id (nth (:children (test-util/outline atlas [0])) 2))]
+        (is (= sha1-before sha1-after))
+        (g/set-property! new-fish :sprite-trim-mode :sprite-trim-mode-8)
+        (is (not= sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))))))))
