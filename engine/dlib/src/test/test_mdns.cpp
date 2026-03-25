@@ -1842,19 +1842,29 @@ TEST(MDNS, ZeroTtlAnnouncements)
     dmMDNS::HMDNS mdns = 0;
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &mdns));
 
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_id[128];
+    char instance_name[128];
+    char host_name[128];
+    MakeUniqueName(service_id, sizeof(service_id), "mdns-zero-ttl", nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "zero-ttl", nonce);
+    MakeUniqueName(host_name, sizeof(host_name), "zero-ttl-host", nonce);
+
     dmMDNS::TxtEntry txt_entries[] =
     {
-        {"id", "mdns-zero-ttl-01"},
-        {"name", "zero-ttl"},
+        {"id", service_id},
+        {"name", instance_name},
         {"log_port", "20002"},
     };
 
     dmMDNS::ServiceDesc service;
     memset(&service, 0, sizeof(service));
-    service.m_Id = "mdns-zero-ttl-01";
-    service.m_InstanceName = "zero-ttl";
+    // Use unique names so probing cannot collide with cached records from a
+    // previous local run while we verify zero-TTL removal announcements.
+    service.m_Id = service_id;
+    service.m_InstanceName = instance_name;
     service.m_ServiceType = SERVICE_TYPE;
-    service.m_Host = "zero-ttl-host";
+    service.m_Host = host_name;
     service.m_Port = 20002;
     service.m_Txt = txt_entries;
     service.m_TxtCount = sizeof(txt_entries) / sizeof(txt_entries[0]);
