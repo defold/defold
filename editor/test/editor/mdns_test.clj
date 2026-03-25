@@ -33,6 +33,57 @@
   ^bytes [^String s]
   (.getBytes s "UTF-8"))
 
+(defn- digit?
+  [^Character c]
+  (<= (int \0) (int c) (int \9)))
+
+(defn- decode-escaped-char
+  [^String value ^long index]
+  (let [c (.charAt value index)]
+    (if (not= c \\)
+      [c (inc index)]
+      (let [next-index (inc index)]
+        (cond
+          (>= next-index (.length value))
+          [\\ next-index]
+
+          (and (<= (+ next-index 2) (dec (.length value)))
+               (digit? (.charAt value next-index))
+               (digit? (.charAt value (inc next-index)))
+               (digit? (.charAt value (+ next-index 2))))
+          [(char (+ (* 100 (- (int (.charAt value next-index)) (int \0)))
+                    (* 10 (- (int (.charAt value (inc next-index))) (int \0)))
+                    (- (int (.charAt value (+ next-index 2))) (int \0))))
+           (+ next-index 3)]
+
+          :else
+          [(.charAt value next-index) (inc next-index)])))))
+
+(defn- split-dns-labels
+  [^String name]
+  (loop [index 0
+         current (StringBuilder.)
+         labels []]
+    (if (>= index (.length name))
+      (cond-> labels
+        (or (pos? (.length current)) (.endsWith name "."))
+        (conj (.toString current)))
+      (let [c (.charAt name index)]
+        (if (= c \.)
+          (recur (inc index) (StringBuilder.) (conj labels (.toString current)))
+          (let [[decoded next-index] (decode-escaped-char name index)]
+            (.append current decoded)
+            (recur (long next-index) current labels)))))))
+
+(defn- escape-dns-text
+  ^String [^String value]
+  (let [out (StringBuilder.)]
+    (doseq [^Character c value]
+      (when (or (= c \.) (= c \\))
+        (.append out \\))
+      (.append out c))
+    (.toString out)))
+
 (defn- write-u16! [^ByteArrayOutputStream out ^long n]
   (.write out (bit-and (bit-shift-right n 8) 0xff))
   (.write out (bit-and n 0xff)))
@@ -44,7 +95,7 @@
   (.write out (bit-and n 0xff)))
 
 (defn- write-name! [^ByteArrayOutputStream out ^String name]
-  (doseq [^String label (.split name "\\.")]
+  (doseq [^String label (split-dns-labels name)]
     (when-not (.isEmpty label)
       (let [^bytes b (utf8-bytes label)]
         (.write out (alength b))
@@ -54,7 +105,7 @@
 (defn- name-wire-length
   ^long [^String name]
   (inc (reduce + (map #(+ 1 (alength (utf8-bytes ^String %)))
-                      (remove empty? (.split name "\\."))))))
+                      (remove empty? (split-dns-labels name))))))
 
 (defn- patch-u16!
   [^bytes data ^long offset ^long n]
@@ -63,7 +114,7 @@
 
 (defn- write-name-compressed!
   [^ByteArrayOutputStream out offsets ^String name]
-  (loop [labels (vec (remove empty? (.split name "\\.")))]
+  (loop [labels (vec (remove empty? (split-dns-labels name)))]
     (if (empty? labels)
       (.write out 0)
       (let [suffix (str/join "." labels)]
@@ -218,6 +269,22 @@
     (write-u16! out dns-class-in)
     (.toByteArray out)))
 
+(defn- make-query-packet-with-known-answers
+  ^bytes [^String qname ^long qtype answers]
+  (let [out (ByteArrayOutputStream.)]
+    (write-u16! out 0)
+    (write-u16! out 0)
+    (write-u16! out 1)
+    (write-u16! out (count answers))
+    (write-u16! out 0)
+    (write-u16! out 0)
+    (write-name! out qname)
+    (write-u16! out qtype)
+    (write-u16! out dns-class-in)
+    (doseq [^bytes answer answers]
+      (.write out answer 0 (alength answer)))
+    (.toByteArray out)))
+
 (defn- make-pointer-loop-packet
   ^bytes []
   (let [out (ByteArrayOutputStream.)]
@@ -260,6 +327,30 @@
                       (.getOffset packet)
                       (+ (.getOffset packet) (.getLength packet))))
 
+(defn- bytes-contain?
+  [^bytes haystack ^bytes needle]
+  (let [haystack-length (alength haystack)
+        needle-length (alength needle)]
+    (loop [offset 0]
+      (cond
+        (> (+ offset needle-length) haystack-length)
+        false
+
+        (loop [index 0]
+          (cond
+            (= index needle-length)
+            true
+
+            (= (aget haystack (+ offset index)) (aget needle index))
+            (recur (inc index))
+
+            :else
+            false))
+        true
+
+        :else
+        (recur (inc offset))))))
+
 (defn- service-records
   [service-type full-name host-name port ttl-or-options]
   (let [{:keys [ptr-ttl srv-ttl txt-ttl a-ttl txt-entries a-address]}
@@ -279,6 +370,10 @@
      (make-record full-name dns-type-srv srv-ttl (make-srv-rdata port host-name))
      (make-record full-name dns-type-txt txt-ttl (make-txt-rdata txt-entries))
      (apply make-record host-name dns-type-a a-ttl [(apply make-a-rdata a-address)])]))
+
+(defn- full-service-name
+  ^String [^String instance-name ^String service-type]
+  (str (escape-dns-text instance-name) "." service-type))
 
 (defn- dummy-logger
   ^MDNS$Logger []
@@ -354,6 +449,26 @@
         (is (= "test-id" (.id d)))
         (is (= 8127 (.port d)))
         (is (= "127.0.0.1" (.address d)))))))
+
+;; Verifies a dotted DNS-SD instance label round-trips through escaped presentation names.
+(deftest mdns-discovers-service-with-dotted-instance-label
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        instance-name "Target.With.Dot"
+        full-name (full-service-name instance-name service-type)
+        host-name "target-dotted.local"
+        packet (make-response-packet
+                 (service-records service-type full-name host-name 8127 {:txt-entries ["id=test-id"
+                                                                                        (str "name=" instance-name)
+                                                                                        "log_port=7001"
+                                                                                        "schema=1"]}))]
+    (parse-and-rebuild! mdns packet)
+    (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
+      (is (= 1 (alength devices)))
+      (let [^MDNSServiceInfo d (aget devices 0)]
+        (is (= instance-name (.instanceName d)))
+        (is (= full-name (.serviceName d)))
+        (is (= instance-name (get (.txt d) "name")))))))
 
 ;; Verifies a device is published only after PTR, SRV, TXT, and A data has been accumulated.
 (deftest mdns-discovers-service-only-after-all-records-arrive-across-packets
@@ -630,10 +745,17 @@
         (is (= 1 (alength devices)))
         (is (= full-name (.serviceName ^MDNSServiceInfo (aget devices 0))))))))
 
-;; Verifies DNS questions are not mistaken for answers so query traffic never creates phantom devices.
+;; Verifies DNS questions, including known-answer queries, are not mistaken for answers.
 (deftest mdns-query-packets-do-not-create-devices
   (let [mdns (MDNS. (dummy-logger))
-        packet (make-query-packet MDNS/MDNS_SERVICE_TYPE dns-type-ptr)]
+        full-name (str "QueryIgnored." MDNS/MDNS_SERVICE_TYPE)
+        packet (make-query-packet-with-known-answers
+                 MDNS/MDNS_SERVICE_TYPE
+                 dns-type-ptr
+                 [(make-record MDNS/MDNS_SERVICE_TYPE dns-type-ptr 120 (make-ptr-rdata full-name))
+                  (make-record full-name dns-type-srv 120 (make-srv-rdata 9010 "query-ignored.local"))
+                  (make-record full-name dns-type-txt 120 (make-txt-rdata default-txt-entries))
+                  (make-record "query-ignored.local" dns-type-a 120 (make-a-rdata 127 0 0 1))])]
     (parse-and-rebuild! mdns packet)
     (is (= 0 (alength (.getDevices mdns))))))
 
@@ -655,6 +777,25 @@
       (is (= "224.0.0.251" (:address @sent-packet)))
       (is (= 5353 (:port @sent-packet)))
       (is (Arrays/equals built ^bytes (:data @sent-packet))))))
+
+;; Verifies follow-up browse queries include known PTR answers once a service has been cached.
+(deftest mdns-builds-query-with-known-ptr-answer
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetKnownAnswer." service-type)
+        host-name "target-known-answer.local"
+        packet (make-response-packet (service-records service-type full-name host-name 9041 10))
+        ^bytes expected-base (make-query-packet service-type dns-type-ptr)]
+    (parse-and-rebuild! mdns packet)
+    (let [^bytes built (MDNS$TestHooks/buildQuery mdns)
+          parser (MDNS. (dummy-logger))
+          answer-count (+ (bit-shift-left (bit-and 0xff (aget built 6)) 8)
+                          (bit-and 0xff (aget built 7)))]
+      (parse-and-rebuild! parser built)
+      (is (= 0 (alength (.getDevices parser))))
+      (is (= 1 answer-count))
+      (is (> (alength built) (alength expected-base)))
+      (is (bytes-contain? built (make-ptr-rdata full-name))))))
 
 ;; Verifies readPackets feeds datagrams through parsing with the connection local and remote addresses preserved.
 (deftest mdns-read-packets-parses-service-announcements-from-connections

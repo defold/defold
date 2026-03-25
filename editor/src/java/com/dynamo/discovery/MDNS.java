@@ -101,7 +101,7 @@ public class MDNS {
         }
     }
 
-    private record HostAddress(String address, long expires) {
+    private record HostAddress(String address, long expires, long refreshAt) {
     }
 
     private static class ServiceAccumulator {
@@ -114,6 +114,12 @@ public class MDNS {
         long ptrExpires;
         long srvExpires;
         long txtExpires;
+        long ptrRefresh;
+        long srvRefresh;
+        long txtRefresh;
+        long ptrTtlMillis;
+        long srvTtlMillis;
+        long txtTtlMillis;
         boolean hasPtr;
         boolean hasSrv;
         boolean hasTxt;
@@ -163,6 +169,8 @@ public class MDNS {
 
     private static final int MDNS_MCAST_PORT = 5353;
     private static final String MDNS_MCAST_ADDR_IP = "224.0.0.251";
+    private static final long INITIAL_QUERY_INTERVAL_MS = 1000L;
+    private static final long MAX_QUERY_INTERVAL_MS = 60000L;
 
     private static final int DNS_TYPE_A = 1;
     private static final int DNS_TYPE_PTR = 12;
@@ -184,6 +192,8 @@ public class MDNS {
 
     private int changeCount;
     private String defaultLocalAddress;
+    private long nextQueryAt;
+    private long queryIntervalMillis;
 
     public MDNS(Logger logger) {
         this.logger = logger;
@@ -192,6 +202,7 @@ public class MDNS {
         this.services = new HashMap<String, ServiceAccumulator>();
         this.hosts = new HashMap<String, HostAddress>();
         this.discoveredServices = new HashMap<String, MDNSServiceInfo>();
+        this.queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
     }
 
     private void log(String msg) {
@@ -239,10 +250,13 @@ public class MDNS {
 
     public boolean update(boolean search) throws IOException {
         int oldChangeCount = changeCount;
+        long now = System.currentTimeMillis();
 
         if (search) {
             refreshNetworks();
-            sendQuery();
+            if (shouldQuery(now)) {
+                sendQuery(now);
+            }
         }
 
         expireEntries();
@@ -291,6 +305,8 @@ public class MDNS {
             clearDiscovered();
 
             defaultLocalAddress = null;
+            nextQueryAt = 0;
+            queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
         }
 
         for (NetworkInterface networkInterface : interfaces) {
@@ -315,6 +331,8 @@ public class MDNS {
             Connection newConnection = new Connection(networkInterface, localAddress);
             if (newConnection.connect(multicastAddress)) {
                 connections.add(newConnection);
+                nextQueryAt = 0;
+                queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
                 log(String.format("Connected to multicast network %s: %s", networkInterface.getDisplayName(), localAddress));
             }
         }
@@ -353,6 +371,14 @@ public class MDNS {
         return offset + 2;
     }
 
+    private static int writeU32(byte[] out, int offset, long value) {
+        out[offset] = (byte) ((value >> 24) & 0xff);
+        out[offset + 1] = (byte) ((value >> 16) & 0xff);
+        out[offset + 2] = (byte) ((value >> 8) & 0xff);
+        out[offset + 3] = (byte) (value & 0xff);
+        return offset + 4;
+    }
+
     private static int readU16(byte[] data, int offset) {
         return ((data[offset] & 0xff) << 8) | (data[offset + 1] & 0xff);
     }
@@ -364,14 +390,97 @@ public class MDNS {
                 | ((long) (data[offset + 3] & 0xff));
     }
 
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static char decodeEscapedChar(String value, int[] indexRef) {
+        int index = indexRef[0];
+        char c = value.charAt(index++);
+        if (c != '\\') {
+            indexRef[0] = index;
+            return c;
+        }
+
+        if (index >= value.length()) {
+            indexRef[0] = value.length();
+            return '\\';
+        }
+
+        if (index + 2 < value.length()
+                && isDigit(value.charAt(index))
+                && isDigit(value.charAt(index + 1))
+                && isDigit(value.charAt(index + 2))) {
+            char decoded = (char) (((value.charAt(index) - '0') * 100)
+                    + ((value.charAt(index + 1) - '0') * 10)
+                    + (value.charAt(index + 2) - '0'));
+            indexRef[0] = index + 3;
+            return decoded;
+        }
+
+        char decoded = value.charAt(index);
+        indexRef[0] = index + 1;
+        return decoded;
+    }
+
+    private static String escapeDnsText(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        StringBuilder escaped = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); ++i) {
+            char c = value.charAt(i);
+            if (c == '.' || c == '\\') {
+                escaped.append('\\');
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
+    }
+
+    private static String unescapeDnsText(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        StringBuilder unescaped = new StringBuilder(value.length());
+        int[] indexRef = new int[] {0};
+        while (indexRef[0] < value.length()) {
+            unescaped.append(decodeEscapedChar(value, indexRef));
+        }
+        return unescaped.toString();
+    }
+
+    private static List<String> splitDnsLabels(String name) {
+        List<String> labels = new ArrayList<String>();
+        StringBuilder current = new StringBuilder();
+        int[] indexRef = new int[] {0};
+        while (indexRef[0] < name.length()) {
+            char c = name.charAt(indexRef[0]);
+            if (c == '.') {
+                labels.add(current.toString());
+                current.setLength(0);
+                ++indexRef[0];
+                continue;
+            }
+
+            current.append(decodeEscapedChar(name, indexRef));
+        }
+
+        if (current.length() > 0 || name.endsWith(".")) {
+            labels.add(current.toString());
+        }
+        return labels;
+    }
+
     private static int writeName(byte[] out, int offset, String name) {
-        String[] labels = name.split("\\.");
-        for (String label : labels) {
+        for (String label : splitDnsLabels(name)) {
             if (label.isEmpty()) {
                 continue;
             }
-            out[offset++] = (byte) label.length();
-            byte[] bytes = label.getBytes();
+            byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+            out[offset++] = (byte) bytes.length;
             System.arraycopy(bytes, 0, out, offset, bytes.length);
             offset += bytes.length;
         }
@@ -428,21 +537,32 @@ public class MDNS {
             if (name.length() > 0) {
                 name.append('.');
             }
-            for (int i = 0; i < len; ++i) {
-                name.append((char) (data[pos + i] & 0xff));
+
+            String label = new String(data, pos, len, StandardCharsets.UTF_8);
+            for (int i = 0; i < label.length(); ++i) {
+                char c = label.charAt(i);
+                if (c == '.' || c == '\\') {
+                    name.append('\\');
+                }
+                name.append(c);
             }
             pos += len;
         }
     }
 
     private byte[] buildQuery() {
-        byte[] out = new byte[512];
+        return buildQuery(System.currentTimeMillis());
+    }
+
+    private byte[] buildQuery(long now) {
+        byte[] out = new byte[1500];
         int offset = 0;
+        int answerCount = 0;
 
         offset = writeU16(out, offset, 0); // id
         offset = writeU16(out, offset, 0); // flags
         offset = writeU16(out, offset, 1); // qdcount
-        offset = writeU16(out, offset, 0); // ancount
+        offset = writeU16(out, offset, 0); // ancount (patched later)
         offset = writeU16(out, offset, 0); // nscount
         offset = writeU16(out, offset, 0); // arcount
 
@@ -450,13 +570,55 @@ public class MDNS {
         offset = writeU16(out, offset, DNS_TYPE_PTR);
         offset = writeU16(out, offset, DNS_CLASS_IN);
 
+        for (ServiceAccumulator service : services.values()) {
+            if (!service.hasPtr || service.ptrExpires <= now || service.ptrTtlMillis <= 0) {
+                continue;
+            }
+
+            long remaining = service.ptrExpires - now;
+            if (remaining <= service.ptrTtlMillis / 2) {
+                continue;
+            }
+
+            int ttl = (int) Math.max(1L, (remaining + 999L) / 1000L);
+            offset = writeName(out, offset, MDNS_SERVICE_TYPE);
+            offset = writeU16(out, offset, DNS_TYPE_PTR);
+            offset = writeU16(out, offset, DNS_CLASS_IN);
+            offset = (int) writeU32(out, offset, ttl);
+
+            int rdLengthOffset = offset;
+            offset = writeU16(out, offset, 0);
+            int rdataStart = offset;
+            offset = writeName(out, offset, service.fullName);
+            out[rdLengthOffset] = (byte) (((offset - rdataStart) >> 8) & 0xff);
+            out[rdLengthOffset + 1] = (byte) ((offset - rdataStart) & 0xff);
+            ++answerCount;
+        }
+
+        out[6] = (byte) ((answerCount >> 8) & 0xff);
+        out[7] = (byte) (answerCount & 0xff);
+
         byte[] query = new byte[offset];
         System.arraycopy(out, 0, query, 0, offset);
         return query;
     }
 
     private void sendQuery() {
-        byte[] query = buildQuery();
+        sendQuery(System.currentTimeMillis());
+    }
+
+    private boolean shouldQuery(long now) {
+        long due = nextRefreshAt();
+        if (nextQueryAt == 0 || (due != 0 && due < nextQueryAt)) {
+            due = nextQueryAt == 0 ? due : Math.min(nextQueryAt, due);
+        } else if (due == 0) {
+            due = nextQueryAt;
+        }
+        return due == 0 || now >= due;
+    }
+
+    private void sendQuery(long now) {
+        byte[] query = buildQuery(now);
 
         for (Connection connection : connections) {
             if (connection.socket == null) {
@@ -468,6 +630,11 @@ public class MDNS {
             } catch (IOException e) {
                 log(String.format("Query failed on %s: %s", connection.localAddress, e.getMessage()));
             }
+        }
+
+        nextQueryAt = now + queryIntervalMillis;
+        if (queryIntervalMillis < MAX_QUERY_INTERVAL_MS) {
+            queryIntervalMillis = Math.min(queryIntervalMillis * 3L, MAX_QUERY_INTERVAL_MS);
         }
     }
 
@@ -513,6 +680,10 @@ public class MDNS {
         offset += 2;
         int arCount = readU16(data, offset);
         offset += 2;
+
+        if ((flags & 0x8000) == 0) {
+            return;
+        }
 
         // Skip questions.
         for (int i = 0; i < qdCount; ++i) {
@@ -584,6 +755,8 @@ public class MDNS {
                 service.address = remoteAddress;
             }
             service.ptrExpires = expires;
+            service.ptrRefresh = System.currentTimeMillis() + Math.max(1L, ttl * 500L);
+            service.ptrTtlMillis = ttl * 1000L;
             service.hasPtr = true;
             return;
         }
@@ -620,6 +793,8 @@ public class MDNS {
                 service.address = remoteAddress;
             }
             service.srvExpires = expires;
+            service.srvRefresh = System.currentTimeMillis() + Math.max(1L, ttl * 500L);
+            service.srvTtlMillis = ttl * 1000L;
             service.hasSrv = true;
             return;
         }
@@ -642,6 +817,8 @@ public class MDNS {
                 service.address = remoteAddress;
             }
             service.txtExpires = expires;
+            service.txtRefresh = System.currentTimeMillis() + Math.max(1L, ttl * 500L);
+            service.txtTtlMillis = ttl * 1000L;
             service.hasTxt = true;
             return;
         }
@@ -660,7 +837,7 @@ public class MDNS {
                     data[rdataOffset + 2] & 0xff,
                     data[rdataOffset + 3] & 0xff);
 
-            hosts.put(hostKey, new HostAddress(address, expires));
+            hosts.put(hostKey, new HostAddress(address, expires, System.currentTimeMillis() + Math.max(1L, ttl * 500L)));
         }
     }
 
@@ -668,18 +845,46 @@ public class MDNS {
         service.host = null;
         service.port = 0;
         service.srvExpires = 0;
+        service.srvRefresh = 0;
+        service.srvTtlMillis = 0;
         service.hasSrv = false;
     }
 
     private static void clearTxt(ServiceAccumulator service) {
         service.txt = new HashMap<String, String>();
         service.txtExpires = 0;
+        service.txtRefresh = 0;
+        service.txtTtlMillis = 0;
         service.hasTxt = false;
     }
 
     private static long serviceExpires(ServiceAccumulator service) {
         long expires = Math.min(service.ptrExpires, Math.min(service.srvExpires, service.txtExpires));
         return expires > 0 ? expires : 0;
+    }
+
+    private long nextRefreshAt() {
+        long next = 0;
+
+        for (HostAddress host : hosts.values()) {
+            if (host.refreshAt() > 0 && (next == 0 || host.refreshAt() < next)) {
+                next = host.refreshAt();
+            }
+        }
+
+        for (ServiceAccumulator service : services.values()) {
+            if (service.ptrRefresh > 0 && (next == 0 || service.ptrRefresh < next)) {
+                next = service.ptrRefresh;
+            }
+            if (service.srvRefresh > 0 && (next == 0 || service.srvRefresh < next)) {
+                next = service.srvRefresh;
+            }
+            if (service.txtRefresh > 0 && (next == 0 || service.txtRefresh < next)) {
+                next = service.txtRefresh;
+            }
+        }
+
+        return next;
     }
 
     private ServiceAccumulator getOrCreateService(String key, String fullServiceName) {
@@ -700,9 +905,9 @@ public class MDNS {
     private static String instanceName(String fullServiceName) {
         String suffix = "." + MDNS_SERVICE_TYPE;
         if (fullServiceName.toLowerCase(Locale.ROOT).endsWith(suffix)) {
-            return fullServiceName.substring(0, fullServiceName.length() - suffix.length());
+            return unescapeDnsText(fullServiceName.substring(0, fullServiceName.length() - suffix.length()));
         }
-        return fullServiceName;
+        return unescapeDnsText(fullServiceName);
     }
 
     private static Map<String, String> parseTxt(byte[] data, int rdLength, int offset) {

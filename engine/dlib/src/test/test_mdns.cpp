@@ -301,9 +301,61 @@ namespace
             dmStrlCat(out, ".local", out_size);
     }
 
+    static bool IsDigit(char c)
+    {
+        return c >= '0' && c <= '9';
+    }
+
+    static bool DecodeEscapedChar(const char** cursor, char* out)
+    {
+        if (**cursor != '\\')
+        {
+            *out = **cursor;
+            ++(*cursor);
+            return true;
+        }
+
+        ++(*cursor);
+        if (**cursor == 0)
+            return false;
+
+        if (IsDigit((*cursor)[0]) && IsDigit((*cursor)[1]) && IsDigit((*cursor)[2]))
+        {
+            *out = (char) ((((*cursor)[0] - '0') * 100) + (((*cursor)[1] - '0') * 10) + ((*cursor)[2] - '0'));
+            *cursor += 3;
+            return true;
+        }
+
+        *out = **cursor;
+        ++(*cursor);
+        return true;
+    }
+
+    static void EscapeDnsText(const char* value, char* out, uint32_t out_size)
+    {
+        if (out_size == 0)
+            return;
+
+        uint32_t out_len = 0;
+        while (*value && out_len + 1 < out_size)
+        {
+            const char c = *value++;
+            if (c == '.' || c == '\\')
+            {
+                if (out_len + 2 >= out_size)
+                    break;
+                out[out_len++] = '\\';
+            }
+            out[out_len++] = c;
+        }
+        out[out_len] = 0;
+    }
+
     static void BuildFullServiceName(const char* instance_name, const char* service_type_local, char* out, uint32_t out_size)
     {
-        dmStrlCpy(out, instance_name, out_size);
+        char escaped_instance[256];
+        EscapeDnsText(instance_name, escaped_instance, sizeof(escaped_instance));
+        dmStrlCpy(out, escaped_instance, out_size);
         if (out[0] && out[strlen(out) - 1] != '.')
             dmStrlCat(out, ".", out_size);
         dmStrlCat(out, service_type_local, out_size);
@@ -315,12 +367,17 @@ namespace
         const char* cursor = name;
         while (*cursor)
         {
-            const char* dot = strchr(cursor, '.');
-            const uint16_t label_len = dot ? (uint16_t) (dot - cursor) : (uint16_t) strlen(cursor);
+            uint16_t label_len = 0;
+            while (*cursor && *cursor != '.')
+            {
+                char decoded = 0;
+                if (!DecodeEscapedChar(&cursor, &decoded))
+                    return 0;
+                ++label_len;
+            }
             size += 1 + label_len;
-            if (!dot)
-                break;
-            cursor = dot + 1;
+            if (*cursor == '.')
+                ++cursor;
         }
         return size;
     }
@@ -365,13 +422,18 @@ namespace
         const char* cursor = name;
         while (*cursor)
         {
-            const char* dot = strchr(cursor, '.');
-            uint32_t label_len = dot ? (uint32_t) (dot - cursor) : (uint32_t) strlen(cursor);
+            char label[63];
+            uint32_t label_len = 0;
+            while (*cursor && *cursor != '.')
+            {
+                ASSERT_TRUE(label_len < sizeof(label));
+                ASSERT_TRUE(DecodeEscapedChar(&cursor, &label[label_len]));
+                ++label_len;
+            }
             buffer->push_back((uint8_t) label_len);
-            buffer->insert(buffer->end(), cursor, cursor + label_len);
-            if (!dot)
-                break;
-            cursor = dot + 1;
+            buffer->insert(buffer->end(), label, label + label_len);
+            if (*cursor == '.')
+                ++cursor;
         }
         buffer->push_back(0);
     }
@@ -444,7 +506,13 @@ namespace
 
             if (!out->empty())
                 out->append(".");
-            out->append((const char*) data + pos, (size_t) len);
+            for (uint32_t i = 0; i < len; ++i)
+            {
+                const char c = (char) data[pos + i];
+                if (c == '.' || c == '\\')
+                    out->append("\\");
+                out->push_back(c);
+            }
             pos += len;
         }
     }
@@ -503,13 +571,18 @@ namespace
                 (*suffix_offsets)[cursor] = (uint16_t) buffer->size();
             }
 
-            const char* dot = strchr(cursor, '.');
-            const uint32_t label_len = dot ? (uint32_t) (dot - cursor) : (uint32_t) strlen(cursor);
+            char label[63];
+            uint32_t label_len = 0;
+            while (*cursor && *cursor != '.')
+            {
+                ASSERT_TRUE(label_len < sizeof(label));
+                ASSERT_TRUE(DecodeEscapedChar(&cursor, &label[label_len]));
+                ++label_len;
+            }
             buffer->push_back((uint8_t) label_len);
-            buffer->insert(buffer->end(), cursor, cursor + label_len);
-            if (!dot)
-                break;
-            cursor = dot + 1;
+            buffer->insert(buffer->end(), label, label + label_len);
+            if (*cursor == '.')
+                ++cursor;
         }
 
         buffer->push_back(0);
@@ -914,6 +987,11 @@ namespace
         std::vector<uint8_t> query;
         BuildQueryPacket(qname, qtype, &query);
 
+        // mDNS traffic is asynchronous and prior announcements may still be queued
+        // on the capture socket. Drain them so this helper only observes replies
+        // caused by the query we are about to send.
+        DrainSocket(socket, 10);
+
         int sent = 0;
         if (dmSocket::SendTo(socket, &query[0], (int) query.size(), &sent, dmSocket::AddressFromIPString(MDNS_MULTICAST_IPV4), MDNS_PORT) != dmSocket::RESULT_OK
             || sent != (int) query.size())
@@ -1269,6 +1347,64 @@ TEST(MDNS, ResolveAndRemove)
     ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_REMOVED, service.m_InstanceName, cleanup.m_Mdns, cleanup.m_Browser, 15000));
 }
 
+// Verifies a DNS-SD instance label containing dots is escaped on the wire and unescaped in browser callbacks.
+TEST(MDNS, ResolveInstanceNameWithDots)
+{
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
+    EventLog event_log;
+    ScopedMdnsTestResources cleanup;
+
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_id[128];
+    char advertised_id[128];
+    MakeUniqueName(service_id, sizeof(service_id), "mdns-dot-instance", nonce);
+    MakeUniqueName(advertised_id, sizeof(advertised_id), "mdns-dot-id", nonce);
+
+    const char* instance_name = "resolve.with.dot";
+
+    dmMDNS::Params params;
+    params.m_AnnounceInterval = 1;
+    params.m_Ttl = 2;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns));
+
+    dmMDNS::BrowserParams browser_params;
+    browser_params.m_ServiceType = SERVICE_TYPE;
+    browser_params.m_Callback = EventLog::Callback;
+    browser_params.m_Context = &event_log;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
+
+    dmMDNS::TxtEntry txt_entries[] =
+    {
+        {"id", advertised_id},
+        {"name", instance_name},
+        {"log_port", "19011"},
+    };
+
+    dmMDNS::ServiceDesc service;
+    memset(&service, 0, sizeof(service));
+    service.m_Id = service_id;
+    service.m_InstanceName = instance_name;
+    service.m_ServiceType = SERVICE_TYPE;
+    service.m_Port = 19011;
+    service.m_Txt = txt_entries;
+    service.m_TxtCount = DM_ARRAY_SIZE(txt_entries);
+    service.m_Ttl = 2;
+
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup.m_Mdns, &service));
+    ASSERT_TRUE(WaitForEvent(event_log, dmMDNS::EVENT_RESOLVED, instance_name, cleanup.m_Mdns, cleanup.m_Browser, 15000));
+
+    const EventSnapshot* resolved = event_log.FindInstance(dmMDNS::EVENT_RESOLVED, instance_name);
+    ASSERT_NE((const EventSnapshot*) 0, resolved);
+    ASSERT_EQ(std::string(instance_name), resolved->m_InstanceName);
+    ASSERT_EQ(std::string(advertised_id), resolved->m_Id);
+    std::map<std::string, std::string>::const_iterator name_it = resolved->m_Txt.find("name");
+    ASSERT_TRUE(name_it != resolved->m_Txt.end());
+    ASSERT_EQ(std::string(instance_name), name_it->second);
+}
+
 // Verifies that a resolved mDNS service yields a host/port that is actually usable.
 // This catches regressions where discovery succeeds but the advertised endpoint is wrong.
 TEST(MDNS, ResolveAndConnect)
@@ -1395,6 +1531,79 @@ TEST(MDNS, BrowserBuildsExpectedQuery)
     ASSERT_TRUE(HasQuestion(packet, service_type_local, DNS_TYPE_PTR, DNS_CLASS_IN));
 }
 
+// Verifies follow-up browse queries carry known PTR answers so responders can suppress duplicates.
+TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
+{
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
+    EventLog event_log;
+    ScopedMdnsTestResources cleanup;
+    MulticastCapture capture;
+    ScopedSocketHandle sender;
+    ASSERT_TRUE(SetupMulticastCapture(&capture));
+    ASSERT_TRUE(SetupSendSocket(&sender));
+
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_type[64];
+    char service_type_local[128];
+    char instance_name[128];
+    char full_service_name[256];
+    char host_name[128];
+    char host_local[256];
+    char service_id[128];
+    MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "known-answer", nonce);
+    MakeUniqueName(host_name, sizeof(host_name), "known-answer-host", nonce);
+    MakeUniqueName(service_id, sizeof(service_id), "known-answer-id", nonce);
+    BuildLocalName(service_type, service_type_local, sizeof(service_type_local));
+    BuildFullServiceName(instance_name, service_type_local, full_service_name, sizeof(full_service_name));
+    BuildLocalName(host_name, host_local, sizeof(host_local));
+
+    dmMDNS::BrowserParams browser_params;
+    browser_params.m_ServiceType = service_type;
+    browser_params.m_Callback = EventLog::Callback;
+    browser_params.m_Context = &event_log;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
+
+    RawDnsPacket initial_query;
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &initial_query, 2000));
+    DrainSocket(capture.m_Socket, 100);
+
+    dmMDNS::TxtEntry txt_entries[] =
+    {
+        {"id", service_id},
+        {"name", instance_name},
+        {"schema", "1"},
+    };
+
+    const uint8_t address[] = {127, 0, 0, 1};
+    RawDnsResponseRecord records[] =
+    {
+        {service_type_local, DNS_TYPE_PTR, DNS_CLASS_IN, 10, full_service_name, 0, 0, 0, 0, 0},
+        {full_service_name, DNS_TYPE_SRV, (uint16_t) (DNS_CLASS_IN | 0x8000), 10, 0, 19010, host_local, 0, 0, 0},
+        {full_service_name, DNS_TYPE_TXT, (uint16_t) (DNS_CLASS_IN | 0x8000), 10, 0, 0, 0, txt_entries, DM_ARRAY_SIZE(txt_entries), 0},
+        {host_local, DNS_TYPE_A, (uint16_t) (DNS_CLASS_IN | 0x8000), 10, 0, 0, 0, 0, 0, address},
+    };
+
+    std::vector<uint8_t> response;
+    BuildResponsePacket(records, DM_ARRAY_SIZE(records), false, &response);
+    ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &response[0], (uint32_t) response.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000));
+    DrainSocket(capture.m_Socket, 100);
+
+    RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4500));
+    ASSERT_TRUE(!packet.m_IsResponse);
+    ASSERT_EQ(1U, packet.m_Questions.size());
+    ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_PTR));
+    const RawDnsRecord* ptr_record = FindRecord(packet, DNS_TYPE_PTR, service_type_local);
+    ASSERT_NE((const RawDnsRecord*) 0, ptr_record);
+    ASSERT_EQ(std::string(full_service_name), ptr_record->m_PtrName);
+    ASSERT_TRUE(ptr_record->m_Ttl > 0);
+}
+
 // Verifies the advertiser returns the expected PTR/SRV/TXT/A response set for valid queries.
 // This locks down the native wire contract, including record payloads, classes, TTLs, and negative cases.
 TEST(MDNS, QueryResponses)
@@ -1450,6 +1659,12 @@ TEST(MDNS, QueryResponses)
     response_names.push_back(host_local);
 
     RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingResponse(cleanup.m_Mdns, capture.m_Socket, response_names, &packet, 3000));
+    // The responder sends a startup announcement burst after probing. Wait it out
+    // so the explicit query/response checks below run against steady-state traffic.
+    dmTime::Sleep(1200 * 1000);
+    dmMDNS::Update(cleanup.m_Mdns);
+    DrainSocket(capture.m_Socket, 100);
     ASSERT_TRUE(SendQueryAndCapture(cleanup.m_Mdns, capture.m_Socket, service_type_local, DNS_TYPE_PTR, response_names, &packet, 2000));
     ASSERT_EQ(4U, packet.m_Records.size());
     ASSERT_TRUE(packet.m_IsResponse);
@@ -1571,6 +1786,14 @@ TEST(MDNS, IgnoresMalformedQueries)
     response_names.push_back(full_service_name);
     response_names.push_back(host_local);
 
+    RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingResponse(cleanup.m_Mdns, capture.m_Socket, response_names, &packet, 3000));
+    // Let the startup announcement burst finish before asserting that malformed
+    // packets do not trigger additional responses.
+    dmTime::Sleep(1200 * 1000);
+    dmMDNS::Update(cleanup.m_Mdns);
+    DrainSocket(capture.m_Socket, 100);
+
     std::vector<uint8_t> truncated_query;
     BuildQueryPacket(service_type_local, DNS_TYPE_PTR, &truncated_query);
     truncated_query.resize(truncated_query.size() - 1);
@@ -1597,7 +1820,6 @@ TEST(MDNS, IgnoresMalformedQueries)
     DrainSocket(capture.m_Socket, 100);
     ASSERT_TRUE(PacketProducesNoMatchingResponse(cleanup.m_Mdns, sender.m_Socket, capture.m_Socket, &truncated_question_query[0], (uint32_t) truncated_question_query.size(), response_names, 500));
 
-    RawDnsPacket packet;
     ASSERT_TRUE(SendQueryAndCapture(cleanup.m_Mdns, capture.m_Socket, service_type_local, DNS_TYPE_PTR, response_names, &packet, 2000));
     ASSERT_EQ(4U, packet.m_Records.size());
 }
@@ -1654,6 +1876,8 @@ TEST(MDNS, ZeroTtlAnnouncements)
     response_names.push_back(host_local);
 
     RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
+    DrainSocket(capture.m_Socket, 100);
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeregisterService(mdns, service.m_Id));
     ASSERT_TRUE(WaitForMatchingResponse(0, capture.m_Socket, response_names, &packet, 1000));
     ASSERT_TRUE(AllRecordsHaveTtl(packet, 0));
@@ -1663,6 +1887,7 @@ TEST(MDNS, ZeroTtlAnnouncements)
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_A));
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
+    ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
     DrainSocket(capture.m_Socket, 100);
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));
     mdns = 0;

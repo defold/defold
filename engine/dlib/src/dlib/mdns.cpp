@@ -40,6 +40,12 @@ namespace dmMDNS
     static const uint32_t MDNS_MAX_TXT_ENTRIES = 16;
     static const uint32_t MDNS_INTERFACE_REFRESH_INTERVAL = 5;
     static const uint32_t MDNS_MAX_INTERFACES = 32;
+    static const uint32_t MDNS_PROBE_INTERVAL_MS = 250;
+    static const uint32_t MDNS_PROBE_COUNT = 3;
+    static const uint32_t MDNS_STARTUP_ANNOUNCEMENTS = 2;
+    static const uint32_t MDNS_STARTUP_ANNOUNCE_INTERVAL = 1;
+    static const uint64_t MDNS_BROWSER_INITIAL_QUERY_INTERVAL = 1 * 1000000ULL;
+    static const uint64_t MDNS_BROWSER_MAX_QUERY_INTERVAL = 60 * 1000000ULL;
 
     static const uint16_t DNS_TYPE_A = 1;
     static const uint16_t DNS_TYPE_PTR = 12;
@@ -51,6 +57,13 @@ namespace dmMDNS
     static const uint16_t DNS_CLASS_FLUSH = 0x8000;
 
     static const uint16_t DNS_FLAG_RESPONSE = 0x8400;
+
+    enum ServiceState
+    {
+        SERVICE_STATE_PROBING = 0,
+        SERVICE_STATE_ACTIVE = 1,
+        SERVICE_STATE_CONFLICT = 2
+    };
 
     struct StoredTxt
     {
@@ -77,6 +90,12 @@ namespace dmMDNS
         uint32_t m_Ttl;
         StoredTxt m_Txt[MDNS_MAX_TXT_ENTRIES];
         uint32_t m_TxtCount;
+
+        uint64_t m_NextProbe;
+        uint64_t m_NextAnnounce;
+        uint8_t m_ProbeCount;
+        uint8_t m_StartupAnnounceCount;
+        uint8_t m_State;
     };
 
     struct MDNS
@@ -101,7 +120,6 @@ namespace dmMDNS
         char m_DefaultHostLocal[256];
         dmSocket::Address m_DefaultAddress;
 
-        uint64_t m_NextAnnounce;
         uint64_t m_NextInterfaceRefresh;
     };
 
@@ -115,6 +133,8 @@ namespace dmMDNS
         char m_Host[256];
         char m_Address[64];
         uint64_t m_Expires;
+        uint64_t m_Refresh;
+        uint32_t m_Ttl;
     };
 
     struct BrowserService
@@ -138,6 +158,12 @@ namespace dmMDNS
         uint64_t m_PtrExpires;
         uint64_t m_SrvExpires;
         uint64_t m_TxtExpires;
+        uint64_t m_PtrRefresh;
+        uint64_t m_SrvRefresh;
+        uint64_t m_TxtRefresh;
+        uint32_t m_PtrTtl;
+        uint32_t m_SrvTtl;
+        uint32_t m_TxtTtl;
 
         uint8_t m_HasPtr : 1;
         uint8_t m_HasSrv : 1;
@@ -156,7 +182,7 @@ namespace dmMDNS
             m_Hosts.SetCapacity(16);
             m_InterfaceAddresses.SetCapacity(4);
             m_MembershipAddresses.SetCapacity(4);
-            m_QueryInterval = 2 * 1000000ULL;
+            m_QueryInterval = MDNS_BROWSER_INITIAL_QUERY_INTERVAL;
         }
 
         dmSocket::Socket m_Socket;
@@ -188,6 +214,20 @@ namespace dmMDNS
         return ((uint64_t) seconds) * 1000000ULL;
     }
 
+    static uint64_t HalfSecondsToMicroSeconds(uint32_t seconds)
+    {
+        return (((uint64_t) seconds) * 1000000ULL) / 2ULL;
+    }
+
+    static uint32_t RemainingTtlSeconds(uint64_t expires, uint64_t now)
+    {
+        if (expires <= now)
+            return 0;
+
+        const uint64_t remaining = expires - now;
+        return (uint32_t) ((remaining + 1000000ULL - 1ULL) / 1000000ULL);
+    }
+
     static bool NameEquals(const char* lhs, const char* rhs)
     {
         return dmStrCaseCmp(lhs, rhs) == 0;
@@ -197,6 +237,85 @@ namespace dmMDNS
     {
         const char* last_dot = strrchr(value, '.');
         return last_dot && dmStrCaseCmp(last_dot, ".local") == 0;
+    }
+
+    static bool IsDigit(char c)
+    {
+        return c >= '0' && c <= '9';
+    }
+
+    static bool DecodeEscapedChar(const char** cursor, char* out)
+    {
+        if (**cursor != '\\')
+        {
+            *out = **cursor;
+            ++(*cursor);
+            return true;
+        }
+
+        ++(*cursor);
+        if (**cursor == 0)
+            return false;
+
+        if (IsDigit((*cursor)[0]) && IsDigit((*cursor)[1]) && IsDigit((*cursor)[2]))
+        {
+            *out = (char) ((((*cursor)[0] - '0') * 100) + (((*cursor)[1] - '0') * 10) + ((*cursor)[2] - '0'));
+            *cursor += 3;
+            return true;
+        }
+
+        *out = **cursor;
+        ++(*cursor);
+        return true;
+    }
+
+    static void EscapeDnsText(const char* value, char* out, uint32_t out_size)
+    {
+        if (out_size == 0)
+            return;
+
+        if (value == 0)
+        {
+            out[0] = 0;
+            return;
+        }
+
+        uint32_t out_len = 0;
+        while (*value && out_len + 1 < out_size)
+        {
+            const char c = *value++;
+            if (c == '.' || c == '\\')
+            {
+                if (out_len + 2 >= out_size)
+                    break;
+                out[out_len++] = '\\';
+            }
+            out[out_len++] = c;
+        }
+        out[out_len] = 0;
+    }
+
+    static void UnescapeDnsText(const char* value, char* out, uint32_t out_size)
+    {
+        if (out_size == 0)
+            return;
+
+        if (value == 0)
+        {
+            out[0] = 0;
+            return;
+        }
+
+        uint32_t out_len = 0;
+        const char* cursor = value;
+        while (*cursor && out_len + 1 < out_size)
+        {
+            char decoded = 0;
+            if (!DecodeEscapedChar(&cursor, &decoded))
+                break;
+            out[out_len++] = decoded;
+        }
+        out[out_len] = 0;
     }
 
     static void BuildLocalName(const char* value, char* out, uint32_t out_size)
@@ -221,7 +340,10 @@ namespace dmMDNS
         //
         // This helper currently concatenates presentation-form strings and
         // relies on WriteName() to turn them into DNS labels on the wire.
-        dmStrlCpy(out, instance_name, out_size);
+        char escaped_instance[256];
+        EscapeDnsText(instance_name, escaped_instance, sizeof(escaped_instance));
+
+        dmStrlCpy(out, escaped_instance, out_size);
         if (out[0] && out[strlen(out) - 1] != '.')
             dmStrlCat(out, ".", out_size);
         dmStrlCat(out, service_type_local, out_size);
@@ -238,15 +360,17 @@ namespace dmMDNS
             if (dmStrCaseCmp(suffix, service_type_local) == 0 && *(suffix - 1) == '.')
             {
                 uint32_t instance_len = (uint32_t) (suffix - full_name - 1);
+                char escaped_instance[256];
                 if (instance_len >= out_size)
                     instance_len = out_size - 1;
-                memcpy(out, full_name, instance_len);
-                out[instance_len] = 0;
+                memcpy(escaped_instance, full_name, instance_len);
+                escaped_instance[instance_len] = 0;
+                UnescapeDnsText(escaped_instance, out, out_size);
                 return;
             }
         }
 
-        dmStrlCpy(out, full_name, out_size);
+        UnescapeDnsText(full_name, out, out_size);
     }
 
     static bool ContainsAddress(const dmArray<dmSocket::Address>& addresses, dmSocket::Address address)
@@ -404,11 +528,24 @@ namespace dmMDNS
             if (len > 63 || pos + len > size)
                 return false;
 
-            if (out_len + len + 1 >= out_size)
-                return false;
+            for (uint32_t i = 0; i < len; ++i)
+            {
+                const char c = (char) data[pos + i];
+                if (c == '.' || c == '\\')
+                {
+                    if (out_len + 2 >= out_size)
+                        return false;
+                    out[out_len++] = '\\';
+                }
+                else if (out_len + 1 >= out_size)
+                {
+                    return false;
+                }
+                out[out_len++] = c;
+            }
 
-            memcpy(out + out_len, data + pos, len);
-            out_len += len;
+            if (out_len + 1 >= out_size)
+                return false;
             out[out_len++] = '.';
             pos += len;
         }
@@ -419,19 +556,28 @@ namespace dmMDNS
         const char* cursor = name;
         while (*cursor)
         {
-            const char* dot = strchr(cursor, '.');
-            uint32_t label_len = dot ? (uint32_t) (dot - cursor) : (uint32_t) strlen(cursor);
-            if (label_len > 63 || *offset + 1 + label_len > size)
+            char label[63];
+            uint32_t label_len = 0;
+            while (*cursor && *cursor != '.')
+            {
+                if (label_len >= sizeof(label))
+                    return false;
+
+                if (!DecodeEscapedChar(&cursor, &label[label_len]))
+                    return false;
+                ++label_len;
+            }
+
+            if (*offset + 1 + label_len > size)
                 return false;
 
             data[*offset] = (uint8_t) label_len;
             ++(*offset);
-            memcpy(data + *offset, cursor, label_len);
+            memcpy(data + *offset, label, label_len);
             *offset += label_len;
 
-            if (!dot)
-                break;
-            cursor = dot + 1;
+            if (*cursor == '.')
+                ++cursor;
         }
 
         if (*offset + 1 > size)
@@ -699,21 +845,49 @@ namespace dmMDNS
         return offset;
     }
 
-    static uint32_t BuildQueryMessage(const char* service_type_local, uint8_t* buffer, uint32_t buffer_size)
+    static bool ShouldIncludeKnownAnswer(const BrowserService& service, uint64_t now)
+    {
+        if (!service.m_HasPtr || service.m_PtrExpires <= now || service.m_PtrTtl == 0)
+            return false;
+
+        const uint64_t remaining = service.m_PtrExpires - now;
+        return remaining > HalfSecondsToMicroSeconds(service.m_PtrTtl);
+    }
+
+    static uint32_t BuildQueryMessage(const Browser* browser, uint64_t now, uint8_t* buffer, uint32_t buffer_size)
     {
         uint32_t offset = 0;
+        uint16_t answer_count = 0;
         if (!WriteU16(buffer, buffer_size, &offset, 0)   // id
             || !WriteU16(buffer, buffer_size, &offset, 0) // query
             || !WriteU16(buffer, buffer_size, &offset, 1) // one question
+            || !WriteU16(buffer, buffer_size, &offset, 0) // answers (known answers patched later)
             || !WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteU16(buffer, buffer_size, &offset, 0)
-            || !WriteU16(buffer, buffer_size, &offset, 0)
-            || !WriteName(buffer, buffer_size, &offset, service_type_local)
+            || !WriteName(buffer, buffer_size, &offset, browser->m_ServiceTypeLocal)
             || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_PTR)
             || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN))
         {
             return 0;
         }
+
+        for (uint32_t i = 0; i < browser->m_Services.Size(); ++i)
+        {
+            const BrowserService& service = browser->m_Services[i];
+            if (!ShouldIncludeKnownAnswer(service, now))
+                continue;
+
+            const uint32_t ttl = RemainingTtlSeconds(service.m_PtrExpires, now);
+            if (ttl == 0)
+                continue;
+
+            if (!WriteRecordPtr(buffer, buffer_size, &offset, browser->m_ServiceTypeLocal, service.m_FullServiceName, ttl))
+                return 0;
+            ++answer_count;
+        }
+
+        buffer[6] = (uint8_t) ((answer_count >> 8) & 0xff);
+        buffer[7] = (uint8_t) (answer_count & 0xff);
 
         return offset;
     }
@@ -726,6 +900,46 @@ namespace dmMDNS
                 return (int32_t) i;
         }
         return -1;
+    }
+
+    static bool IsServiceActive(const RegisteredService& service)
+    {
+        return service.m_State == SERVICE_STATE_ACTIVE;
+    }
+
+    static uint32_t BuildProbeMessage(const RegisteredService& service, uint8_t* buffer, uint32_t buffer_size)
+    {
+        uint32_t offset = 0;
+        if (!WriteU16(buffer, buffer_size, &offset, 0)
+            || !WriteU16(buffer, buffer_size, &offset, 0)
+            || !WriteU16(buffer, buffer_size, &offset, 2)
+            || !WriteU16(buffer, buffer_size, &offset, 0)
+            || !WriteU16(buffer, buffer_size, &offset, 0)
+            || !WriteU16(buffer, buffer_size, &offset, 0)
+            || !WriteName(buffer, buffer_size, &offset, service.m_ServiceTypeLocal)
+            || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_PTR)
+            || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN)
+            || !WriteName(buffer, buffer_size, &offset, service.m_HostLocal)
+            || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_A)
+            || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN))
+        {
+            return 0;
+        }
+
+        return offset;
+    }
+
+    static void MarkServiceConflict(RegisteredService* service)
+    {
+        if (service->m_State != SERVICE_STATE_CONFLICT)
+        {
+            dmLogWarning("mDNS name conflict detected for service '%s' (%s)", service->m_Id, service->m_FullServiceName);
+        }
+        service->m_State = SERVICE_STATE_CONFLICT;
+        service->m_ProbeCount = 0;
+        service->m_StartupAnnounceCount = 0;
+        service->m_NextProbe = 0;
+        service->m_NextAnnounce = 0;
     }
 
     static void HandleAnnounceResponse(MDNS* mdns, const RegisteredService& service, const dmSocket::Address* interface_address, uint32_t ttl)
@@ -747,6 +961,15 @@ namespace dmMDNS
         for (uint32_t i = 0; i < mdns->m_InterfaceAddresses.Size(); ++i)
         {
             HandleAnnounceResponse(mdns, service, &mdns->m_InterfaceAddresses[i], ttl);
+        }
+    }
+
+    static void SendProbe(MDNS* mdns, const RegisteredService& service)
+    {
+        const uint32_t size = BuildProbeMessage(service, mdns->m_Buffer, sizeof(mdns->m_Buffer));
+        if (size > 0)
+        {
+            SendPacketOnInterfaces(mdns->m_Socket, mdns->m_Buffer, size, mdns->m_InterfaceAddresses);
         }
     }
 
@@ -809,6 +1032,9 @@ namespace dmMDNS
 
     static bool QueryMatchesService(const RegisteredService& service, const char* qname, uint16_t qtype)
     {
+        if (!IsServiceActive(service))
+            return false;
+
         switch (qtype)
         {
         case DNS_TYPE_PTR:
@@ -843,6 +1069,140 @@ namespace dmMDNS
         }
 
         return true;
+    }
+
+    static void HandleIncomingResponseRecords(MDNS* mdns, const uint8_t* data, uint32_t size, uint32_t* offset, uint32_t record_count)
+    {
+        for (uint32_t i = 0; i < record_count && *offset < size; ++i)
+        {
+            char name[256];
+            uint16_t type = 0;
+            uint16_t klass = 0;
+            uint32_t ttl = 0;
+            uint16_t rdlength = 0;
+            if (!ReadName(data, size, offset, name, sizeof(name))
+                || !ReadU16(data, size, offset, &type)
+                || !ReadU16(data, size, offset, &klass)
+                || !ReadU32(data, size, offset, &ttl)
+                || !ReadU16(data, size, offset, &rdlength))
+            {
+                *offset = size;
+                return;
+            }
+
+            if (*offset + rdlength > size)
+            {
+                *offset = size;
+                return;
+            }
+
+            const uint32_t rdata_offset = *offset;
+            *offset += rdlength;
+
+            if (ttl == 0 || (klass & ~DNS_CLASS_FLUSH) != DNS_CLASS_IN)
+                continue;
+
+            for (uint32_t service_index = 0; service_index < mdns->m_Services.Size(); ++service_index)
+            {
+                RegisteredService& service = mdns->m_Services[service_index];
+                if (service.m_State != SERVICE_STATE_PROBING)
+                    continue;
+
+                if (type == DNS_TYPE_PTR && NameEquals(name, service.m_ServiceTypeLocal))
+                {
+                    uint32_t ptr_offset = rdata_offset;
+                    char full_service_name[256];
+                    if (ReadName(data, size, &ptr_offset, full_service_name, sizeof(full_service_name))
+                        && NameEquals(full_service_name, service.m_FullServiceName))
+                    {
+                        MarkServiceConflict(&service);
+                    }
+                    continue;
+                }
+
+                if (type == DNS_TYPE_A && rdlength == 4 && NameEquals(name, service.m_HostLocal))
+                {
+                    dmSocket::Address address = service.m_HostAddress;
+                    if (address.m_family != dmSocket::DOMAIN_IPV4 || memcmp(dmSocket::IPv4(&address), data + rdata_offset, 4) != 0)
+                    {
+                        MarkServiceConflict(&service);
+                    }
+                    continue;
+                }
+
+                if (type == DNS_TYPE_SRV && NameEquals(name, service.m_FullServiceName))
+                {
+                    uint32_t srv_offset = rdata_offset;
+                    uint16_t priority = 0;
+                    uint16_t weight = 0;
+                    uint16_t port = 0;
+                    char host[256];
+                    if (ReadU16(data, size, &srv_offset, &priority)
+                        && ReadU16(data, size, &srv_offset, &weight)
+                        && ReadU16(data, size, &srv_offset, &port)
+                        && ReadName(data, size, &srv_offset, host, sizeof(host))
+                        && (port != service.m_Port || !NameEquals(host, service.m_HostLocal)))
+                    {
+                        MarkServiceConflict(&service);
+                    }
+                }
+            }
+        }
+    }
+
+    static void SuppressKnownAnswers(MDNS* mdns, const uint8_t* data, uint32_t size, uint32_t* offset, uint16_t answer_count, dmArray<uint8_t>* should_announce)
+    {
+        for (uint16_t i = 0; i < answer_count && *offset < size; ++i)
+        {
+            char name[256];
+            uint16_t type = 0;
+            uint16_t klass = 0;
+            uint32_t ttl = 0;
+            uint16_t rdlength = 0;
+            if (!ReadName(data, size, offset, name, sizeof(name))
+                || !ReadU16(data, size, offset, &type)
+                || !ReadU16(data, size, offset, &klass)
+                || !ReadU32(data, size, offset, &ttl)
+                || !ReadU16(data, size, offset, &rdlength))
+            {
+                *offset = size;
+                return;
+            }
+
+            if (*offset + rdlength > size)
+            {
+                *offset = size;
+                return;
+            }
+
+            const uint32_t rdata_offset = *offset;
+            *offset += rdlength;
+
+            if (type != DNS_TYPE_PTR || ttl == 0 || (klass & ~DNS_CLASS_FLUSH) != DNS_CLASS_IN)
+                continue;
+
+            uint32_t ptr_offset = rdata_offset;
+            char full_service_name[256];
+            if (!ReadName(data, size, &ptr_offset, full_service_name, sizeof(full_service_name)))
+                continue;
+
+            for (uint32_t service_index = 0; service_index < mdns->m_Services.Size(); ++service_index)
+            {
+                if (!(*should_announce)[service_index])
+                    continue;
+
+                const RegisteredService& service = mdns->m_Services[service_index];
+                if (!IsServiceActive(service))
+                    continue;
+
+                if (NameEquals(name, service.m_ServiceTypeLocal)
+                    && NameEquals(full_service_name, service.m_FullServiceName)
+                    && ttl * 2 >= service.m_Ttl)
+                {
+                    (*should_announce)[service_index] = 0;
+                }
+            }
+        }
     }
 
     static void HandleIncomingQueries(MDNS* mdns)
@@ -899,12 +1259,12 @@ namespace dmMDNS
             }
 
             (void) id;
-            (void) ancount;
-            (void) nscount;
-            (void) arcount;
-
             if ((flags & 0x8000) != 0)
+            {
+                const uint32_t records = (uint32_t) ancount + (uint32_t) nscount + (uint32_t) arcount;
+                HandleIncomingResponseRecords(mdns, mdns->m_Buffer, size, &offset, records);
                 continue;
+            }
 
             dmArray<uint8_t> should_announce;
             bool should_respond = false;
@@ -939,6 +1299,16 @@ namespace dmMDNS
                         should_announce[s] = 1;
                         should_respond = true;
                     }
+                }
+            }
+
+            SuppressKnownAnswers(mdns, mdns->m_Buffer, size, &offset, ancount, &should_announce);
+            for (uint32_t s = 0; s < should_announce.Size(); ++s)
+            {
+                if (should_announce[s])
+                {
+                    should_respond = true;
+                    break;
                 }
             }
 
@@ -1039,6 +1409,31 @@ namespace dmMDNS
             EmitBrowserEvent(browser, *service, EVENT_REMOVED);
         }
         service->m_Resolved = 0;
+    }
+
+    static uint64_t GetBrowserRefreshDeadline(const Browser* browser)
+    {
+        uint64_t deadline = 0;
+
+        for (uint32_t i = 0; i < browser->m_Hosts.Size(); ++i)
+        {
+            const BrowserHost& host = browser->m_Hosts[i];
+            if (host.m_Refresh != 0 && (deadline == 0 || host.m_Refresh < deadline))
+                deadline = host.m_Refresh;
+        }
+
+        for (uint32_t i = 0; i < browser->m_Services.Size(); ++i)
+        {
+            const BrowserService& service = browser->m_Services[i];
+            if (service.m_PtrRefresh != 0 && (deadline == 0 || service.m_PtrRefresh < deadline))
+                deadline = service.m_PtrRefresh;
+            if (service.m_SrvRefresh != 0 && (deadline == 0 || service.m_SrvRefresh < deadline))
+                deadline = service.m_SrvRefresh;
+            if (service.m_TxtRefresh != 0 && (deadline == 0 || service.m_TxtRefresh < deadline))
+                deadline = service.m_TxtRefresh;
+        }
+
+        return deadline;
     }
 
     static void RefreshServiceAddress(Browser* browser, BrowserService* service)
@@ -1142,6 +1537,8 @@ namespace dmMDNS
 
             service.m_HasPtr = 1;
             service.m_PtrExpires = GetNow() + SecondsToMicroSeconds(ttl);
+            service.m_PtrRefresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            service.m_PtrTtl = ttl;
             if (created)
             {
                 EmitBrowserEvent(browser, service, EVENT_ADDED);
@@ -1177,6 +1574,8 @@ namespace dmMDNS
             {
                 service.m_HasSrv = 0;
                 service.m_SrvExpires = 0;
+                service.m_SrvRefresh = 0;
+                service.m_SrvTtl = 0;
                 service.m_Host[0] = 0;
                 service.m_Port = 0;
                 TryResolveService(browser, &service);
@@ -1186,6 +1585,8 @@ namespace dmMDNS
             service.m_Port = port;
             service.m_HasSrv = 1;
             service.m_SrvExpires = GetNow() + SecondsToMicroSeconds(ttl);
+            service.m_SrvRefresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            service.m_SrvTtl = ttl;
             TryResolveService(browser, &service);
             return;
         }
@@ -1201,6 +1602,8 @@ namespace dmMDNS
             {
                 service.m_HasTxt = 0;
                 service.m_TxtExpires = 0;
+                service.m_TxtRefresh = 0;
+                service.m_TxtTtl = 0;
                 service.m_TxtCount = 0;
                 service.m_Id[0] = 0;
                 TryResolveService(browser, &service);
@@ -1214,6 +1617,8 @@ namespace dmMDNS
             service.m_TxtCount = txt_count;
             service.m_HasTxt = 1;
             service.m_TxtExpires = GetNow() + SecondsToMicroSeconds(ttl);
+            service.m_TxtRefresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            service.m_TxtTtl = ttl;
 
             service.m_Id[0] = 0;
             for (uint32_t i = 0; i < txt_count; ++i)
@@ -1257,6 +1662,8 @@ namespace dmMDNS
                        data[rdata_offset + 2],
                        data[rdata_offset + 3]);
             host.m_Expires = GetNow() + SecondsToMicroSeconds(ttl);
+            host.m_Refresh = GetNow() + HalfSecondsToMicroSeconds(ttl);
+            host.m_Ttl = ttl;
 
             if (host_index >= 0)
             {
@@ -1328,6 +1735,9 @@ namespace dmMDNS
 
             (void) id;
 
+            if ((flags & 0x8000) == 0)
+                continue;
+
             // Skip query sections.
             for (uint16_t i = 0; i < qdcount; ++i)
             {
@@ -1388,6 +1798,8 @@ namespace dmMDNS
                 {
                     service.m_HasSrv = 0;
                     service.m_SrvExpires = 0;
+                    service.m_SrvRefresh = 0;
+                    service.m_SrvTtl = 0;
                     service.m_Host[0] = 0;
                     service.m_Port = 0;
                 }
@@ -1396,6 +1808,8 @@ namespace dmMDNS
                 {
                     service.m_HasTxt = 0;
                     service.m_TxtExpires = 0;
+                    service.m_TxtRefresh = 0;
+                    service.m_TxtTtl = 0;
                     service.m_TxtCount = 0;
                     service.m_Id[0] = 0;
                 }
@@ -1405,6 +1819,76 @@ namespace dmMDNS
                     TryResolveService(browser, &service);
                 }
                 ++i;
+            }
+        }
+    }
+
+    static bool ResolveCurrentHostAddress(const MDNS* mdns, dmSocket::Address* out)
+    {
+        if (mdns->m_InterfaceAddresses.Size() > 0)
+        {
+            *out = mdns->m_InterfaceAddresses[0];
+            return true;
+        }
+
+        if (!dmSocket::Empty(mdns->m_DefaultAddress) && mdns->m_DefaultAddress.m_family == dmSocket::DOMAIN_IPV4)
+        {
+            *out = mdns->m_DefaultAddress;
+            return true;
+        }
+
+        return false;
+    }
+
+    static void RefreshRegisteredServiceAddresses(MDNS* mdns)
+    {
+        dmSocket::Address address;
+        if (!ResolveCurrentHostAddress(mdns, &address))
+            return;
+
+        for (uint32_t i = 0; i < mdns->m_Services.Size(); ++i)
+        {
+            RegisteredService& service = mdns->m_Services[i];
+            if (service.m_HostAddress != address)
+            {
+                service.m_HostAddress = address;
+                if (service.m_State == SERVICE_STATE_ACTIVE)
+                {
+                    service.m_StartupAnnounceCount = MDNS_STARTUP_ANNOUNCEMENTS;
+                    service.m_NextAnnounce = GetNow();
+                }
+            }
+        }
+    }
+
+    static void AdvanceServiceLifecycle(MDNS* mdns, uint64_t now)
+    {
+        for (uint32_t i = 0; i < mdns->m_Services.Size(); ++i)
+        {
+            RegisteredService& service = mdns->m_Services[i];
+            if (service.m_State == SERVICE_STATE_PROBING && now >= service.m_NextProbe)
+            {
+                if (service.m_ProbeCount >= MDNS_PROBE_COUNT)
+                {
+                    service.m_State = SERVICE_STATE_ACTIVE;
+                    service.m_StartupAnnounceCount = MDNS_STARTUP_ANNOUNCEMENTS;
+                    service.m_NextAnnounce = now;
+                }
+                else
+                {
+                    SendProbe(mdns, service);
+                    ++service.m_ProbeCount;
+                    service.m_NextProbe = now + SecondsToMicroSeconds(MDNS_PROBE_INTERVAL_MS) / 1000ULL;
+                }
+            }
+
+            if (service.m_State == SERVICE_STATE_ACTIVE
+                && service.m_StartupAnnounceCount > 0
+                && now >= service.m_NextAnnounce)
+            {
+                AnnounceService(mdns, service, service.m_Ttl);
+                --service.m_StartupAnnounceCount;
+                service.m_NextAnnounce = now + SecondsToMicroSeconds(MDNS_STARTUP_ANNOUNCE_INTERVAL);
             }
         }
     }
@@ -1453,7 +1937,6 @@ namespace dmMDNS
 
         EnsureMemberships(instance->m_Socket, instance->m_InterfaceAddresses, &instance->m_MembershipAddresses);
 
-        instance->m_NextAnnounce = GetNow();
         instance->m_NextInterfaceRefresh = GetNow();
         *mdns = instance;
         return RESULT_OK;
@@ -1495,6 +1978,11 @@ namespace dmMDNS
             service.m_HostAddress = mdns->m_DefaultAddress;
         service.m_Port = desc->m_Port;
         service.m_Ttl = desc->m_Ttl ? desc->m_Ttl : mdns->m_Params.m_Ttl;
+        service.m_State = SERVICE_STATE_PROBING;
+        service.m_ProbeCount = 0;
+        service.m_NextProbe = GetNow();
+        service.m_StartupAnnounceCount = 0;
+        service.m_NextAnnounce = 0;
 
         if (!IsEncodableDnsName(service.m_ServiceTypeLocal)
             || !IsEncodableDnsName(service.m_FullServiceName)
@@ -1523,7 +2011,6 @@ namespace dmMDNS
             return RESULT_INVALID_ARGS;
 
         mdns->m_Services.Push(service);
-        AnnounceService(mdns, mdns->m_Services.Back(), mdns->m_Services.Back().m_Ttl);
         return RESULT_OK;
     }
 
@@ -1551,19 +2038,12 @@ namespace dmMDNS
         {
             RefreshInterfaceAddresses(mdns);
             EnsureMemberships(mdns->m_Socket, mdns->m_InterfaceAddresses, &mdns->m_MembershipAddresses);
+            RefreshRegisteredServiceAddresses(mdns);
             mdns->m_NextInterfaceRefresh = now + SecondsToMicroSeconds(MDNS_INTERFACE_REFRESH_INTERVAL);
         }
 
         HandleIncomingQueries(mdns);
-
-        if (now >= mdns->m_NextAnnounce)
-        {
-            for (uint32_t i = 0; i < mdns->m_Services.Size(); ++i)
-            {
-                AnnounceService(mdns, mdns->m_Services[i], mdns->m_Services[i].m_Ttl);
-            }
-            mdns->m_NextAnnounce = now + SecondsToMicroSeconds(mdns->m_Params.m_AnnounceInterval);
-        }
+        AdvanceServiceLifecycle(mdns, now);
     }
 
     Result Delete(HMDNS mdns)
@@ -1611,6 +2091,7 @@ namespace dmMDNS
 
         EnsureMemberships(instance->m_Socket, instance->m_InterfaceAddresses, &instance->m_MembershipAddresses);
         instance->m_NextQuery = 0;
+        instance->m_QueryInterval = MDNS_BROWSER_INITIAL_QUERY_INTERVAL;
         instance->m_NextInterfaceRefresh = 0;
         *browser = instance;
         return RESULT_OK;
@@ -1626,17 +2107,30 @@ namespace dmMDNS
         {
             RefreshBrowserInterfaceAddresses(browser);
             EnsureMemberships(browser->m_Socket, browser->m_InterfaceAddresses, &browser->m_MembershipAddresses);
+            browser->m_NextQuery = 0;
+            browser->m_QueryInterval = MDNS_BROWSER_INITIAL_QUERY_INTERVAL;
             browser->m_NextInterfaceRefresh = now + SecondsToMicroSeconds(MDNS_INTERFACE_REFRESH_INTERVAL);
         }
 
-        if (now >= browser->m_NextQuery)
+        uint64_t next_query_due = browser->m_NextQuery;
+        const uint64_t refresh_deadline = GetBrowserRefreshDeadline(browser);
+        if (next_query_due == 0 || (refresh_deadline != 0 && refresh_deadline < next_query_due))
+            next_query_due = refresh_deadline;
+
+        if (next_query_due == 0 || now >= next_query_due)
         {
-            uint32_t query_size = BuildQueryMessage(browser->m_ServiceTypeLocal, browser->m_Buffer, sizeof(browser->m_Buffer));
+            uint32_t query_size = BuildQueryMessage(browser, now, browser->m_Buffer, sizeof(browser->m_Buffer));
             if (query_size > 0)
             {
                 SendPacketOnInterfaces(browser->m_Socket, browser->m_Buffer, query_size, browser->m_InterfaceAddresses);
             }
             browser->m_NextQuery = now + browser->m_QueryInterval;
+            if (browser->m_QueryInterval < MDNS_BROWSER_MAX_QUERY_INTERVAL)
+            {
+                browser->m_QueryInterval *= 3;
+                if (browser->m_QueryInterval > MDNS_BROWSER_MAX_QUERY_INTERVAL)
+                    browser->m_QueryInterval = MDNS_BROWSER_MAX_QUERY_INTERVAL;
+            }
         }
 
         HandleBrowserResponses(browser);
