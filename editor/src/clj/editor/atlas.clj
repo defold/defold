@@ -616,7 +616,7 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size texture-page-count]
+  [_node-id extrude-borders image-resources all-atlas-images inner-padding margin layout-data-generator max-page-size texture-page-count]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (pmap (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
@@ -632,6 +632,10 @@
                                  :inner-padding inner-padding
                                  :max-page-size max-page-size
                                  :margin margin
+                                 ;; NOTE: If an atlas image's properties change (pivot or sprite-trim-mode), we need to redraw
+                                 ;; the atlas, luckily all-atlas-images already does the heavy lifting of filtering out exact
+                                 ;; copies and only changes if a duplicate image has different properties
+                                 :atlas-image-count (count all-atlas-images)
                                  :type :packed-atlas-image})]
         {:f generate-packed-page-images
          :sha1 packed-image-sha1
@@ -728,7 +732,7 @@
                            (->AtlasRect path x (- h height y) width height page
                                         (assoc geometry :vertices rotated-vertices)))))))
             {}
-            layout-rects))))
+            layout-rects)))
 
 (defn- atlas-outline-sort-by-fn [basis v]
   ;; NOTE: unsafe basis from node output! Only use for node type access!
