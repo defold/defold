@@ -778,6 +778,10 @@
       (is (= 5353 (:port @sent-packet)))
       (is (Arrays/equals built ^bytes (:data @sent-packet))))))
 
+;; Verifies the editor uses the RFC-required multicast TTL for mDNS browse traffic.
+(deftest mdns-query-ttl-matches-rfc-6762
+  (is (= 255 MDNS/MDNS_MCAST_TTL)))
+
 ;; Verifies follow-up browse queries include known PTR answers once a service has been cached.
 (deftest mdns-builds-query-with-known-ptr-answer
   (let [mdns (MDNS. (dummy-logger))
@@ -796,6 +800,26 @@
       (is (= 1 answer-count))
       (is (> (alength built) (alength expected-base)))
       (is (bytes-contain? built (make-ptr-rdata full-name))))))
+
+;; Verifies known-answer packing truncates safely instead of overflowing the fixed UDP packet budget.
+(deftest mdns-build-query-truncates-known-answers-before-overflow
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        service-count 40]
+    (doseq [i (range service-count)]
+      (let [full-name (format "TargetKnownAnswerOverflow%02d.%s" i service-type)
+            host-name (format "target-known-answer-overflow-%02d.local" i)
+            packet (make-response-packet (service-records service-type full-name host-name (+ 9100 i) 120))]
+        (parse-and-rebuild! mdns packet)))
+    (let [^bytes built (MDNS$TestHooks/buildQuery mdns)
+          answer-count (+ (bit-shift-left (bit-and 0xff (aget built 6)) 8)
+                          (bit-and 0xff (aget built 7)))
+          parser (MDNS. (dummy-logger))]
+      (is (<= (alength built) 1500))
+      (is (pos? answer-count))
+      (is (< answer-count service-count))
+      (parse-and-rebuild! parser built)
+      (is (= 0 (alength (.getDevices parser)))))))
 
 ;; Verifies readPackets feeds datagrams through parsing with the connection local and remote addresses preserved.
 (deftest mdns-read-packets-parses-service-announcements-from-connections

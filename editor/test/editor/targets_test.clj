@@ -96,9 +96,27 @@
       (is (= ["127.0.0.1" "192.168.0.10"] (targets-hostnames @targets-atom)))
       (let [iphone-target (some #(when (= "192.168.0.10" (:address %)) %) @targets-atom)]
         (is (= "manual-192.168.0.10:8001" (:id iphone-target)))
-        (is (= "iPhone" (:name iphone-target))))
+        (is (= "iPhone" (:name iphone-target)))
+        (is (= 8001 (:port iphone-target))))
       (finally
         (reset! manual-device-atom nil)))))
+
+(deftest selected-target-restores-manual-target-from-discovered-entry
+  (let [mdns-targets-atom (deref #'editor.targets/mdns-targets)
+        discovered-target (#'editor.targets/device->target (make-iphone-device-info))]
+    (try
+      (#'editor.targets/clear-selected-target-hint!)
+      (reset! mdns-targets-atom [discovered-target])
+      (with-redefs [prefs/get (fn [_ path]
+                                (when (= [:run :selected-target-id] path)
+                                  "manual-192.168.0.10:8001"))]
+        (let [selected-target (targets/selected-target nil)]
+          (is (= "192.168.0.10" (:address selected-target)))
+          (is (= 8001 (:port selected-target)))
+          (is (= "iphone-id" (:id selected-target)))))
+      (finally
+        (reset! mdns-targets-atom [])
+        (#'editor.targets/clear-selected-target-hint!)))))
 
 (deftest select-target-clears-log-service-stream-when-unreachable
   (let [selected-stream (atom ::unset)]

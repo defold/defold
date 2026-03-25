@@ -1152,6 +1152,10 @@ namespace dmMDNS
 
     static void SuppressKnownAnswers(MDNS* mdns, const uint8_t* data, uint32_t size, uint32_t* offset, uint16_t answer_count, dmArray<uint8_t>* should_announce)
     {
+        // Implement known-answer suppression for PTR records only. Browsers use
+        // the advertised PTR as the cache key for service presence, so skipping
+        // duplicate PTRs avoids the noisiest redundant replies while keeping
+        // the rest of the record set simple.
         for (uint16_t i = 0; i < answer_count && *offset < size; ++i)
         {
             char name[256];
@@ -1199,6 +1203,8 @@ namespace dmMDNS
                     && NameEquals(full_service_name, service.m_FullServiceName)
                     && ttl * 2 >= service.m_Ttl)
                 {
+                    // RFC 6762 allows suppressing an answer when the querier's
+                    // cached TTL is at least half of what we would advertise.
                     (*should_announce)[service_index] = 0;
                 }
             }
@@ -1321,6 +1327,9 @@ namespace dmMDNS
 
                     if (from_address.m_family == dmSocket::DOMAIN_IPV4)
                     {
+                        // Prefer replying on the interface whose address is
+                        // closest to the sender so multihomed hosts answer from
+                        // the network that best matches the incoming query.
                         uint32_t best_match = ~0u;
                         for (uint32_t i = 0; i < mdns->m_InterfaceAddresses.Size(); ++i)
                         {
@@ -1341,6 +1350,9 @@ namespace dmMDNS
 
                     // Always multicast responses for compatibility with mDNS browsers
                     // that ignore unicast replies to multicast queries.
+                    // The unqualified send keeps the existing default-routing
+                    // behavior, while the interface-specific send nudges the
+                    // packet out on the subnet that best matches the requester.
                     HandleAnnounceResponse(mdns, mdns->m_Services[s], 0, mdns->m_Services[s].m_Ttl);
                     if (response_interface != 0)
                         HandleAnnounceResponse(mdns, mdns->m_Services[s], response_interface, mdns->m_Services[s].m_Ttl);

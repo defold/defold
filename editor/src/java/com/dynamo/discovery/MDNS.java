@@ -164,11 +164,13 @@ public class MDNS {
         }
     }
 
-    public static final int MDNS_MCAST_TTL = 4;
+    // RFC 6762 requires multicast DNS traffic to use IP TTL 255.
+    public static final int MDNS_MCAST_TTL = 255;
     public static final String MDNS_SERVICE_TYPE = "_defold._tcp.local";
 
     private static final int MDNS_MCAST_PORT = 5353;
     private static final String MDNS_MCAST_ADDR_IP = "224.0.0.251";
+    private static final int MDNS_MAX_PACKET_SIZE = 1500;
     private static final long INITIAL_QUERY_INTERVAL_MS = 1000L;
     private static final long MAX_QUERY_INTERVAL_MS = 60000L;
 
@@ -197,7 +199,7 @@ public class MDNS {
 
     public MDNS(Logger logger) {
         this.logger = logger;
-        this.buffer = new byte[1500];
+        this.buffer = new byte[MDNS_MAX_PACKET_SIZE];
         this.connections = new ArrayList<Connection>();
         this.services = new HashMap<String, ServiceAccumulator>();
         this.hosts = new HashMap<String, HostAddress>();
@@ -488,6 +490,31 @@ public class MDNS {
         return offset;
     }
 
+    private static int nameWireLength(String name) {
+        int length = 1; // zero terminator
+        for (String label : splitDnsLabels(name)) {
+            if (label.isEmpty()) {
+                continue;
+            }
+            length += 1 + label.getBytes(StandardCharsets.UTF_8).length;
+        }
+        return length;
+    }
+
+    private static byte[] buildPtrRecord(String ownerName, String fullServiceName, int ttl) {
+        int ownerNameLength = nameWireLength(ownerName);
+        int fullServiceNameLength = nameWireLength(fullServiceName);
+        byte[] record = new byte[ownerNameLength + 10 + fullServiceNameLength];
+        int offset = 0;
+        offset = writeName(record, offset, ownerName);
+        offset = writeU16(record, offset, DNS_TYPE_PTR);
+        offset = writeU16(record, offset, DNS_CLASS_IN);
+        offset = (int) writeU32(record, offset, ttl);
+        offset = writeU16(record, offset, fullServiceNameLength);
+        writeName(record, offset, fullServiceName);
+        return record;
+    }
+
     private static String readName(byte[] data, int size, int[] offsetRef) {
         StringBuilder name = new StringBuilder();
 
@@ -555,7 +582,7 @@ public class MDNS {
     }
 
     private byte[] buildQuery(long now) {
-        byte[] out = new byte[1500];
+        byte[] out = new byte[MDNS_MAX_PACKET_SIZE];
         int offset = 0;
         int answerCount = 0;
 
@@ -581,17 +608,14 @@ public class MDNS {
             }
 
             int ttl = (int) Math.max(1L, (remaining + 999L) / 1000L);
-            offset = writeName(out, offset, MDNS_SERVICE_TYPE);
-            offset = writeU16(out, offset, DNS_TYPE_PTR);
-            offset = writeU16(out, offset, DNS_CLASS_IN);
-            offset = (int) writeU32(out, offset, ttl);
-
-            int rdLengthOffset = offset;
-            offset = writeU16(out, offset, 0);
-            int rdataStart = offset;
-            offset = writeName(out, offset, service.fullName);
-            out[rdLengthOffset] = (byte) (((offset - rdataStart) >> 8) & 0xff);
-            out[rdLengthOffset + 1] = (byte) ((offset - rdataStart) & 0xff);
+            byte[] knownAnswer = buildPtrRecord(MDNS_SERVICE_TYPE, service.fullName, ttl);
+            // Keep the question valid and drop overflow answers once the
+            // current UDP packet budget is exhausted instead of splitting.
+            if (offset + knownAnswer.length > out.length) {
+                continue;
+            }
+            System.arraycopy(knownAnswer, 0, out, offset, knownAnswer.length);
+            offset += knownAnswer.length;
             ++answerCount;
         }
 
@@ -608,6 +632,8 @@ public class MDNS {
     }
 
     private boolean shouldQuery(long now) {
+        // Query either when the exponential backoff fires or when a cached
+        // record reaches its half-TTL refresh point, whichever comes first.
         long due = nextRefreshAt();
         if (nextQueryAt == 0 || (due != 0 && due < nextQueryAt)) {
             due = nextQueryAt == 0 ? due : Math.min(nextQueryAt, due);
@@ -981,12 +1007,16 @@ public class MDNS {
             if (expires == 0) {
                 continue;
             }
+            // Prefer the address from the packet source and only fall back to a
+            // cached A record if the service did not advertise one directly.
             if (address == null) {
                 HostAddress hostAddress = hosts.get(lower(service.host));
                 if (hostAddress == null) {
                     continue;
                 }
                 address = hostAddress.address();
+                // Export the service only as long as both the service records
+                // and the fallback host record remain valid.
                 expires = Math.min(expires, hostAddress.expires());
             }
 

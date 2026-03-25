@@ -191,7 +191,8 @@
                :url url
                :id id
                :address address
-               :local-address local-address}
+               :local-address local-address
+               :port port}
         (:log-port device)
         (assoc :log-port (:log-port device))))))
 

@@ -70,7 +70,7 @@ namespace dmEngineService
         out[offset] = 0;
     }
 
-    static inline void BuildServiceInstanceName(const char* local_address, const char* port_text, char* out, uint32_t out_size)
+    static inline void BuildServiceInstanceName(const char* local_address, const char* port_text, const char* suffix_text, char* out, uint32_t out_size)
     {
         if (out_size == 0)
             return;
@@ -92,11 +92,14 @@ namespace dmEngineService
                 port_component_length = 0;
         }
 
+        // The startup suffix is formatted as 8 lowercase hex digits.
+        const uint32_t suffix_component_length = (suffix_text && suffix_text[0]) ? 9 : 0;
+
         // Spend any remaining label budget on the address and drop it entirely
         // before we would emit a dangling "defold-" separator.
         uint32_t max_address_length = 0;
-        if (prefix_length + port_component_length + 1 < max_label_length)
-            max_address_length = max_label_length - prefix_length - port_component_length - 1;
+        if (prefix_length + port_component_length + suffix_component_length + 1 < max_label_length)
+            max_address_length = max_label_length - prefix_length - port_component_length - suffix_component_length - 1;
 
         if ((uint32_t) strlen(sanitized_address) > max_address_length)
             sanitized_address[max_address_length] = 0;
@@ -111,7 +114,12 @@ namespace dmEngineService
         if (port_component_length != 0)
             dmSnPrintf(port_component, sizeof(port_component), "-%s", port_text);
 
-        dmSnPrintf(out, out_size, "%s%s%s", prefix, address_component, port_component);
+        char suffix_component[MDNS_MAX_LABEL_LENGTH + 2];
+        suffix_component[0] = 0;
+        if (suffix_component_length != 0)
+            dmSnPrintf(suffix_component, sizeof(suffix_component), "-%s", suffix_text);
+
+        dmSnPrintf(out, out_size, "%s%s%s%s", prefix, address_component, port_component, suffix_component);
     }
 }
 
