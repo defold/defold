@@ -424,13 +424,11 @@ namespace dmGameSystem
         return component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
     }
 
-    // GLTF may parent a skinned mesh under a bone (m_BoneId / m_BoneIndex). GPU skinning already applies
-    // bone deformation; multiplying bone_pose.m_World again would double-transform (wrong bind pose when
-    // idle skinning is skipped, and misalignment when animating).
-    static inline bool ShouldApplyBoneParentToWorldTransform(const MeshRenderItem& item)
+    // True for a static mesh hung under a bone: world = bone_pose × node local. Skinned meshes omit the bone here since GPU skinning handles it.
+    // Otherwise static meshes parented under a bone would be transformed twice.
+    static inline bool IsRigidBoneParentedRenderItem(const MeshRenderItem& item)
     {
-        return item.m_BoneIndex != dmRig::INVALID_BONE_INDEX
-            && item.m_Buffers->m_RigModelVertexFormat != RIG_MODEL_VERTEX_FORMAT_SKINNED;
+        return item.m_BoneIndex != dmRig::INVALID_BONE_INDEX && item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC;
     }
 
     static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
@@ -2135,7 +2133,7 @@ namespace dmGameSystem
                 dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(c->m_RigInstance);
 
                 dmVMath::Matrix4 model_matrix;
-                if (ShouldApplyBoneParentToWorldTransform(*render_item))
+                if (IsRigidBoneParentedRenderItem(*render_item))
                 {
                     dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
                     model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
@@ -2301,7 +2299,7 @@ namespace dmGameSystem
             // For skinned models: bone hierarchy is applied in the vertex shader, not via bone_pose here.
             // For rigid meshes parented to a bone: apply bone_pose.m_World * node.local.
             // For non-skinned models without bone parent: m_Local contains node.world (flattened hierarchy).
-            if (ShouldApplyBoneParentToWorldTransform(item))
+            if (IsRigidBoneParentedRenderItem(item))
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
                 item.m_World = world * (dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(model->m_Local));
