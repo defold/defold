@@ -400,7 +400,7 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
 #endif
         desc.usage                 = texture->m_UsageFlags | usage;
         // NOTE: Due to some issue with our webgpu texture handling, we cannot use a width/height of 0 when creating a new texture.
-        desc.size                  = { dmMath::Max(1U, texture->m_Base.m_Width), dmMath::Max(1U, texture->m_Base.m_Height), dmMath::Max((uint8_t)1, depth) };
+        desc.size                  = { dmMath::Max(1u, (uint32_t)texture->m_Base.m_Width), dmMath::Max(1u, (uint32_t)texture->m_Base.m_Height), dmMath::Max(1u, (uint32_t)depth) };
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_Base.m_MipMapCount;
@@ -1994,7 +1994,6 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
 
 static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
 {
-    WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
     WebGPUDisableUniformBuffer(_context, uniform_buffer);
