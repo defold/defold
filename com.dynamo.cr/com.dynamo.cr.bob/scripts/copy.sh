@@ -80,16 +80,16 @@ cp -v $DYNAMO_HOME/ext/bin/arm64-macos/codesign_allocate libexec/arm64-macos/cod
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
 
 # libogg
-cp -v $DYNAMO_HOME/ext/lib/x86_64-macos/libogg.dylib lib/x86_64-macos/libogg.dylib
-cp -v $DYNAMO_HOME/ext/lib/arm64-macos/libogg.dylib lib/arm64-macos/libogg.dylib
-cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libogg.so lib/x86_64-linux/libogg.so
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/libogg.dll lib/x86_64-win32/libogg.dll
+cp -v $DYNAMO_HOME/ext/lib/x86_64-macos/libogg.dylib libexec/x86_64-macos/libogg.dylib
+cp -v $DYNAMO_HOME/ext/lib/arm64-macos/libogg.dylib libexec/arm64-macos/libogg.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libogg.so libexec/x86_64-linux/libogg.so
+cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/libogg.dll libexec/x86_64-win32/libogg.dll
 
 # liboggz
-cp -v $DYNAMO_HOME/ext/lib/x86_64-macos/liboggz.dylib lib/x86_64-macos/liboggz.dylib
-cp -v $DYNAMO_HOME/ext/lib/arm64-macos/liboggz.dylib lib/arm64-macos/liboggz.dylib
-cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/liboggz.so lib/x86_64-linux/liboggz.so
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/liboggz.dll lib/x86_64-win32/liboggz.dll
+cp -v $DYNAMO_HOME/ext/lib/x86_64-macos/liboggz.dylib libexec/x86_64-macos/liboggz.dylib
+cp -v $DYNAMO_HOME/ext/lib/arm64-macos/liboggz.dylib libexec/arm64-macos/liboggz.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/liboggz.so libexec/x86_64-linux/liboggz.so
+cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/liboggz.dll libexec/x86_64-win32/liboggz.dll
 
 # oggz-validate
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/oggz-validate libexec/x86_64-macos/oggz-validate
