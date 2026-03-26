@@ -77,7 +77,19 @@ namespace dmRender
      */
     typedef struct NamedConstantBuffer* HNamedConstantBuffer;
 
-    typedef struct Sampler*                 HSampler;
+    /*#
+    * Sampler handle
+    * @typedef
+    * @name HSampler
+    */
+    typedef struct Sampler* HSampler;
+
+    /*#
+    * Light prototype handle. Used to create light instances.
+    * @typedef
+    * @name HLightPrototype
+    */
+    typedef struct LightPrototype* HLightPrototype;
 
     /*#
      * @enum

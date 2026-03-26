@@ -127,8 +127,8 @@ protected:
         params.m_MaxDebugVertexCount = 256;
         params.m_MaxCharacters = 256;
         params.m_MaxBatches = 128;
-        params.m_MaxLights = 32;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
+        dmRender::SetLightBufferCount(m_Context, 32);
 
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
         m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);

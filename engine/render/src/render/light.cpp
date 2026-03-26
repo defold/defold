@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <math.h>
-
 #include "render.h"
 #include "render_private.h"
 
@@ -40,6 +38,13 @@ namespace dmRender
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params)
     {
         LightPrototype* lp = new LightPrototype;
+        SetLightPrototype(render_context, lp, params);
+        return lp;
+    }
+
+    void SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params)
+    {
+        LightPrototype* lp = (LightPrototype*) light_prototype;
         memset(lp, 0, sizeof(LightPrototype));
         lp->m_Type = params.m_Type;
         lp->m_Color = params.m_Color;
@@ -48,7 +53,6 @@ namespace dmRender
         lp->m_Range = params.m_Range;
         lp->m_InnerConeAngle = params.m_InnerConeAngle;
         lp->m_OuterConeAngle = params.m_OuterConeAngle;
-        return lp;
     }
 
     void DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype)
@@ -74,7 +78,7 @@ namespace dmRender
         }
 
         LightInstance* light_instance      = new LightInstance;
-        light_instance->m_Position         = dmVMath::Point3();
+        light_instance->m_Position         = dmVMath::Point3(0.0f, 0.0f, 0.0f);
         light_instance->m_Direction        = light_prototype->m_Direction;
         light_instance->m_LightPrototype   = light_prototype;
         light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
@@ -304,17 +308,31 @@ namespace dmRender
         return render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart || render_context->m_LightBufferDirtyCount;
     }
 
-    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count)
+    void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
     {
-        render_context->m_MaxLightCount = max_light_count;
-        render_context->m_LightUniformBuffer = 0;
+        assert(render_context);
+        assert(render_context->m_RenderLightsIndices.Size() == 0);
 
-        if (max_light_count > 0)
+        if (render_context->m_LightUniformBuffer)
         {
-            render_context->m_RenderLightsIndices.SetCapacity(max_light_count);
-            render_context->m_LightBufferScratch.SetCapacity(max_light_count);
-            GenerateUniformBuffer(render_context, max_light_count);
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+            render_context->m_LightUniformBuffer = 0;
         }
+
+        render_context->m_MaxLightCount               = (uint16_t) max_lights;
+        render_context->m_LightBufferDirtyStart       = 0;
+        render_context->m_LightBufferDirtyEnd         = 0;
+        render_context->m_LightBufferDirtyCount       = 0;
+        render_context->m_LightBufferDataWriteStart   = 0;
+        render_context->m_LightBufferLastWrittenCount = 0;
+
+        if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
+        {
+            render_context->m_RenderLightsIndices.SetCapacity(max_lights);
+        }
+        render_context->m_LightBufferScratch.SetCapacity(max_lights);
+        render_context->m_LightBufferScratch.SetSize(0);
+        GenerateUniformBuffer(render_context, (int) max_lights);
     }
 
     void FinalizeLightData(HRenderContext render_context)

@@ -131,6 +131,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.collisionobject', '.collisionobjectc')
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
+        c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.model', '.modelc')
         c.component = c.component.replace('.animationset', '.animationsetc')
         c.component = c.component.replace('.script', '.scriptc')
@@ -510,6 +511,7 @@ proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', t
 proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 proto_compile_task('data', 'data_ddf_pb2', 'Data', '.data', '.datac')
+proto_compile_task('light', 'data_ddf_pb2', 'Data', '.light', '.lightc')
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('glsl', '.glsl', '.glslc')

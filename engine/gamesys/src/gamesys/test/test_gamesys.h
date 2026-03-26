@@ -577,7 +577,6 @@ void GamesysTest<T>::SetUp()
     render_params.m_ScriptContext = m_ScriptContext;
     render_params.m_MaxCharacters = 256;
     render_params.m_MaxBatches = 128;
-    render_params.m_MaxLights = 32;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
     dmInput::NewContextParams input_params;
@@ -674,6 +673,7 @@ void GamesysTest<T>::SetUp()
     m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
     m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
     m_Contexts.Put(dmHashString64("fontc"), m_RenderContext);
+    m_Contexts.Put(dmHashString64("lightc"), m_RenderContext);
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
@@ -691,6 +691,8 @@ void GamesysTest<T>::SetUp()
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
                                                                                                     &m_ModelContext, &m_LabelContext, &m_TilemapContext));
+
+    dmRender::SetLightBufferCount(m_RenderContext, 32);
 
     dmGameObject::SortComponentTypes(m_Register);
 

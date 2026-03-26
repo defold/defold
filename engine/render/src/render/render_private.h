@@ -405,7 +405,6 @@ namespace dmRender
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Lights
-    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count);
     void FinalizeLightData(HRenderContext render_context);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
 

@@ -177,7 +177,6 @@ namespace dmRender
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
-        uint32_t                        m_MaxLights;
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
@@ -471,10 +470,12 @@ namespace dmRender
      * A light prototype can be used across many light instances, and must live as long as the lights live.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
+    void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {
