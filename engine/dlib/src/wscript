@@ -55,7 +55,7 @@ def build(bld):
     extra_defines = []
     extra_defines.extend(zlib_conf_defines)
 
-    extra_defines += ['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
+    extra_defines += ['MINIZ_NO_TIME']
     extra_defines += ['ZIP_ENABLE_INFLATE=1', 'ZIP_ENABLE_DEFLATE=0', 'ZIP_HAVE_SYMLINK=0']
 
     if 'win32' not in bld.env.PLATFORM:
@@ -130,6 +130,7 @@ def build(bld):
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
                      target   = 'dlib',
+                     use      = ['zip'],
                      defines  = ['VALGRIND'] + extra_defines)
 
     # remove all null implementations
@@ -145,6 +146,7 @@ def build(bld):
     dlib_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
                           includes    = dlib.includes,
                           defines     = dlib.defines,
+                          use         = ['zip_noasan'],
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
