@@ -289,7 +289,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_ARRAY(textures, "Texture");
         GET_FLD_ARRAY(buffers, "Buffer");
         GET_FLD_ARRAY(dynamicMaterials, "Material");
-        GET_FLD_TYPESTR(loadError, "[None");
+        GET_FLD_TYPESTR(loadError, "Ljava/lang/String;");
     }
     {
         SETUP_CLASS(OptionsJNI, "Options");
@@ -674,6 +674,7 @@ jobject C2J_CreateScene(JNIEnv* env, TypeInfos* types, const Scene* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.textures, C2J_CreateTextureArray(env, types, src->m_Textures.Begin(), src->m_Textures.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.buffers, C2J_CreateBufferArray(env, types, src->m_Buffers.Begin(), src->m_Buffers.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.dynamicMaterials, C2J_CreateMaterialPtrArray(env, types, src->m_DynamicMaterials.Begin(), src->m_DynamicMaterials.Size()));
+    dmJNI::SetString(env, obj, types->m_SceneJNI.loadError, src->m_LoadError);
     return obj;
 }
 
@@ -2240,6 +2241,7 @@ bool J2C_CreateScene(JNIEnv* env, TypeInfos* types, jobject obj, Scene* out) {
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_LoadError = dmJNI::GetString(env, obj, types->m_SceneJNI.loadError);
     return true;
 }
 
