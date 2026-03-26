@@ -147,5 +147,5 @@
         (is (not= sha1-before (get-sha)))
         (g/set-property! new-fish :sprite-trim-mode :sprite-trim-mode-off)
         (is (= sha1-before (get-sha)))
-        (g/set-property! new-fish :pivot-x 0.12345)
+        (g/set-property! new-fish :pivot-x (float 0.12345))
         (not= (is sha1-before (get-sha)))))))
