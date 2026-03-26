@@ -107,8 +107,10 @@ def build(bld):
 
     bld.add_group()
 
+    is_web = bld.env.PLATFORM in ['wasm-web', 'wasm_pthread-web', 'js-web']
+
     defines = []
-    if not ('GITHUB_CI' in bld.env.DEFINES and sys.platform == 'darwin'):
+    if not is_web and not ('GITHUB_CI' in bld.env.DEFINES and sys.platform == 'darwin'):
         defines = ['DM_TEST_HTTP_SUPPORTED']
     if bld.env.PLATFORM in ['arm64-nx64']:
         defines = []
@@ -124,8 +126,10 @@ def build(bld):
     # ******************************************************************************************************************************
     # Resource providers
     skip_http_test = []
-    if bld.env.PLATFORM in ['wasm-web','wasm_pthread-web','js-web']:
+    if is_web:
         skip_http_test = ['skip_test']
+
+    resource_http_provider_symbols = ['ResourceProviderHttp']
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -160,7 +164,7 @@ def build(bld):
                 includes     = '.. ../../proto',
                 defines      = defines,
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
-                exported_symbols = ['ResourceProviderHttp'],
+                exported_symbols = resource_http_provider_symbols,
                 target       = 'test_provider_http',
                 source       = 'test_provider_http.cpp')
 
@@ -213,7 +217,7 @@ def build(bld):
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource',
                 web_libs     = ['library_sys.js'],
                 proto_gen_py = True,
-                exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],
+                exported_symbols = ['ResourceProviderFile', 'ResourceProviderArchive'] + resource_http_provider_symbols,
                 target       = 'test_resource',
                 source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
                 embed_source = 'resources.arci resources.arcd resources.dmanifest')

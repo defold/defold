@@ -31,7 +31,6 @@
 #include <script/http_ddf.h>
 
 #include "script_http.h"
-#include <script/http_service.h>
 
 #include <extension/extension.hpp>
 
