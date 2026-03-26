@@ -12,10 +12,11 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-# NOTE: This script is only used for CI
+# Used from build.py when packaging Bob. Archive-backed copies run only if
+# $DYNAMO_HOME/archive/$SHA1 exists (CI / engine synced); ext copies always run.
 # The corresponding file for development is build.xml
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
 set -e
 mkdir -p lib/x86_64-linux
@@ -24,6 +25,8 @@ mkdir -p lib/x86_64-macos
 mkdir -p lib/arm64-macos
 mkdir -p lib/x86-win32
 mkdir -p lib/x86_64-win32
+
+mkdir -p libexec
 mkdir -p libexec/x86_64-linux
 mkdir -p libexec/arm64-linux
 mkdir -p libexec/x86_64-macos
@@ -37,6 +40,8 @@ mkdir -p libexec/arm64-android
 # mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
+
+cp -v "$DYNAMO_HOME/ext/share/java/bundletool-all.jar" libexec/bundletool-all.jar
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -61,11 +66,62 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/gltf_validator libexec/x86_64-linux/gltf
 cp -v $DYNAMO_HOME/ext/bin/arm64-linux/gltf_validator libexec/arm64-linux/gltf_validator
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/gltf_validator.exe libexec/x86_64-win32/gltf_validator.exe
 
+# aapt2
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/aapt2 libexec/x86_64-macos/aapt2
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/aapt2 libexec/arm64-macos/aapt2
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/aapt2 libexec/x86_64-linux/aapt2
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/aapt2.exe libexec/x86_64-win32/aapt2.exe
+
+# codesign_allocate
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/codesign_allocate libexec/x86_64-macos/codesign_allocate
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/codesign_allocate libexec/arm64-macos/codesign_allocate
+
+# apkc
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
+
+# libogg
+cp -v $DYNAMO_HOME/ext/lib/x86_64-macos/libogg.dylib libexec/x86_64-macos/libogg.dylib
+cp -v $DYNAMO_HOME/ext/lib/arm64-macos/libogg.dylib libexec/arm64-macos/libogg.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libogg.so libexec/x86_64-linux/libogg.so
+cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/libogg.dll libexec/x86_64-win32/libogg.dll
+
+# liboggz
+cp -v $DYNAMO_HOME/ext/lib/x86_64-macos/liboggz.dylib libexec/x86_64-macos/liboggz.dylib
+cp -v $DYNAMO_HOME/ext/lib/arm64-macos/liboggz.dylib libexec/arm64-macos/liboggz.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/liboggz.so libexec/x86_64-linux/liboggz.so
+cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/liboggz.dll libexec/x86_64-win32/liboggz.dll
+
+# oggz-validate
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/oggz-validate libexec/x86_64-macos/oggz-validate
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/oggz-validate libexec/arm64-macos/oggz-validate
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/oggz-validate libexec/x86_64-linux/oggz-validate
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/oggz-validate.exe libexec/x86_64-win32/oggz-validate.exe
+
+# strip
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/strip libexec/x86_64-macos/strip
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/strip libexec/arm64-macos/strip
+
+# strip_android
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/strip_android libexec/x86_64-macos/strip_android
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/strip_android libexec/arm64-macos/strip_android
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android libexec/x86_64-linux/strip_android
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android.exe libexec/x86_64-win32/strip_android.exe
+
+# strip_android_aarch64
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/strip_android_aarch64 libexec/x86_64-linux/strip_android_aarch64
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/strip_android_aarch64.exe libexec/x86_64-win32/strip_android_aarch64.exe
+
+# zipalign
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/zipalign libexec/x86_64-macos/zipalign
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/zipalign libexec/arm64-macos/zipalign
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/zipalign libexec/x86_64-linux/zipalign
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/zipalign.exe libexec/x86_64-win32/zipalign.exe
+
 #
+if [ -d "$DYNAMO_HOME/archive/$SHA1" ]; then
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-android/classes.dex lib/classes.dex
-cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/modelimporter.jar lib/modelimporter.jar
@@ -93,6 +149,9 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/shaderc_shared.dll lib/x8
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libshaderc_shared.dylib lib/x86_64-macos/libshaderc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylib
 
+fi
+
+cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/arm64-linux/luajit-64 libexec/arm64-linux/luajit-64
@@ -112,6 +171,7 @@ copy () {
     cp -v $DYNAMO_HOME/archive/${SHA1}/engine/$1 libexec/$2
 }
 
+if [ -d "$DYNAMO_HOME/archive/$SHA1" ]; then
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
 # copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
@@ -151,6 +211,8 @@ copy wasm_pthread-web/dmengine.js wasm_pthread-web/dmengine.js
 copy wasm_pthread-web/dmengine.wasm wasm_pthread-web/dmengine.wasm
 copy wasm_pthread-web/dmengine_release.js wasm_pthread-web/dmengine_release.js
 copy wasm_pthread-web/dmengine_release.wasm wasm_pthread-web/dmengine_release.wasm
+
+fi
 
 if [ -e "${DIR}/copy_private.sh" ]; then
     sh ${DIR}/copy_private.sh
