@@ -105,7 +105,7 @@
                             ;; a build error that points to a lua file that does not exist in the
                             ;; resource tree
                             (let [resource (resource/make-file-resource workspace (str output-dir) file [] fn/constantly-false fn/constantly-false)
-                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id _evaluation-context)]
+                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) false lua-preprocessors [] [] proj-path->node-id _evaluation-context)]
                               (pair (resource/proj-path resource) build-targets)))))
                       (fs/file-walker output-dir false))))
           (catch Exception e
