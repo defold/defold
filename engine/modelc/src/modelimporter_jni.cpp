@@ -590,6 +590,14 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
         return 0;
     }
 
+    if (scene->m_LoadError && scene->m_LoadError[0])
+    {
+        ThrowModelLoadExceptionFromScene(env, scene, "Failed to load model");
+        dmModelImporter::DestroyScene(scene);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+        return 0;
+    }
+
     bool resolved = false;
     if (data_resolver != 0 && dmModelImporter::NeedsResolve(scene))
     {

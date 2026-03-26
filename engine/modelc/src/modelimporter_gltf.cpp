@@ -1778,6 +1778,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        cgltf_free(data);
         return 0;
     }
 
@@ -1805,8 +1806,8 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
         scene->m_LoadFinalizeFn = 0;
         if (!LoadFinalizeGltf(scene))
         {
-            DestroyScene(scene);
-            return 0;
+            ClearScene(scene);
+            return scene;
         }
         ValidateGltf(scene);
     }
