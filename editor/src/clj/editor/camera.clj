@@ -515,14 +515,17 @@
   {[:primary   false true  false false] :tumble
    [:primary   false false true  false] :track
    [:primary   false true  true  false] :dolly
+   [:secondary false false true  false] :dolly
+   [:secondary false false false false] :track
    [:middle    false false false false] :track})
 
-(defn camera-movement
-  ([action]
-   (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
-  ([button shift ctrl alt meta]
-   (let [key [button shift ctrl alt meta]]
-     (button-interpretation key :idle))))
+(defn camera-movement [action movements-enabled]
+  ;; NOTE: Hardcoding secondary to start free camera mode, but should be easy to add :middle in the future as an option
+  (if (and (movements-enabled :look) (= (:button action) :secondary))
+    :look
+    (let [movement (button-interpretation [(:button action) (:shift action) (:control action) (:alt action) (:meta action)])]
+      (or (and (movements-enabled movement) movement)
+          :idle))))
 
 (defn camera-orthographic-fov-from-aabb [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [camera aabb]}
@@ -928,7 +931,8 @@
         :free-cam-pitch pitch
         :free-cam-yaw yaw
         :free-cam-smoothed-pitch pitch
-        :free-cam-smoothed-yaw yaw))))
+        :free-cam-smoothed-yaw yaw))
+    nil))
 
 (defn stop-free-cam-mode! [image-view camera-node]
   (ui/set-cursor image-view Cursor/DEFAULT)
@@ -948,9 +952,8 @@
         {:keys [initial-x initial-y]} camera-state
         {:keys [x y type button key-code]} action
         local-cam (g/node-value self :local-camera)
-        is-secondary (= button :secondary)
         movement (if (= type :mouse-pressed)
-                   (get movements-enabled (camera-movement action) :idle)
+                   (camera-movement action movements-enabled)
                    (:movement camera-state))]
     (case type
       :scroll (if (and (contains? movements-enabled :dolly)
@@ -982,12 +985,15 @@
       :drag-detected
       (do
         (g/user-data-swap! self ::camera-state assoc :is-dragging true)
-        (if (and is-secondary
-                 (movements-enabled :look))
+        (case movement
+          :look
           (start-free-cam-mode! image-view self (:cursor-pos input-state))
+          :idle
+          action
+
           (do
             (g/set-property! self :cursor-type :pan)
-            action)))
+            nil)))
 
       :mouse-moved
       (when (and (not free-cam-mode)
@@ -1008,9 +1014,9 @@
           free-cam-mode
           (stop-free-cam-mode! image-view self)
 
+          ;; Allow right click for context menu
           (or (= movement :idle)
-              ;; Allow right click for context menu
-              (and is-secondary
+              (and (= (:button action) :secondary)
                    (not dragging)))
           action
 
@@ -1024,7 +1030,7 @@
              (not (contains? (:mouse-buttons input-state) :secondary)))
         (stop-free-cam-mode! image-view self)
 
-        (and (contains? (:mouse-buttons input-state) :secondary)
+        (and (= movement :look)
              (not free-cam-mode)
              (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts))))
         (start-free-cam-mode! image-view self (:cursor-pos input-state)))
