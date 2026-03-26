@@ -91,6 +91,36 @@ namespace dmEngineService
         return [string_value dataUsingEncoding:NSUTF8StringEncoding];
     }
 
+    static NSRunLoop* DiscoveryRunLoop()
+    {
+        return [NSRunLoop mainRunLoop];
+    }
+
+    static void ScheduleDiscoveryService(NSNetService* service)
+    {
+        if (service == nil)
+            return;
+
+        NSRunLoop* run_loop = DiscoveryRunLoop();
+
+        // initWithDomain:type:name:port: implicitly attaches the service to the
+        // current run loop's default mode. Remove that registration before
+        // rescheduling in common modes so teardown stays explicit and the editor
+        // browsers keep seeing the same _defold._tcp.local service/TXT contract.
+        [service removeFromRunLoop:run_loop forMode:NSDefaultRunLoopMode];
+        [service scheduleInRunLoop:run_loop forMode:NSRunLoopCommonModes];
+    }
+
+    static void UnscheduleDiscoveryService(NSNetService* service)
+    {
+        if (service == nil)
+            return;
+
+        NSRunLoop* run_loop = DiscoveryRunLoop();
+        [service removeFromRunLoop:run_loop forMode:NSRunLoopCommonModes];
+        [service removeFromRunLoop:run_loop forMode:NSDefaultRunLoopMode];
+    }
+
     HDiscoveryService DiscoveryServiceNew(const char* service_id, const char* instance_name, uint16_t port, const DiscoveryTxtEntry* txt_entries, uint32_t txt_count)
     {
         // Bonjour registration on iOS is handled by NSNetService; the stable
@@ -144,7 +174,7 @@ namespace dmEngineService
 
                 DefoldDiscoveryServiceDelegate* delegate = [[DefoldDiscoveryServiceDelegate alloc] init];
                 [service setDelegate:delegate];
-                [service scheduleInRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+                ScheduleDiscoveryService(service);
                 [service publish];
 
                 discovery_service->m_Service = service;
@@ -173,7 +203,7 @@ namespace dmEngineService
                 if (discovery_service->m_Service)
                 {
                     [discovery_service->m_Service stop];
-                    [discovery_service->m_Service removeFromRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+                    UnscheduleDiscoveryService(discovery_service->m_Service);
                     [discovery_service->m_Service setDelegate:nil];
                     [discovery_service->m_Service release];
                 }
