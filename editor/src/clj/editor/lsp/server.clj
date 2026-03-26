@@ -134,7 +134,7 @@
   (let [basis (:basis evaluation-context)
         workspace (g/node-value project :workspace evaluation-context)]
     (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
-      (workspace/find-resource workspace proj-path evaluation-context))))
+      (workspace/find-resource basis workspace proj-path))))
 
 ;; diagnostics
 (s/def ::severity #{:error :warning :information :hint})

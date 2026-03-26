@@ -867,7 +867,7 @@
      (get-resource-node project path-or-resource evaluation-context)))
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
-                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource evaluation-context)
+                         (string? path-or-resource) (workspace/find-resource (:basis evaluation-context) (g/node-value project :workspace evaluation-context) path-or-resource)
                          (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      ;; This is frequently called from property setters, where we don't have a
@@ -972,10 +972,9 @@
          node-id+resource-pairs (make-node-id+resource-pairs project-graph resources)
 
          game-project-resource
-         (g/with-auto-evaluation-context evaluation-context
-           (-> project
-               (workspace evaluation-context)
-               (workspace/find-resource "/game.project" evaluation-context)))
+         (g/let-ec [basis (:basis evaluation-context)
+                    workspace (workspace project evaluation-context)]
+           (workspace/find-resource basis workspace "/game.project"))
 
          game-project-node-id
          (when game-project-resource
@@ -1454,7 +1453,7 @@
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
              code-transpilers (code-transpilers basis project)]
-    (workspace/unpack-editor-plugins! workspace touched-resources)
+    (workspace/unpack-editor-plugins! basis workspace touched-resources)
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)
@@ -1687,7 +1686,7 @@
 
 (defn resolve-path-or-resource [project path-or-resource evaluation-context]
   (if (string? path-or-resource)
-    (workspace/resolve-workspace-resource (workspace project evaluation-context) path-or-resource evaluation-context)
+    (workspace/resolve-workspace-resource (:basis evaluation-context) (workspace project evaluation-context) path-or-resource)
     path-or-resource))
 
 (defn disconnect-resource-node [evaluation-context project path-or-resource consumer-node connections]

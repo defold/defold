@@ -181,7 +181,8 @@
                (g/->error _node-id :modified-lines :fatal resource go-property-disallowed-message {:cursor-range (:cursor-range (meta script-property))})))))))
 
 (defn build-targets [_node-id resource lines allow-go-properties lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node evaluation-context]
-  (let [workspace (resource/workspace resource)]
+  (let [basis (:basis evaluation-context)
+        workspace (resource/workspace resource)]
     (if-some [errors
               (not-empty
                 (keep (fn [{:keys [name resource-kind type value]}]
@@ -201,7 +202,7 @@
                 log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
             (log/error :message log-error-message :exception exception)
             (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
-              (let [exception-resource (workspace/resolve-resource resource proj-path evaluation-context)
+              (let [exception-resource (workspace/resolve-resource basis resource proj-path)
                     exception-node-id (proj-path->resource-node proj-path)
                     error-node-id (or exception-node-id _node-id)
                     error-resource (if (nil? exception-node-id) resource exception-resource)
@@ -210,7 +211,7 @@
               (g/->error _node-id :modified-lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
-                  (lua-parser/lua-info workspace valid-resource-kind? reader evaluation-context))]
+                  (lua-parser/lua-info basis workspace valid-resource-kind? reader))]
             (g/precluding-errors (lua-info-errors _node-id resource preprocessed-lua-info allow-go-properties)
               (let [preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
                     preprocessed-modules (lua-info->modules preprocessed-lua-info)

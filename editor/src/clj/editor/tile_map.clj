@@ -580,9 +580,8 @@
 (defn- load-tile-map
   [project self resource tile-grid]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
-  (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
-        material (workspace/resolve-resource resource (:material tile-grid))
-        resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid

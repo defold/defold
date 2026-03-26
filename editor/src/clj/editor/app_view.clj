@@ -2508,7 +2508,8 @@
        (perform-open-resource-plan! localization))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
-  (let [prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
+  (let [basis (:basis evaluation-context)
+        prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
         selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
     (coll/into-> prefs-data-per-tab-per-tab-pane []
       (coll/mapcat-indexed
@@ -2517,7 +2518,7 @@
             (coll/into-> prefs-data-per-tab :eduction
               (keep-indexed
                 (fn [tab-index [proj-path view-type-id]]
-                  (let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+                  (let [resource (workspace/find-resource basis workspace proj-path)]
                     (when (and (resource/openable-resource? resource)
                                (resource/exists? resource))
                       (let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)
@@ -3050,13 +3051,12 @@
 
 (defn file-open-user-data->openable-resources
   ([workspace x]
-   (g/with-auto-evaluation-context evaluation-context
-     (file-open-user-data->openable-resources workspace x evaluation-context)))
-  ([workspace x evaluation-context]
+   (file-open-user-data->openable-resources (g/now) workspace x))
+  ([basis workspace x]
    (cond
      (string? x)
-     (when-let [resource (workspace/find-resource workspace x evaluation-context)]
-       (recur workspace resource evaluation-context))
+     (when-let [resource (workspace/find-resource basis workspace x)]
+       (recur basis workspace resource))
 
      (resource/resource? x)
      (when (and (resource/openable? x)
@@ -3064,7 +3064,7 @@
        [x])
 
      (sequential? x)
-     (e/mapcat #(file-open-user-data->openable-resources workspace % evaluation-context) x)
+     (e/mapcat #(file-open-user-data->openable-resources basis workspace %) x)
 
      :else
      (throw (IllegalArgumentException. (str "Didn't expect file.open argument to be " x))))))
@@ -3252,7 +3252,7 @@
         (disk/async-reload! render-reload-progress! workspace [] changes-view
                             (fn [successful?]
                               (when successful?
-                                (when-some [created-resource (workspace/find-resource workspace proj-path)]
+                                (when-some [created-resource (workspace/find-resource (g/now) workspace proj-path)]
                                   (open-resource! app-view prefs localization project created-resource))))))
 
       (= :folder (resource/source-type resource))
