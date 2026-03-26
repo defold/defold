@@ -986,15 +986,13 @@
                  (movements-enabled :look))
           (start-free-cam-mode! image-view self (:cursor-pos input-state))
           (do
-            (println "Movement" movement)
-            (when (and (= :idle movement)
-                       (not (g/node-value self :animating)))
-              (println (not= :perspective (:type local-cam)))
-              (g/set-property! self :cursor-type
-                               (if (not= :perspective (:type local-cam))
-                                 :pan
-                                 :none)))
+            (g/set-property! self :cursor-type :pan)
             action)))
+
+      :mouse-moved
+      (when (and (not free-cam-mode)
+               (= movement :idle))
+        action)
 
       :mouse-released
       (let [dragging (:is-dragging (g/user-data self ::camera-state))]
@@ -1134,10 +1132,10 @@
                      filter-fn
                      filter-fn)
             camera (apply-dolly-interpolation self camera dt)]
-        (when (and has-mouse-moved (= :dolly movement))
-          (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
         (g/set-property! self :local-camera camera)
         (when has-mouse-moved
+          (when (= :dolly movement)
+            (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
           (g/user-data-swap! self ::camera-state assoc
                              :last-x mouse-x
                              :last-y mouse-y))))))
