@@ -1667,6 +1667,115 @@ TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
     ASSERT_TRUE(ptr_record->m_Ttl > 0);
 }
 
+// Verifies periodic interface polling does not collapse browse backoff when the
+// available interface set is unchanged.
+TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
+{
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
+    ScopedMdnsTestResources cleanup;
+    MulticastCapture capture;
+    ASSERT_TRUE(SetupMulticastCapture(&capture));
+
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_type[64];
+    char service_type_local[128];
+    MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
+    BuildLocalName(service_type, service_type_local, sizeof(service_type_local));
+
+    dmMDNS::BrowserParams browser_params;
+    browser_params.m_ServiceType = service_type;
+    browser_params.m_Callback = 0;
+    browser_params.m_Context = 0;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
+    DrainSocket(capture.m_Socket, 100);
+
+    RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    DrainSocket(capture.m_Socket, 100);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    DrainSocket(capture.m_Socket, 100);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000));
+    DrainSocket(capture.m_Socket, 100);
+    ASSERT_FALSE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500));
+}
+
+// Verifies half-TTL refresh retries stay on the browse backoff cadence when a
+// refresh query receives no answer.
+TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
+{
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
+    EventLog event_log;
+    ScopedMdnsTestResources cleanup;
+    MulticastCapture capture;
+    ScopedSocketHandle sender;
+    ASSERT_TRUE(SetupMulticastCapture(&capture));
+    ASSERT_TRUE(SetupSendSocket(&sender));
+
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_type[64];
+    char service_type_local[128];
+    char instance_name[128];
+    char full_service_name[256];
+    char host_name[128];
+    char host_local[256];
+    char service_id[128];
+    MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "refresh-retry", nonce);
+    MakeUniqueName(host_name, sizeof(host_name), "refresh-retry-host", nonce);
+    MakeUniqueName(service_id, sizeof(service_id), "refresh-retry-id", nonce);
+    BuildLocalName(service_type, service_type_local, sizeof(service_type_local));
+    BuildFullServiceName(instance_name, service_type_local, full_service_name, sizeof(full_service_name));
+    BuildLocalName(host_name, host_local, sizeof(host_local));
+
+    dmMDNS::BrowserParams browser_params;
+    browser_params.m_ServiceType = service_type;
+    browser_params.m_Callback = EventLog::Callback;
+    browser_params.m_Context = &event_log;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser));
+
+    RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    DrainSocket(capture.m_Socket, 100);
+
+    dmMDNS::TxtEntry txt_entries[] =
+    {
+        {"id", service_id},
+        {"name", instance_name},
+        {"schema", "1"},
+    };
+
+    const uint8_t address[] = {127, 0, 0, 1};
+    RawDnsResponseRecord records[] =
+    {
+        {service_type_local, DNS_TYPE_PTR, DNS_CLASS_IN, 12, full_service_name, 0, 0, 0, 0, 0},
+        {full_service_name, DNS_TYPE_SRV, (uint16_t) (DNS_CLASS_IN | 0x8000), 12, 0, 19012, host_local, 0, 0, 0},
+        {full_service_name, DNS_TYPE_TXT, (uint16_t) (DNS_CLASS_IN | 0x8000), 12, 0, 0, 0, txt_entries, DM_ARRAY_SIZE(txt_entries), 0},
+        {host_local, DNS_TYPE_A, (uint16_t) (DNS_CLASS_IN | 0x8000), 12, 0, 0, 0, 0, 0, address},
+    };
+
+    std::vector<uint8_t> response;
+    BuildResponsePacket(records, DM_ARRAY_SIZE(records), false, &response);
+    ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &response[0], (uint32_t) response.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
+    ASSERT_TRUE(WaitForEventCount(event_log, dmMDNS::EVENT_RESOLVED, instance_name, 1, 0, cleanup.m_Browser, 2000));
+    DrainSocket(capture.m_Socket, 100);
+
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
+    DrainSocket(capture.m_Socket, 100);
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000));
+    DrainSocket(capture.m_Socket, 100);
+
+    RawDnsPacket refresh_query;
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &refresh_query, 7000));
+    DrainSocket(capture.m_Socket, 100);
+    ASSERT_FALSE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500));
+}
+
 // Verifies service probes claim the unique SRV/TXT/A records in the authority
 // section instead of probing the shared service-type PTR name.
 TEST(MDNS, AdvertiserBuildsAuthorityBackedProbe)

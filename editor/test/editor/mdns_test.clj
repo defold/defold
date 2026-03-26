@@ -889,6 +889,22 @@
     (is (= 0 (MDNS$TestHooks/serviceCount mdns)))
     (is (= 0 (MDNS$TestHooks/hostCount mdns)))))
 
+;; Verifies a half-TTL refresh retry stays on the exponential browse cadence
+;; after sendQuery() instead of remaining permanently overdue.
+(deftest mdns-refresh-retry-does-not-remain-overdue-after-send
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetRefreshRetry." service-type)
+        host-name "target-refresh-retry.local"
+        packet (make-response-packet (service-records service-type full-name host-name 9042 120))
+        now 10000]
+    (parse-and-rebuild! mdns packet)
+    (MDNS$TestHooks/setQuerySchedule mdns (+ now 1000) 1000)
+    (MDNS$TestHooks/setRefreshAt mdns now)
+    (is (MDNS$TestHooks/shouldQuery mdns now))
+    (MDNS$TestHooks/sendQuery mdns now)
+    (is (not (MDNS$TestHooks/shouldQuery mdns (inc now))))))
+
 ;; Verifies equality includes host and local address so endpoint moves are visible to change detection.
 (deftest mdns-service-info-equality-includes-host-and-local-address
   (let [base (MDNSServiceInfo. 120

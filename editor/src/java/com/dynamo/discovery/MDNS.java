@@ -58,6 +58,16 @@ public class MDNS {
             mdns.sendQuery();
         }
 
+        // Added so pacing tests can drive the browse scheduler without relying on wall-clock sleeps.
+        public static void sendQuery(MDNS mdns, long now) {
+            mdns.sendQuery(now);
+        }
+
+        // Added so pacing tests can assert whether an update would emit a browse query at a given time.
+        public static boolean shouldQuery(MDNS mdns, long now) {
+            return mdns.shouldQuery(now);
+        }
+
         // Added so packet-read tests can feed deterministic socket data into the private receive loop.
         public static void readPackets(MDNS mdns) {
             mdns.readPackets();
@@ -88,6 +98,26 @@ public class MDNS {
             Connection connection = new Connection(networkInterface, localAddress);
             connection.socket = socket;
             mdns.connections.add(connection);
+        }
+
+        // Added so pacing tests can set the current browse backoff state directly.
+        public static void setQuerySchedule(MDNS mdns, long nextQueryAt, long queryIntervalMillis) {
+            mdns.nextQueryAt = nextQueryAt;
+            mdns.queryIntervalMillis = queryIntervalMillis;
+        }
+
+        // Added so pacing tests can force all cached refresh deadlines to the same instant.
+        public static void setRefreshAt(MDNS mdns, long refreshAt) {
+            for (Map.Entry<String, HostAddress> entry : mdns.hosts.entrySet()) {
+                HostAddress host = entry.getValue();
+                entry.setValue(new HostAddress(host.address(), host.expires(), refreshAt));
+            }
+
+            for (ServiceAccumulator service : mdns.services.values()) {
+                service.ptrRefresh = service.hasPtr ? refreshAt : 0;
+                service.srvRefresh = service.hasSrv ? refreshAt : 0;
+                service.txtRefresh = service.hasTxt ? refreshAt : 0;
+            }
         }
 
         // Added so interface-change tests can assert that refresh() clears stale service accumulators.
@@ -203,11 +233,16 @@ public class MDNS {
         this.services = new HashMap<String, ServiceAccumulator>();
         this.hosts = new HashMap<String, HostAddress>();
         this.discoveredServices = new HashMap<String, MDNSServiceInfo>();
-        this.queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
+        resetQuerySchedule(0);
     }
 
     private void log(String msg) {
         logger.log("MDNS: " + msg);
+    }
+
+    private void resetQuerySchedule(long nextQueryAt) {
+        this.nextQueryAt = nextQueryAt;
+        this.queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
     }
 
     public static List<NetworkInterface> getMCastInterfaces() throws SocketException {
@@ -306,8 +341,7 @@ public class MDNS {
             clearDiscovered();
 
             defaultLocalAddress = null;
-            nextQueryAt = 0;
-            queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
+            resetQuerySchedule(0);
         }
 
         for (NetworkInterface networkInterface : interfaces) {
@@ -332,8 +366,7 @@ public class MDNS {
             Connection newConnection = new Connection(networkInterface, localAddress);
             if (newConnection.connect(multicastAddress)) {
                 connections.add(newConnection);
-                nextQueryAt = 0;
-                queryIntervalMillis = INITIAL_QUERY_INTERVAL_MS;
+                resetQuerySchedule(0);
                 log(String.format("Connected to multicast network %s: %s", networkInterface.getDisplayName(), localAddress));
             }
         }
@@ -671,7 +704,9 @@ public class MDNS {
             }
         }
 
-        nextQueryAt = now + queryIntervalMillis;
+        long retryAt = now + queryIntervalMillis;
+        nextQueryAt = retryAt;
+        rescheduleRefreshes(now, retryAt);
         if (queryIntervalMillis < MAX_QUERY_INTERVAL_MS) {
             queryIntervalMillis = Math.min(queryIntervalMillis * 3L, MAX_QUERY_INTERVAL_MS);
         }
@@ -916,6 +951,33 @@ public class MDNS {
         }
 
         return next;
+    }
+
+    private static long rescheduleRefreshAt(long refreshAt, long expires, long now, long retryAt) {
+        if (refreshAt == 0 || refreshAt > now) {
+            return refreshAt;
+        }
+
+        return expires > 0 ? Math.min(expires, retryAt) : retryAt;
+    }
+
+    private void rescheduleRefreshes(long now, long retryAt) {
+        // Once a half-TTL refresh fires, keep retrying on the normal browse
+        // backoff until a fresh response arrives. Leaving the stale refresh
+        // deadline overdue would make shouldQuery() fire on every update().
+        for (Map.Entry<String, HostAddress> entry : hosts.entrySet()) {
+            HostAddress host = entry.getValue();
+            long refreshAt = rescheduleRefreshAt(host.refreshAt(), host.expires(), now, retryAt);
+            if (refreshAt != host.refreshAt()) {
+                entry.setValue(new HostAddress(host.address(), host.expires(), refreshAt));
+            }
+        }
+
+        for (ServiceAccumulator service : services.values()) {
+            service.ptrRefresh = rescheduleRefreshAt(service.ptrRefresh, service.ptrExpires, now, retryAt);
+            service.srvRefresh = rescheduleRefreshAt(service.srvRefresh, service.srvExpires, now, retryAt);
+            service.txtRefresh = rescheduleRefreshAt(service.txtRefresh, service.txtExpires, now, retryAt);
+        }
     }
 
     private ServiceAccumulator getOrCreateService(String key, String fullServiceName) {

@@ -437,9 +437,40 @@ namespace dmMDNS
         }
     }
 
-    static void RefreshBrowserInterfaceAddresses(Browser* browser)
+    // Interface enumeration order is not stable across refreshes, so detect
+    // topology changes by comparing the address sets rather than array order.
+    static bool HaveSameAddressSet(const dmArray<dmSocket::Address>& lhs, const dmArray<dmSocket::Address>& rhs)
     {
-        CollectInterfaceAddresses(&browser->m_InterfaceAddresses);
+        if (lhs.Size() != rhs.Size())
+            return false;
+
+        for (uint32_t i = 0; i < lhs.Size(); ++i)
+        {
+            if (!ContainsAddress(rhs, lhs[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    static bool RefreshBrowserInterfaceAddresses(Browser* browser)
+    {
+        dmArray<dmSocket::Address> refreshed_addresses;
+        uint32_t capacity = browser->m_InterfaceAddresses.Capacity();
+        if (capacity < 4)
+            capacity = 4;
+        refreshed_addresses.SetCapacity(capacity);
+        CollectInterfaceAddresses(&refreshed_addresses);
+
+        const bool changed = !HaveSameAddressSet(browser->m_InterfaceAddresses, refreshed_addresses);
+        browser->m_InterfaceAddresses.Swap(refreshed_addresses);
+        return changed;
+    }
+
+    static void ResetBrowserQueryBackoff(Browser* browser, uint64_t next_query)
+    {
+        browser->m_NextQuery = next_query;
+        browser->m_QueryInterval = MDNS_BROWSER_INITIAL_QUERY_INTERVAL;
     }
 
     static bool ReadU16(const uint8_t* data, uint32_t size, uint32_t* offset, uint16_t* out)
@@ -1781,6 +1812,36 @@ namespace dmMDNS
         return deadline;
     }
 
+    static void RescheduleBrowserRefresh(uint64_t* refresh, uint64_t expires, uint64_t now, uint64_t retry_at)
+    {
+        if (*refresh == 0 || *refresh > now)
+            return;
+
+        *refresh = retry_at;
+        if (expires != 0 && expires < *refresh)
+            *refresh = expires;
+    }
+
+    static void RescheduleBrowserRefreshes(Browser* browser, uint64_t now, uint64_t retry_at)
+    {
+        // Once a half-TTL refresh fires, keep retrying on the normal browse
+        // backoff until a fresh response arrives. Leaving the original refresh
+        // timestamp overdue would make every subsequent UpdateBrowser() query.
+        for (uint32_t i = 0; i < browser->m_Hosts.Size(); ++i)
+        {
+            BrowserHost& host = browser->m_Hosts[i];
+            RescheduleBrowserRefresh(&host.m_Refresh, host.m_Expires, now, retry_at);
+        }
+
+        for (uint32_t i = 0; i < browser->m_Services.Size(); ++i)
+        {
+            BrowserService& service = browser->m_Services[i];
+            RescheduleBrowserRefresh(&service.m_PtrRefresh, service.m_PtrExpires, now, retry_at);
+            RescheduleBrowserRefresh(&service.m_SrvRefresh, service.m_SrvExpires, now, retry_at);
+            RescheduleBrowserRefresh(&service.m_TxtRefresh, service.m_TxtExpires, now, retry_at);
+        }
+    }
+
     static void RefreshServiceAddress(Browser* browser, BrowserService* service)
     {
         service->m_HasAddress = 0;
@@ -2437,8 +2498,7 @@ namespace dmMDNS
         }
 
         EnsureMemberships(instance->m_Socket, instance->m_InterfaceAddresses, &instance->m_MembershipAddresses);
-        instance->m_NextQuery = 0;
-        instance->m_QueryInterval = MDNS_BROWSER_INITIAL_QUERY_INTERVAL;
+        ResetBrowserQueryBackoff(instance, 0);
         instance->m_NextInterfaceRefresh = 0;
         *browser = instance;
         return RESULT_OK;
@@ -2452,10 +2512,15 @@ namespace dmMDNS
         const uint64_t now = GetNow();
         if (now >= browser->m_NextInterfaceRefresh)
         {
-            RefreshBrowserInterfaceAddresses(browser);
+            const bool interface_changed = RefreshBrowserInterfaceAddresses(browser);
             EnsureMemberships(browser->m_Socket, browser->m_InterfaceAddresses, &browser->m_MembershipAddresses);
-            browser->m_NextQuery = 0;
-            browser->m_QueryInterval = MDNS_BROWSER_INITIAL_QUERY_INTERVAL;
+            if (interface_changed)
+            {
+                // A real topology change should trigger a fresh browse burst on
+                // the new subnet, but periodic interface polling must not keep
+                // collapsing the backoff on stable networks.
+                ResetBrowserQueryBackoff(browser, now);
+            }
             browser->m_NextInterfaceRefresh = now + SecondsToMicroSeconds(MDNS_INTERFACE_REFRESH_INTERVAL);
         }
 
@@ -2471,7 +2536,10 @@ namespace dmMDNS
             {
                 SendPacketOnInterfaces(browser->m_Socket, browser->m_Buffer, query_size, browser->m_InterfaceAddresses);
             }
-            browser->m_NextQuery = now + browser->m_QueryInterval;
+            const uint64_t retry_at = now + browser->m_QueryInterval;
+            browser->m_NextQuery = retry_at;
+            if (query_size > 0)
+                RescheduleBrowserRefreshes(browser, now, retry_at);
             if (browser->m_QueryInterval < MDNS_BROWSER_MAX_QUERY_INTERVAL)
             {
                 browser->m_QueryInterval *= 3;
