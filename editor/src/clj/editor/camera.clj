@@ -951,12 +951,7 @@
         is-secondary (= button :secondary)
         movement (if (= type :mouse-pressed)
                    (get movements-enabled (camera-movement action) :idle)
-                   (:movement camera-state))
-        is-significant-drag (and initial-x
-                                 initial-y
-                                 x
-                                 y
-                                 (significant-drag? [x y] [initial-x initial-y]))]
+                   (:movement camera-state))]
     (case type
       :scroll (if (and (contains? movements-enabled :dolly)
                        (not free-cam-mode))
@@ -985,10 +980,21 @@
           action))
 
       :drag-detected
-      (if (and is-secondary
-               (movements-enabled :look))
-        (start-free-cam-mode! image-view self (:cursor-pos input-state))
-        action)
+      (do
+        (g/user-data-swap! self ::camera-state assoc :is-dragging true)
+        (if (and is-secondary
+                 (movements-enabled :look))
+          (start-free-cam-mode! image-view self (:cursor-pos input-state))
+          (do
+            (println "Movement" movement)
+            (when (and (= :idle movement)
+                       (not (g/node-value self :animating)))
+              (println (not= :perspective (:type local-cam)))
+              (g/set-property! self :cursor-type
+                               (if (not= :perspective (:type local-cam))
+                                 :pan
+                                 :none)))
+            action)))
 
       :mouse-released
       (let [dragging (:is-dragging (g/user-data self ::camera-state))]
@@ -1004,11 +1010,10 @@
           free-cam-mode
           (stop-free-cam-mode! image-view self)
 
-          ;; Allow right click for context menu
           (or (= movement :idle)
+              ;; Allow right click for context menu
               (and is-secondary
-                   (not dragging)
-                   (not is-significant-drag)))
+                   (not dragging)))
           action
 
           :else
@@ -1104,7 +1109,7 @@
         (when (not= final-camera current-camera)
           (set-camera! self current-camera final-camera false)))
       (let [viewport (g/node-value self :viewport)
-            {:keys [^double last-x ^double last-y ^double initial-x ^double initial-y movement]} camera-state
+            {:keys [^double last-x ^double last-y ^double initial-x ^double initial-y movement dragging]} camera-state
             camera (g/node-value self :camera)
             filter-fn (:filter-fn camera)
             {:keys [mouse-buttons]} input-state
@@ -1117,11 +1122,6 @@
             image-view (g/node-value self :image-view)
             [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
             (warp-mouse-around-edges image-view [mouse-x mouse-y] [last-x last-y])
-            is-significant-drag (and initial-x
-                                     initial-y
-                                     mouse-x
-                                     mouse-y
-                                     (significant-drag? [mouse-x mouse-y] [initial-x initial-y]))
             camera (cond-> camera
                      has-mouse-moved
                      (cond->
@@ -1140,16 +1140,7 @@
         (when has-mouse-moved
           (g/user-data-swap! self ::camera-state assoc
                              :last-x mouse-x
-                             :last-y mouse-y
-                             :is-dragging (or (:is-dragging camera-state) is-significant-drag))
-          (when (and is-significant-drag
-                     (not (contains? mouse-buttons :secondary))
-                     (not (g/node-value self :animating)))
-            (g/set-property! self :cursor-type
-                             (if (or (not= :perspective (:type (g/node-value self :local-camera)))
-                                     is-primary)
-                               :pan
-                               :none))))))))
+                             :last-y mouse-y))))))
 
 (g/defnode CameraController
   (property prefs g/Any)

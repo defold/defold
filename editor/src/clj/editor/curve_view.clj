@@ -353,6 +353,9 @@
                      action)
       action)))
 
+(defn- handle-input-fnk [a b c d]
+  (handle-input a b c d))
+
 (g/defnode CurveController
   (property handle g/Keyword)
   (property handle-data g/Any)
@@ -363,7 +366,7 @@
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)
-  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output input-handler Runnable :cached (g/constantly handle-input-fnk))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- pick-control-points [visible-curves picking-rect camera viewport]
@@ -496,6 +499,7 @@
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
+  ;; NOTE: Part of an interface SceneView calls during update-image-view!
   (input update-tick-handlers Runnable :array)
   (input selected-node-properties g/Any)
   (input tool-info-text g/Str)

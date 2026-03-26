@@ -1072,6 +1072,8 @@
                    (some? async-copy-state-atom))
           (update-image-view! node-id image-view drawable async-copy-state-atom dt)
           (when-let [cursor-type (g/maybe-node-value node-id :cursor-type)]
+            (when (not= cursor-type :default)
+              (println cursor-type))
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
