@@ -1409,6 +1409,11 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+        program->m_UniformBufferLayouts.SetCapacity(0);
+        program->m_UniformBufferLayouts.SetSize(0);
+        memset(program->m_ResourceBindings, 0, sizeof(program->m_ResourceBindings));
+        program->m_MaxSet     = 0;
+        program->m_MaxBinding = 0;
 
         DestroyShaderMeta(program->m_ShaderMeta);
     }
