@@ -340,6 +340,9 @@ namespace dmModelImporter
 
         // When we need to dynamically create materials
         dmArray<Material*>  m_DynamicMaterials;
+
+        // Last load error for this scene (heap-allocated; freed in DestroyScene). ClearScene does not free it. Non-null means load failed fatally.
+        char*               m_LoadError;
     };
 
     struct Options
@@ -378,6 +381,10 @@ namespace dmModelImporter
 
     // Switches between warning and debug level
     extern "C" DM_DLLEXPORT void EnableDebugLogging(bool enable);
+
+    // Frees all scene resources except m_LoadError (caller may read it first, then call DestroyScene).
+    void ClearScene(Scene* scene);
+    void SetLoadError(Scene* scene, const char* message);
 
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);
