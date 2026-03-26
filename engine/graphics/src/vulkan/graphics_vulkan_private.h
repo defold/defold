@@ -16,6 +16,7 @@
 #define __GRAPHICS_DEVICE_VULKAN__
 
 #include <stdint.h>
+#include <cstddef>
 #include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -90,31 +91,22 @@ namespace dmGraphics
             uint8_t     m_LastUsedFrame;
         };
 
+        Texture           m_Base;
         VulkanHandle      m_Handle;
-        TextureType       m_Type;
-        TextureFormat     m_GraphicsFormat;
         VkFormat          m_Format;
         VkImageLayout     m_ImageLayout[16];
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
-        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         HOpaqueHandle     m_PendingUpload;
         uint32_t          m_DataSize; // for better memory profiling
-        uint16_t          m_Width;
-        uint16_t          m_Height;
-        uint16_t          m_Depth;
-        uint16_t          m_OriginalWidth;
-        uint16_t          m_OriginalHeight;
-        uint16_t          m_OriginalDepth;
-        uint16_t          m_MipMapCount         : 5;
         uint16_t          m_TextureSamplerIndex : 10;
         uint16_t          m_Destroyed           : 1;
-        uint8_t           m_UsageHintFlags;
         uint8_t           m_LayerCount;
-        uint8_t           m_PageCount; // page count of texture array
 
         const VulkanResourceType GetType();
     };
+
+    static_assert(offsetof(VulkanTexture, m_Base) == 0, "VulkanTexture: m_Base must be the first member");
 
     struct TextureSampler
     {

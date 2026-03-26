@@ -15,6 +15,8 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <cstddef>
+
 #include <dlib/atomic.h>
 #include <dlib/math.h>
 #include <dlib/jobsystem.h>
@@ -23,6 +25,8 @@
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
 #include <platform/window.h>
+
+#include "../graphics_private.h"
 
 namespace dmGraphics
 {
@@ -53,23 +57,15 @@ namespace dmGraphics
 
     struct OpenGLTexture
     {
+        Texture       m_Base;
         TextureParams     m_Params;
-        TextureType       m_Type;
         HOpenglID*        m_TextureIds;
         OpenGLSampler     m_Sampler;
         OpenGLSampler     m_SamplerDirty;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
-        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        uint16_t          m_NumTextureIds;
-        uint16_t          m_Width;
-        uint16_t          m_Height;
-        uint16_t          m_Depth;
-        uint16_t          m_OriginalWidth;
-        uint16_t          m_OriginalHeight;
-        uint16_t          m_MipMapCount;
-        uint8_t           m_UsageHintFlags;
-        uint8_t           m_PageCount; // page count of texture array
     };
+
+    static_assert(offsetof(OpenGLTexture, m_Base) == 0, "OpenGLTexture: m_Base must be the first member");
 
     struct OpenGLTextureBinding
     {

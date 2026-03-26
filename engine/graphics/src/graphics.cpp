@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
+#include <dmsdk/dlib/atomic.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -2128,31 +2129,38 @@ namespace dmGraphics
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureWidth(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_Width : 0;
     }
     uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureHeight(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_Height : 0;
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureDepth(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_Depth : 0;
     }
     uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureWidth(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_OriginalWidth : 0;
     }
     uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureHeight(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_OriginalHeight : 0;
     }
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureMipmapCount(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_MipMapCount : 0;
     }
     TextureType GetTextureType(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureType(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? b->m_Type : TEXTURE_TYPE_2D;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2168,7 +2176,13 @@ namespace dmGraphics
     }
     uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureStatusFlags(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        uint32_t flags = TEXTURE_STATUS_OK;
+        if (b && dmAtomicGet32(&((Texture*) b)->m_DataState))
+        {
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        }
+        return flags;
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
@@ -2209,11 +2223,17 @@ namespace dmGraphics
     }
     uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        return g_functions.m_GetNumTextureHandles(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        if (!b)
+        {
+            return 0;
+        }
+        return (uint8_t)dmMath::Min<uint32_t>(255u, (uint32_t)b->m_NumTextureIds);
     }
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureUsageHintFlags(context, texture);
+        const Texture* b = g_functions.m_GetTexture(context, texture);
+        return b ? (uint32_t)b->m_UsageHintFlags : 0;
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {

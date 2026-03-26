@@ -2666,7 +2666,7 @@ static void LogFrameBufferError(GLenum status)
                 if (!do_unbind)
                 {
                     id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
-                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
+                    access = tex->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
                 }
                 glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
                 CHECK_GL_ERROR;
@@ -2825,17 +2825,17 @@ static void LogFrameBufferError(GLenum status)
                 uint8_t id_index = binding.m_TextureIdIndex;
 
                 bool bind_as_texture = true;
-                if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
+                if (tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
                     bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
                 }
 
                 if (bind_as_texture)
                 {
-                    glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
+                    glBindTexture(GetOpenGLTextureType(tex->m_Base.m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
                     CHECK_GL_ERROR;
 
-                    GLenum gl_type = GetOpenGLTextureType(tex->m_Type);
+                    GLenum gl_type = GetOpenGLTextureType(tex->m_Base.m_Type);
 
                     if (tex->m_Sampler.m_MinFilter != tex->m_SamplerDirty.m_MinFilter)
                     {
@@ -2848,7 +2848,7 @@ static void LogFrameBufferError(GLenum status)
                         GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
 
                         // Using a mipmapped min filter without any mipmaps will break the sampler
-                        if (tex->m_MipMapCount <= 1)
+                        if (tex->m_Base.m_MipMapCount <= 1)
                         {
                             gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
                         }
@@ -4538,21 +4538,21 @@ static void LogFrameBufferError(GLenum status)
 
     static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture)
     {
-        if (!texture || texture->m_NumTextureIds == 0)
+        if (!texture || texture->m_Base.m_NumTextureIds == 0)
         {
             return;
         }
 
         // Pure compute/storage textures that are never sampled don't need sampler state
-        if ((texture->m_Type == TEXTURE_TYPE_IMAGE_2D || texture->m_Type == TEXTURE_TYPE_IMAGE_3D) &&
-            !(texture->m_UsageHintFlags & TEXTURE_USAGE_FLAG_SAMPLE))
+        if ((texture->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D || texture->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D) &&
+            !(texture->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_SAMPLE))
         {
             return;
         }
 
-        GLenum gl_type = GetOpenGLTextureType(texture->m_Type);
+        GLenum gl_type = GetOpenGLTextureType(texture->m_Base.m_Type);
 
-        for (uint16_t idx = 0; idx < texture->m_NumTextureIds; ++idx)
+        for (uint16_t idx = 0; idx < texture->m_Base.m_NumTextureIds; ++idx)
         {
             GLuint gl_id = GetGLHandle(context, texture->m_TextureIds[idx]);
 
@@ -4575,7 +4575,7 @@ static void LogFrameBufferError(GLenum status)
             GLenum gl_mag_filter = GetOpenGLTextureFilter(mag_filter);
 
             // Using a mipmapped min filter without any mipmaps will break the sampler
-            if (texture->m_MipMapCount <= 1)
+            if (texture->m_Base.m_MipMapCount <= 1)
             {
                 gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
             }
@@ -4627,28 +4627,30 @@ static void LogFrameBufferError(GLenum status)
         free(gl_texture_ids);
 
         OpenGLTexture* tex    = new OpenGLTexture();
-        tex->m_Type           = texture_type;
+        tex->m_Base.m_Type           = texture_type;
         tex->m_TextureIds     = static_ids;
-        tex->m_Width          = params.m_Width;
-        tex->m_Height         = params.m_Height;
-        tex->m_Depth          = params.m_Depth;
-        tex->m_NumTextureIds  = num_texture_ids;
-        tex->m_UsageHintFlags = params.m_UsageHintBits;
-        tex->m_PageCount      = params.m_LayerCount;
+        tex->m_Base.m_Width          = params.m_Width;
+        tex->m_Base.m_Height         = params.m_Height;
+        tex->m_Base.m_Depth          = params.m_Depth;
+        tex->m_Base.m_NumTextureIds  = num_texture_ids;
+        tex->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_Base.m_PageCount      = params.m_LayerCount;
 
         if (params.m_OriginalWidth == 0)
         {
-            tex->m_OriginalWidth  = params.m_Width;
-            tex->m_OriginalHeight = params.m_Height;
+            tex->m_Base.m_OriginalWidth  = params.m_Width;
+            tex->m_Base.m_OriginalHeight = params.m_Height;
         }
         else
         {
-            tex->m_OriginalWidth  = params.m_OriginalWidth;
-            tex->m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_Base.m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_Base.m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        tex->m_MipMapCount = 0;
-        tex->m_DataState = 0;
+        tex->m_Base.m_MipMapCount    = 0;
+        tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
+        tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
+        dmAtomicStore32(&tex->m_Base.m_DataState, 0);
         tex->m_ResourceSize = 0;
 
         SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
@@ -4669,13 +4671,13 @@ static void LogFrameBufferError(GLenum status)
         // we can still end up in this state in very specific cases.
         if (tex != 0x0)
         {
-            GLuint* handles = (GLuint*) malloc(tex->m_NumTextureIds * sizeof(GLuint));
-            for (uint16_t idx = 0; idx < tex->m_NumTextureIds; ++idx)
+            GLuint* handles = (GLuint*) malloc(tex->m_Base.m_NumTextureIds * sizeof(GLuint));
+            for (uint16_t idx = 0; idx < tex->m_Base.m_NumTextureIds; ++idx)
             {
                 handles[idx] = GetGLHandle(context, tex->m_TextureIds[idx]);
                 CleanupGLHandle(context, tex->m_TextureIds[idx]);
             }
-            glDeleteTextures(tex->m_NumTextureIds, handles);
+            glDeleteTextures(tex->m_Base.m_NumTextureIds, handles);
             CHECK_GL_ERROR;
             free(handles);
             free(tex->m_TextureIds);
@@ -4777,40 +4779,18 @@ static void LogFrameBufferError(GLenum status)
         SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    static uint8_t OpenGLGetNumTextureHandles(HContext _context, HTexture texture)
+    static const Texture* OpenGLGetTexture(HContext _context, HTexture texture)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_NumTextureIds : 0;
-    }
-
-    static uint32_t OpenGLGetTextureUsageHintFlags(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_UsageHintFlags : 0;
+        return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
     }
 
     static uint8_t OpenGLGetTexturePageCount(HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_PageCount : 0;
-    }
-
-    static uint32_t OpenGLGetTextureStatusFlags(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        uint32_t flags     = TEXTURE_STATUS_OK;
-        if(tex && dmAtomicGet32(&tex->m_DataState))
-        {
-            flags |= TEXTURE_STATUS_DATA_PENDING;
-        }
-        return flags;
+        return tex ? tex->m_Base.m_PageCount : 0;
     }
 
     // Called on worker thread
@@ -4835,9 +4815,9 @@ static void LogFrameBufferError(GLenum status)
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
-        int32_t data_state = dmAtomicGet32(&tex->m_DataState);
+        int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
         data_state &= ~(1<<ap.m_Params.m_MipMap);
-        dmAtomicStore32(&tex->m_DataState, data_state);
+        dmAtomicStore32(&tex->m_Base.m_DataState, data_state);
         return 0;
     }
 
@@ -4863,7 +4843,7 @@ static void LogFrameBufferError(GLenum status)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
             OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-            tex->m_DataState          |= 1<<params.m_MipMap;
+            tex->m_Base.m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
             Job job = {0};
@@ -4938,24 +4918,25 @@ static void LogFrameBufferError(GLenum status)
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
 
-        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        tex->m_Base.m_MipMapCount = dmMath::Max(tex->m_Base.m_MipMapCount, (uint8_t)(params.m_MipMap+1));
 
-        GLenum type              = GetOpenGLTextureType(tex->m_Type);
+        GLenum type              = GetOpenGLTextureType(tex->m_Base.m_Type);
         GLenum gl_format         = 0;
         GLenum gl_type           = GL_UNSIGNED_BYTE; // only used of uncompressed formats
         GLint gl_internal_format = -1;               // only used for uncompressed formats
 
         GetOpenGLSetTextureParams(context, params.m_Format, gl_internal_format, gl_format, gl_type);
 
-        tex->m_Params = params;
+        tex->m_Params           = params;
+        tex->m_Base.m_Format    = params.m_Format;
 
         if (!params.m_SubUpdate)
         {
             if (params.m_MipMap == 0)
             {
-                tex->m_Width  = params.m_Width;
-                tex->m_Height = params.m_Height;
-                tex->m_Depth  = params.m_Depth;
+                tex->m_Base.m_Width  = params.m_Width;
+                tex->m_Base.m_Height = params.m_Height;
+                tex->m_Base.m_Depth  = params.m_Depth;
             }
 
             if (params.m_MipMap == 0)
@@ -4964,7 +4945,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        for (int i = 0; i < tex->m_NumTextureIds; ++i)
+        for (int i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
         {
             glBindTexture(type, GetGLHandle(context, tex->m_TextureIds[i]));
             CHECK_GL_ERROR;
@@ -4991,7 +4972,7 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
-                if (tex->m_Type == TEXTURE_TYPE_2D || tex->m_Type == TEXTURE_TYPE_IMAGE_2D)
+                if (tex->m_Base.m_Type == TEXTURE_TYPE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D)
                 {
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate)
@@ -5004,7 +4985,7 @@ static void LogFrameBufferError(GLenum status)
                     }
                     CHECK_GL_ERROR;
                 }
-                else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY)
+                else if (tex->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
                 {
                     assert(context->m_TextureArraySupport);
                     if (params.m_SubUpdate)
@@ -5017,7 +4998,7 @@ static void LogFrameBufferError(GLenum status)
                     }
                     CHECK_GL_ERROR;
                 }
-                else if (tex->m_Type == TEXTURE_TYPE_3D || tex->m_Type == TEXTURE_TYPE_IMAGE_3D)
+                else if (tex->m_Base.m_Type == TEXTURE_TYPE_3D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
                     assert(context->m_3DTextureSupport);
                     if (params.m_SubUpdate)
@@ -5030,9 +5011,9 @@ static void LogFrameBufferError(GLenum status)
                     }
                     CHECK_GL_ERROR;
                 }
-                else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+                else if (tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
                 {
-                    assert(tex->m_NumTextureIds == 1);
+                    assert(tex->m_Base.m_NumTextureIds == 1);
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate)
                     {
@@ -5100,7 +5081,7 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_RGBA_BC7:
                 if (params.m_DataSize > 0)
                 {
-                    if (tex->m_Type == TEXTURE_TYPE_2D)
+                    if (tex->m_Base.m_Type == TEXTURE_TYPE_2D)
                     {
                         if (params.m_SubUpdate)
                         {
@@ -5112,7 +5093,7 @@ static void LogFrameBufferError(GLenum status)
                         }
                         CHECK_GL_ERROR;
                     }
-                    else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY)
+                    else if (tex->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
                     {
                         if (params.m_SubUpdate)
                         {
@@ -5124,7 +5105,7 @@ static void LogFrameBufferError(GLenum status)
                         }
                         CHECK_GL_ERROR;
                     }
-                    else if (tex->m_Type == TEXTURE_TYPE_3D)
+                    else if (tex->m_Base.m_Type == TEXTURE_TYPE_3D)
                     {
                         if (params.m_SubUpdate)
                         {
@@ -5136,7 +5117,7 @@ static void LogFrameBufferError(GLenum status)
                         }
                         CHECK_GL_ERROR;
                     }
-                    else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+                    else if (tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
                     {
                         const char* p = (const char*) params.m_Data;
                         if (params.m_SubUpdate)
@@ -5206,69 +5187,13 @@ static void LogFrameBufferError(GLenum status)
 
         uint32_t size_total = 0;
         uint32_t size = tex->m_ResourceSize; // Size for mip 0
-        for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)
+        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
         {
             size_total += size;
             size >>= 2;
         }
-        size_total *= dmMath::Max((uint16_t) 1, tex->m_Depth);
+        size_total *= dmMath::Max((uint16_t) 1, tex->m_Base.m_Depth);
         return size_total + sizeof(OpenGLTexture);
-    }
-
-    static uint16_t OpenGLGetTextureWidth(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Width : 0;
-    }
-
-    static uint16_t OpenGLGetTextureHeight(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Height : 0;
-    }
-
-    static uint16_t OpenGLGetOriginalTextureWidth(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_OriginalWidth : 0;
-    }
-
-    static uint16_t OpenGLGetOriginalTextureHeight(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_OriginalHeight : 0;
-    }
-
-    static TextureType OpenGLGetTextureType(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Type : TEXTURE_TYPE_2D;
-    }
-
-    static uint16_t OpenGLGetTextureDepth(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Depth : 0;
-    }
-
-    static uint8_t OpenGLGetTextureMipmapCount(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_MipMapCount : 0;
     }
 
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)

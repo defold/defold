@@ -15,6 +15,8 @@
 #ifndef GRAPHICS_DEVICE_NULL
 #define GRAPHICS_DEVICE_NULL
 
+#include <cstddef>
+
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -33,24 +35,15 @@ namespace dmGraphics
         float         m_Anisotropy;
     };
 
-    struct Texture
+    struct NullTexture
     {
-        void*             m_Data;
-        TextureFormat     m_Format;
-        TextureType       m_Type;
-        TextureSampler    m_Sampler;
-        uint32_t          m_Width;
-        uint32_t          m_Height;
-        uint32_t          m_Depth;
-        uint32_t          m_OriginalWidth;
-        uint32_t          m_OriginalHeight;
-        uint16_t          m_NumTextureIds;
-        int32_t*          m_LastBoundUnit; // testing
-        volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        uint8_t           m_MipMapCount;
-        uint8_t           m_UsageHintFlags;
-        uint8_t           m_PageCount; // page count of texture array
+        Texture      m_Base;
+        void*            m_Data;
+        TextureSampler   m_Sampler;
+        int32_t*         m_LastBoundUnit; // testing
     };
+
+    static_assert(offsetof(NullTexture, m_Base) == 0, "NullTexture: m_Base must be the first member");
 
     struct VertexStreamBuffer
     {

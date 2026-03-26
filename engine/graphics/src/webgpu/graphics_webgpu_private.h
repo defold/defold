@@ -15,6 +15,7 @@
 #ifndef GRAPHICS_DEVICE_WEBGPU
 #define GRAPHICS_DEVICE_WEBGPU
 
+#include <cstddef>
 #include <vector>
 
 #include <dlib/hashtable.h>
@@ -107,8 +108,10 @@ namespace dmGraphics
         WebGPUTexture()
         {
             memset(this, 0, sizeof(*this));
-            m_Type = TEXTURE_TYPE_2D;
-            m_GraphicsFormat = TEXTURE_FORMAT_RGBA;
+            m_Base.m_Type = TEXTURE_TYPE_2D;
+            m_Base.m_Format = TEXTURE_FORMAT_RGBA;
+            m_Base.m_MipMapCount = 1;
+            m_Base.m_NumTextureIds = 1;
             m_Format = WGPUTextureFormat_Undefined;
             m_UsageFlags = WGPUTextureUsage_None;
             m_Texture = NULL;
@@ -116,28 +119,21 @@ namespace dmGraphics
             m_Sampler = NULL;
         }
 
-        WGPUTexture           m_Texture;
-        WGPUTextureView       m_TextureView;
-        WGPUSampler           m_Sampler;
-        TextureType           m_Type;
-        TextureFormat         m_GraphicsFormat;
-        WGPUTextureFormat     m_Format;
+        Texture                 m_Base;
+        WGPUTexture             m_Texture;
+        WGPUTextureView         m_TextureView;
+        WGPUSampler             m_Sampler;
+        WGPUTextureFormat       m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
-        WGPUTextureUsage      m_UsageFlags;
+        WGPUTextureUsage        m_UsageFlags;
 #else
-        WGPUTextureUsageFlags m_UsageFlags;
+        WGPUTextureUsageFlags   m_UsageFlags;
 #endif
-        uint32_t              m_Width;
-        uint32_t              m_Height;
-        uint32_t              m_OriginalWidth;
-        uint32_t              m_OriginalHeight;
-        uint16_t              m_Depth;
-        uint16_t              m_TextureSamplerIndex : 10;
-        uint16_t              m_MipMapCount : 5;
-        uint8_t               m_UsageHintFlags;
-        uint8_t               m_PageCount; // page count of texture array
-        uint8_t               m_Destroyed : 1;
+        uint16_t                m_TextureSamplerIndex;
+        uint8_t                 m_Destroyed : 1;
     };
+
+    static_assert(offsetof(WebGPUTexture, m_Base) == 0, "WebGPUTexture: m_Base must be the first member");
 
     struct WebGPURenderTarget
     {

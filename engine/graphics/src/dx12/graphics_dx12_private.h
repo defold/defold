@@ -15,6 +15,7 @@
 #ifndef DM_GRAPHICS_DX12_PRIVATE_H
 #define DM_GRAPHICS_DX12_PRIVATE_H
 
+#include <cstddef>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -57,22 +58,16 @@ namespace dmGraphics
 
     struct DX12Texture
     {
-        ID3D12Resource*       m_Resource;
-        D3D12_RESOURCE_DESC   m_ResourceDesc;
-        D3D12_RESOURCE_STATES m_ResourceStates[16];
+        Texture             m_Base;
+        ID3D12Resource*         m_Resource;
+        D3D12_RESOURCE_DESC     m_ResourceDesc;
+        D3D12_RESOURCE_STATES   m_ResourceStates[16];
 
-        TextureType         m_Type;
-        uint16_t            m_Width;
-        uint16_t            m_Height;
-        uint16_t            m_Depth;
-        uint16_t            m_LayerCount;
-        uint16_t            m_OriginalWidth;
-        uint16_t            m_OriginalHeight;
-        uint16_t            m_OriginalDepth;
-        uint16_t            m_MipMapCount         : 5;
-        uint16_t            m_TextureSamplerIndex : 10;
-        uint8_t             m_PageCount; // page count of texture array
+        uint16_t                m_LayerCount;
+        uint16_t                m_TextureSamplerIndex : 10;
     };
+
+    static_assert(offsetof(DX12Texture, m_Base) == 0, "DX12Texture: m_Base must be the first member");
 
     struct DX12TextureSampler
     {

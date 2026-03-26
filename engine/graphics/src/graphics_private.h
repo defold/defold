@@ -18,10 +18,31 @@
 #include <stdint.h>
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
+#include <dmsdk/dlib/atomic.h>
 #include "graphics.h"
 
 namespace dmGraphics
 {
+    // Shared texture metadata embedded as m_Base in each backend texture struct (OpenGLTexture, VulkanTexture, etc.).
+    // Each adapter keeps Texture as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<Texture>(container, handle) is valid alongside GetAssetFromContainer<BackendTexture>(...).
+    struct Texture
+    {
+        TextureType    m_Type;
+        TextureFormat  m_Format;
+        uint16_t       m_Width;
+        uint16_t       m_Height;
+        uint16_t       m_Depth;
+        uint16_t       m_OriginalWidth;
+        uint16_t       m_OriginalHeight;
+        uint16_t       m_OriginalDepth;
+        uint8_t        m_MipMapCount;
+        uint8_t        m_PageCount;
+        uint8_t        m_UsageHintFlags;
+        uint16_t       m_NumTextureIds;
+        int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
+    };
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
