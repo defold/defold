@@ -617,8 +617,7 @@
 
 (g/defnk produce-packed-page-images-generator
   [_node-id extrude-borders image-resources all-atlas-images inner-padding margin layout-data-generator max-page-size texture-page-count]
-  (let [flat-image-resources (coll/into-> image-resources []
-                                          (mapcat identity)
+  (let [flat-image-resources (coll/into-> (flatten image-resources) []
                                           (filter some?)
                                           (distinct))
         image-sha1s (pmap (fn [resource]
