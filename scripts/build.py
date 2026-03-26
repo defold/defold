@@ -1715,13 +1715,22 @@ class Configuration(object):
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
 
+    def _run_bob_copy_script(self):
+        """Run com.dynamo.cr.bob/scripts/copy.sh via bash.
+
+        Always use bash explicitly (no shell=True): on Windows, Python subprocess uses
+        cmd.exe for shell=True, which cannot run ./scripts/copy.sh. CI and local builds
+        use bash for win32 and other hosts."""
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        run.env_command(self._form_env(), ['bash', 'scripts/copy.sh'], cwd=bob_dir)
+
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
         sha1 = self._git_sha1()
-        run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
+        self._run_bob_copy_script()
         if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
@@ -1901,7 +1910,7 @@ class Configuration(object):
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
-        run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
+        self._run_bob_copy_script()
         if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
