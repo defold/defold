@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -982,6 +983,68 @@ namespace
         return false;
     }
 
+    static bool WaitForMatchingQuestion(dmMDNS::HMDNS mdns, dmSocket::Socket socket, const char* qname, uint16_t qtype, RawDnsPacket* packet, uint32_t timeout_ms)
+    {
+        const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
+        while (dmTime::GetMonotonicTime() < deadline)
+        {
+            if (mdns)
+                dmMDNS::Update(mdns);
+            if (TryReceiveMatchingQuestion(socket, qname, qtype, packet))
+                return true;
+            dmTime::Sleep(5 * 1000);
+        }
+        return false;
+    }
+
+    static void PumpMdnsPair(dmMDNS::HMDNS mdns_a, dmMDNS::HMDNS mdns_b, uint32_t iterations, uint32_t sleep_us)
+    {
+        for (uint32_t i = 0; i < iterations; ++i)
+        {
+            if (mdns_a)
+                dmMDNS::Update(mdns_a);
+            if (mdns_b)
+                dmMDNS::Update(mdns_b);
+            dmTime::Sleep(sleep_us);
+        }
+    }
+
+    static void CollectResponseTxtIds(dmMDNS::HMDNS mdns_a, dmMDNS::HMDNS mdns_b, dmSocket::Socket socket,
+                                      const char* full_service_name, uint32_t timeout_ms, std::set<std::string>* ids)
+    {
+        const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
+        std::vector<std::string> names;
+        names.push_back(full_service_name);
+
+        while (dmTime::GetMonotonicTime() < deadline)
+        {
+            if (mdns_a)
+                dmMDNS::Update(mdns_a);
+            if (mdns_b)
+                dmMDNS::Update(mdns_b);
+
+            RawDnsPacket packet;
+            bool received = false;
+            do
+            {
+                received = TryReceiveMatchingResponse(socket, names, &packet);
+                if (!received)
+                    break;
+
+                const RawDnsRecord* txt_record = FindRecord(packet, DNS_TYPE_TXT, full_service_name);
+                if (!txt_record)
+                    continue;
+
+                std::map<std::string, std::string>::const_iterator id_it = txt_record->m_Txt.find("id");
+                if (id_it != txt_record->m_Txt.end())
+                    ids->insert(id_it->second);
+            }
+            while (received);
+
+            dmTime::Sleep(5 * 1000);
+        }
+    }
+
     static bool SendQueryAndCapture(dmMDNS::HMDNS mdns, dmSocket::Socket socket, const char* qname, uint16_t qtype, const std::vector<std::string>& names, RawDnsPacket* packet, uint32_t timeout_ms)
     {
         std::vector<uint8_t> query;
@@ -1602,6 +1665,165 @@ TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
     ASSERT_NE((const RawDnsRecord*) 0, ptr_record);
     ASSERT_EQ(std::string(full_service_name), ptr_record->m_PtrName);
     ASSERT_TRUE(ptr_record->m_Ttl > 0);
+}
+
+// Verifies service probes claim the unique SRV/TXT/A records in the authority
+// section instead of probing the shared service-type PTR name.
+TEST(MDNS, AdvertiserBuildsAuthorityBackedProbe)
+{
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
+    ScopedMdnsTestResources cleanup;
+    MulticastCapture capture;
+    ASSERT_TRUE(SetupMulticastCapture(&capture));
+
+    dmMDNS::Params params;
+    params.m_AnnounceInterval = 60;
+    params.m_Ttl = 11;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns));
+
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_type[64];
+    char service_type_local[128];
+    char instance_name[128];
+    char host_name[128];
+    char full_service_name[256];
+    char host_local[256];
+    char service_id[128];
+    MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "probe-claim", nonce);
+    MakeUniqueName(host_name, sizeof(host_name), "probe-claim-host", nonce);
+    MakeUniqueName(service_id, sizeof(service_id), "probe-claim-id", nonce);
+    BuildLocalName(service_type, service_type_local, sizeof(service_type_local));
+    BuildFullServiceName(instance_name, service_type_local, full_service_name, sizeof(full_service_name));
+    BuildLocalName(host_name, host_local, sizeof(host_local));
+
+    dmMDNS::TxtEntry txt_entries[] =
+    {
+        {"id", service_id},
+        {"name", instance_name},
+        {"schema", "1"},
+    };
+
+    dmMDNS::ServiceDesc service;
+    memset(&service, 0, sizeof(service));
+    service.m_Id = service_id;
+    service.m_InstanceName = instance_name;
+    service.m_ServiceType = service_type;
+    service.m_Host = host_name;
+    service.m_Port = 20021;
+    service.m_Txt = txt_entries;
+    service.m_TxtCount = DM_ARRAY_SIZE(txt_entries);
+    service.m_Ttl = params.m_Ttl;
+
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup.m_Mdns, &service));
+    DrainSocket(capture.m_Socket, 50);
+
+    RawDnsPacket packet;
+    ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Mdns, capture.m_Socket, full_service_name, DNS_TYPE_ANY, &packet, 2000));
+    ASSERT_TRUE(!packet.m_IsResponse);
+    ASSERT_EQ(2U, packet.m_Questions.size());
+    ASSERT_EQ(3U, packet.m_Records.size());
+    ASSERT_TRUE(HasQuestion(packet, full_service_name, DNS_TYPE_ANY, DNS_CLASS_IN));
+    ASSERT_TRUE(HasQuestion(packet, host_local, DNS_TYPE_ANY, DNS_CLASS_IN));
+    ASSERT_EQ(0U, CountRecordType(packet, DNS_TYPE_PTR));
+    ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_TXT));
+    ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_SRV));
+    ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_A));
+
+    const RawDnsRecord* txt_record = FindRecord(packet, DNS_TYPE_TXT, full_service_name);
+    ASSERT_NE((const RawDnsRecord*) 0, txt_record);
+    ASSERT_EQ(DNS_CLASS_IN, txt_record->m_Class);
+    ASSERT_EQ(params.m_Ttl, txt_record->m_Ttl);
+    std::map<std::string, std::string>::const_iterator id_it = txt_record->m_Txt.find("id");
+    ASSERT_TRUE(id_it != txt_record->m_Txt.end());
+    ASSERT_EQ(std::string(service_id), id_it->second);
+
+    const RawDnsRecord* srv_record = FindRecord(packet, DNS_TYPE_SRV, full_service_name);
+    ASSERT_NE((const RawDnsRecord*) 0, srv_record);
+    ASSERT_EQ(DNS_CLASS_IN, srv_record->m_Class);
+    ASSERT_EQ(service.m_Port, srv_record->m_Port);
+    ASSERT_EQ(std::string(host_local), srv_record->m_Target);
+
+    const RawDnsRecord* a_record = FindRecord(packet, DNS_TYPE_A, host_local);
+    ASSERT_NE((const RawDnsRecord*) 0, a_record);
+    ASSERT_EQ(DNS_CLASS_IN, a_record->m_Class);
+    ASSERT_TRUE(a_record->m_HasAddress);
+}
+
+// Verifies simultaneous probes for the same service instance converge to a
+// single winning record set according to RFC 6762 tiebreaking rules.
+TEST(MDNS, SimultaneousServiceProbesPickSingleWinner)
+{
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+    SKIP();
+#endif
+
+    ScopedMdnsTestResources cleanup_a;
+    ScopedMdnsTestResources cleanup_b;
+    MulticastCapture capture;
+    ScopedSocketHandle sender;
+    ASSERT_TRUE(SetupMulticastCapture(&capture));
+    ASSERT_TRUE(SetupSendSocket(&sender));
+
+    dmMDNS::Params params;
+    params.m_AnnounceInterval = 60;
+    params.m_Ttl = 9;
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup_a.m_Mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup_b.m_Mdns));
+
+    const uint64_t nonce = dmTime::GetMonotonicTime();
+    char service_type[64];
+    char service_type_local[128];
+    char instance_name[128];
+    char full_service_name[256];
+    MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
+    MakeUniqueName(instance_name, sizeof(instance_name), "probe-race", nonce);
+    BuildLocalName(service_type, service_type_local, sizeof(service_type_local));
+    BuildFullServiceName(instance_name, service_type_local, full_service_name, sizeof(full_service_name));
+
+    dmMDNS::TxtEntry txt_entries_a[] =
+    {
+        {"id", "probe-race-a"},
+        {"schema", "1"},
+    };
+    dmMDNS::TxtEntry txt_entries_b[] =
+    {
+        {"id", "probe-race-b"},
+        {"schema", "1"},
+    };
+
+    dmMDNS::ServiceDesc service_a;
+    memset(&service_a, 0, sizeof(service_a));
+    service_a.m_Id = "probe-race-a";
+    service_a.m_InstanceName = instance_name;
+    service_a.m_ServiceType = service_type;
+    service_a.m_Port = 20031;
+    service_a.m_Txt = txt_entries_a;
+    service_a.m_TxtCount = DM_ARRAY_SIZE(txt_entries_a);
+    service_a.m_Ttl = params.m_Ttl;
+
+    dmMDNS::ServiceDesc service_b = service_a;
+    service_b.m_Id = "probe-race-b";
+    service_b.m_Txt = txt_entries_b;
+    service_b.m_TxtCount = DM_ARRAY_SIZE(txt_entries_b);
+
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup_a.m_Mdns, &service_a));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup_b.m_Mdns, &service_b));
+
+    PumpMdnsPair(cleanup_a.m_Mdns, cleanup_b.m_Mdns, 500, 5 * 1000);
+    DrainSocket(capture.m_Socket, 100);
+
+    std::vector<uint8_t> query;
+    BuildQueryPacket(full_service_name, DNS_TYPE_ANY, &query);
+    ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &query[0], (uint32_t) query.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
+
+    std::set<std::string> ids;
+    CollectResponseTxtIds(cleanup_a.m_Mdns, cleanup_b.m_Mdns, capture.m_Socket, full_service_name, 800, &ids);
+    ASSERT_EQ(1U, ids.size());
+    ASSERT_TRUE(ids.find("probe-race-b") != ids.end());
 }
 
 // Verifies the advertiser returns the expected PTR/SRV/TXT/A response set for valid queries.

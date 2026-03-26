@@ -42,10 +42,12 @@ namespace dmMDNS
     static const uint32_t MDNS_MAX_INTERFACES = 32;
     static const uint32_t MDNS_PROBE_INTERVAL_MS = 250;
     static const uint32_t MDNS_PROBE_COUNT = 3;
+    static const uint32_t MDNS_PROBE_RESTART_DELAY = 1;
     static const uint32_t MDNS_STARTUP_ANNOUNCEMENTS = 2;
     static const uint32_t MDNS_STARTUP_ANNOUNCE_INTERVAL = 1;
     static const uint64_t MDNS_BROWSER_INITIAL_QUERY_INTERVAL = 1 * 1000000ULL;
     static const uint64_t MDNS_BROWSER_MAX_QUERY_INTERVAL = 60 * 1000000ULL;
+    static const uint32_t MDNS_MAX_PROBE_RECORDS = 8;
 
     static const uint16_t DNS_TYPE_A = 1;
     static const uint16_t DNS_TYPE_PTR = 12;
@@ -203,6 +205,22 @@ namespace dmMDNS
         uint64_t m_NextQuery;
         uint64_t m_QueryInterval;
         uint64_t m_NextInterfaceRefresh;
+    };
+
+    struct ProbeRecord
+    {
+        ProbeRecord()
+        : m_Type(0)
+        , m_Class(0)
+        , m_RDataLength(0)
+        {
+            memset(m_RData, 0, sizeof(m_RData));
+        }
+
+        uint16_t m_Type;
+        uint16_t m_Class;
+        uint16_t m_RDataLength;
+        uint8_t  m_RData[1024];
     };
 
     static uint64_t GetNow()
@@ -678,6 +696,244 @@ namespace dmMDNS
                && WriteU16(buffer, buffer_size, offset, rdlength);
     }
 
+    // Writes prebuilt rdata bytes after a record header. Probe construction uses
+    // this so the same canonical rdata can be shared between comparisons and I/O.
+    static bool WriteRecordData(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
+                                const uint8_t* data, uint16_t data_length)
+    {
+        if (*offset + data_length > buffer_size)
+            return false;
+
+        memcpy(buffer + *offset, data, data_length);
+        *offset += data_length;
+        return true;
+    }
+
+    // Builds canonical SRV rdata once so probes, responses, and tiebreak
+    // comparisons all operate on the same byte representation.
+    static bool BuildSrvRData(const RegisteredService& service, uint8_t* data, uint32_t data_size, uint16_t* data_length)
+    {
+        uint32_t data_offset = 0;
+        if (!WriteU16(data, data_size, &data_offset, 0)   // priority
+            || !WriteU16(data, data_size, &data_offset, 0) // weight
+            || !WriteU16(data, data_size, &data_offset, service.m_Port)
+            || !WriteName(data, data_size, &data_offset, service.m_HostLocal))
+        {
+            return false;
+        }
+
+        *data_length = (uint16_t) data_offset;
+        return true;
+    }
+
+    // Encodes the TXT payload exactly as it will appear on the wire so probe
+    // authority claims and incoming tiebreak records can be compared bytewise.
+    static bool BuildTxtRData(const RegisteredService& service, uint8_t* data, uint32_t data_size, uint16_t* data_length)
+    {
+        uint32_t data_offset = 0;
+
+        for (uint32_t i = 0; i < service.m_TxtCount; ++i)
+        {
+            char kv[320];
+            dmSnPrintf(kv, sizeof(kv), "%s=%s", service.m_Txt[i].m_Key, service.m_Txt[i].m_Value);
+            uint32_t len = (uint32_t) strlen(kv);
+            if (len > 255 || data_offset + 1 + len > data_size)
+                return false;
+
+            data[data_offset++] = (uint8_t) len;
+            memcpy(data + data_offset, kv, len);
+            data_offset += len;
+        }
+
+        if (data_offset == 0)
+        {
+            if (data_offset + 1 > data_size)
+                return false;
+            data[data_offset++] = 0;
+        }
+
+        *data_length = (uint16_t) data_offset;
+        return true;
+    }
+
+    // Produces canonical IPv4 A-record rdata for host probing and announcements.
+    static bool BuildARData(const dmSocket::Address& host_address, uint8_t* data, uint32_t data_size, uint16_t* data_length)
+    {
+        if (data_size < 4 || host_address.m_family != dmSocket::DOMAIN_IPV4 || dmSocket::Empty(host_address))
+            return false;
+
+        dmSocket::Address address = host_address;
+        uint32_t ipv4 = *dmSocket::IPv4(&address);
+        data[0] = (uint8_t) ((ipv4 >> 0) & 0xff);
+        data[1] = (uint8_t) ((ipv4 >> 8) & 0xff);
+        data[2] = (uint8_t) ((ipv4 >> 16) & 0xff);
+        data[3] = (uint8_t) ((ipv4 >> 24) & 0xff);
+        *data_length = 4;
+        return true;
+    }
+
+    // Materializes one tentative unique record owned by a service. These
+    // records are the RFC 6762 "claims" used in the authority section.
+    static bool BuildProbeRecord(const RegisteredService& service, const char* name, uint16_t type, ProbeRecord* record)
+    {
+        memset(record, 0, sizeof(*record));
+        record->m_Type = type;
+        record->m_Class = DNS_CLASS_IN;
+
+        if (NameEquals(name, service.m_FullServiceName))
+        {
+            if (type == DNS_TYPE_TXT)
+                return BuildTxtRData(service, record->m_RData, sizeof(record->m_RData), &record->m_RDataLength);
+            if (type == DNS_TYPE_SRV)
+                return BuildSrvRData(service, record->m_RData, sizeof(record->m_RData), &record->m_RDataLength);
+            return false;
+        }
+
+        if (service.m_ProbeHost && NameEquals(name, service.m_HostLocal) && type == DNS_TYPE_A)
+        {
+            return BuildARData(service.m_HostAddress, record->m_RData, sizeof(record->m_RData), &record->m_RDataLength);
+        }
+
+        return false;
+    }
+
+    // DNS-SD service-instance ownership is defined by the TXT and SRV records
+    // at the full instance name. Build and return that sortable record set.
+    static uint32_t BuildServiceProbeRecordSet(const RegisteredService& service, ProbeRecord* records, uint32_t max_records)
+    {
+        uint32_t count = 0;
+        if (count < max_records && BuildProbeRecord(service, service.m_FullServiceName, DNS_TYPE_TXT, &records[count]))
+            ++count;
+        if (count < max_records && BuildProbeRecord(service, service.m_FullServiceName, DNS_TYPE_SRV, &records[count]))
+            ++count;
+        return count;
+    }
+
+    // Host ownership is currently represented by an IPv4 A record.
+    static uint32_t BuildHostProbeRecordSet(const RegisteredService& service, ProbeRecord* records, uint32_t max_records)
+    {
+        uint32_t count = 0;
+        if (service.m_ProbeHost && count < max_records && BuildProbeRecord(service, service.m_HostLocal, DNS_TYPE_A, &records[count]))
+            ++count;
+        return count;
+    }
+
+    // RFC 6762 compares tentative records lexicographically as unsigned bytes.
+    static int CompareProbeData(const uint8_t* a, uint16_t a_length, const uint8_t* b, uint16_t b_length)
+    {
+        const uint16_t min_length = a_length < b_length ? a_length : b_length;
+        for (uint16_t i = 0; i < min_length; ++i)
+        {
+            if (a[i] != b[i])
+                return a[i] < b[i] ? -1 : 1;
+        }
+
+        if (a_length != b_length)
+            return a_length < b_length ? -1 : 1;
+        return 0;
+    }
+
+    // Records sort by class, then type, then raw rdata bytes, matching the
+    // simultaneous-probe tiebreak order from RFC 6762 section 8.2.
+    static int CompareProbeRecord(const ProbeRecord& a, const ProbeRecord& b)
+    {
+        const uint16_t a_class = a.m_Class & ~DNS_CLASS_FLUSH;
+        const uint16_t b_class = b.m_Class & ~DNS_CLASS_FLUSH;
+        if (a_class != b_class)
+            return a_class < b_class ? -1 : 1;
+
+        if (a.m_Type != b.m_Type)
+            return a.m_Type < b.m_Type ? -1 : 1;
+
+        return CompareProbeData(a.m_RData, a.m_RDataLength, b.m_RData, b.m_RDataLength);
+    }
+
+    // Record sets must be sorted before pairwise tiebreak comparison so hosts
+    // reach the same outcome even when authority records arrive in any order.
+    static void SortProbeRecords(ProbeRecord* records, uint32_t count)
+    {
+        for (uint32_t i = 1; i < count; ++i)
+        {
+            ProbeRecord current = records[i];
+            uint32_t j = i;
+            while (j > 0 && CompareProbeRecord(current, records[j - 1]) < 0)
+            {
+                records[j] = records[j - 1];
+                --j;
+            }
+            records[j] = current;
+        }
+    }
+
+    // Compares two sorted claim sets and returns which side is later in the
+    // RFC-defined ordering. Identical sets are not treated as conflicts.
+    static int CompareProbeRecordSets(const ProbeRecord* a, uint32_t a_count, const ProbeRecord* b, uint32_t b_count)
+    {
+        const uint32_t min_count = a_count < b_count ? a_count : b_count;
+        for (uint32_t i = 0; i < min_count; ++i)
+        {
+            int cmp = CompareProbeRecord(a[i], b[i]);
+            if (cmp != 0)
+                return cmp;
+        }
+
+        if (a_count != b_count)
+            return a_count < b_count ? -1 : 1;
+        return 0;
+    }
+
+    // Decodes an incoming authority claim into the same canonical form used for
+    // locally generated records. SRV names are uncompressed before comparison.
+    static bool DecodeIncomingProbeRecord(const uint8_t* data, uint32_t size, uint16_t type, uint16_t klass,
+                                          uint32_t rdata_offset, uint16_t rdlength, ProbeRecord* record)
+    {
+        memset(record, 0, sizeof(*record));
+        record->m_Type = type;
+        record->m_Class = klass;
+
+        if (rdlength > sizeof(record->m_RData))
+            return false;
+
+        memcpy(record->m_RData, data + rdata_offset, rdlength);
+        record->m_RDataLength = rdlength;
+
+        if (type == DNS_TYPE_SRV)
+        {
+            uint32_t parse_offset = rdata_offset;
+            uint16_t priority = 0;
+            uint16_t weight = 0;
+            uint16_t port = 0;
+            char target[256];
+            uint32_t canonical_offset = 0;
+            if (!ReadU16(data, size, &parse_offset, &priority)
+                || !ReadU16(data, size, &parse_offset, &weight)
+                || !ReadU16(data, size, &parse_offset, &port)
+                || !ReadName(data, size, &parse_offset, target, sizeof(target))
+                || !WriteU16(record->m_RData, sizeof(record->m_RData), &canonical_offset, priority)
+                || !WriteU16(record->m_RData, sizeof(record->m_RData), &canonical_offset, weight)
+                || !WriteU16(record->m_RData, sizeof(record->m_RData), &canonical_offset, port)
+                || !WriteName(record->m_RData, sizeof(record->m_RData), &canonical_offset, target))
+            {
+                return false;
+            }
+            record->m_RDataLength = (uint16_t) canonical_offset;
+        }
+
+        return true;
+    }
+
+    // Writes a canonical record header plus already-encoded rdata. Probes and
+    // responses both use this so SRV/TXT bytes are built in one place.
+    static bool WriteCanonicalRecord(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
+                                     const char* name, uint16_t type, uint16_t klass, uint32_t ttl,
+                                     const uint8_t* rdata, uint16_t rdlength)
+    {
+        if (!WriteRecordHeader(buffer, buffer_size, offset, name, type, klass, ttl, rdlength))
+            return false;
+
+        return WriteRecordData(buffer, buffer_size, offset, rdata, rdlength);
+    }
+
     static bool WriteRecordPtr(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
                                const char* service_type_local, const char* full_service_name, uint32_t ttl)
     {
@@ -702,109 +958,21 @@ namespace dmMDNS
         return true;
     }
 
-    static bool WriteRecordSrv(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
-                               const RegisteredService& service, uint32_t ttl)
-    {
-        uint8_t data[512];
-        uint32_t data_offset = 0;
-
-        if (!WriteU16(data, sizeof(data), &data_offset, 0)   // priority
-            || !WriteU16(data, sizeof(data), &data_offset, 0) // weight
-            || !WriteU16(data, sizeof(data), &data_offset, service.m_Port)
-            || !WriteName(data, sizeof(data), &data_offset, service.m_HostLocal))
-        {
-            return false;
-        }
-
-        if (!WriteRecordHeader(buffer, buffer_size, offset,
-                               service.m_FullServiceName,
-                               DNS_TYPE_SRV,
-                               (uint16_t) (DNS_CLASS_IN | DNS_CLASS_FLUSH),
-                               ttl,
-                               (uint16_t) data_offset))
-        {
-            return false;
-        }
-
-        if (*offset + data_offset > buffer_size)
-            return false;
-
-        memcpy(buffer + *offset, data, data_offset);
-        *offset += data_offset;
-        return true;
-    }
-
-    static bool WriteRecordTxt(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
-                               const RegisteredService& service, uint32_t ttl)
-    {
-        uint8_t data[1024];
-        uint32_t data_offset = 0;
-
-        for (uint32_t i = 0; i < service.m_TxtCount; ++i)
-        {
-            char kv[320];
-            dmSnPrintf(kv, sizeof(kv), "%s=%s", service.m_Txt[i].m_Key, service.m_Txt[i].m_Value);
-            uint32_t len = (uint32_t) strlen(kv);
-            if (len > 255 || data_offset + 1 + len > sizeof(data))
-                return false;
-
-            data[data_offset++] = (uint8_t) len;
-            memcpy(data + data_offset, kv, len);
-            data_offset += len;
-        }
-
-        if (data_offset == 0)
-        {
-            if (data_offset + 1 > sizeof(data))
-                return false;
-            data[data_offset++] = 0;
-        }
-
-        if (!WriteRecordHeader(buffer, buffer_size, offset,
-                               service.m_FullServiceName,
-                               DNS_TYPE_TXT,
-                               (uint16_t) (DNS_CLASS_IN | DNS_CLASS_FLUSH),
-                               ttl,
-                               (uint16_t) data_offset))
-        {
-            return false;
-        }
-
-        if (*offset + data_offset > buffer_size)
-            return false;
-
-        memcpy(buffer + *offset, data, data_offset);
-        *offset += data_offset;
-        return true;
-    }
-
     static bool WriteRecordA(uint8_t* buffer, uint32_t buffer_size, uint32_t* offset,
                              const RegisteredService& service, const dmSocket::Address& host_address, uint32_t ttl)
     {
-        if (host_address.m_family != dmSocket::DOMAIN_IPV4 || dmSocket::Empty(host_address))
+        uint8_t data[4];
+        uint16_t data_length = 0;
+        if (!BuildARData(host_address, data, sizeof(data), &data_length))
             return false;
 
-        if (!WriteRecordHeader(buffer, buffer_size, offset,
-                               service.m_HostLocal,
-                               DNS_TYPE_A,
-                               (uint16_t) (DNS_CLASS_IN | DNS_CLASS_FLUSH),
-                               ttl,
-                               4))
-        {
-            return false;
-        }
-
-        dmSocket::Address address = host_address;
-        uint32_t ipv4 = *dmSocket::IPv4(&address);
-        if (*offset + 4 > buffer_size)
-            return false;
-
-        buffer[*offset + 0] = (uint8_t) ((ipv4 >> 0) & 0xff);
-        buffer[*offset + 1] = (uint8_t) ((ipv4 >> 8) & 0xff);
-        buffer[*offset + 2] = (uint8_t) ((ipv4 >> 16) & 0xff);
-        buffer[*offset + 3] = (uint8_t) ((ipv4 >> 24) & 0xff);
-        *offset += 4;
-        return true;
+        return WriteCanonicalRecord(buffer, buffer_size, offset,
+                                    service.m_HostLocal,
+                                    DNS_TYPE_A,
+                                    (uint16_t) (DNS_CLASS_IN | DNS_CLASS_FLUSH),
+                                    ttl,
+                                    data,
+                                    data_length);
     }
 
     static uint32_t BuildResponseMessage(const RegisteredService& service, const dmSocket::Address* host_address, uint32_t ttl, uint8_t* buffer, uint32_t buffer_size)
@@ -813,6 +981,8 @@ namespace dmMDNS
         // PTR(<service type>) -> <instance>, then SRV/TXT/A for that instance.
         uint32_t offset = 0;
         uint16_t answer_count = 0;
+        ProbeRecord service_records[2];
+        const uint32_t service_record_count = BuildServiceProbeRecordSet(service, service_records, DM_ARRAY_SIZE(service_records));
 
         if (!WriteU16(buffer, buffer_size, &offset, 0)                  // id
             || !WriteU16(buffer, buffer_size, &offset, DNS_FLAG_RESPONSE)
@@ -827,11 +997,19 @@ namespace dmMDNS
         if (WriteRecordPtr(buffer, buffer_size, &offset, service.m_ServiceTypeLocal, service.m_FullServiceName, ttl))
             ++answer_count;
 
-        if (WriteRecordSrv(buffer, buffer_size, &offset, service, ttl))
-            ++answer_count;
-
-        if (WriteRecordTxt(buffer, buffer_size, &offset, service, ttl))
-            ++answer_count;
+        for (uint32_t i = 0; i < service_record_count; ++i)
+        {
+            if (WriteCanonicalRecord(buffer, buffer_size, &offset,
+                                     service.m_FullServiceName,
+                                     service_records[i].m_Type,
+                                     (uint16_t) (service_records[i].m_Class | DNS_CLASS_FLUSH),
+                                     ttl,
+                                     service_records[i].m_RData,
+                                     service_records[i].m_RDataLength))
+            {
+                ++answer_count;
+            }
+        }
 
         const dmSocket::Address& service_address = host_address ? *host_address : service.m_HostAddress;
         if (WriteRecordA(buffer, buffer_size, &offset, service, service_address, ttl))
@@ -911,33 +1089,85 @@ namespace dmMDNS
     static uint32_t BuildProbeMessage(const RegisteredService& service, uint8_t* buffer, uint32_t buffer_size)
     {
         uint32_t offset = 0;
-        // Probe the service-type PTR to verify the instance name is unique.
-        // Probe the host A record only when the service owns a custom host name;
-        // the default machine .local host is already advertised independently and
-        // must not be treated as a service-level naming conflict.
-        const uint16_t question_count = service.m_ProbeHost ? 2 : 1;
+        ProbeRecord service_records[2];
+        ProbeRecord host_records[1];
+        const uint32_t service_record_count = BuildServiceProbeRecordSet(service, service_records, DM_ARRAY_SIZE(service_records));
+        const uint32_t host_record_count = BuildHostProbeRecordSet(service, host_records, DM_ARRAY_SIZE(host_records));
+
+        // RFC 6762 probing is done against the unique RRsets we intend to own.
+        // For DNS-SD that means the SRV/TXT pair at the full service instance
+        // name, not the shared PTR at the service type. Authority records carry
+        // the tentative rdata so simultaneous probes can be tie-broken.
+        const uint16_t question_count = host_record_count > 0 ? 2 : 1;
+        const uint16_t authority_count = (uint16_t) (service_record_count + host_record_count);
+        if (service_record_count != 2)
+            return 0;
+
         if (!WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteU16(buffer, buffer_size, &offset, 0)
             || !WriteU16(buffer, buffer_size, &offset, question_count)
             || !WriteU16(buffer, buffer_size, &offset, 0)
+            || !WriteU16(buffer, buffer_size, &offset, authority_count)
             || !WriteU16(buffer, buffer_size, &offset, 0)
-            || !WriteU16(buffer, buffer_size, &offset, 0)
-            || !WriteName(buffer, buffer_size, &offset, service.m_ServiceTypeLocal)
-            || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_PTR)
+            || !WriteName(buffer, buffer_size, &offset, service.m_FullServiceName)
+            || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_ANY)
             || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN))
         {
             return 0;
         }
 
-        if (service.m_ProbeHost
+        if (host_record_count > 0
             && (!WriteName(buffer, buffer_size, &offset, service.m_HostLocal)
-                || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_A)
+                || !WriteU16(buffer, buffer_size, &offset, DNS_TYPE_ANY)
                 || !WriteU16(buffer, buffer_size, &offset, DNS_CLASS_IN)))
         {
             return 0;
         }
 
+        for (uint32_t i = 0; i < service_record_count; ++i)
+        {
+            if (!WriteCanonicalRecord(buffer, buffer_size, &offset,
+                                      service.m_FullServiceName,
+                                      service_records[i].m_Type,
+                                      service_records[i].m_Class,
+                                      service.m_Ttl,
+                                      service_records[i].m_RData,
+                                      service_records[i].m_RDataLength))
+                return 0;
+        }
+
+        for (uint32_t i = 0; i < host_record_count; ++i)
+        {
+            if (!WriteCanonicalRecord(buffer, buffer_size, &offset,
+                                      service.m_HostLocal,
+                                      host_records[i].m_Type,
+                                      host_records[i].m_Class,
+                                      service.m_Ttl,
+                                      host_records[i].m_RData,
+                                      host_records[i].m_RDataLength))
+                return 0;
+        }
+
         return offset;
+    }
+
+    // Centralizes probe-state transitions so conflict and tiebreak paths reset
+    // counters consistently before either retrying or stopping.
+    static void ResetProbeState(RegisteredService* service, uint64_t next_probe, uint8_t state)
+    {
+        service->m_State = state;
+        service->m_ProbeCount = 0;
+        service->m_StartupAnnounceCount = 0;
+        service->m_NextProbe = next_probe;
+        service->m_NextAnnounce = 0;
+    }
+
+    static void DeferProbeAfterTiebreak(RegisteredService* service)
+    {
+        // When we lose a simultaneous probe tiebreak, wait one second before
+        // probing again. This avoids treating stale looped-back probe packets
+        // as permanent conflicts while still allowing the real winner to defend.
+        ResetProbeState(service, GetNow() + SecondsToMicroSeconds(MDNS_PROBE_RESTART_DELAY), SERVICE_STATE_PROBING);
     }
 
     static void MarkServiceConflict(RegisteredService* service)
@@ -946,11 +1176,7 @@ namespace dmMDNS
         {
             dmLogWarning("mDNS name conflict detected for service '%s' (%s)", service->m_Id, service->m_FullServiceName);
         }
-        service->m_State = SERVICE_STATE_CONFLICT;
-        service->m_ProbeCount = 0;
-        service->m_StartupAnnounceCount = 0;
-        service->m_NextProbe = 0;
-        service->m_NextAnnounce = 0;
+        ResetProbeState(service, 0, SERVICE_STATE_CONFLICT);
     }
 
     static void HandleAnnounceResponse(MDNS* mdns, const RegisteredService& service, const dmSocket::Address* interface_address, uint32_t ttl)
@@ -1082,6 +1308,67 @@ namespace dmMDNS
         return true;
     }
 
+    // Extracts and sorts only the authority records that answer one probe
+    // question. This gives the exact claim set needed for pairwise tiebreaking.
+    static bool CollectProbeClaims(const uint8_t* data, uint32_t size, uint32_t section_offset, uint16_t record_count,
+                                   const char* target_name, ProbeRecord* records, uint32_t max_records, uint32_t* out_count)
+    {
+        *out_count = 0;
+
+        uint32_t offset = section_offset;
+        for (uint16_t i = 0; i < record_count && offset < size; ++i)
+        {
+            char name[256];
+            uint16_t type = 0;
+            uint16_t klass = 0;
+            uint32_t ttl = 0;
+            uint16_t rdlength = 0;
+            if (!ReadName(data, size, &offset, name, sizeof(name))
+                || !ReadU16(data, size, &offset, &type)
+                || !ReadU16(data, size, &offset, &klass)
+                || !ReadU32(data, size, &offset, &ttl)
+                || !ReadU16(data, size, &offset, &rdlength))
+            {
+                return false;
+            }
+
+            (void) ttl;
+
+            if (offset + rdlength > size)
+                return false;
+
+            const uint32_t rdata_offset = offset;
+            offset += rdlength;
+
+            if (!NameEquals(name, target_name) || (klass & ~DNS_CLASS_FLUSH) != DNS_CLASS_IN)
+                continue;
+
+            if (*out_count >= max_records || !DecodeIncomingProbeRecord(data, size, type, klass, rdata_offset, rdlength, &records[*out_count]))
+                return false;
+
+            ++(*out_count);
+        }
+
+        SortProbeRecords(records, *out_count);
+        return true;
+    }
+
+    // Returns true when the remote authority claims outrank our tentative data,
+    // meaning we lost the simultaneous-probe tiebreak for this unique name.
+    static bool HandleSimultaneousProbeClaim(const uint8_t* data, uint32_t size, uint32_t section_offset, uint16_t record_count,
+                                             const char* target_name, const ProbeRecord* local_records, uint32_t local_count)
+    {
+        ProbeRecord incoming[MDNS_MAX_PROBE_RECORDS];
+        uint32_t incoming_count = 0;
+        if (!CollectProbeClaims(data, size, section_offset, record_count, target_name, incoming, MDNS_MAX_PROBE_RECORDS, &incoming_count))
+            return false;
+
+        if (incoming_count == 0)
+            return false;
+
+        return CompareProbeRecordSets(local_records, local_count, incoming, incoming_count) < 0;
+    }
+
     static void HandleIncomingResponseRecords(MDNS* mdns, const uint8_t* data, uint32_t size, uint32_t* offset, uint32_t record_count)
     {
         for (uint32_t i = 0; i < record_count && *offset < size; ++i)
@@ -1119,40 +1406,21 @@ namespace dmMDNS
                 if (service.m_State != SERVICE_STATE_PROBING)
                     continue;
 
-                if (type == DNS_TYPE_PTR && NameEquals(name, service.m_ServiceTypeLocal))
+                if (NameEquals(name, service.m_FullServiceName)
+                    || (service.m_ProbeHost && NameEquals(name, service.m_HostLocal)))
                 {
-                    uint32_t ptr_offset = rdata_offset;
-                    char full_service_name[256];
-                    if (ReadName(data, size, &ptr_offset, full_service_name, sizeof(full_service_name))
-                        && NameEquals(full_service_name, service.m_FullServiceName))
+                    ProbeRecord expected;
+                    ProbeRecord actual;
+                    if (!BuildProbeRecord(service, name, type, &expected))
                     {
                         MarkServiceConflict(&service);
+                        continue;
                     }
-                    continue;
-                }
 
-                if (service.m_ProbeHost && type == DNS_TYPE_A && rdlength == 4 && NameEquals(name, service.m_HostLocal))
-                {
-                    dmSocket::Address address = service.m_HostAddress;
-                    if (address.m_family != dmSocket::DOMAIN_IPV4 || memcmp(dmSocket::IPv4(&address), data + rdata_offset, 4) != 0)
-                    {
-                        MarkServiceConflict(&service);
-                    }
-                    continue;
-                }
+                    if (!DecodeIncomingProbeRecord(data, size, type, klass, rdata_offset, rdlength, &actual))
+                        continue;
 
-                if (type == DNS_TYPE_SRV && NameEquals(name, service.m_FullServiceName))
-                {
-                    uint32_t srv_offset = rdata_offset;
-                    uint16_t priority = 0;
-                    uint16_t weight = 0;
-                    uint16_t port = 0;
-                    char host[256];
-                    if (ReadU16(data, size, &srv_offset, &priority)
-                        && ReadU16(data, size, &srv_offset, &weight)
-                        && ReadU16(data, size, &srv_offset, &port)
-                        && ReadName(data, size, &srv_offset, host, sizeof(host))
-                        && (port != service.m_Port || !NameEquals(host, service.m_HostLocal)))
+                    if (CompareProbeRecord(actual, expected) != 0)
                     {
                         MarkServiceConflict(&service);
                     }
@@ -1284,12 +1552,20 @@ namespace dmMDNS
             }
 
             dmArray<uint8_t> should_announce;
+            dmArray<uint8_t> probe_service_questions;
+            dmArray<uint8_t> probe_host_questions;
             bool should_respond = false;
             should_announce.SetCapacity(mdns->m_Services.Size());
             should_announce.SetSize(mdns->m_Services.Size());
+            probe_service_questions.SetCapacity(mdns->m_Services.Size());
+            probe_service_questions.SetSize(mdns->m_Services.Size());
+            probe_host_questions.SetCapacity(mdns->m_Services.Size());
+            probe_host_questions.SetSize(mdns->m_Services.Size());
             for (uint32_t s = 0; s < should_announce.Size(); ++s)
             {
                 should_announce[s] = 0;
+                probe_service_questions[s] = 0;
+                probe_host_questions[s] = 0;
             }
 
             for (uint16_t i = 0; i < qdcount; ++i)
@@ -1303,6 +1579,8 @@ namespace dmMDNS
                     || !ReadU16(mdns->m_Buffer, size, &offset, &qclass))
                 {
                     should_announce.SetSize(0);
+                    probe_service_questions.SetSize(0);
+                    probe_host_questions.SetSize(0);
                     should_respond = false;
                     break;
                 }
@@ -1316,10 +1594,54 @@ namespace dmMDNS
                         should_announce[s] = 1;
                         should_respond = true;
                     }
+
+                    RegisteredService& service = mdns->m_Services[s];
+                    if (service.m_State != SERVICE_STATE_PROBING)
+                        continue;
+
+                    if (qtype == DNS_TYPE_ANY && NameEquals(qname, service.m_FullServiceName))
+                        probe_service_questions[s] = 1;
+                    if (service.m_ProbeHost && qtype == DNS_TYPE_ANY && NameEquals(qname, service.m_HostLocal))
+                        probe_host_questions[s] = 1;
                 }
             }
 
             SuppressKnownAnswers(mdns, mdns->m_Buffer, size, &offset, ancount, &should_announce);
+            if (nscount > 0)
+            {
+                // Simultaneous probe tiebreaking is driven by the tentative
+                // records in the query authority section. Compare those claims
+                // against our own proposed rdata before deciding whether to probe.
+                const uint32_t authority_offset = offset;
+                for (uint32_t s = 0; s < mdns->m_Services.Size(); ++s)
+                {
+                    RegisteredService& service = mdns->m_Services[s];
+                    if (service.m_State != SERVICE_STATE_PROBING)
+                        continue;
+
+                    bool lost_tiebreak = false;
+                    if (probe_service_questions[s])
+                    {
+                        ProbeRecord local_records[2];
+                        uint32_t local_count = BuildServiceProbeRecordSet(service, local_records, 2);
+                        lost_tiebreak = local_count > 0
+                                        && HandleSimultaneousProbeClaim(mdns->m_Buffer, size, authority_offset, nscount,
+                                                                        service.m_FullServiceName, local_records, local_count);
+                    }
+
+                    if (!lost_tiebreak && probe_host_questions[s])
+                    {
+                        ProbeRecord local_records[1];
+                        uint32_t local_count = BuildHostProbeRecordSet(service, local_records, 1);
+                        lost_tiebreak = local_count > 0
+                                        && HandleSimultaneousProbeClaim(mdns->m_Buffer, size, authority_offset, nscount,
+                                                                        service.m_HostLocal, local_records, local_count);
+                    }
+
+                    if (lost_tiebreak)
+                        DeferProbeAfterTiebreak(&service);
+                }
+            }
             for (uint32_t s = 0; s < should_announce.Size(); ++s)
             {
                 if (should_announce[s])
