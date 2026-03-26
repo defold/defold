@@ -14,12 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +39,8 @@ import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.rig.proto.Rig;
+
+import static org.junit.Assert.*;
 
 public class ModelUtilTest {
 
@@ -209,14 +205,14 @@ public class ModelUtilTest {
         }
     }
 
-    Modelimporter.Scene loadSceneNoException(String path) throws IOException {
+    Modelimporter.Scene loadScene(String path) throws IOException {
         File cwd = new File(".");
         return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
     }
 
-   Modelimporter.Scene loadScene(String path) {
+   Modelimporter.Scene loadSceneNoException(String path) {
         try {
-            return loadSceneNoException(path);
+            return loadScene(path);
         } catch (IOException e) {
             e.printStackTrace();
             return null;
@@ -227,7 +223,7 @@ public class ModelUtilTest {
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        Modelimporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         if (scene != null)
         {
             ModelUtil.loadModels(scene, meshSetBuilder);
@@ -241,14 +237,14 @@ public class ModelUtilTest {
 
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder) {
-        Modelimporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadModels(scene, meshSetBuilder);
         return scene;
     }
 
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        Modelimporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadSkeleton(scene, skeletonBuilder);
         return scene;
     }
@@ -488,7 +484,7 @@ public class ModelUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         Modelimporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
-        assertTrue(scene == null);
+        assertNull(scene);
     }
 
     /**
@@ -498,7 +494,7 @@ public class ModelUtilTest {
     @Test
     public void testMultipleJointWeightAttributeSetsRejected() {
         try {
-            loadSceneNoException("multiple_joint_weight_sets.gltf");
+            loadScene("multiple_joint_weight_sets.gltf");
         } catch (IOException e) {
             assertTrue(e.getMessage().contains("multiple joint/weight attribute sets"));
         }
@@ -532,6 +528,6 @@ public class ModelUtilTest {
         }
 
         // Validate we have a reasonable number of models (not duplicated)
-        assertTrue("Should have at least 1 model", models.size() >= 1);
+        assertFalse("Should have at least 1 model", models.isEmpty());
     }
 }

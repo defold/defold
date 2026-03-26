@@ -53,6 +53,10 @@ namespace dmModelImporter
 
 static char g_ModelLoadError[512];
 
+Options::Options()
+{
+}
+
 void ClearLoadError()
 {
     g_ModelLoadError[0] = 0;
@@ -69,10 +73,6 @@ void SetLoadError(const char* message)
 const char* GetLoadError()
 {
     return g_ModelLoadError[0] ? g_ModelLoadError : 0;
-}
-
-Options::Options()
-{
 }
 
 static void DestroySampler(Sampler* sampler)
@@ -323,10 +323,13 @@ Scene* LoadFromPath(Options* options, const char* path)
     if (!dmModelImporter::LoadFinalize(scene))
     {
         const char* err = GetLoadError();
-        if (err)
-            dmLogError("%s", err);
+
         DestroyScene(scene);
         printf("Failed to load '%s'\n", path);
+
+        if (err)
+            dmLogError("%s", err);
+
         return 0;
     }
 

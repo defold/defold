@@ -75,11 +75,12 @@ public class ModelImporterJni {
 
     private static native String getLoadErrorInternal();
 
-    /** Last native model load error; meaningful after {@link #LoadFromBufferInternal} returns null. */
+    // Last native model load error, meaningful after LoadFromBufferInternal returns null.
     public static String getLoadError() {
         String s = getLoadErrorInternal();
         return s != null ? s : "";
     }
+
     //public static native int AddressOf(Object o);
     public static native void TestException(String message);
 
