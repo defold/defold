@@ -541,6 +541,26 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 
 } // namespace
 
+static void ThrowModelLoadException(JNIEnv* env, const char* message)
+{
+    const char* msg = (message && message[0]) ? message : "Failed to load model";
+    jclass jcls = env->FindClass(JAVA_PACKAGE_NAME "/ModelImporterJni$ModelException");
+    if (!jcls)
+    {
+        env->ExceptionClear();
+        dmLogError("Failed to find ModelImporterJni.ModelException class");
+        return;
+    }
+    env->ThrowNew(jcls, msg);
+    env->DeleteLocalRef(jcls);
+}
+
+static void ThrowModelLoadExceptionFromScene(JNIEnv* env, dmModelImporter::Scene* scene, const char* fallback_message)
+{
+    const char* err = (scene && scene->m_LoadError && scene->m_LoadError[0]) ? scene->m_LoadError : fallback_message;
+    ThrowModelLoadException(env, err);
+}
+
 static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("CreateJavaScene: env = %p\n", env);
@@ -551,10 +571,10 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     const char* suffix = strrchr(path, '.');
     if (!suffix) {
         dmLogError("No suffix found in path: %s", path);
+        ThrowModelLoadException(env, "No file suffix in path");
         return 0;
-    } else {
-        suffix++; // skip the '.'
     }
+    suffix++; // skip the '.'
 
     jsize file_size = env->GetArrayLength(array);
     jbyte* file_data = env->GetByteArrayElements(array, 0);
@@ -565,6 +585,8 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     if (!scene)
     {
         dmLogError("Failed to load %s", path);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+        ThrowModelLoadException(env, "Failed to load model");
         return 0;
     }
 
@@ -587,6 +609,9 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
                 dmLogError("JNI ExceptionCheck failed:");
                 env->ExceptionDescribe();
                 env->ExceptionClear();
+                dmModelImporter::DestroyScene(scene);
+                env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+                ThrowModelLoadException(env, "Exception while resolving external buffers");
                 return 0;
             }
             if (bytes)
@@ -616,6 +641,7 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     {
         if (!dmModelImporter::LoadFinalize(scene))
         {
+            ThrowModelLoadExceptionFromScene(env, scene, "Failed to finalize model load");
             dmModelImporter::DestroyScene(scene);
             env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
             return 0;
@@ -623,16 +649,20 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
         dmModelImporter::Validate(scene);
     }
 
+    if (dmModelImporter::NeedsResolve(scene))
+    {
+        dmModelImporter::DestroyScene(scene);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+        ThrowModelLoadException(env, "Missing external buffer data for glTF");
+        return 0;
+    }
+
     if (dmLogGetLevel() == LOG_SEVERITY_DEBUG) // verbose mode
     {
         dmModelImporter::DebugScene(scene);
     }
 
-    jobject jscene = 0;
-    if (!dmModelImporter::NeedsResolve(scene))
-    {
-        jscene = dmModelImporter::CreateJavaScene(env, scene);
-    }
+    jobject jscene = dmModelImporter::CreateJavaScene(env, scene);
 
     dmModelImporter::DestroyScene(scene);
 
@@ -651,23 +681,6 @@ JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* e
         jscene = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jscene;
-}
-
-static jstring GetLoadErrorInternal(JNIEnv* env, jclass /*cls*/)
-{
-    const char* msg = dmModelImporter::GetLoadError();
-    if (!msg || !msg[0])
-        return 0;
-    return env->NewStringUTF(msg);
-}
-
-JNIEXPORT jstring JNICALL Java_ModelImporterJni_getLoadErrorInternal(JNIEnv* env, jclass cls)
-{
-    jstring out;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-        out = GetLoadErrorInternal(env, cls);
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return out;
 }
 
 // JNIEXPORT jint JNICALL Java_ModelImporterJni_AddressOf(JNIEnv* env, jclass cls, jobject object)
@@ -705,7 +718,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
         {(char*)"LoadFromBufferInternal", (char*)"(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_ModelImporterJni_LoadFromBufferInternal)},
-        {(char*)"getLoadErrorInternal", (char*)"()Ljava/lang/String;", reinterpret_cast<void*>(Java_ModelImporterJni_getLoadErrorInternal)},
         //{"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporterJni_AddressOf)},
         {(char*)"TestException", (char*)"(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_ModelImporterJni_TestException)},
     };

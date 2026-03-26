@@ -796,7 +796,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                     "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. JOINTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex, to use this content you need to fix the issues in an external tool.",
                     model->m_Name, i, (unsigned)attr->index);
                 dmLogError("%s", buf);
-                SetLoadError(buf);
+                SetLoadError(scene, buf);
                 scene->m_HasFatalLoadError = true;
                 return;
             }
@@ -807,7 +807,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                     "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. WEIGHTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex, to use this content you need to fix the issues in an external tool.",
                     model->m_Name, i, (unsigned)attr->index);
                 dmLogError("%s", buf);
-                SetLoadError(buf);
+                SetLoadError(scene, buf);
                 scene->m_HasFatalLoadError = true;
                 return;
             }
@@ -1770,7 +1770,6 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
-        SetLoadError("Failed to parse GLTF/GLB file");
         return 0;
     }
 
@@ -1781,7 +1780,6 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
-        SetLoadError("Failed to load GLTF external buffers");
         return 0;
     }
 

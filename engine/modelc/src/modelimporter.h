@@ -343,6 +343,9 @@ namespace dmModelImporter
 
         // GLTF: set when the file uses unsupported mesh features (e.g. multi-set skinning)
         bool                m_HasFatalLoadError;
+
+        // Last load error for this scene (heap-allocated; freed in DestroyScene).
+        char*               m_LoadError;
     };
 
     struct Options
@@ -382,9 +385,7 @@ namespace dmModelImporter
     // Switches between warning and debug level
     extern "C" DM_DLLEXPORT void EnableDebugLogging(bool enable);
 
-    void ClearLoadError();
-    void SetLoadError(const char* message);
-    const char* GetLoadError();
+    void SetLoadError(Scene* scene, const char* message);
 
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);

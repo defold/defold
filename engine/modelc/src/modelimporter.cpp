@@ -16,7 +16,7 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
-#include <stdlib.h> // getenv
+#include <stdlib.h> // getenv, free, strdup
 #include <string.h>
 
 
@@ -51,28 +51,20 @@ struct ModelImporterInitializer
 namespace dmModelImporter
 {
 
-static char g_ModelLoadError[512];
-
 Options::Options()
 {
 }
 
-void ClearLoadError()
+void SetLoadError(Scene* scene, const char* message)
 {
-    g_ModelLoadError[0] = 0;
-}
-
-void SetLoadError(const char* message)
-{
-    if (message)
-        dmStrlCpy(g_ModelLoadError, message, sizeof(g_ModelLoadError));
-    else
-        g_ModelLoadError[0] = 0;
-}
-
-const char* GetLoadError()
-{
-    return g_ModelLoadError[0] ? g_ModelLoadError : 0;
+    if (!scene)
+        return;
+    free(scene->m_LoadError);
+    scene->m_LoadError = 0;
+    if (message && message[0])
+    {
+        scene->m_LoadError = strdup(message);
+    }
 }
 
 static void DestroySampler(Sampler* sampler)
@@ -200,6 +192,9 @@ void DestroyScene(Scene* scene)
         return;
     }
 
+    free(scene->m_LoadError);
+    scene->m_LoadError = 0;
+
     scene->m_DestroyFn(scene);
     scene->m_OpaqueSceneData = 0;
 
@@ -253,12 +248,9 @@ void DestroyScene(Scene* scene)
 
 Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size)
 {
-    ClearLoadError();
-
     if (suffix == 0)
     {
         printf("ModelImporter: No suffix specified!\n");
-        SetLoadError("No file suffix specified");
         return 0;
     }
 
@@ -266,7 +258,6 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
         return LoadGltfFromBuffer(options, data, file_size);
 
     printf("ModelImporter: File type not supported: %s\n", suffix);
-    SetLoadError("Model file type not supported");
     return 0;
 }
 
@@ -296,6 +287,7 @@ Scene* LoadFromPath(Options* options, const char* path)
     if (!scene)
     {
         dmLogError("Failed to create scene from path '%s'", path);
+        free(data);
         return 0;
     }
 
@@ -322,14 +314,15 @@ Scene* LoadFromPath(Options* options, const char* path)
 
     if (!dmModelImporter::LoadFinalize(scene))
     {
-        const char* err = GetLoadError();
-
+        char errbuf[512];
+        errbuf[0] = 0;
+        if (scene->m_LoadError && scene->m_LoadError[0])
+            dmStrlCpy(errbuf, scene->m_LoadError, sizeof(errbuf));
         DestroyScene(scene);
         printf("Failed to load '%s'\n", path);
-
-        if (err)
-            dmLogError("%s", err);
-
+        if (errbuf[0])
+            dmLogError("%s", errbuf);
+        free(data);
         return 0;
     }
 
