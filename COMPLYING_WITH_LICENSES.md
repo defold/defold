@@ -61,7 +61,6 @@ The following third party software has licenses which does not require inclusion
     * stb_truetype - Sean Barrett
     * stb_vorbis - Sean Barrett
   * ZLib
-    * zlib - Jean-loup Gailly and Mark Adler
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
     * GLFW - Marcus Geelnard, Camilla Löwy
