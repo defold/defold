@@ -453,7 +453,7 @@
                          lsp (lsp/get-node-lsp basis self)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
-                                    (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader evaluation-context))
+                                    (lua-parser/lua-info basis workspace script-compilation/valid-resource-kind? reader))
                          script-properties (script-compilation/lua-info->script-properties lua-info)]
                      (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (g/set-property self :script-properties script-properties)))))

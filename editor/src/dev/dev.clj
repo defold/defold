@@ -32,11 +32,11 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -150,7 +150,7 @@
          original-node-id (g/override-original basis node-id)
          override-node-ids (g/overrides basis node-id)]
      (cond-> (into (array-map :node-id node-id)
-                   (gu/node-debug-info node-id evaluation-context))
+                   (node-util/node-debug-info node-id evaluation-context))
 
              (some? original-node-id)
              (assoc :original-node-id original-node-id)

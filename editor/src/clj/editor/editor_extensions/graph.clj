@@ -105,7 +105,9 @@
   node id, while a folder path resolves to folder resource."
   [unresolved-editor-lookup project evaluation-context]
   (if (string? unresolved-editor-lookup)
-    (let [resource (workspace/find-resource (project/workspace project evaluation-context) unresolved-editor-lookup evaluation-context)]
+    (let [basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          resource (workspace/find-resource basis workspace unresolved-editor-lookup)]
       (when-not resource
         (throw (LuaError. (str unresolved-editor-lookup " not found"))))
       (or (project/get-resource-node project resource evaluation-context)
@@ -140,9 +142,9 @@
   (let [unresolved-editor-lookup (rt/->clj rt unresolved-editor-lookup-or-empty-string-coercer lua-value)]
     (when-not (= unresolved-editor-lookup "")
       (let [resource (if (string? unresolved-editor-lookup)
-                       (-> project
-                           (project/workspace evaluation-context)
-                           (workspace/resolve-workspace-resource unresolved-editor-lookup evaluation-context))
+                       (let [basis (:basis evaluation-context)
+                             workspace (project/workspace project evaluation-context)]
+                         (workspace/resolve-workspace-resource basis workspace unresolved-editor-lookup))
                        (g/node-value (editor-lookup->node-id unresolved-editor-lookup) :resource evaluation-context))
             ext (:ext edit-type)
             ext (if (string? ext) [ext] ext)]

@@ -656,7 +656,8 @@
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
     (when (or clear (seq entries))
-      (g/let-ec [resource-map (g/node-value workspace :resource-map evaluation-context)
+      (g/let-ec [basis (:basis evaluation-context)
+                 resource-map (g/raw-property-value basis workspace :resource-map)
                  ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
                  prev-lines (g/node-value view-node :lines evaluation-context)
                  prev-regions (g/node-value view-node :regions evaluation-context)
@@ -746,7 +747,7 @@
                                                                    {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                                         (open-resource-fn resource opts))))
                                    resource-candidates (into []
-                                                             (comp (keep (partial workspace/find-resource workspace))
+                                                             (comp (keep (partial workspace/find-resource (g/now) workspace))
                                                                    (filter openable-resource?))
                                                              (:proj-path-candidates region))]
                                (case (count resource-candidates)
