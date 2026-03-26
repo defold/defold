@@ -25,7 +25,6 @@ namespace dmConfigFile
         (void) config;
         (void) load_from_buffer;
 
-        dmLogError("HTTP(S) config loading is not supported on HTML5: %s", url);
         return RESULT_INVALID_URI;
     }
 }
