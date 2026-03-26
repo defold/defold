@@ -470,6 +470,27 @@
         (is (= full-name (.serviceName d)))
         (is (= instance-name (get (.txt d) "name")))))))
 
+;; Verifies stable TXT identity/display metadata wins over the wire instance label
+;; so protocol-only startup suffixes do not leak into editor-visible targets.
+(deftest mdns-prefers-txt-metadata-over-suffixed-instance-label
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        instance-name "defold-localhost-8001-89abcdef"
+        full-name (full-service-name instance-name service-type)
+        host-name "target-suffixed.local"
+        packet (make-response-packet
+                 (service-records service-type full-name host-name 8131 {:txt-entries ["id=stable-id"
+                                                                                       "name=Stable Device"
+                                                                                       "log_port=7001"
+                                                                                       "schema=1"]}))]
+    (parse-and-rebuild! mdns packet)
+    (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
+      (is (= 1 (alength devices)))
+      (let [^MDNSServiceInfo d (aget devices 0)]
+        (is (= "stable-id" (.id d)))
+        (is (= "Stable Device" (.instanceName d)))
+        (is (= full-name (.serviceName d)))))))
+
 ;; Verifies a device is published only after PTR, SRV, TXT, and A data has been accumulated.
 (deftest mdns-discovers-service-only-after-all-records-arrive-across-packets
   (let [mdns (MDNS. (dummy-logger))

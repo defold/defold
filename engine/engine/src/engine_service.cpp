@@ -23,6 +23,7 @@
 #include <dlib/profile.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
+#include <dlib/time.h>
 #include <dlib/template.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
@@ -253,6 +254,8 @@ namespace dmEngineService
         {
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
+            char host_name[128] = {0};
+            dmSocket::GetHostname(host_name, sizeof(host_name));
 
             dmSocket::Address local_address;
             dmSocket::Result sockr = dmSocket::GetLocalAddress(&local_address);
@@ -269,20 +272,18 @@ namespace dmEngineService
              *
              */
             if (strcmp(info.m_SystemName, "Android") == 0) {
-                dmStrlCpy(m_Name, info.m_Manufacturer, sizeof(m_Name));
-                dmStrlCat(m_Name, "-", sizeof(m_Name));
-                dmStrlCat(m_Name, info.m_DeviceModel, sizeof(m_Name));
+                BuildManufacturerModelName(info.m_Manufacturer, info.m_DeviceModel, m_Name, sizeof(m_Name));
             } else {
-                dmSocket::GetHostname(m_Name, sizeof(m_Name));
+                dmStrlCpy(m_Name, host_name, sizeof(m_Name));
             }
 
-            const char* addr = dmSocket::AddressToIPString(local_address);
-            if (strstr(m_Name, addr) == 0)
+            char* local_address_str = dmSocket::AddressToIPString(local_address);
+            const char* addr = local_address_str ? local_address_str : "";
+            if (addr[0] && strstr(m_Name, addr) == 0)
             {
                 dmStrlCat(m_Name, " - ", sizeof(m_Name));
                 dmStrlCat(m_Name, addr, sizeof(m_Name));
             }
-            free((void*)addr);
 
             dmStrlCat(m_Name, " - ", sizeof(m_Name));
             dmStrlCat(m_Name, info.m_SystemName, sizeof(m_Name));
@@ -314,18 +315,23 @@ namespace dmEngineService
             // Our profiler doesn't support Ipv6 addresses, so let's assume localhost if it is Ipv6
             if (local_address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                char* local_address_str = dmSocket::AddressToIPString(local_address);
-                dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
-                free(local_address_str);
+                dmStrlCpy(m_LocalAddress, addr, sizeof(m_LocalAddress));
             }
             else
             {
                 dmStrlCpy(m_LocalAddress, "localhost", sizeof(m_LocalAddress));
             }
 
+            char discovery_identity[128];
+            BuildDiscoveryIdentity(addr, host_name, info.m_Manufacturer, info.m_DeviceModel, info.m_SystemName, discovery_identity, sizeof(discovery_identity));
+
+            char service_instance_suffix[9];
+            dmSnPrintf(service_instance_suffix, sizeof(service_instance_suffix), "%08x", (uint32_t) (dmTime::GetMonotonicTime() & 0xffffffffULL));
+
             // DNS-SD instance labels are protocol identifiers, while the
-            // human-readable target name is published separately in TXT.
-            BuildServiceInstanceName(m_LocalAddress, m_PortText, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
+            // human-readable target name and stable editor identity are
+            // published separately in TXT.
+            BuildServiceInstanceName(discovery_identity, m_PortText, service_instance_suffix, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
 
             // Service id must be unique and this scheme is probably unique enough.
             /*
@@ -337,7 +343,9 @@ namespace dmEngineService
              * devices is pointless since we can't determine which one
              * we're connecting to anyhow (port reuse).
              */
-            dmSnPrintf(m_ServiceId, sizeof(m_ServiceId), "defold-%s:%s-%s", m_LocalAddress, m_PortText, info.m_DeviceModel);
+            dmSnPrintf(m_ServiceId, sizeof(m_ServiceId), "defold-%s:%s-%s", discovery_identity, m_PortText, info.m_DeviceModel);
+
+            free(local_address_str);
 
             dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 
