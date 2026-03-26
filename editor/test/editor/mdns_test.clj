@@ -312,9 +312,9 @@
 
 (defn- parse-and-rebuild!
   ([^MDNS mdns ^bytes packet]
-   (parse-and-rebuild! mdns packet "127.0.0.1" "127.0.0.1"))
-  ([^MDNS mdns ^bytes packet ^String local-address ^String remote-address]
-   (MDNS$TestHooks/parsePacket mdns packet local-address remote-address)
+   (parse-and-rebuild! mdns packet "127.0.0.1"))
+  ([^MDNS mdns ^bytes packet ^String local-address]
+   (MDNS$TestHooks/parsePacket mdns packet local-address)
    (.update mdns false)))
 
 (defn- expire-and-rebuild!
@@ -480,9 +480,9 @@
     (doseq [packet [(make-response-packet [srv-record])
                     (make-response-packet [txt-record])
                     (make-response-packet [ptr-record])]]
-      (parse-and-rebuild! mdns packet "127.0.0.1" nil)
+      (parse-and-rebuild! mdns packet "127.0.0.1")
       (is (= 0 (alength (.getDevices mdns)))))
-    (parse-and-rebuild! mdns (make-response-packet [a-record]) "127.0.0.1" nil)
+    (parse-and-rebuild! mdns (make-response-packet [a-record]) "127.0.0.1")
     (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
       (is (= 1 (alength devices)))
       (is (= full-name (.serviceName ^MDNSServiceInfo (aget devices 0)))))))
@@ -509,20 +509,20 @@
         (is (= utf8-name (.instanceName d)))
         (is (= utf8-name (get (.txt d) "name")))))))
 
-;; Verifies the response source address stays authoritative even if later A records change the host cache.
-(deftest mdns-keeps-packet-source-address-when-host-address-flaps
+;; Verifies the resolved endpoint tracks the SRV target host A record rather than packet metadata.
+(deftest mdns-updates-service-address-when-host-address-flaps
   (let [mdns (MDNS. (dummy-logger))
         service-type MDNS/MDNS_SERVICE_TYPE
         full-name (str "TargetSourceAddress." service-type)
         host-name "target-source-address.local"
         service-packet (make-response-packet (service-records service-type full-name host-name 8125 120))
         host-only-packet (make-response-packet [(make-record host-name dns-type-a 120 (make-a-rdata 10 0 0 99))])]
-    (parse-and-rebuild! mdns service-packet "192.168.0.10" "192.168.0.42")
-    (parse-and-rebuild! mdns host-only-packet "10.0.0.10" "10.0.0.99")
+    (parse-and-rebuild! mdns service-packet "192.168.0.10")
+    (parse-and-rebuild! mdns host-only-packet "10.0.0.10")
     (let [devices ^com.dynamo.discovery.MDNSServiceInfo/1 (.getDevices mdns)]
       (is (= 1 (alength devices)))
       (let [^MDNSServiceInfo d (aget devices 0)]
-        (is (= "192.168.0.42" (.address d)))
+        (is (= "10.0.0.99" (.address d)))
         (is (= "192.168.0.10" (.localAddress d)))))))
 
 ;; Verifies id falls back to the full service name so discovery still yields a stable key without TXT id.
@@ -620,9 +620,9 @@
         host-name "target-a-zero.local"
         add-packet (make-response-packet (service-records service-type full-name host-name 9035 120))
         remove-packet (make-response-packet [(make-record host-name dns-type-a 0 (make-a-rdata 127 0 0 1))])]
-    (parse-and-rebuild! mdns add-packet "192.168.0.10" nil)
+    (parse-and-rebuild! mdns add-packet "192.168.0.10")
     (is (= 1 (alength (.getDevices mdns))))
-    (parse-and-rebuild! mdns remove-packet "192.168.0.10" nil)
+    (parse-and-rebuild! mdns remove-packet "192.168.0.10")
     (is (= 0 (alength (.getDevices mdns))))))
 
 ;; Verifies the shortest required record TTL wins because service validity depends on all required records.
@@ -653,7 +653,7 @@
                                                                          :srv-ttl 120
                                                                          :txt-ttl 120
                                                                          :a-ttl 1}))]
-    (parse-and-rebuild! mdns packet "192.168.0.10" nil)
+    (parse-and-rebuild! mdns packet "192.168.0.10")
     (is (= 1 (alength (.getDevices mdns))))
     (Thread/sleep 1100)
     (expire-and-rebuild! mdns)
@@ -821,8 +821,8 @@
       (parse-and-rebuild! parser built)
       (is (= 0 (alength (.getDevices parser)))))))
 
-;; Verifies readPackets feeds datagrams through parsing with the connection local and remote addresses preserved.
-(deftest mdns-read-packets-parses-service-announcements-from-connections
+;; Verifies live socket reads still resolve the endpoint from the advertised host A record.
+(deftest mdns-read-packets-resolve-service-address-from-host-record
   (let [mdns (MDNS. (dummy-logger))
         service-type MDNS/MDNS_SERVICE_TYPE
         full-name (str "TargetReadPackets." service-type)
@@ -846,7 +846,7 @@
       (is (= 1 (alength devices)))
       (let [^MDNSServiceInfo d (aget devices 0)]
         (is (= full-name (.serviceName d)))
-        (is (= "192.168.0.42" (.address d)))
+        (is (= "127.0.0.1" (.address d)))
         (is (= "192.168.0.10" (.localAddress d)))))))
 
 ;; Verifies refreshNetworks clears stale discovery state on interface changes because cached data is interface-bound.
@@ -857,7 +857,7 @@
         host-name "target-refresh-networks.local"
         loopback-interface (NetworkInterface/getByInetAddress (InetAddress/getLoopbackAddress))
         socket (MulticastSocket. 0)]
-    (parse-and-rebuild! mdns (make-response-packet (service-records service-type full-name host-name 9040 120)) "192.168.0.10" nil)
+    (parse-and-rebuild! mdns (make-response-packet (service-records service-type full-name host-name 9040 120)) "192.168.0.10")
     (is (= 1 (alength (.getDevices mdns))))
     (MDNS$TestHooks/setMulticastAddress mdns (InetAddress/getByName "224.0.0.251"))
     (MDNS$TestHooks/setInterfaces mdns [loopback-interface])

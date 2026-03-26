@@ -44,8 +44,8 @@ public class MDNS {
         }
 
         // Added so parser tests can inject raw packets without relying on multicast sockets.
-        public static void parsePacket(MDNS mdns, byte[] data, String localAddress, String remoteAddress) {
-            mdns.parsePacket(data, data.length, localAddress, remoteAddress);
+        public static void parsePacket(MDNS mdns, byte[] data, String localAddress) {
+            mdns.parsePacket(data, data.length, localAddress);
         }
 
         // Added so query tests can assert the exact DNS-SD query bytes produced by the editor implementation.
@@ -108,7 +108,6 @@ public class MDNS {
         String fullName;
         String instanceName;
         String host;
-        String address;
         String localAddress;
         int port;
         long ptrExpires;
@@ -515,6 +514,22 @@ public class MDNS {
         return record;
     }
 
+    private static int remainingTtlSeconds(long expires, long now) {
+        if (expires <= now) {
+            return 0;
+        }
+        return (int) ((expires - now + 999L) / 1000L);
+    }
+
+    private static boolean shouldIncludeKnownAnswer(ServiceAccumulator service, long now) {
+        if (!service.hasPtr || service.ptrExpires <= now || service.ptrTtlMillis <= 0) {
+            return false;
+        }
+
+        long remaining = service.ptrExpires - now;
+        return remaining > service.ptrTtlMillis / 2;
+    }
+
     private static String readName(byte[] data, int size, int[] offsetRef) {
         StringBuilder name = new StringBuilder();
 
@@ -598,16 +613,14 @@ public class MDNS {
         offset = writeU16(out, offset, DNS_CLASS_IN);
 
         for (ServiceAccumulator service : services.values()) {
-            if (!service.hasPtr || service.ptrExpires <= now || service.ptrTtlMillis <= 0) {
+            if (!shouldIncludeKnownAnswer(service, now)) {
                 continue;
             }
 
-            long remaining = service.ptrExpires - now;
-            if (remaining <= service.ptrTtlMillis / 2) {
+            int ttl = remainingTtlSeconds(service.ptrExpires, now);
+            if (ttl == 0) {
                 continue;
             }
-
-            int ttl = (int) Math.max(1L, (remaining + 999L) / 1000L);
             byte[] knownAnswer = buildPtrRecord(MDNS_SERVICE_TYPE, service.fullName, ttl);
             // Keep the question valid and drop overflow answers once the
             // current UDP packet budget is exhausted instead of splitting.
@@ -675,8 +688,7 @@ public class MDNS {
                 try {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     connection.socket.receive(packet);
-                    String remoteAddress = packet.getAddress() != null ? packet.getAddress().getHostAddress() : null;
-                    parsePacket(packet.getData(), packet.getLength(), connection.localAddress, remoteAddress);
+                    parsePacket(packet.getData(), packet.getLength(), connection.localAddress);
                 } catch (SocketTimeoutException e) {
                     keepReading = false;
                 } catch (IOException e) {
@@ -687,7 +699,7 @@ public class MDNS {
         }
     }
 
-    private void parsePacket(byte[] data, int size, String localAddress, String remoteAddress) {
+    private void parsePacket(byte[] data, int size, String localAddress) {
         if (size < 12) {
             return;
         }
@@ -744,7 +756,7 @@ public class MDNS {
                 return;
             }
 
-            parseRecord(data, size, name, type, ttl, rdLength, offset, localAddress, remoteAddress, (flags & 0x8000) != 0);
+            parseRecord(data, size, name, type, ttl, rdLength, offset, localAddress);
             offset += rdLength;
         }
     }
@@ -756,9 +768,7 @@ public class MDNS {
                              long ttl,
                              int rdLength,
                              int rdataOffset,
-                             String localAddress,
-                             String remoteAddress,
-                             boolean response) {
+                             String localAddress) {
         long expires = System.currentTimeMillis() + ttl * 1000;
 
         if (type == DNS_TYPE_PTR && name.equalsIgnoreCase(MDNS_SERVICE_TYPE)) {
@@ -777,9 +787,6 @@ public class MDNS {
             ServiceAccumulator service = getOrCreateService(key, fullServiceName);
             service.instanceName = instanceName(fullServiceName);
             service.localAddress = localAddress;
-            if (response && remoteAddress != null) {
-                service.address = remoteAddress;
-            }
             service.ptrExpires = expires;
             service.ptrRefresh = System.currentTimeMillis() + Math.max(1L, ttl * 500L);
             service.ptrTtlMillis = ttl * 1000L;
@@ -815,9 +822,6 @@ public class MDNS {
             service.host = host;
             service.port = port;
             service.localAddress = localAddress;
-            if (response && remoteAddress != null) {
-                service.address = remoteAddress;
-            }
             service.srvExpires = expires;
             service.srvRefresh = System.currentTimeMillis() + Math.max(1L, ttl * 500L);
             service.srvTtlMillis = ttl * 1000L;
@@ -839,9 +843,6 @@ public class MDNS {
             Map<String, String> txt = parseTxt(data, rdLength, rdataOffset);
             service.txt = txt;
             service.localAddress = localAddress;
-            if (response && remoteAddress != null) {
-                service.address = remoteAddress;
-            }
             service.txtExpires = expires;
             service.txtRefresh = System.currentTimeMillis() + Math.max(1L, ttl * 500L);
             service.txtTtlMillis = ttl * 1000L;
@@ -887,6 +888,10 @@ public class MDNS {
     private static long serviceExpires(ServiceAccumulator service) {
         long expires = Math.min(service.ptrExpires, Math.min(service.srvExpires, service.txtExpires));
         return expires > 0 ? expires : 0;
+    }
+
+    private HostAddress resolveServiceAddress(ServiceAccumulator service) {
+        return service.host != null ? hosts.get(lower(service.host)) : null;
     }
 
     private long nextRefreshAt() {
@@ -1002,23 +1007,16 @@ public class MDNS {
             String name = service.txt.containsKey("name") ? service.txt.get("name") : service.instanceName;
             String logPort = service.txt.get("log_port");
             String localAddress = service.localAddress != null ? service.localAddress : defaultLocalAddress;
-            String address = service.address;
             long expires = serviceExpires(service);
             if (expires == 0) {
                 continue;
             }
-            // Prefer the address from the packet source and only fall back to a
-            // cached A record if the service did not advertise one directly.
-            if (address == null) {
-                HostAddress hostAddress = hosts.get(lower(service.host));
-                if (hostAddress == null) {
-                    continue;
-                }
-                address = hostAddress.address();
-                // Export the service only as long as both the service records
-                // and the fallback host record remain valid.
-                expires = Math.min(expires, hostAddress.expires());
+            HostAddress hostAddress = resolveServiceAddress(service);
+            if (hostAddress == null) {
+                continue;
             }
+            String address = hostAddress.address();
+            expires = Math.min(expires, hostAddress.expires());
 
             MDNSServiceInfo info = new MDNSServiceInfo(
                     expires,
