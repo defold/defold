@@ -364,38 +364,41 @@
                       (is (= [(tu/resource workspace proj-path) node-id]
                              (error-item-open-info-without-opts error-item-of-faulty-node)))))))))]
       (with-open [_ (tu/make-graph-reverter (g/node-id->graph-id project))]
-        (write-file! workspace "ok.script" bad-source)
-        (let [script-node (tu/resource-node project "/ok.script")]
-          (is (g/node-instance? script/ScriptNode script-node))
-          (is (not (g/error? (tu/build-error! script-node)))))
-        (write-file! workspace "bad.script" bad-invalid-value-source)
-        (let [script-node (tu/resource-node project "/bad.script")
-              build-error (tu/build-error! script-node)]
-          (is (g/node-instance? script/ScriptNode script-node))
-          (is (g/error? build-error))
-          (is (not= script-compilation/go-property-disallowed-message (:message (first build-error)))))
-        (assert-script-only-error!
-          "bad.lua" two-bad-source
-          [[script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 24))]
-           [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 1 0) (data/->Cursor 1 23))]])
-        (assert-script-only-error!
-          "bad_invalid_args.lua" bad-invalid-args-source
-          [["invalid go.property args" (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 13))]
-           [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 13))]])
-        (assert-script-only-error!
-          "bad_invalid_value.lua" bad-invalid-value-source
-          [["unexpected argument" (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 31))]
-           [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 31))]])
-        (assert-script-only-error!
-          "bad_invalid_location.lua" bad-invalid-location-source
-          [["go.property declaration should be a top-level statement" (data/->CursorRange (data/->Cursor 1 2) (data/->Cursor 1 26))]
-           [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 1 2) (data/->Cursor 1 26))]])
-        (assert-script-only-error!
-          "bad.gui_script" bad-source
-          [[script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 24))]])
-        (assert-script-only-error!
-          "bad.render_script" bad-source
-          [[script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 24))]])))))
+        (testing "Script files allow go.property and keep regular validation"
+          (write-file! workspace "ok.script" bad-source)
+          (let [script-node (tu/resource-node project "/ok.script")]
+            (is (g/node-instance? script/ScriptNode script-node))
+            (is (not (g/error? (tu/build-error! script-node)))))
+          (write-file! workspace "bad.script" bad-invalid-value-source)
+          (let [script-node (tu/resource-node project "/bad.script")
+                build-error (tu/build-error! script-node)]
+            (is (g/node-instance? script/ScriptNode script-node))
+            (is (g/error? build-error))
+            (is (not= script-compilation/go-property-disallowed-message (:message (first build-error))))))
+        (testing "Lua files reject go.property declarations"
+          (assert-script-only-error!
+            "bad.lua" two-bad-source
+            [[script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 24))]
+             [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 1 0) (data/->Cursor 1 23))]])
+          (assert-script-only-error!
+            "bad_invalid_args.lua" bad-invalid-args-source
+            [["invalid go.property args" (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 13))]
+             [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 13))]])
+          (assert-script-only-error!
+            "bad_invalid_value.lua" bad-invalid-value-source
+            [["unexpected argument" (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 31))]
+             [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 31))]])
+          (assert-script-only-error!
+            "bad_invalid_location.lua" bad-invalid-location-source
+            [["go.property declaration should be a top-level statement" (data/->CursorRange (data/->Cursor 1 2) (data/->Cursor 1 26))]
+             [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 1 2) (data/->Cursor 1 26))]]))
+        (testing "Other Lua-based script resource types reject go.property declarations"
+          (assert-script-only-error!
+            "bad.gui_script" bad-source
+            [[script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 24))]])
+          (assert-script-only-error!
+            "bad.render_script" bad-source
+            [[script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 24))]]))))))
 
 (deftest edit-script-resource-properties-test
   (with-clean-system
