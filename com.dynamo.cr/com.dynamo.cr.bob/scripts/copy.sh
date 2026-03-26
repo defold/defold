@@ -16,7 +16,7 @@
 # $DYNAMO_HOME/archive/$SHA1 exists (CI / engine synced); ext copies always run.
 # The corresponding file for development is build.xml
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
 set -e
 mkdir -p lib/x86_64-linux

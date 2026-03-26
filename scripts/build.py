@@ -1716,13 +1716,12 @@ class Configuration(object):
             return join('.', 'gradlew')
 
     def _run_bob_copy_script(self):
-        """Run com.dynamo.cr.bob/scripts/copy.sh via bash.
+        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
 
-        Always use bash explicitly (no shell=True): on Windows, Python subprocess uses
-        cmd.exe for shell=True, which cannot run ./scripts/copy.sh. CI and local builds
-        use bash for win32 and other hosts."""
+        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
+        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        run.env_command(self._form_env(), ['bash', 'scripts/copy.sh'], cwd=bob_dir)
+        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
 
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
