@@ -25,6 +25,11 @@ namespace dmEngineService
     // DNS-SD instance names are a single DNS label (RFC 6763, Section 4.1.1),
     // so they inherit the DNS label limit of 63 octets from RFC 1035, Section 2.3.4.
     static const uint32_t MDNS_MAX_LABEL_LENGTH = 63;
+    // Keep the engine-side TXT budget aligned with both the native browser and
+    // the Java discovery client, which both handle at most 16 entries today.
+    static const uint32_t DISCOVERY_MAX_TXT_ENTRIES = 16;
+    static const uint64_t DISCOVERY_RETRY_DELAY_BASE_USECS = 1000000ULL;
+    static const uint64_t DISCOVERY_RETRY_DELAY_MAX_USECS = 30000000ULL;
 
     static inline void SanitizeMDNSLabel(const char* value, const char* fallback, bool allow_leading_dash, char leading_dash_replacement, char* out, uint32_t out_size)
     {
@@ -175,6 +180,15 @@ namespace dmEngineService
             dmSnPrintf(suffix_component, sizeof(suffix_component), "-%s", suffix_text);
 
         dmSnPrintf(out, out_size, "%s%s%s%s", prefix, address_component, port_component, suffix_component);
+    }
+
+    static inline uint64_t GetDiscoveryRetryDelayUsec(uint32_t failure_count)
+    {
+        if (failure_count >= 5)
+            return DISCOVERY_RETRY_DELAY_MAX_USECS;
+
+        const uint64_t delay = DISCOVERY_RETRY_DELAY_BASE_USECS << failure_count;
+        return delay > DISCOVERY_RETRY_DELAY_MAX_USECS ? DISCOVERY_RETRY_DELAY_MAX_USECS : delay;
     }
 }
 

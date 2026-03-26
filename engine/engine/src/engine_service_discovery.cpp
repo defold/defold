@@ -62,7 +62,7 @@ namespace dmEngineService
         if (service_id == 0 || instance_name == 0 || port == 0 || txt_entries == 0)
             return 0;
 
-        dmMDNS::TxtEntry mdns_txt_entries[16];
+        dmMDNS::TxtEntry mdns_txt_entries[DISCOVERY_MAX_TXT_ENTRIES];
         const uint32_t mdns_txt_entries_count = DM_ARRAY_SIZE(mdns_txt_entries);
         if (txt_count > mdns_txt_entries_count)
         {

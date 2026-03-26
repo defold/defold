@@ -87,3 +87,12 @@ TEST_F(EngineTest, DiscoveryIdentityFallsBackToManufacturerAndModel)
     dmEngineService::BuildDiscoveryIdentity("localhost", "localhost", "Acme", "Device", "Android", out, sizeof(out));
     ASSERT_STREQ("Acme-Device", out);
 }
+
+TEST_F(EngineTest, DiscoveryRetryDelayBackoffCapsAtThirtySeconds)
+{
+    ASSERT_EQ(1000000ULL, dmEngineService::GetDiscoveryRetryDelayUsec(0));
+    ASSERT_EQ(2000000ULL, dmEngineService::GetDiscoveryRetryDelayUsec(1));
+    ASSERT_EQ(16000000ULL, dmEngineService::GetDiscoveryRetryDelayUsec(4));
+    ASSERT_EQ(30000000ULL, dmEngineService::GetDiscoveryRetryDelayUsec(5));
+    ASSERT_EQ(30000000ULL, dmEngineService::GetDiscoveryRetryDelayUsec(8));
+}
