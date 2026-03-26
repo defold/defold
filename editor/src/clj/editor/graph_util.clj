@@ -51,7 +51,7 @@
   {:pre [(symbol? prop-sym)
          (not (qualified-symbol? prop-sym))]}
   (let [prop-kw (keyword prop-sym)]
-    (make-immutable-property-set-fn prop-kw)))
+    `(make-immutable-property-set-fn ~prop-kw)))
 
 (defn array-subst-remove-errors [arr]
   (filterv (complement g/error?) arr))
