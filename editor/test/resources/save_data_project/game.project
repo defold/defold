@@ -152,6 +152,9 @@ safe_area_mode = long
 max_count = 32
 subpixels = 0
 
+[light]
+max_count = 32
+
 [mesh]
 max_count = 64
 
