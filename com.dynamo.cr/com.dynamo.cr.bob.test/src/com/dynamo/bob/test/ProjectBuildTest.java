@@ -21,11 +21,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
-
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import javax.imageio.ImageIO;
 
@@ -202,6 +205,44 @@ public class ProjectBuildTest {
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
 
         checkProjectSettingArray(outputProps, "project", "custom_string_list", new String[]{"http://test.com/test.zip", "http://test.com/test1.zip", "http://test.com/test2.zip"});
+    }
+
+    @Test
+    public void testFindResourcePathsRespectsDefignore() throws IOException {
+        createFile(contentRoot, ".defignore", "ignored-without-leading-slash.txt\n/ignored-dir/\n/ignored-file.txt\n");
+        createFile(contentRoot, "visible/keep.txt", "");
+        createFile(contentRoot, "ignored-dir/skip.txt", "");
+        createFile(contentRoot, "ignored-dir-sibling.txt", "");
+        createFile(contentRoot, "sub/ignored-dir/keep.txt", "");
+        createFile(contentRoot, "ignored-file.txt", "");
+        createFile(contentRoot, "ignored-without-leading-slash.txt", "");
+
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        try {
+            List<String> paths = new ArrayList<>();
+            project.findResourcePaths("", paths);
+            assertEquals(7, paths.size());
+            assertEquals(new HashSet<>(Arrays.asList(
+                    ".defignore",
+                    "game.project",
+                    "ignored-dir-sibling.txt",
+                    "ignored-without-leading-slash.txt",
+                    "sub/ignored-dir/keep.txt",
+                    "test.png",
+                    "visible/keep.txt")),
+                    new HashSet<>(paths));
+
+            List<String> ignoredPaths = new ArrayList<>();
+            project.findResourcePaths("ignored-dir", ignoredPaths);
+            assertTrue(ignoredPaths.isEmpty());
+
+            List<String> dirs = new ArrayList<>();
+            project.findResourceDirs("", dirs);
+            assertEquals(2, dirs.size());
+            assertEquals(new HashSet<>(Arrays.asList("sub", "visible")), new HashSet<>(dirs));
+        } finally {
+            project.dispose();
+        }
     }
 
     @Test

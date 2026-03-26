@@ -1644,7 +1644,9 @@ def detect(conf):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
     bindirs = [build_util.get_dynamo_ext('bin', host_platform)]
-    conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
+
+    if conf.env.IS_HOST_DESKTOP:
+        conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
 
     target_os = build_util.get_target_os()
     conf.env['TARGET_OS'] = target_os

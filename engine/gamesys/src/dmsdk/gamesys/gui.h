@@ -42,13 +42,15 @@ namespace dmGameSystem
 {
     /*#
      * Gui component node type create/destroy context
-     * @struct CompGuiNodeTypeCtx
+     * @struct
+     * @name CompGuiNodeTypeCtx
     */
     struct CompGuiNodeTypeCtx;
 
     /*#
      * Gui component node type
-     * @struct GuiNodeType
+     * @struct
+     * @name GuiNodeType
     */
     struct CompGuiNodeType;
 

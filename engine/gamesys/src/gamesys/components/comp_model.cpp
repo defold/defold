@@ -424,6 +424,13 @@ namespace dmGameSystem
         return component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
     }
 
+    // True for a static mesh hung under a bone: world = bone_pose × node local. Skinned meshes omit the bone here since GPU skinning handles it.
+    // Otherwise static meshes parented under a bone would be transformed twice.
+    static inline bool IsRigidBoneParentedRenderItem(const MeshRenderItem& item)
+    {
+        return item.m_BoneIndex != dmRig::INVALID_BONE_INDEX && item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC;
+    }
+
     static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
     {
         return dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
@@ -1709,7 +1716,9 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                if (dmRig::IsAnimating(instance_component->m_RigInstance))
+                // Skinning must run whenever the mesh is skinned: bind pose matrices are written every frame
+                // (see dmRig::DoAnimate when not playing an animation) so idle pose matches animated pose.
+                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
@@ -1889,10 +1898,9 @@ namespace dmGameSystem
                     constants = GetScratchConstantBuffer(world);
                 }
 
-                // Initialize to no animation
                 dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
 
-                if (dmRig::IsAnimating(component->m_RigInstance))
+                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
@@ -2125,7 +2133,7 @@ namespace dmGameSystem
                 dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(c->m_RigInstance);
 
                 dmVMath::Matrix4 model_matrix;
-                if (render_item->m_BoneIndex != dmRig::INVALID_BONE_INDEX)
+                if (IsRigidBoneParentedRenderItem(*render_item))
                 {
                     dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
                     model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
@@ -2287,10 +2295,11 @@ namespace dmGameSystem
             if (!item.m_Enabled)
                 continue;
             dmRigDDF::Model* model = item.m_Model;
-            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set
-            // For skinned models: m_Local contains node.local, hierarchy applied via bone_pose.m_World
-            // For non-skinned models: m_Local contains node.world, hierarchy already flattened
-            if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
+            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set.
+            // For skinned models: bone hierarchy is applied in the vertex shader, not via bone_pose here.
+            // For rigid meshes parented to a bone: apply bone_pose.m_World * node.local.
+            // For non-skinned models without bone parent: m_Local contains node.world (flattened hierarchy).
+            if (IsRigidBoneParentedRenderItem(item))
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
                 item.m_World = world * (dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(model->m_Local));

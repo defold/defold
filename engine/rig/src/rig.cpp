@@ -507,7 +507,7 @@ namespace dmRig
         }
     }
 
-    static void UpdatePoseTransforms(dmArray<BonePose>& pose)
+    static void UpdatePoseTransforms(const dmRigDDF::Skeleton* skeleton, dmArray<BonePose>& pose)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -515,9 +515,19 @@ namespace dmRig
             BonePose& bp = pose[bi];
 
             if (bp.m_ParentIndex != INVALID_BONE_INDEX)
+            {
                 bp.m_World = dmTransform::Mul(pose[bp.m_ParentIndex].m_World, bp.m_Local);
+            }
             else
-                bp.m_World = bp.m_Local;
+            {
+                // Apply the skeleton bone transform when the there is no parent.
+                const dmRigDDF::Bone* sk_bone = &skeleton->m_Bones[bi];
+                // Separate the anscestor (everything "above" this joint hierarchy-wise) from the local transform of this joint.
+                const Matrix4 world_bind = dmTransform::ToMatrix4(sk_bone->m_World);
+                const Matrix4 local_bind = dmTransform::ToMatrix4(sk_bone->m_Local);
+                const Matrix4 ancestor = world_bind * dmVMath::Inverse(local_bind);
+                bp.m_World = dmTransform::ToTransform(ancestor * dmTransform::ToMatrix4(bp.m_Local));
+            }
         }
     }
 
@@ -567,6 +577,18 @@ namespace dmRig
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
         if (!IsAnimating(instance))
         {
+            // Skinned meshes sample the pose matrix cache every frame. If we skip the cache write while
+            // idle, the vertex shader falls back to non-skinned positions which can cause a disparity
+            // between authoring tools and animated result. Instead, we write the non-animated
+            // skeleton bind pose whenever this instance owns cache space.
+            if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
+            {
+                dmArray<BonePose>& pose = instance->m_Pose;
+                const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+                ResetPose(skeleton, pose);
+                UpdatePoseTransforms(skeleton, pose);
+                CommitPoseMatrixToCache(context, instance);
+            }
             return;
         }
 
@@ -636,7 +658,7 @@ namespace dmRig
             }
         }
 
-        UpdatePoseTransforms(pose);
+        UpdatePoseTransforms(skeleton, pose);
 
         CommitPoseMatrixToCache(context, instance);
     }

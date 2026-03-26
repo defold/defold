@@ -17,6 +17,24 @@
 
 #include "modelimporter.h"
 
+// NOTE: https://github.com/jkuhlmann/cgltf/issues/259
+// We need our own locale-independent implementation to avoid a bug where gltf/glb imports break
+// when locale LC_NUMERIC use commas instead of periods for decimal points
+#if defined(__APPLE__) || defined(__linux__)
+#ifdef __APPLE__
+#include <xlocale.h>
+#else
+#include <locale.h>
+#endif
+
+float AtoFLocaleIndependent(char* str) {
+    static locale_t c_locale = newlocale(LC_NUMERIC_MASK, "C", (locale_t)0);
+    return strtof_l(str, nullptr, c_locale);
+}
+
+#define CGLTF_ATOF(str) AtoFLocaleIndependent(str)
+#endif
+
 #define CGLTF_IMPLEMENTATION
 #include <cgltf/cgltf.h>
 
