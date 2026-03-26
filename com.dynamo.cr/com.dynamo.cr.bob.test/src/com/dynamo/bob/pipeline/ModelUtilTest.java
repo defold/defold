@@ -14,6 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,8 +45,6 @@ import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.rig.proto.Rig;
-
-import static org.junit.Assert.*;
 
 public class ModelUtilTest {
 
