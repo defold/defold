@@ -779,7 +779,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
     for (size_t i = 0; i < gltf_mesh->primitives_count; ++i)
     {
-        if (scene->m_HasFatalLoadError)
+        if (scene->m_LoadError)
             return;
 
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
@@ -797,7 +797,6 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                     model->m_Name, i, (unsigned)attr->index);
                 dmLogError("%s", buf);
                 SetLoadError(scene, buf);
-                scene->m_HasFatalLoadError = true;
                 return;
             }
             if (attr->type == cgltf_attribute_type_weights && attr->index > 0)
@@ -808,7 +807,6 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                     model->m_Name, i, (unsigned)attr->index);
                 dmLogError("%s", buf);
                 SetLoadError(scene, buf);
-                scene->m_HasFatalLoadError = true;
                 return;
             }
         }
@@ -1719,7 +1717,7 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     LoadMeshes(scene, data);
 
     // Make sure we early-out so we don't touch uninitialized data
-    if (scene->m_HasFatalLoadError)
+    if (scene->m_LoadError)
         return;
 
     LinkNodesWithBones(scene, data);
@@ -1738,7 +1736,7 @@ static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
     LoadScene(scene, data->m_Data);
-    return !scene->m_HasFatalLoadError;
+    return scene->m_LoadError == 0;
 }
 
 static bool ValidateGltf(Scene* scene)

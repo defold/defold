@@ -341,10 +341,7 @@ namespace dmModelImporter
         // When we need to dynamically create materials
         dmArray<Material*>  m_DynamicMaterials;
 
-        // GLTF: set when the file uses unsupported mesh features (e.g. multi-set skinning)
-        bool                m_HasFatalLoadError;
-
-        // Last load error for this scene (heap-allocated; freed in DestroyScene).
+        // Last load error for this scene (heap-allocated; freed in DestroyScene). Non-null means load failed fatally.
         char*               m_LoadError;
     };
 

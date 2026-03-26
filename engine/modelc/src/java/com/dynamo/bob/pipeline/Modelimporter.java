@@ -262,7 +262,7 @@ public class Modelimporter {
         public Texture[] textures;
         public Buffer[] buffers;
         public Material[] dynamicMaterials;
-        public boolean hasFatalLoadError = false;
+        public char loadError;
     };
     public static class Options {
         public int dummy = 0;
