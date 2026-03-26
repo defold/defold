@@ -130,18 +130,22 @@
           (is (g/error? (g/node-value atlas :build-targets)))
           (is (not (g/error? (g/node-value atlas :save-data)))))))))
 
-(deftest duplicate-image-different-trim-mode-triggers-regeneration
+(deftest duplicate-animation-image-with-different-properties-triggers-regeneration
   (test-util/with-loaded-project "test/resources/test_project"
     (let [atlas (test-util/resource-node project "/switcher/fish_animations.atlas")
           sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))
-          anim1 (test-util/outline atlas [0])
+          get-anim (fn [] (test-util/outline atlas [0]))
+          get-sha (fn [] (:sha1 (g/node-value atlas :packed-page-images-generator)))
           img-path "/switcher/images/red_fish.png"]
-      (is (= (count (:children (test-util/outline atlas [0]))) 2))
+      (is (= (count (:children (get-anim))) 2))
       (g/transact
-        (atlas/add-images-to-animation (:node-id anim1) [(workspace/resolve-resource (g/node-value atlas :resource) img-path)]))
-      (is (= (count (:children (test-util/outline atlas [0]))) 3))
-      (let [sha1-after (:sha1 (g/node-value atlas :packed-page-images-generator))
-            new-fish (:node-id (nth (:children (test-util/outline atlas [0])) 2))]
-        (is (= sha1-before sha1-after))
+        (atlas/add-images-to-animation (:node-id (get-anim)) [(workspace/resolve-resource (g/node-value atlas :resource) img-path)]))
+      (is (= (count (:children (get-anim))) 3))
+      (let [new-fish (:node-id (nth (:children (get-anim)) 2))]
+        (is (= sha1-before (get-sha)))
         (g/set-property! new-fish :sprite-trim-mode :sprite-trim-mode-8)
-        (is (not= sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))))))))
+        (is (not= sha1-before (get-sha)))
+        (g/set-property! new-fish :sprite-trim-mode :sprite-trim-mode-off)
+        (is (= sha1-before (get-sha)))
+        (g/set-property! new-fish :pivot-x 0.12345)
+        (not= (is sha1-before (get-sha)))))))
