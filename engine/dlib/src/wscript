@@ -55,8 +55,8 @@ def build(bld):
     extra_defines = []
     extra_defines.extend(zlib_conf_defines)
 
-    extra_defines +=['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
-    extra_defines +=['MINIZ_USE_ANSI', 'ZIP_NO_DEFLATE', 'ZIP_NO_DISC_IO']   # defold defines
+    extra_defines += ['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
+    extra_defines += ['ZIP_ENABLE_INFLATE=1', 'ZIP_ENABLE_DEFLATE=0', 'ZIP_HAVE_SYMLINK=0']
 
     if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
@@ -187,7 +187,7 @@ def build(bld):
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
-    libzip_dirs = ['zip/**/*.cpp']
+    libzip_dirs = ['zip/**/*.c']
     libzip = bld.stlib(features    = 'c cxx',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
