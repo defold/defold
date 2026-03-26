@@ -273,6 +273,7 @@ struct SceneJNI {
     jfieldID textures;
     jfieldID buffers;
     jfieldID dynamicMaterials;
+    jfieldID hasFatalLoadError;
 };
 struct OptionsJNI {
     jclass cls;
