@@ -42,7 +42,8 @@
 
 (deftest mouse-button-interpretation
   (are [move button shift control alt meta]
-    (= move (c/camera-movement button shift control alt meta))
+    (= move (c/camera-movement {:button button :shift shift :control control :alt alt :meta meta}
+                               #{:tumble :track :dolly}))
 
     ;; move button     shift ctrl  alt   meta
     :tumble :primary   false true  false false
