@@ -2271,7 +2271,6 @@ error.vertex-attribute-normalize-float-data-type = Вершинный атриб
 error.atlas-page-count-cannot-exceed = Количество страниц атласа ({count}) не может превышать {max} на один атлас. Поддержка GLES 2.0 должна быть отключена в game.project → Среда выполнения → Шейдер
 error.cubemap-image-sizes-differ = Размеры изображений кубической карты различаются\:\n{right} \= {right_size}\n{left} \= {left_size}\n{top} \= {top_size}\n{bottom} \= {bottom_size}\n{front} \= {front_size}\n{back} \= {back_size}.
 error.lua-preprocessing-failed = Ошибка препроцессинга Lua.\n{error}
-error.go-property-disallowed = go.property нельзя использовать в этом типе файла.
 error.transpiler-compilation-failed = Ошибка компиляции\: {error}
 error.animation-set-build-failed = Не удалось собрать {resource}\: {error}
 error.blend-mode-add-alpha-replaced = «{old}» был заменён на «{new}».
