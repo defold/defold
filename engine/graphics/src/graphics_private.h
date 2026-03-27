@@ -133,6 +133,20 @@ namespace dmGraphics
         dmArray<HTexture>              m_PostDeleteTextures;
     };
 
+    // Shared fields embedded as m_BaseContext (first member) in each backend context struct.
+    struct GraphicsContext
+    {
+        HWindow                            m_Window;
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        TextureFilter                      m_DefaultTextureMinFilter;
+        TextureFilter                      m_DefaultTextureMagFilter;
+        uint64_t                           m_TextureFormatSupport;
+        uint32_t                           m_Width;
+        uint32_t                           m_Height;
+        uint32_t                           m_VerifyGraphicsCalls : 1;
+        uint32_t                           m_PrintDeviceInfo     : 1;
+    };
+
     struct ProgramResourceBindingsInfo
     {
         uint32_t m_UniformBufferCount;

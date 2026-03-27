@@ -263,7 +263,7 @@ namespace dmGraphics
 
 #define CHECK_GL_ERROR \
     { \
-        if(g_Context->m_VerifyGraphicsCalls) { \
+        if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) { \
             GLint err = glGetError(); \
             if (err != 0) \
             { \
@@ -280,14 +280,14 @@ namespace dmGraphics
 // we need to not assert on this and instead wait for the proper APP_CMD_* event
 #define CHECK_GL_ERROR \
     { \
-        if(g_Context->m_VerifyGraphicsCalls) { \
+        if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) { \
             GLint err = glGetError(); \
             if (err != 0) \
             { \
                 LogGLError(err, __FUNCTION__, __LINE__); \
                 if (err == GL_OUT_OF_MEMORY) { \
                     dmLogWarning("Signs of surface being destroyed. skipping assert.");\
-                    if (dmPlatform::AndroidVerifySurface(g_Context->m_Window)) { \
+                    if (dmPlatform::AndroidVerifySurface(g_Context->m_BaseContext.m_Window)) { \
                         assert(0); \
                     } \
                 } else { \
@@ -310,7 +310,7 @@ static void OpenGLClearGLError()
     }
 }
 
-#define CLEAR_GL_ERROR { if(g_Context->m_VerifyGraphicsCalls) OpenGLClearGLError(); }
+#define CLEAR_GL_ERROR { if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) OpenGLClearGLError(); }
 
 
 static void LogFrameBufferError(GLenum status)
@@ -529,30 +529,30 @@ static void LogFrameBufferError(GLenum status)
     {
         memset(this, 0, sizeof(*this));
         m_ModificationVersion     = 1;
-        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        m_Width                   = params.m_Width;
-        m_Height                  = params.m_Height;
-        m_Window                  = params.m_Window;
+        m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+        m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_BaseContext.m_Width                   = params.m_Width;
+        m_BaseContext.m_Height                  = params.m_Height;
+        m_BaseContext.m_Window                  = params.m_Window;
         m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
-        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
-            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
-        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
-            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
 
         // Formats supported on all platforms
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_16BPP;
+        m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
 
         m_GLHandlesData.m_AllGLHandles.SetCapacity(1024);
@@ -561,15 +561,15 @@ static void LogFrameBufferError(GLenum status)
         // Default scissor to cover the entire viewport
         m_ViewportRect[0] = 0;
         m_ViewportRect[1] = 0;
-        m_ViewportRect[2] = (int32_t) m_Width;
-        m_ViewportRect[3] = (int32_t) m_Height;
+        m_ViewportRect[2] = (int32_t) m_BaseContext.m_Width;
+        m_ViewportRect[3] = (int32_t) m_BaseContext.m_Height;
         m_ScissorRect[0] = 0;
         m_ScissorRect[1] = 0;
-        m_ScissorRect[2] = (int32_t) m_Width;
-        m_ScissorRect[3] = (int32_t) m_Height;
+        m_ScissorRect[2] = (int32_t) m_BaseContext.m_Width;
+        m_ScissorRect[3] = (int32_t) m_BaseContext.m_Height;
         memcpy(m_ScissorRectDirty, m_ScissorRect, sizeof(m_ScissorRect));
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_BaseContext.m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static inline GLenum GetOpenGLCompareFunc(CompareFunc func)
@@ -958,11 +958,11 @@ static void LogFrameBufferError(GLenum status)
 
         if (acquire_flag)
         {
-            context->m_AuxContext = dmPlatform::AcquireAuxContext(context->m_Window);
+            context->m_AuxContext = dmPlatform::AcquireAuxContext(context->m_BaseContext.m_Window);
         }
         else
         {
-            dmPlatform::UnacquireAuxContext(context->m_Window, context->m_AuxContext);
+            dmPlatform::UnacquireAuxContext(context->m_BaseContext.m_Window, context->m_AuxContext);
         }
 
         dmAtomicStore32(&context->m_AuxContextJobPending, 0);
@@ -1175,7 +1175,7 @@ static void LogFrameBufferError(GLenum status)
             HTexture texture_handle = dmGraphics::NewTexture(context, tcp);
 
             assert(ASSET_TYPE_TEXTURE == GetAssetType(texture_handle));
-            OpenGLTexture* tex = (OpenGLTexture*) context->m_AssetHandleContainer.Get(texture_handle);
+            OpenGLTexture* tex = (OpenGLTexture*) context->m_BaseContext.m_AssetHandleContainer.Get(texture_handle);
 
             DM_ALIGNED(16) const uint32_t data[] = { 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff };
             TextureParams params;
@@ -1531,27 +1531,27 @@ static void LogFrameBufferError(GLenum status)
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
 
         if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc1"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_s3tc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
             // We'll use BC3 for this
-            //context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC2; // DXT3
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3; // DXT5
+            //context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC2; // DXT3
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3; // DXT5
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
@@ -1559,8 +1559,8 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(context, "EXT_texture_compression_rgtc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
@@ -1568,13 +1568,13 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_bptc") ||
             OpenGLIsExtensionSupported(context, "EXT_texture_compression_bptc") )
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
         if (OpenGLIsExtensionSupported(context, "GL_ARB_ES3_compatibility"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
@@ -1590,14 +1590,14 @@ static void LogFrameBufferError(GLenum status)
         // Check if we're using a recent enough OpenGL version
         if (context->m_IsGles3Version)
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
 
             context->m_InstancingSupport = 1;
 
@@ -1612,15 +1612,15 @@ static void LogFrameBufferError(GLenum status)
             // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
             if (OpenGLIsExtensionSupported(context, "EXT_color_buffer_half_float"))
             {
-                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
             }
 
             // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
             if (OpenGLIsExtensionSupported(context, "WEBGL_color_buffer_float"))
             {
-                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
+                context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
             }
 
             // https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/
@@ -1678,7 +1678,7 @@ static void LogFrameBufferError(GLenum status)
                 {
                     switch (pCompressedFormats[i])
                     {
-                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
+                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_BaseContext.m_TextureFormatSupport |= 1 << _NAME2; break;
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
                         CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
@@ -1743,7 +1743,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_filter_anisotropic"))
@@ -1811,12 +1811,12 @@ static void LogFrameBufferError(GLenum status)
         #undef COMPUTE_VERSION_NEEDED
     #endif
 
-        if (context->m_PrintDeviceInfo)
+        if (context->m_BaseContext.m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(context);
         }
 
-        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_AUX_CONTEXT);
+        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_AUX_CONTEXT);
         if (context->m_AsyncProcessingSupport)
         {
             AcquireAuxContextOnThread(context, true);
@@ -1863,19 +1863,19 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        return context->m_Window;
+        return context->m_BaseContext.m_Window;
     }
 
     static void OpenGLCloseWindow(HContext _context)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
             PostDeleteTextures(context, true);
 
-            context->m_Width = 0;
-            context->m_Height = 0;
+            context->m_BaseContext.m_Width = 0;
+            context->m_BaseContext.m_Height = 0;
             context->m_Extensions.SetSize(0);
             free(context->m_ExtensionsString);
             context->m_ExtensionsString = 0;
@@ -1915,25 +1915,25 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        return context->m_Width;
+        return context->m_BaseContext.m_Width;
     }
 
     static uint32_t OpenGLGetHeight(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
-        return context->m_Height;
+        return context->m_BaseContext.m_Height;
     }
 
     static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            context->m_Width  = width;
-            context->m_Height = height;
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
+            context->m_BaseContext.m_Width  = width;
+            context->m_BaseContext.m_Height = height;
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
     }
 
@@ -1941,17 +1941,17 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
     }
 
     static void OpenGLGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        out_min_filter = context->m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_DefaultTextureMagFilter;
+        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void OpenGLClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -1987,7 +1987,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 #if defined(ANDROID)
-        dmPlatform::AndroidBeginFrame(context->m_Window);
+        dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
 #endif
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
     }
@@ -1997,7 +1997,7 @@ static void LogFrameBufferError(GLenum status)
         DM_PROFILE(__FUNCTION__);
         OpenGLContext* context = (OpenGLContext*) _context;
         PostDeleteTextures(context, false);
-        dmPlatform::SwapBuffers(context->m_Window);
+        dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
         CHECK_GL_ERROR;
     }
 
@@ -2813,7 +2813,7 @@ static void LogFrameBufferError(GLenum status)
                 OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
 
                 DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-                OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, binding.m_Texture);
+                OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, binding.m_Texture);
                 if (!tex)
                 {
                     continue;
@@ -2842,7 +2842,7 @@ static void LogFrameBufferError(GLenum status)
                         TextureFilter minfilter = tex->m_SamplerDirty.m_MinFilter;
                         if (minfilter == TEXTURE_FILTER_DEFAULT)
                         {
-                            minfilter = context->m_DefaultTextureMinFilter;
+                            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
                         }
 
                         GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
@@ -2862,7 +2862,7 @@ static void LogFrameBufferError(GLenum status)
                         TextureFilter magfilter = tex->m_SamplerDirty.m_MagFilter;
                         if (magfilter == TEXTURE_FILTER_DEFAULT)
                         {
-                            magfilter = context->m_DefaultTextureMagFilter;
+                            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
                         }
 
                         GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
@@ -4074,7 +4074,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
-            OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, attachment.m_Texture);
+            OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, attachment.m_Texture);
             for (int i = 0; i < num_attachment_targets; ++i)
             {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
@@ -4121,7 +4121,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
+                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
@@ -4301,7 +4301,7 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
-        return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void DeleteRenderTargetAttachment(OpenGLRenderTargetAttachment& attachment)
@@ -4323,7 +4323,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteRenderTarget(HContext _context, HRenderTarget render_target)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         GLuint handle = GetGLHandle(context, rt->m_Id);
         glDeleteFramebuffers(1, &handle);
@@ -4338,7 +4338,7 @@ static void LogFrameBufferError(GLenum status)
         DeleteRenderTargetAttachment(rt->m_DepthAttachment);
         DeleteRenderTargetAttachment(rt->m_StencilAttachment);
 
-        context->m_AssetHandleContainer.Release(render_target);
+        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         delete rt;
     }
@@ -4356,7 +4356,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (render_target != 0)
         {
-            rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+            rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         }
 
         if(PFN_glInvalidateFramebuffer != NULL)
@@ -4440,7 +4440,7 @@ static void LogFrameBufferError(GLenum status)
     static HTexture OpenGLGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (IsColorBufferType(buffer_type))
         {
@@ -4464,7 +4464,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
 
         if (IsColorBufferType(buffer_type))
@@ -4497,7 +4497,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -4518,7 +4518,7 @@ static void LogFrameBufferError(GLenum status)
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        return (context->m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
+        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)
@@ -4564,11 +4564,11 @@ static void LogFrameBufferError(GLenum status)
 
             if (min_filter == TEXTURE_FILTER_DEFAULT)
             {
-                min_filter = context->m_DefaultTextureMinFilter;
+                min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
             }
             if (mag_filter == TEXTURE_FILTER_DEFAULT)
             {
-                mag_filter = context->m_DefaultTextureMagFilter;
+                mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
             }
 
             GLenum gl_min_filter = GetOpenGLTextureFilter(min_filter);
@@ -4657,13 +4657,13 @@ static void LogFrameBufferError(GLenum status)
         ApplySamplerState(context, tex);
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         // Even if we check for validity when the texture was flagged for async deletion,
         // we can still end up in this state in very specific cases.
@@ -4681,7 +4681,7 @@ static void LogFrameBufferError(GLenum status)
             free(tex->m_TextureIds);
         }
 
-        context->m_AssetHandleContainer.Release(texture);
+        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
         delete tex;
     }
 
@@ -4768,7 +4768,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (tex == 0x0)
         {
             return;
@@ -4781,7 +4781,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_NumTextureIds : 0;
     }
 
@@ -4789,14 +4789,14 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_UsageHintFlags : 0;
     }
 
     static uint8_t OpenGLGetTexturePageCount(HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_PageCount : 0;
     }
 
@@ -4804,7 +4804,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         uint32_t flags     = TEXTURE_STATUS_OK;
         if(tex && dmAtomicGet32(&tex->m_DataState))
         {
@@ -4834,7 +4834,7 @@ static void LogFrameBufferError(GLenum status)
         glFlush();
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
         int32_t data_state = dmAtomicGet32(&tex->m_DataState);
         data_state &= ~(1<<ap.m_Params.m_MipMap);
         dmAtomicStore32(&tex->m_DataState, data_state);
@@ -4862,7 +4862,7 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_AsyncProcessingSupport)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-            OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+            OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
@@ -4887,7 +4887,7 @@ static void LogFrameBufferError(GLenum status)
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_BaseContext.m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
         if (!texture)
@@ -4936,7 +4936,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
@@ -5198,7 +5198,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (!tex)
         {
             return 0;
@@ -5219,7 +5219,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Width : 0;
     }
 
@@ -5227,7 +5227,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Height : 0;
     }
 
@@ -5235,7 +5235,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_OriginalWidth : 0;
     }
 
@@ -5243,7 +5243,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_OriginalHeight : 0;
     }
 
@@ -5251,7 +5251,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
@@ -5259,7 +5259,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Depth : 0;
     }
 
@@ -5267,7 +5267,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_MipMapCount : 0;
     }
 
@@ -5492,11 +5492,11 @@ static void LogFrameBufferError(GLenum status)
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
-            return GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }
@@ -5505,7 +5505,7 @@ static void LogFrameBufferError(GLenum status)
     uint32_t OpenGLGetRenderTargetId(HContext _context, HRenderTarget render_target)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         return GetGLHandle(context, rt->m_Id);
     }
 

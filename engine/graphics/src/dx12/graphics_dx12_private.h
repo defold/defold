@@ -235,6 +235,7 @@ namespace dmGraphics
 
     struct DX12Context
     {
+        GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
 
 #if defined(DM_PLATFORM_VENDOR)
@@ -252,8 +253,6 @@ namespace dmGraphics
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
-        HWindow                            m_Window;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;
 
@@ -273,11 +272,6 @@ namespace dmGraphics
         DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;
 
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
-        uint64_t                           m_TextureFormatSupport;
-        uint32_t                           m_Width;
-        uint32_t                           m_Height;
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
@@ -285,9 +279,7 @@ namespace dmGraphics
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
         uint32_t                           m_ViewportChanged      : 1;
-        uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
-        uint32_t                           m_PrintDeviceInfo      : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
 
@@ -312,7 +304,7 @@ namespace dmGraphics
 
     #define CHECK_HR_ERROR(result) \
     { \
-        if(g_DX12Context->m_VerifyGraphicsCalls && FAILED(result)) { \
+        if(g_DX12Context->m_BaseContext.m_VerifyGraphicsCalls && FAILED(result)) { \
             char msg[256]; \
             char buffer[1024]; \
             dmLog::HResultToString(result, msg, sizeof(msg)); \
