@@ -9,15 +9,4 @@ animations {
   playback: PLAYBACK_LOOP_FORWARD
   fps: 2
 }
-animations {
-  id: "Anim2"
-  images {
-    image: "/switcher/images/red_fish.png"
-  }
-  images {
-    image: "/switcher/images/blue_fish.png"
-  }
-  playback: PLAYBACK_LOOP_FORWARD
-  fps: 2
-}
 extrude_borders: 2
