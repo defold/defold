@@ -3116,7 +3116,7 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
 static bool WebGPUIsTextureFormatSupported(HContext context, TextureFormat format)
 {
     TRACE_CALL;
-    return (((WebGPUContext*)context)->m_TextureFormatSupport & (1ULL << format)) != 0;
+    return (((WebGPUContext*)context)->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
 }
 
 static uint32_t WebGPUGetMaxTextureSize(HContext context)
