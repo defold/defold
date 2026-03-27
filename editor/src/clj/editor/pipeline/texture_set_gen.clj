@@ -151,6 +151,12 @@
         (g/precluding-errors buffered-image
           (TextureSetGenerator/buildConvexHull buffered-image pivot-x pivot-y (sprite-trim-mode->enum sprite-trim-mode)))))))
 
+(defn make-image-key
+  ([^Image img]
+   (make-image-key (:path img) (:pivot-x img) (:pivot-y img) (:sprite-trim-mode img)))
+  ([path pivot-x pivot-y sprite-trim-mode]
+   [path [pivot-x pivot-y] sprite-trim-mode]))
+
 (defn atlas->texture-set-data
   [animations images margin inner-padding extrude-borders max-page-size]
   (let [sprite-geometries (mapv make-image-sprite-geometry images)]
@@ -178,11 +184,7 @@
                               (reset! anim-imgs-atom [])))
             rects (mapv texture-set-layout-rect images)
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
-            image-keys (mapv (fn [img]
-                               [(resource/proj-path (:path img))
-                                [(:pivot-x img) (:pivot-y img)]
-                                (:sprite-trim-mode img)])
-                             images)
+            image-keys (mapv make-image-key images)
             result (TextureSetGenerator/calculateLayout
                      rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
                      true false nil (get max-page-size 0) (get max-page-size 1))]

@@ -167,8 +167,7 @@
 
 (g/defnk produce-image-scene
   [_node-id image-resource order layout-size image-key->rect animation-updatable pivot-x pivot-y sprite-trim-mode]
-  (let [path (resource/proj-path image-resource)
-        image-key [path [pivot-x pivot-y] sprite-trim-mode]
+  (let [image-key (texture-set-gen/make-image-key (resource/proj-path image-resource) pivot-x pivot-y sprite-trim-mode)
         rect (get image-key->rect image-key)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
