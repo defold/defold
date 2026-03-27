@@ -130,13 +130,14 @@
           (is (g/error? (g/node-value atlas :build-targets)))
           (is (not (g/error? (g/node-value atlas :save-data)))))))))
 
-(deftest modifying-existing-image-pivot-does-not-trigger-atlas-regeneration
+(deftest modifying-existing-image-property-does-not-trigger-atlas-regeneration
   (test-util/with-loaded-project "test/resources/test_project"
     (let [atlas (test-util/resource-node project "/switcher/fish_animations.atlas")
           sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))
           asdf (test-util/outline atlas [0])]
       (let [fish (:node-id (nth (:children (test-util/outline atlas [0])) 0))]
         (g/set-property! fish :pivot-x (float 0.12345))
+        (g/set-property! fish :sprite-trim-mode :sprite-trim-mode-8)
         (is (= sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))))))))
 
 (deftest duplicate-animation-image-with-different-properties-triggers-regeneration
