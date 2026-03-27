@@ -377,7 +377,7 @@ namespace dmGraphics
 
         SetupSupportedTextureFormats(context);
 
-        InitializeFrameBuffers(context, color_format, depth_format);
+        InitializeFrameBuffers(_context, color_format, depth_format);
 
         context->m_FenceEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (!context->m_FenceEvent)
@@ -1603,7 +1603,7 @@ namespace dmGraphics
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
-            DX12DisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+            DX12DisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
