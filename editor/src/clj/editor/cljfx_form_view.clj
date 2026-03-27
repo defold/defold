@@ -141,7 +141,7 @@
   (DefoldStringConverter.
     resource/resource->proj-path
     #(some->> (when-not (string/blank? %) %)
-              (workspace/to-absolute-path)
+              (workspace/to-absolute-proj-path)
               (workspace/resolve-workspace-resource workspace))))
 
 (defn- text-field [props]

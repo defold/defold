@@ -190,7 +190,7 @@
           resource-types (resource/resource-types-by-type-ext basis workspace :editable)
           type-ext->template (fn/memoize
                                (fn type-ext->template [ext]
-                                 (or (workspace/template workspace (get resource-types ext) evaluation-context) "")))]
+                                 (or (workspace/template basis workspace (get resource-types ext)) "")))]
       (-> (future/io
             (let [root-path (path/real project-dir)
                   path+contents (mapv (fn [{proj-path 1 content 2}]
@@ -292,10 +292,10 @@
 
 (defn- make-ext-resource-attributes-fn [project]
   (rt/lua-fn ext-resource-attributes [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)]
-      (if-let [resource (-> project
-                            (project/workspace evaluation-context)
-                            (workspace/find-resource proj-path evaluation-context))]
+    (let [basis (:basis evaluation-context)
+          proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
+          workspace (project/workspace project evaluation-context)]
+      (if-let [resource (workspace/find-resource basis workspace proj-path)]
         (let [source-type (resource/source-type resource)]
           {:exists true
            :is_file (= :file source-type)
@@ -434,8 +434,9 @@
 
 (defn- make-open-resource-fn [workspace open-resource!]
   (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [resource-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
-          resource (workspace/find-resource workspace resource-path evaluation-context)]
+    (let [basis (:basis evaluation-context)
+          resource-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
+          resource (workspace/find-resource basis workspace resource-path)]
       (when (and resource (resource/exists? resource) (resource/openable? resource))
         (open-resource! resource)))))
 

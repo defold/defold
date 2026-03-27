@@ -373,6 +373,7 @@ namespace dmProfileRender
         dmRender::DrawTextParams params;
         params.m_FaceColor   = TITLE_FACE_COLOR;
         params.m_ShadowColor = TITLE_SHADOW_COLOR;
+        params.m_RenderOrder = 0xFFFFFFu;
 
         ProfilerThread* thread = GetSelectedThread(render_profile, frame);
 

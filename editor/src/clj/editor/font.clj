@@ -960,7 +960,8 @@
 
 (defn load-font [_project self resource font-desc]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Font$FontDesc font-desc
       font (resolve-resource :font)
       material (resolve-resource :material)

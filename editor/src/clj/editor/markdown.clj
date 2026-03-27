@@ -116,7 +116,7 @@
                               (let [basis (:basis evaluation-context)
                                     workspace (project/workspace project evaluation-context)]
                                 (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
-                                  (workspace/find-resource workspace proj-path))))]
+                                  (workspace/find-resource basis workspace proj-path))))]
             (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)
             (ui/open-url resolved-url))
 

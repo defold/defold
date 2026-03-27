@@ -46,7 +46,7 @@ jobs:
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
@@ -93,7 +93,7 @@ jobs:
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
@@ -127,7 +127,7 @@ jobs:
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
@@ -164,7 +164,7 @@ jobs:
         fi
       shell: bash
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz

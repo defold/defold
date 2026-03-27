@@ -380,6 +380,11 @@
     (make-aabb (Point3d. x1 y1 0)
                (Point3d. x2 y2 0))))
 
+(s/defn mirrored-point->aabb :- AABB
+  [^Point3d point]
+  (let [mirrored-point (doto (Point3d.) (.negate point))]
+    (make-aabb point mirrored-point)))
+
 (def empty-bounding-box (coords->aabb [0 0 0] [0 0 0]))
 
 (defn empty-aabb? [^AABB aabb]

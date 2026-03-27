@@ -42,9 +42,14 @@ def build(bld):
     elif bld.env.PLATFORM in ('x86_64-xbone'):
         source.append('engine_xbox.cpp')
 
+    engine_defines = []
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        engine_defines.append('DM_NO_HTTP_CACHE')
+
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
                     target = 'engine',
+                    defines = engine_defines,
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
@@ -57,7 +62,7 @@ def build(bld):
     bld.stlib(features = 'cxx ddf',
                     includes = '../proto . ..',
                     target = 'engine_release',
-                    defines = 'DM_RELEASE=1',
+                    defines = ['DM_RELEASE=1'] + engine_defines,
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     source = source,
@@ -73,8 +78,9 @@ def build(bld):
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
                              'ResourceTypeOgg', 'ResourceTypeOpus', 'ResourceTypeWav',
                              'ResourceTypeFont','ResourceTypeTTF',
-                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
+                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip',
+                             'ResourceTypeLight']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight']
 
     exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'LiveUpdateExt',
                         'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp', 'ScriptFont']
@@ -152,11 +158,13 @@ def build(bld):
 
     additional_libs.extend(font_lib)
 
+    resource_provider_symbols = ['ResourceProviderHttp']
+
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
-        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
+        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + resource_provider_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',

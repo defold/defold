@@ -14,6 +14,7 @@
 
 (ns editor.scene-tools
   (:require [clojure.set :as set]
+            [clojure.spec.alpha :as s]
             [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
@@ -25,38 +26,51 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.scene-picking :as scene-picking])
+            [editor.scene-picking :as scene-picking]
+            [util.coll :as coll])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(s/def ::node-id g/node-id?)
+(s/def ::prop-kw keyword?)
+(s/def ::prop-value any?)
+(s/def ::tx-data g/tx-data?)
+(s/def ::prop-kw->override-value (s/map-of ::prop-kw ::prop-value))
+(s/def ::node-id->prop-kw->override-value (s/map-of ::node-id ::prop-kw->override-value))
+(s/def :manip/tx-data ::tx-data)
+(s/def :manip/node-id ::node-id)
+(s/def :manip/prop-kw->override-value ::prop-kw->override-value)
+(s/def ::manipulation (s/keys :req [(or :manip/tx-data
+                                        :manip/prop-kw->override-value)]))
+(s/def ::manipulations (s/every ::manipulation))
+(s/def ::combined-manipulations (s/keys :opt-un [::tx-data ::node-id->prop-kw->override-value]))
 
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
-(defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta]
-                       (g/node-type-kw (:basis evaluation-context) node-id)))
+(defmulti manip-move (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
+                       (g/node-type-kw (:basis initial-evaluation-context) node-id)))
 (defmulti manip-move-manips (fn [node-id] (g/node-type-kw node-id)))
-(defmethod manip-move-manips :default
-  [_]
+(defmethod manip-move-manips :default [_]
   [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
 
 (defmulti manip-rotatable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-rotatable? :default [_] false)
-(defmulti manip-rotate (fn [evaluation-context node-id ^Quat4d delta]
-                         (g/node-type-kw (:basis evaluation-context) node-id)))
+(defmulti manip-rotate (fn [node-id ^Quat4d _delta _manip-phase initial-evaluation-context]
+                         (g/node-type-kw (:basis initial-evaluation-context) node-id)))
 (defmulti manip-rotate-manips (fn [node-id] (g/node-type-kw node-id)))
-(defmethod manip-rotate-manips :default
-  [_]
+(defmethod manip-rotate-manips :default [_]
   [:rot-x :rot-y :rot-z :rot-screen])
 
 (defmulti manip-scalable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-scalable? :default [_] false)
-(defmulti manip-scale (fn [evaluation-context node-id ^Vector3d delta]
-                        (g/node-type-kw (:basis evaluation-context) node-id)))
+(defmulti manip-scale (fn [node-id ^Vector3d _delta _manip-phase initial-evaluation-context]
+                        (g/node-type-kw (:basis initial-evaluation-context) node-id)))
 (defmulti manip-scale-manips (fn [node-id] (g/node-type-kw node-id)))
-(defmethod manip-scale-manips :default
-  [node-id]
+(defmethod manip-scale-manips :default [_]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
 ; Render assets
@@ -79,7 +93,8 @@
 
 ; Rendering
 
-(defn scale-factor [camera viewport ^Tuple3d reference-point]
+(defn scale-factor
+  ^double [camera viewport ^Tuple3d reference-point]
   (let [offset-point (doto (Point3d.) (.add reference-point (c/camera-right-vector camera)))
         screen-point-a (c/camera-project camera viewport reference-point)
         screen-point-b (c/camera-project camera viewport offset-point)]
@@ -148,7 +163,7 @@
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
-        (doseq [[mode vertex-buffer vertex-count] vertex-buffers
+        (doseq [[mode vertex-buffer ^long vertex-count] vertex-buffers
                 :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
                       color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
                               (float-array (assoc color 3 1.0))
@@ -177,7 +192,7 @@
                                       (.transform mat vec)
                                       [(.x vec) (.y vec) (.z vec)]) vs)]) vs)))
 
-(defn- gen-cone [sub-divs]
+(defn- gen-cone [^double sub-divs]
   (let [tip [1.0 0.0 0.0]
         origin [0.0 0.0 0.0]
         circle (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) sub-divs))]
@@ -212,7 +227,7 @@
       (vtx-rot (AxisAngle4d. (Vector3d. 0 1 0) (* 0.5 Math/PI)) mirror-sides)
       (vtx-rot (AxisAngle4d. (Vector3d. 1 0 0) (* 0.5 Math/PI)) mirror-sides))))
 
-(defn gen-circle [segs]
+(defn gen-circle [^double segs]
   [[GL/GL_LINES (reduce concat (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) segs))]
                                                      [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
 
@@ -229,8 +244,8 @@
 
 ; Transform tool manipulators
 
-(def axis-rotation-radius 100.0)
-(def screen-rotation-radius 120.0)
+(def ^:const axis-rotation-radius 100.0)
+(def ^:const screen-rotation-radius 120.0)
 
 (defn- manip->sub-manips [manip]
   (case manip
@@ -290,22 +305,22 @@
 (defn- manip->rotation [manip] ^AxisAngle4d
   (case manip
     :move-x (AxisAngle4d.)
-    :move-y (AxisAngle4d. (Vector3d. 0.0 0.0 1.0) (* 0.5 (Math/PI)))
-    :move-z (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
+    :move-y (AxisAngle4d. (Vector3d. 0.0 0.0 1.0) (* 0.5 Math/PI))
+    :move-z (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 Math/PI)))
     :move-xy (AxisAngle4d.)
-    :move-xz (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (* 0.5 (Math/PI)))
-    :move-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
+    :move-xz (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (* 0.5 Math/PI))
+    :move-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 Math/PI)))
     :move-screen (AxisAngle4d.)
-    :rot-x (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
-    :rot-y (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (- (* 0.5 (Math/PI))))
+    :rot-x (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 Math/PI)))
+    :rot-y (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (- (* 0.5 Math/PI)))
     :rot-z (AxisAngle4d.)
     :rot-screen (AxisAngle4d.)
     :scale-x (AxisAngle4d.)
-    :scale-y (AxisAngle4d. (Vector3d. 0.0 0.0 1.0) (* 0.5 (Math/PI)))
-    :scale-z (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
+    :scale-y (AxisAngle4d. (Vector3d. 0.0 0.0 1.0) (* 0.5 Math/PI))
+    :scale-z (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 Math/PI)))
     :scale-xy (AxisAngle4d.)
-    :scale-xz (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (* 0.5 (Math/PI)))
-    :scale-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
+    :scale-xz (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (* 0.5 Math/PI))
+    :scale-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 Math/PI)))
     :scale-uniform (AxisAngle4d.)))
 
 (defn- manip-enabled? [manip active-manip tool-active?]
@@ -387,7 +402,7 @@
                                    :world geom/Identity3d)]
     (Matrix4d. world-rotation world-translation scale-factor)))
 
-(g/defnk produce-renderables [_node-id active-tool manip-space camera viewport selected-renderables active-manip hot-manip start-action]
+(g/defnk produce-renderables [_node-id active-tool manip-space camera viewport selected-renderables drag-start-state hot-manip]
   (if (not (contains? transform-tools active-tool))
     {}
     (let [tool (get transform-tools active-tool)
@@ -395,7 +410,8 @@
           selected-renderables (filter #(filter-fn (:node-id %)) selected-renderables)]
       (if (empty? selected-renderables)
         {}
-        (let [tool-active (not (nil? start-action))
+        (let [active-manip (:active-manip drag-start-state)
+              tool-active (some? drag-start-state)
               reference-renderable (last selected-renderables)
               world-translation (:world-translation reference-renderable)
               world-rotation (:world-rotation reference-renderable)
@@ -414,7 +430,7 @@
 (defn- action->line [action]
   [(:world-pos action) (:world-dir action)])
 
-(defn- action->manip-pos [action ^Matrix4d lead-transform manip manip-rotation proj-fn]
+(defn- action->manip-pos [action ^Matrix4d lead-transform manip manip-rotation project-fn]
   (case manip
     :scale-uniform (:screen-pos action)
     (let [manip-dir (manip->normal manip manip-rotation)
@@ -422,14 +438,14 @@
           _ (.normalize manip-dir)
           manip-pos (math/translation lead-transform)
           [action-pos action-dir] (action->line action)]
-      (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
+      (project-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
 
 (defn- manip->project-fn [manip camera viewport]
   (case manip
     (:move-x :move-y :move-z :scale-x :scale-y :scale-z) math/project-lines
     (:move-xy :move-xz :move-yz :move-screen :scale-xy :scale-xz :scale-yz) math/line-plane-intersection
     (:rot-x :rot-y :rot-z :rot-screen)
-    (fn [pos dir manip-pos manip-dir]
+    (fn project-fn [pos dir manip-pos manip-dir]
       (let [scale (scale-factor camera viewport manip-pos)
             radius (* scale
                       (case manip
@@ -438,30 +454,32 @@
         (math/project-line-circle pos dir manip-pos manip-dir radius)))
     :scale-uniform identity))
 
-(defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values]
+(defn- make-manipulations-fn [manip-opts manip manip-pos original-values local-move-fn local-rotate-fn local-scale-fn]
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen)
     (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)]
-      (fn [start-pos pos]
+      (fn move-fn [manip-phase start-pos pos]
         (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))
               snapped-delta (move-snap-fn manip-delta)]
-          (for [{:keys [node-id parent-world-transform]} original-values
-                :let [world->local (math/inverse parent-world-transform)
+          (for [original-value original-values
+                :let [{:keys [parent-world-transform]} original-value
+                      world->local (math/inverse parent-world-transform)
                       local-delta (math/transform-vector world->local snapped-delta)]]
-            (manip-move evaluation-context node-id local-delta)))))
+            (local-move-fn manip-phase original-value local-delta)))))
     (:rot-x :rot-y :rot-z :rot-screen)
-    (fn [start-pos pos]
+    (fn rotate-fn [manip-phase start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
             manip-rotation (math/from-to->quat start-dir dir)]
-        (for [{:keys [node-id ^Quat4d world-rotation]} original-values
-              :let [local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
-          (manip-rotate evaluation-context node-id local-rotation))))
+        (for [original-value original-values
+              :let [{:keys [^Quat4d world-rotation]} original-value
+                    local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
+          (local-rotate-fn manip-phase original-value local-rotation))))
     (:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz)
-    (fn [start-pos pos]
+    (fn scale-fn [manip-phase start-pos pos]
       (let [world-transform (:world-transform (peek original-values))
             start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
             delta (doto (Vector3d.) (.sub pos manip-pos))
-            axis-scale (fn [^Vector3d local]
+            axis-scale (fn axis-scale [^Vector3d local]
                          (.transform ^Matrix4d world-transform local)
                          (.normalize local)
                          (let [start-len (.dot start-delta local)
@@ -479,79 +497,133 @@
                  (:scale-z :scale-xz :scale-yz) (axis-scale (Vector3d. 0.0 0.0 1.0))
                  1.0)
             scale-factor (Vector3d. sx sy sz)]
-        (for [{:keys [node-id]} original-values]
-          (manip-scale evaluation-context node-id scale-factor))))
+        (for [original-value original-values]
+          (local-scale-fn manip-phase original-value scale-factor))))
     :scale-uniform
-    (fn [^Vector3d start-pos ^Vector3d pos]
+    (fn uniform-scale-fn [manip-phase ^Vector3d start-pos ^Vector3d pos]
       (let [factor (+ 1 (* 0.02 (- (.x pos) (.x start-pos))))
             s (Vector3d. factor factor factor)]
-        (for [{:keys [node-id]} original-values]
-          (manip-scale evaluation-context node-id s))))))
+        (for [original-value original-values]
+          (local-scale-fn manip-phase original-value s))))))
 
-(defn- apply-manipulator [manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport]
+(defn combine-manipulations [manipulations]
+  {:post [(s/assert ::combined-manipulations %)]}
+  (coll/reduce-> manipulations {}
+    (fn [combined-manipulations manipulation]
+      {:pre [(s/assert ::manipulation manipulation)]}
+      (let [{:manip/keys [node-id tx-data prop-kw->override-value]} manipulation]
+        (cond-> combined-manipulations
+
+                (coll/not-empty tx-data)
+                (update :tx-data coll/into-vector tx-data)
+
+                (coll/not-empty prop-kw->override-value)
+                (update :node-id->prop-kw->override-value
+                        update (s/assert ::node-id node-id)
+                        coll/merge prop-kw->override-value))))))
+
+(defn- make-drag-manipulations-fn [manip-opts active-manip manip-origin original-values initial-evaluation-context]
+  (let [make-local-manipulation-fn
+        (fn make-local-manipulation-fn [manipulation-fn]
+          {:pre [(ifn? manipulation-fn)]}
+          (fn local-manipulation-fn [manip-phase {:keys [node-id]} local-delta]
+            (-> (s/assert ::manipulation (manipulation-fn node-id local-delta manip-phase initial-evaluation-context))
+                (assoc :manip/node-id node-id))))]
+    (make-manipulations-fn
+      manip-opts
+      active-manip
+      manip-origin
+      original-values
+      (make-local-manipulation-fn manip-move)
+      (make-local-manipulation-fn manip-rotate)
+      (make-local-manipulation-fn manip-scale))))
+
+(defn- make-drag-start-state [manip-opts original-values active-manip manip-space start-action camera viewport initial-evaluation-context]
   (let [{:keys [world-rotation world-transform]} (peek original-values)
         manip-origin (math/translation world-transform)
         manip-rotation (get-manip-rotation manip-space world-rotation)
-        lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
+        lead-transform (if (or (manip->screen? active-manip) (= active-manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
-                         (doto (Matrix4d.) (.set manip-origin)))]
-    (let [proj-fn (manip->project-fn manip camera viewport)
-          apply-fn (manip->apply-fn manip-opts evaluation-context manip manip-origin original-values)
-          [start-pos pos] (map #(action->manip-pos % lead-transform manip manip-rotation proj-fn) [start-action action])]
-      (apply-fn start-pos pos))))
+                         (doto (Matrix4d.) (.set manip-origin)))
+        project-fn (manip->project-fn active-manip camera viewport)
+        start-pos (action->manip-pos start-action lead-transform active-manip manip-rotation project-fn)
+        manipulations-fn (make-drag-manipulations-fn manip-opts active-manip manip-origin original-values initial-evaluation-context)]
+    {:active-manip active-manip
+     :initial-evaluation-context initial-evaluation-context
+     :lead-transform lead-transform
+     :manip-origin manip-origin
+     :manip-rotation manip-rotation
+     :manipulations-fn manipulations-fn
+     :op-seq (gensym)
+     :original-values original-values
+     :project-fn project-fn
+     :start-pos start-pos
+     :start-action start-action}))
+
+(defn- apply-manipulator [manip-phase drag-start-state action]
+  (let [{:keys [active-manip lead-transform manip-rotation project-fn start-pos manipulations-fn]} drag-start-state
+        pos (action->manip-pos action lead-transform active-manip manip-rotation project-fn)
+        manipulations (manipulations-fn manip-phase start-pos pos)]
+    (combine-manipulations manipulations)))
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
 (defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
-                     (let [evaluation-context (g/make-evaluation-context)
-                           active-tool (g/node-value self :active-tool evaluation-context)
+                     (let [initial-evaluation-context (g/make-evaluation-context)
+                           active-tool (g/node-value self :active-tool initial-evaluation-context)
                            tool (get transform-tools active-tool)
                            filter-fn (:filter-fn tool)
-                           selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables evaluation-context))
+                           selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables initial-evaluation-context))
                            original-values (->> selected-renderables
                                                 scene-picking/top-nodes
                                                 (mapv original-values))]
                        (when (and (not (empty? original-values))
                                   (= (:button action) :primary))
-                         (g/transact
-                           (concat
-                             (g/set-property self :start-action action)
-                             (g/set-property self :prev-action action)
-                             (g/set-property self :original-values original-values)
-                             (g/set-property self :initial-evaluation-context (atom evaluation-context))
-                             (g/set-property self :active-manip manip)
-                             (g/set-property self :hot-manip nil)
-                             (g/set-property self :op-seq (gensym)))))
+                         (let [manip-opts (g/node-value self :manip-opts initial-evaluation-context)
+                               manip-space (g/node-value self :manip-space initial-evaluation-context)
+                               camera (g/node-value self :camera initial-evaluation-context)
+                               viewport (g/node-value self :viewport initial-evaluation-context)
+                               drag-start-state (make-drag-start-state manip-opts original-values manip manip-space action camera viewport initial-evaluation-context)]
+                           (g/transact
+                             (concat
+                               (g/set-property self :drag-start-state drag-start-state)
+                               (g/set-property self :preview-overrides {})
+                               (g/set-property self :hot-manip nil)))))
                        nil)
                      action)
-    :mouse-released (if (g/node-value self :start-action)
+    :mouse-released (if-let [drag-start-state (g/node-value self :drag-start-state)]
                       (do
-                        (g/transact
-                          (concat
-                            (g/set-property self :start-action nil)
-                            (g/set-property self :prev-action nil)
-                            (g/set-property self :original-values nil)))
+                        (let [active-tool (g/node-value self :active-tool)
+                              op-seq (:op-seq drag-start-state)
+                              combined-manipulations (apply-manipulator :manip-phase/commit drag-start-state action)
+                              commit-tx-data (:tx-data combined-manipulations)]
+                          (when (not (coll/empty? commit-tx-data))
+                            (g/transact
+                              (concat
+                                (g/operation-label (get-in transform-tools [active-tool :label]))
+                                (g/operation-sequence op-seq)
+                                commit-tx-data)))
+                          (g/transact
+                            (concat
+                              (g/set-property self :drag-start-state nil)
+                              (g/set-property self :preview-overrides nil)
+                              (g/set-property self :hot-manip nil))))
                         nil)
                       action)
-    :mouse-moved (if-let [start-action (g/node-value self :start-action)]
-                   (let [prev-action     (g/node-value self :prev-action)
-                         active-tool     (g/node-value self :active-tool)
-                         original-values (g/node-value self :original-values)
-                         manip           (g/node-value self :active-manip)
-                         manip-opts      (g/node-value self :manip-opts)
-                         manip-space     (g/node-value self :manip-space)
-                         op-seq          (g/node-value self :op-seq)
-                         camera          (g/node-value self :camera)
-                         viewport        (g/node-value self :viewport)
-                         evaluation-context @(g/node-value self :initial-evaluation-context)]
-                     (g/transact
-                       (concat
-                         (g/operation-label (get-in transform-tools [active-tool :label]))
-                         (g/operation-sequence op-seq)
-                         (apply-manipulator manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport)))
-                     (g/transact (g/set-property self :prev-action action))
+    :mouse-moved (if-let [drag-start-state (g/node-value self :drag-start-state)]
+                   (let [op-seq (:op-seq drag-start-state)
+                         combined-manipulations (apply-manipulator :manip-phase/preview drag-start-state action)
+                         preview-tx-data (:tx-data combined-manipulations)
+                         preview-overrides (:node-id->prop-kw->override-value combined-manipulations)]
+                     (when (or (not (coll/empty? preview-tx-data))
+                               (not (coll/empty? preview-overrides)))
+                       (g/transact
+                         (concat
+                           (g/operation-sequence op-seq)
+                           (g/set-property self :preview-overrides preview-overrides)
+                           preview-tx-data)))
                      nil)
                    (let [manip (first (get selection-data self))]
                      (when (not= manip (g/node-value self :hot-manip))
@@ -582,14 +654,9 @@
 
 (g/defnode ToolController
   (property prefs g/Any)
-  (property start-action g/Any)
-  (property prev-action g/Any)
-  (property original-values g/Any)
-  (property initial-evaluation-context g/Any)
-
+  (property drag-start-state g/Any)
+  (property preview-overrides g/Any)
   (property hot-manip g/Any)
-  (property active-manip g/Any)
-  (property op-seq g/Any)
 
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)

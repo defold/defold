@@ -301,22 +301,22 @@ namespace dmGameSystem
         }
 
         HComponentRenderConstants cloned_constants = dmGameSystem::CreateRenderConstants();
-        
+
         uint32_t count = dmGameSystem::GetRenderConstantCount(src_constants);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmRender::HConstant constant = dmGameSystem::GetRenderConstant(src_constants, i);
             dmhash_t name_hash = dmRender::GetConstantName(constant);
-            
+
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            
+
             if (values)
             {
                 dmGameSystem::SetRenderConstant(cloned_constants, name_hash, values, num_values);
             }
         }
-        
+
         return cloned_constants;
     }
 
@@ -1281,6 +1281,7 @@ namespace dmGameSystem
                          RenderGuiContext* gui_context)
     {
         GuiWorld* gui_world = gui_context->m_GuiWorld;
+        uint32_t batch_render_order = MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++);
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1304,8 +1305,10 @@ namespace dmGameSystem
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             params.m_Text = dmGui::GetNodeText(scene, node);
+            if (params.m_Text[0] == '\0')
+                continue;
             params.m_WorldTransform = node_transforms[i];
-            params.m_RenderOrder = dmGui::GetRenderOrder(scene);
+            params.m_RenderOrder = batch_render_order;
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
             params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
@@ -1368,8 +1371,6 @@ namespace dmGameSystem
 
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
-
-        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     static void RenderParticlefxNodes(dmGui::HScene scene,
@@ -2410,6 +2411,8 @@ namespace dmGameSystem
             }
         }
 
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, false);
+
         dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
@@ -2986,7 +2989,7 @@ namespace dmGameSystem
         {
             return (*getter_fn)(gui_component->m_Scene, params, out_value);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3090,7 +3093,7 @@ namespace dmGameSystem
         {
             return (*setter_fn)(gui_component->m_Scene, params);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3335,7 +3338,7 @@ namespace dmGameSystem
     {
         g_CompGuiPropertySetters.SetCapacity(4, 8);
         g_CompGuiPropertyGetters.SetCapacity(4, 8);
-        
+
         CompGuiContext* gui_context = new CompGuiContext;
         gui_context->m_Factory = ctx->m_Factory;
         gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));

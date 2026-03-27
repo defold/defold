@@ -244,34 +244,6 @@
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-targets g/Any produce-embedded-component-build-targets))
 
-;; -----------------------------------------------------------------------------
-;; Currently some source resources have scale properties. This was done so
-;; that particular component types such as the Label component could support
-;; scaling. This is not ideal, since the scaling cannot differ between
-;; instances of the component. We probably want to remove this and move the
-;; scale attribute to the Component instance in the future.
-;;
-;; Here we delegate scaling to the embedded resource node. To support scaling,
-;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
-
-(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
-  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
-      (contains? (g/node-value node-id :transform-properties) :scale)))
-
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [evaluation-context node-id ^Vector3d delta]
-  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
-    (cond
-      (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale evaluation-context embedded-resource-id delta)
-
-      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale)
-      (scene/manip-scale-scene-node evaluation-context node-id delta)
-
-      :else
-      nil)))
-
-;; -----------------------------------------------------------------------------
-
 (defn- get-all-comp-exts [workspace]
   (keep (fn [[ext {:keys [tags :as _resource-type]}]]
           (when (or (contains? tags :component)
@@ -588,25 +560,24 @@
         resource-type (:resource-type user-data)]
     (add-embedded-component! go-id resource-type select-fn)))
 
-(defn- embeddable-component-resource-type? [resource-type workspace evaluation-context]
+(defn- embeddable-component-resource-type? [basis resource-type workspace]
   (let [{:keys [tags] :as resource-type} resource-type]
     (and (contains? tags :component)
          (not (contains? tags :non-embeddable))
-         (workspace/has-template? workspace resource-type evaluation-context))))
+         (workspace/has-template? basis workspace resource-type))))
 
 (defn embeddable-component-resource-types
   ([workspace]
-   (g/with-auto-evaluation-context evaluation-context
-     (embeddable-component-resource-types workspace evaluation-context)))
-  ([workspace evaluation-context]
+   (embeddable-component-resource-types (g/now) workspace))
+  ([basis workspace]
    (keep (fn [[_ext resource-type]]
-           (when (embeddable-component-resource-type? resource-type workspace evaluation-context)
+           (when (embeddable-component-resource-type? basis resource-type workspace)
              resource-type))
-         (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))
+         (resource/resource-types-by-type-ext basis workspace :editable))))
 
-(defn- add-embedded-component-options [self workspace user-data evaluation-context]
+(defn- add-embedded-component-options [basis self workspace user-data]
   (when (not user-data)
-    (->> (embeddable-component-resource-types workspace evaluation-context)
+    (->> (embeddable-component-resource-types basis workspace)
          (mapv (fn [res-type]
                  {:label (or (:label res-type) (:ext res-type))
                   :icon (:icon res-type)
@@ -623,18 +594,21 @@
   (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data evaluation-context]
-    (let [self (selection->game-object selection evaluation-context)
+    (let [basis (:basis evaluation-context)
+          self (selection->game-object selection evaluation-context)
           workspace (:workspace (g/node-value self :resource evaluation-context))]
-      (add-embedded-component-options self workspace user-data evaluation-context))))
+      (add-embedded-component-options basis self workspace user-data))))
 
 (defn load-game-object [project self resource prototype-desc]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
-  (let [workspace (project/workspace project)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        workspace (project/workspace project)
         ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (concat
       (for [component (:components prototype-desc)
             :let [source-path (:component component)
-                  source-resource (workspace/resolve-resource resource source-path)
+                  source-resource (resolve-resource source-path)
                   resource-type (some-> source-resource resource/resource-type)
                   transform-properties (select-transform-properties resource-type component)
                   properties (:properties component)]]
@@ -693,25 +667,27 @@
     (let [type-name (rt/->clj rt coerce/string lua-type)]
       (if (= ext-referenced-component-type type-name)
         [(dissoc attachment "type") ReferencedComponent]
-        (let [resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+        (let [basis (:basis evaluation-context)
+              resource-types (resource/resource-types-by-type-ext basis workspace :editable)
               resource-type (resource-types type-name)]
-          (if (and resource-type (embeddable-component-resource-type? resource-type workspace evaluation-context))
+          (if (and resource-type (embeddable-component-resource-type? basis resource-type workspace))
             [attachment EmbeddedComponent]
             (throw (LuaError. (str "type is not "
-                                   (->> (embeddable-component-resource-types workspace evaluation-context)
+                                   (->> (embeddable-component-resource-types basis workspace)
                                         (map :ext)
                                         (cons ext-referenced-component-type)
                                         (eutil/join-words ", " " or ")))))))))
     (throw (LuaError. "type is required"))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedComponent [evaluation-context rt project workspace attachment node-id]
-  (let [component-ext (rt/->clj rt coerce/string (attachment "type"))
-        resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+  (let [basis (:basis evaluation-context)
+        component-ext (rt/->clj rt coerce/string (attachment "type"))
+        resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         resource-type (resource-types component-ext)]
     (assert resource-type)
-    (assert (embeddable-component-resource-type? resource-type workspace evaluation-context))
+    (assert (embeddable-component-resource-type? basis resource-type workspace))
     (let [graph (g/node-id->graph-id node-id)
-          pb-map (game-object-common/template-pb-map workspace resource-type evaluation-context)
+          pb-map (game-object-common/template-pb-map basis workspace resource-type)
           resource (resource/make-memory-resource workspace resource-type pb-map)
           node-type (:node-type resource-type)]
       (g/make-nodes graph [resource-node [node-type :resource resource]]

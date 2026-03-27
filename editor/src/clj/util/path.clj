@@ -145,7 +145,10 @@
   system entry. Throws an IOException if there was no matching entry in the file
   system. Contrary to the `real` function, `actual-cased` does not resolve
   symbolic links in the returned Path. Beware that this operation can be
-  surprisingly slow on certain file systems."
+  surprisingly slow on certain file systems.
+
+  See: https://bugs.openjdk.org/browse/JDK-8368633, which was resolved after the
+  performance improved a bit, but unfortunately, it is still very slow."
   (^Path [x]
    (.toRealPath (to-path x) no-follow-links-link-options))
   (^Path [x & xs]
@@ -154,8 +157,7 @@
 (defn real
   "Returns the canonical, real path to an existing file system entry. Throws an
   IOException if there was no matching entry in the file system. Follows
-  symbolic links and queries their target. Beware that this operation can be
-  surprisingly slow on certain file systems."
+  symbolic links and queries their target."
   (^Path [x]
    (.toRealPath (to-path x) follow-links-link-options))
   (^Path [x & xs]

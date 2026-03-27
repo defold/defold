@@ -126,6 +126,10 @@ def build(bld):
     if build_util.get_target_os() in ['macos', 'ios']:
         source_files = remove_files(source_files, ['time_posix.cpp'])
 
+    if 'web' in bld.env.PLATFORM:
+        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'sslsocket.cpp', 'configfile_http.cpp'])
+        extra_defines.append('DM_NO_HTTP_CACHE')
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
@@ -134,6 +138,8 @@ def build(bld):
 
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
+    if 'web' in bld.env.PLATFORM:
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)

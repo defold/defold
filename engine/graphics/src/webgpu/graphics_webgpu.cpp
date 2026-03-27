@@ -1948,15 +1948,21 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
 {
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
+    uint32_t set = ubo->m_BaseUniformBuffer.m_BoundSet;
 
-    if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+    if (set == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
     {
         return;
     }
 
-    if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+    if (context->m_CurrentUniformBuffers[set][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
     {
-        context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+        context->m_CurrentUniformBuffers[set][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+    }
+
+    if (context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
+    {
+        context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 
     ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -1977,6 +1983,11 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
     }
 
     context->m_CurrentUniformBuffers[set][binding] = ubo;
+
+    if (context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
+    {
+        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+    }
 }
 
 static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -2697,6 +2708,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 
                     assert(res.m_Type.m_UseTypeIndex);
                     program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                    program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 
                     info.m_UniformBufferCount++;
                     info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -2718,6 +2730,9 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info)
 {
     TRACE_CALL;
+    program->m_BaseProgram.m_UniformBufferLayouts.SetSize(0);
+    program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
     WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
@@ -2855,14 +2870,17 @@ static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
     TRACE_CALL;
     if(program->m_VertexModule) {
         WebGPUDestroyShader(program->m_VertexModule);
+        delete program->m_VertexModule;
         program->m_VertexModule = NULL;
     }
     if(program->m_FragmentModule) {
         WebGPUDestroyShader(program->m_FragmentModule);
+        delete program->m_FragmentModule;
         program->m_FragmentModule = NULL;
     }
     if(program->m_ComputeModule) {
         WebGPUDestroyShader(program->m_ComputeModule);
+        delete program->m_ComputeModule;
         program->m_ComputeModule = NULL;
     }
     if (program->m_UniformData)
@@ -2878,7 +2896,10 @@ static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
             program->m_BindGroupLayouts[i] = NULL;
         }
         if (program->m_BindGroups[i])
+        {
+            wgpuBindGroupRelease(program->m_BindGroups[i]);
             program->m_BindGroups[i] = NULL;
+        }
     }
     if (program->m_PipelineLayout)
     {
@@ -2911,8 +2932,15 @@ static bool WebGPUIsShaderLanguageSupported(HContext context, ShaderDesc::Langua
 static void WebGPUEnableProgram(HContext _context, HProgram program)
 {
     TRACE_CALL;
-    WebGPUContext* context    = (WebGPUContext*)_context;
-    context->m_CurrentProgram = (WebGPUProgram*)program;
+    WebGPUContext* context     = (WebGPUContext*)_context;
+    WebGPUProgram* gpu_program = (WebGPUProgram*)program;
+
+    for (uint32_t set = 0; set < gpu_program->m_BaseProgram.m_MaxSet; ++set)
+    {
+        gpu_program->m_BindGroups[set] = NULL;
+    }
+
+    context->m_CurrentProgram = gpu_program;
 }
 
 static void WebGPUDisableProgram(HContext _context)
@@ -2939,35 +2967,42 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
     WebGPUProgram* program = (WebGPUProgram*)_program;
     WebGPUDestroyProgram(context, program);
 
-    DestroyShaderMeta(program->m_BaseProgram.m_ShaderMeta);
-
     if (ddf_cp)
     {
-        WebGPUShaderModule tmp_shader;
-        if (!WebGPUCreateShaderModuleFromDDF(context, &tmp_shader, ddf_cp))
-            return false;
+        WebGPUShaderModule* compute_module = new WebGPUShaderModule;
+        memset(compute_module, 0, sizeof(WebGPUShaderModule));
 
-        WebGPUDestroyShader(program->m_ComputeModule);
-        memcpy(program->m_ComputeModule, &tmp_shader, sizeof(*program->m_ComputeModule));
+        if (!WebGPUCreateShaderModuleFromDDF(context, compute_module, ddf_cp))
+        {
+            delete compute_module;
+            return false;
+        }
+
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        WebGPUCreateComputeProgram(context, program, compute_module);
     }
     else
     {
-        WebGPUShaderModule tmp_shader_vs;
-        if (!WebGPUCreateShaderModuleFromDDF(context, &tmp_shader_vs, ddf_vp))
+        WebGPUShaderModule* vertex_module = new WebGPUShaderModule;
+        memset(vertex_module, 0, sizeof(WebGPUShaderModule));
+        if (!WebGPUCreateShaderModuleFromDDF(context, vertex_module, ddf_vp))
+        {
+            delete vertex_module;
             return false;
+        }
 
-        WebGPUShaderModule tmp_shader_fs;
-        if (!WebGPUCreateShaderModuleFromDDF(context, &tmp_shader_fs, ddf_fp))
+        WebGPUShaderModule* fragment_module = new WebGPUShaderModule;
+        memset(fragment_module, 0, sizeof(WebGPUShaderModule));
+        if (!WebGPUCreateShaderModuleFromDDF(context, fragment_module, ddf_fp))
+        {
+            delete vertex_module;
+            delete fragment_module;
             return false;
+        }
 
-        WebGPUDestroyShader(program->m_VertexModule);
-        memcpy(program->m_VertexModule, &tmp_shader_vs, sizeof(*program->m_VertexModule));
-
-        WebGPUDestroyShader(program->m_FragmentModule);
-        memcpy(program->m_FragmentModule, &tmp_shader_fs, sizeof(*program->m_FragmentModule));
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        WebGPUCreateGraphicsProgram(context, program, vertex_module, fragment_module);
     }
-
-    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
     return true;
 }

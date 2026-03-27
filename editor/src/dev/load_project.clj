@@ -96,11 +96,11 @@
 (defonce ^:private resource-metrics (du/make-metrics-collector))
 (defonce ^:private transaction-metrics (du/make-metrics-collector))
 
-(defonce ^:private change-tracked-transact false)
+(defonce ^:private full-invalidation-transact true)
 
 (defonce ^:private transact-opts
   {:metrics transaction-metrics
-   :track-changes change-tracked-transact})
+   :full-invalidation full-invalidation-transact})
 
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
@@ -235,8 +235,6 @@
                 (keep #(resource-node/owner-resource-node-id basis %))
                 (g/migrated-node-ids tx-result)))]
 
-    (when-not change-tracked-transact
-      (g/clear-system-cache!))
     (run-and-measure-task!
       :cache-save-data
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))

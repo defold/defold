@@ -299,10 +299,16 @@ namespace dmHttpClient
         client->m_MaxGetRetries = params->m_MaxGetRetries;
         client->m_RequestTimeout = params->m_RequestTimeout;
         client->m_RequestStart = 0;
-        client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = (strcmp(hostURI->m_Scheme, "https") == 0) || (strcmp(hostURI->m_Scheme, "wss") == 0);
-        client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
         client->m_CancelFlag = cancelflag;
+
+#if defined(DM_NO_HTTP_CACHE)
+        client->m_HttpCache = 0;
+        client->m_IgnoreCache = 1;
+#else
+        client->m_HttpCache = params->m_HttpCache;
+        client->m_IgnoreCache = params->m_HttpCache != 0 ? 0 : 1;
+#endif
 
         memcpy(&client->m_HostURI, hostURI, sizeof(*hostURI));
         if (proxyURI)
@@ -335,7 +341,11 @@ namespace dmHttpClient
                 client->m_RequestTimeout = (int) value;
                 break;
             case OPTION_REQUEST_IGNORE_CACHE:
+#if defined(DM_NO_HTTP_CACHE)
+                client->m_IgnoreCache = 1;
+#else
                 client->m_IgnoreCache = value != 0 ? 1 : 0;
+#endif
                 break;
             case OPTION_REQUEST_CHUNKED_TRANSFER:
                 client->m_ChunkedTransfer = value != 0 ? 1 : 0;
@@ -611,6 +621,7 @@ if (sock_res != dmSocket::RESULT_OK)\
             }
         }
 
+#if !defined(DM_NO_HTTP_CACHE)
         if (!client->m_IgnoreCache && client->m_HttpCache)
         {
             char etag[dmHttpCache::MAX_TAG_LEN] = "";
@@ -622,6 +633,7 @@ if (sock_res != dmSocket::RESULT_OK)\
                 HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
             }
         }
+#endif
 
         if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
@@ -696,6 +708,10 @@ bail:
         // to_transfer can be set to -1 when the "Content-Length" is unknown
         int total_transferred = 0;
 
+#if defined(DM_NO_HTTP_CACHE)
+        (void) add_to_cache;
+#endif
+
         while (true)
         {
             int n;
@@ -709,10 +725,12 @@ bail:
                         response->m_RangeStart, response->m_RangeEnd, response->m_DocumentSize,
                         method);
 
+#if !defined(DM_NO_HTTP_CACHE)
             if (response->m_CacheCreator && add_to_cache)
             {
                 dmHttpCache::Add(client->m_HttpCache, response->m_CacheCreator, client->m_Buffer + response->m_ContentOffset, n);
             }
+#endif
 
             total_transferred += n;
             assert(total_transferred <= to_transfer || to_transfer == -1);
@@ -795,6 +813,7 @@ bail:
         (void) method;
     }
 
+#if !defined(DM_NO_HTTP_CACHE)
     static Result HandleCached(HClient client, const char* path, Response* response, bool method_is_head)
     {
         client->m_Statistics.m_CachedResponses++;
@@ -879,6 +898,7 @@ bail:
 
         return RESULT_OK;
     }
+#endif
 
     static Result HandleResponse(HClient client, const char* path, const char* method, Response* response)
     {
@@ -986,6 +1006,11 @@ bail:
         bool method_is_head = strcmp(method, "HEAD") == 0;
         bool method_is_connect = strcmp(method, "CONNECT") == 0;
 
+#if defined(DM_NO_HTTP_CACHE)
+        (void) method_is_head;
+        (void) method_is_connect;
+#endif
+
         if (sock_res != dmSocket::RESULT_OK)
         {
             return RESULT_SOCKET_ERROR;
@@ -1021,10 +1046,12 @@ bail:
             // Use cached version
             if (response.m_ContentLength == 0 || response.m_ContentLength == -1)
             {
+#if !defined(DM_NO_HTTP_CACHE)
                 if (!client->m_IgnoreCache && client->m_HttpCache)
                 {
                     r = HandleCached(client, path, &response, method_is_head);
                 }
+#endif
                 response.m_TotalReceived = 0;
             }
             else
@@ -1045,6 +1072,7 @@ bail:
                 response.m_RangeEnd = response.m_DocumentSize-1;
             }
 
+#if !defined(DM_NO_HTTP_CACHE)
             // Non-cached response
             bool is_ok = response.m_Status == 200 || response.m_Status == 206;
             if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && !method_is_connect && is_ok)
@@ -1056,9 +1084,11 @@ bail:
                 dmHttpCache::Begin(client->m_HttpCache, client->m_CacheKey, response.m_ETag, response.m_MaxAge,
                                     range_start, range_end, document_size, &response.m_CacheCreator);
             }
+#endif
 
             r = HandleResponse(client, path, method, &response);
 
+#if !defined(DM_NO_HTTP_CACHE)
             if (response.m_CacheCreator)
             {
                 if (r != RESULT_OK)
@@ -1068,6 +1098,7 @@ bail:
                 dmHttpCache::End(client->m_HttpCache, response.m_CacheCreator);
                 response.m_CacheCreator = 0;
             }
+#endif
         }
 
         // Removed an assert here, in favor of returning an error instead
@@ -1196,6 +1227,7 @@ bail:
         return r;
     }
 
+#if !defined(DM_NO_HTTP_CACHE)
     static Result HandleCachedVerified(HClient client, const dmHttpCache::EntryInfo* info)
     {
         Response response(client);
@@ -1231,6 +1263,7 @@ bail:
             return RESULT_IO_ERROR;
         }
     }
+#endif
 
     Result SetCacheKey(HClient client, const char* key)
     {
@@ -1254,6 +1287,7 @@ bail:
 
         Result r;
 
+#if !defined(DM_NO_HTTP_CACHE)
         if (!client->m_IgnoreCache && client->m_HttpCache)
         {
             dmHttpCache::ConsistencyPolicy policy = dmHttpCache::GetConsistencyPolicy(client->m_HttpCache);
@@ -1273,6 +1307,7 @@ bail:
                 }
             }
         }
+#endif
 
         for (int i = 0; i < client->m_MaxGetRetries; ++i)
         {

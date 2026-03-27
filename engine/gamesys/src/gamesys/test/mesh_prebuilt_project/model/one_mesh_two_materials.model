@@ -1,0 +1,10 @@
+mesh: "/model/one_mesh_two_materials.glb"
+name: "one_mesh_two_materials"
+materials {
+  name: "Material.002"
+  material: "/material/world_vertexspace.material"
+}
+materials {
+  name: "Material.003"
+  material: "/material/local_vertexspace.material"
+}

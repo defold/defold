@@ -302,6 +302,7 @@
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [io.github.cljfx/dev "1.10.6.42"]
+                                                    [io.github.cljfx/plorer "1.25" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]

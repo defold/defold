@@ -123,6 +123,26 @@ namespace dmGraphics
     VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext context);
 
     /*#
+     * Get the native Vulkan image handle from an engine texture handle.
+     * Returns `0` if the texture handle does not resolve to a Vulkan image.
+     * @name VulkanGetImage
+     * @param context [type:dmGraphics::HContext] the Vulkan context
+     * @param texture [type:dmGraphics::HTexture] the texture handle
+     * @return image [type:VkImage] the Vulkan image handle
+     */
+    VkImage VulkanGetImage(HContext context, HTexture texture);
+
+    /*#
+     * Get the native Vulkan image view handle from an engine texture handle.
+     * Returns `0` if the texture handle does not resolve to a Vulkan image view.
+     * @name VulkanGetImageView
+     * @param context [type:dmGraphics::HContext] the Vulkan context
+     * @param texture [type:dmGraphics::HTexture] the texture handle
+     * @return image_view [type:VkImageView] the Vulkan image view handle
+     */
+    VkImageView VulkanGetImageView(HContext context, HTexture texture);
+
+    /*#
      * Create Vulkan descriptor pool. No need to deallocate descripto pool manualy 
      * because it will be deallocated automatically when context will be destroyed.
      * Only available when using Mac/iOS.
