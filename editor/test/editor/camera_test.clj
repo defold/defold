@@ -52,6 +52,11 @@
     :idle   :primary   false false false false
     :idle   :primary   true  false false false
     :idle   :primary   false false false true
+    :track  :secondary false false false false
+    :idle   :secondary true  false false false
+    :idle   :secondary false true  false false
+    :dolly  :secondary false false true false
+    :idle   :secondary false false false true
     :track  :middle    false false false false
     :idle   :middle    true  false false false
     :idle   :middle    false true  false false
@@ -107,7 +112,6 @@
         dt (/ 1.0 60.0)]
     (let [result (reduce
                    (fn [cam _]
-                     (println velocity)
                      (or (#'c/wasd-move velocity cam forward 5.0 dt) cam))
                    camera
                    (range 20))
@@ -138,6 +142,5 @@
                          moving-camera
                          (range 200))
         speed-after (.length velocity)]
-    (println speed-before speed-after)
     (is (> speed-before 0.1) "Should have built up velocity")
     (is (< speed-after 0.001) "Velocity should have decayed to near zero")))
