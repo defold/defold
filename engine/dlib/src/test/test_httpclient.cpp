@@ -1562,6 +1562,20 @@ TEST(dmHttpClient, ProxyHttps)
     ProxyAddRequest(true, g_HttpPortSSL);
 }
 
+// Verifies that a non-200 CONNECT response from the proxy is preserved as an HTTP error for HTTPS requests.
+TEST(dmHttpClient, ProxyHttpsConnectFailureReturnsHttpError)
+{
+    char proxy_url[128];
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper("https://127.0.0.1:1", proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::Result r = helper.Get("/");
+    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+    ASSERT_EQ(502, helper.m_StatusCode);
+}
+
 // Verifies that reconnecting through a proxy after a reused HTTP connection is closed does not leak pool handles.
 TEST(dmHttpClient, ProxyReusedConnectionCloseDoesNotLeakPoolHandles)
 {

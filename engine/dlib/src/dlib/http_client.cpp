@@ -1204,7 +1204,7 @@ bail:
                     return r;
                 }
             }
-            else if (use_proxy)
+            else if (r == RESULT_OK && use_proxy)
             {
                 if (client->m_Secure)
                 {
