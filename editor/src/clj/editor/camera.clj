@@ -901,7 +901,7 @@
 (defn free-cam-mode-active? [camera-node]
   (some-> camera-node (g/user-data ::camera-state) :free-cam-mode))
 
-(defn start-free-cam-mode! [^ImageView image-view camera-node current-cursor-pos]
+(defn start-free-cam-mode! [^ImageView image-view camera-node screen-pos]
   (when (and (not (:free-cam-mode (g/user-data camera-node ::camera-state)))
              (not (g/node-value camera-node :animating)))
     ;; NOTE: If the dolly is animating, this prevents funkiness
@@ -926,7 +926,7 @@
           (g/set-property camera-node :cursor-type :none)))
       (g/user-data-swap! camera-node ::camera-state assoc
         :free-cam-mode true
-        :free-cam-cursor-start-pos current-cursor-pos
+        :free-cam-screen-start-pos screen-pos
         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
         :free-cam-pitch pitch
         :free-cam-yaw yaw
@@ -938,7 +938,7 @@
   (ui/set-cursor image-view Cursor/DEFAULT)
   (toggle-free-cam-css image-view false)
   (i/stop-mouse-capture)
-  (let [[x y] (:free-cam-cursor-start-pos (g/user-data camera-node ::camera-state))]
+  (let [[x y] (:free-cam-screen-start-pos (g/user-data camera-node ::camera-state))]
     (when (and x y)
       (i/warp-cursor x y)))
   (g/set-property! camera-node :cursor-type :default)

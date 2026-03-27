@@ -1344,10 +1344,9 @@
             (contains? :look)))
   (run [app-view]
     (when-let [scene-view (active-scene-view app-view)]
-      (let [input-state (g/user-data scene-view ::input-state)
-            camera (view->camera scene-view)
+      (let [camera (view->camera scene-view)
             image-view (g/node-value scene-view :image-view)]
-        (c/start-free-cam-mode! image-view camera (:cursor-pos input-state))))))
+        (c/start-free-cam-mode! image-view camera (i/get-cursor-pos))))))
 
 ;; NOTE: If we don't register these commands deleting the commands default shortcut makes the command unreachable unless
 ;; we clear player prefs, so add these dummy commands to keep them active
