@@ -1697,11 +1697,28 @@ namespace dmGraphics
         return size_total + sizeof(NullTexture);
     }
 
-    static const Texture* NullGetTexture(HContext _context, HTexture texture)
+    static void NullLockAssetContainer(HContext _context)
     {
         NullContext* context = (NullContext*)_context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetContainerMutex);
-        return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        if (context->m_AssetContainerMutex)
+        {
+            dmMutex::Lock(context->m_AssetContainerMutex);
+        }
+    }
+
+    static void NullUnlockAssetContainer(HContext _context)
+    {
+        NullContext* context = (NullContext*)_context;
+        if (context->m_AssetContainerMutex)
+        {
+            dmMutex::Unlock(context->m_AssetContainerMutex);
+        }
+    }
+
+    static dmOpaqueHandleContainer<uintptr_t>* NullGetAssetContainer(HContext _context)
+    {
+        NullContext* context = (NullContext*)_context;
+        return &context->m_AssetHandleContainer;
     }
 
     static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)

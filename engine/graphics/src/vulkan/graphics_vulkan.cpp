@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <string.h>
+
 #include <dlib/math.h>
 #include <dlib/array.h>
 #include <dlib/profile.h>
@@ -1558,15 +1560,24 @@ bail:
         assert(tex_sc);
         memset(tex_sc, 0, sizeof(VulkanTexture));
 
-        tex_sc->m_Handle.m_Image     = context->m_SwapChain->Image();
-        tex_sc->m_Handle.m_ImageView = context->m_SwapChain->ImageView();
-        tex_sc->m_Base.m_Width              = context->m_SwapChain->m_ImageExtent.width;
-        tex_sc->m_Base.m_Height             = context->m_SwapChain->m_ImageExtent.height;
-        tex_sc->m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
-        tex_sc->m_Base.m_OriginalWidth      = tex_sc->m_Base.m_Width;
-        tex_sc->m_Base.m_OriginalHeight     = tex_sc->m_Base.m_Height;
-        tex_sc->m_Base.m_Type               = TEXTURE_TYPE_2D;
-        tex_sc->m_Base.m_Format     = TEXTURE_FORMAT_BGRA8U;
+        tex_sc->m_Handle.m_Image        = context->m_SwapChain->Image();
+        tex_sc->m_Handle.m_ImageView    = context->m_SwapChain->ImageView();
+        tex_sc->m_Base.m_Width          = context->m_SwapChain->m_ImageExtent.width;
+        tex_sc->m_Base.m_Height         = context->m_SwapChain->m_ImageExtent.height;
+        tex_sc->m_Format                = context->m_SwapChain->m_SurfaceFormat.format;
+        tex_sc->m_Base.m_OriginalWidth  = tex_sc->m_Base.m_Width;
+        tex_sc->m_Base.m_OriginalHeight = tex_sc->m_Base.m_Height;
+        tex_sc->m_Base.m_Type           = TEXTURE_TYPE_2D;
+        tex_sc->m_Base.m_Format         = TEXTURE_FORMAT_BGRA8U;
+        tex_sc->m_Base.m_NumTextureIds  = 1;
+        tex_sc->m_Base.m_Depth          = 1;
+        tex_sc->m_Base.m_OriginalDepth  = 1;
+        tex_sc->m_Base.m_MipMapCount    = 1;
+        tex_sc->m_Base.m_PageCount      = 1;
+        tex_sc->m_Base.m_UsageHintFlags = TEXTURE_USAGE_FLAG_SAMPLE;
+        tex_sc->m_LayerCount            = 1;
+        tex_sc->m_UsageFlags            = VK_IMAGE_USAGE_SAMPLED_BIT; // same as GetVulkanUsageFromHints(TEXTURE_USAGE_FLAG_SAMPLE)
+        dmAtomicStore32(&tex_sc->m_Base.m_DataState, 0);
     }
 
 
@@ -4784,11 +4795,22 @@ bail:
         VulkanSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    static const Texture* VulkanGetTexture(HContext _context, HTexture texture)
+    static void VulkanLockAssetContainer(HContext _context)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        dmMutex::Lock(context->m_AssetHandleContainerMutex);
+    }
+
+    static void VulkanUnlockAssetContainer(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        dmMutex::Unlock(context->m_AssetHandleContainerMutex);
+    }
+
+    static dmOpaqueHandleContainer<uintptr_t>* VulkanGetAssetContainer(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        return &context->m_AssetHandleContainer;
     }
 
     // NOTE: Currently over estimates the resource usage for compressed formats!

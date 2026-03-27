@@ -4779,11 +4779,28 @@ static void LogFrameBufferError(GLenum status)
         SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    static const Texture* OpenGLGetTexture(HContext _context, HTexture texture)
+    static void OpenGLLockAssetContainer(HContext _context)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        OpenGLContext* context = (OpenGLContext*)_context;
+        if (context->m_AssetHandleContainerMutex)
+        {
+            dmMutex::Lock(context->m_AssetHandleContainerMutex);
+        }
+    }
+
+    static void OpenGLUnlockAssetContainer(HContext _context)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        if (context->m_AssetHandleContainerMutex)
+        {
+            dmMutex::Unlock(context->m_AssetHandleContainerMutex);
+        }
+    }
+
+    static dmOpaqueHandleContainer<uintptr_t>* OpenGLGetAssetContainer(HContext _context)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        return &context->m_AssetHandleContainer;
     }
 
     static uint8_t OpenGLGetTexturePageCount(HTexture texture)

@@ -42,6 +42,24 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
+    namespace
+    {
+        struct AssetContainerScopedLock
+        {
+            HContext m_Context;
+            explicit AssetContainerScopedLock(HContext ctx) : m_Context(ctx)
+            {
+                g_functions.m_LockAssetContainer(ctx);
+            }
+            ~AssetContainerScopedLock()
+            {
+                g_functions.m_UnlockAssetContainer(m_Context);
+            }
+            AssetContainerScopedLock(const AssetContainerScopedLock&)            = delete;
+            AssetContainerScopedLock& operator=(const AssetContainerScopedLock&) = delete;
+        };
+    } // namespace
+
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
         GraphicsAdapterIsSupportedCb              is_supported_cb,
         GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
@@ -2129,38 +2147,52 @@ namespace dmGraphics
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_Width : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_Width : 0;
     }
     uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_Height : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_Height : 0;
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_Depth : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_Depth : 0;
     }
     uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_OriginalWidth : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_OriginalWidth : 0;
     }
     uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_OriginalHeight : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_OriginalHeight : 0;
     }
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_MipMapCount : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_MipMapCount : 0;
     }
     TextureType GetTextureType(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? b->m_Type : TEXTURE_TYPE_2D;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? t->m_Type : TEXTURE_TYPE_2D;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2176,9 +2208,11 @@ namespace dmGraphics
     }
     uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
-        if (b && dmAtomicGet32(&((Texture*) b)->m_DataState))
+        if (t && dmAtomicGet32(&((Texture*)t)->m_DataState))
         {
             flags |= TEXTURE_STATUS_DATA_PENDING;
         }
@@ -2223,17 +2257,21 @@ namespace dmGraphics
     }
     uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        if (!b)
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        if (!t)
         {
             return 0;
         }
-        return (uint8_t)dmMath::Min<uint32_t>(255u, (uint32_t)b->m_NumTextureIds);
+        return (uint8_t)dmMath::Min<uint32_t>(255u, (uint32_t)t->m_NumTextureIds);
     }
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        const Texture* b = g_functions.m_GetTexture(context, texture);
-        return b ? (uint32_t)b->m_UsageHintFlags : 0;
+        AssetContainerScopedLock lock(context);
+        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
+        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {

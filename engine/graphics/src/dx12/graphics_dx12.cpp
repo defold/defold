@@ -3351,10 +3351,18 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return 0;
     }
 
-    static const Texture* DX12GetTexture(HContext _context, HTexture texture)
+    static void DX12LockAssetContainer(HContext)
+    {
+    }
+
+    static void DX12UnlockAssetContainer(HContext)
+    {
+    }
+
+    static dmOpaqueHandleContainer<uintptr_t>* DX12GetAssetContainer(HContext _context)
     {
         DX12Context* context = (DX12Context*)_context;
-        return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        return &context->m_AssetHandleContainer;
     }
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
