@@ -138,9 +138,9 @@ namespace dmGraphics
     {
         HWindow                            m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        uint64_t                           m_TextureFormatSupport;
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
-        uint64_t                           m_TextureFormatSupport;
         uint32_t                           m_Width;
         uint32_t                           m_Height;
         uint32_t                           m_VerifyGraphicsCalls : 1;
