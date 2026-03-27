@@ -60,6 +60,7 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
 int g_HttpPortSSLTest = -1;
+int g_HttpPortProxy = -1;
 char SERVER_IP[64] = "localhost";
 
 #define NAME_SERVER_IP "localhost"
@@ -1366,6 +1367,134 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_va
 
 #endif // #ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
+class ProxyRequestHelper
+{
+public:
+    ProxyRequestHelper(const char* url, const char* proxy_url)
+    {
+        memset(&m_URI, 0, sizeof(m_URI));
+        memset(&m_ProxyURI, 0, sizeof(m_ProxyURI));
+        m_Client = 0;
+        m_Valid = false;
+        m_StatusCode = -1;
+
+        if (dmURI::Parse(url, &m_URI) != dmURI::RESULT_OK)
+            return;
+
+        if (dmURI::Parse(proxy_url, &m_ProxyURI) != dmURI::RESULT_OK)
+            return;
+
+        dmHttpClient::NewParams params;
+        params.m_Userdata = this;
+        params.m_HttpContent = ProxyRequestHelper::HttpContent;
+        m_Client = dmHttpClient::New(&params, &m_URI, 0, &m_ProxyURI);
+        m_Valid = m_Client != 0;
+    }
+
+    ~ProxyRequestHelper()
+    {
+        if (m_Client)
+            dmHttpClient::Delete(m_Client);
+    }
+
+    bool IsValid() const
+    {
+        return m_Valid;
+    }
+
+    dmHttpClient::HClient GetClient()
+    {
+        return m_Client;
+    }
+
+    dmHttpClient::Result Get(const char* path)
+    {
+        m_StatusCode = -1;
+        m_Content.clear();
+        return dmHttpClient::Get(m_Client, path);
+    }
+
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                            const char* method)
+    {
+        ProxyRequestHelper* self = (ProxyRequestHelper*) user_data;
+        self->m_StatusCode = status_code;
+        self->m_Content.append((const char*) content_data, content_data_size);
+    }
+
+    int m_StatusCode;
+    std::string m_Content;
+
+private:
+    dmHttpClient::HClient m_Client;
+    dmURI::Parts m_URI;
+    dmURI::Parts m_ProxyURI;
+    bool m_Valid;
+};
+
+static void MakeLocalUrl(char* buffer, uint32_t buffer_size, bool secure, int port)
+{
+    // Use IPv4 loopback explicitly so the standalone proxy and Jetty test servers
+    // don't depend on platform-specific localhost address-family resolution.
+    dmSnPrintf(buffer, buffer_size, "%s://127.0.0.1:%d", secure ? "https" : "http", port);
+}
+
+static void MakeLocalProxyUrl(char* buffer, uint32_t buffer_size)
+{
+    dmSnPrintf(buffer, buffer_size, "http://127.0.0.1:%d", g_HttpPortProxy);
+}
+
+static void ProxyAddRequest(bool secure, int port)
+{
+    char url[128];
+    char proxy_url[128];
+    MakeLocalUrl(url, sizeof(url), secure, port);
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper(url, proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::Result r = helper.Get("/add/10/20");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, helper.m_StatusCode);
+    ASSERT_EQ(30, strtol(helper.m_Content.c_str(), 0, 10));
+}
+
+static void ProxyCloseReusedDoesNotLeakPoolHandles(bool secure, int port, uint32_t iterations)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    char url[128];
+    char proxy_url[128];
+    MakeLocalUrl(url, sizeof(url), secure, port);
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper(url, proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
+
+    dmHttpClient::Result r = helper.Get("/close-reused");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, helper.m_StatusCode);
+    ASSERT_STREQ("reused connection is healthy.", helper.m_Content.c_str());
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        r = helper.Get("/close-reused");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, helper.m_StatusCode);
+        ASSERT_STREQ("reused connection is healthy.", helper.m_Content.c_str());
+        ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+    }
+
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+}
+
 TEST(dmHttpClient, HostNotFound)
 {
     dmURI::Parts uri;
@@ -1427,6 +1556,52 @@ TEST(dmHttpClient, Proxy)
     dmHttpClient::Delete(client);
 }
 
+// Verifies that HTTPS requests still work when the client tunnels through an HTTP CONNECT proxy.
+TEST(dmHttpClient, ProxyHttps)
+{
+    ProxyAddRequest(true, g_HttpPortSSL);
+}
+
+// Verifies that reconnecting through a proxy after a reused HTTP connection is closed does not leak pool handles.
+TEST(dmHttpClient, ProxyReusedConnectionCloseDoesNotLeakPoolHandles)
+{
+    ProxyCloseReusedDoesNotLeakPoolHandles(false, g_HttpPort, 20);
+}
+
+// Verifies the same reused-connection reconnect path for HTTPS traffic tunneled through a proxy.
+TEST(dmHttpClient, ProxySecureReusedConnectionCloseDoesNotLeakPoolHandles)
+{
+    ProxyCloseReusedDoesNotLeakPoolHandles(true, g_HttpPortSSL, 20);
+}
+
+// Verifies the direct retry path: when the server closes a reused keep-alive connection, the client reconnects
+// and does not leave any in-use handles behind in the pool.
+TEST_P(dmHttpClientTest, ReusedConnectionCloseDoesNotLeakPoolHandles)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
+
+    dmHttpClient::Result r = HttpGet("/close-reused");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, m_StatusCode);
+    ASSERT_STREQ("reused connection is healthy.", m_Content.c_str());
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        r = HttpGet("/close-reused");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, m_StatusCode);
+        ASSERT_STREQ("reused connection is healthy.", m_Content.c_str());
+        ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+    }
+
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+}
+
 static void Usage()
 {
     dmLogError("Usage: <exe> <config>");
@@ -1455,6 +1630,7 @@ int main(int argc, char **argv)
         dmStrlCpy(SERVER_IP, ip, sizeof(SERVER_IP));
 
         dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
+        g_HttpPortProxy = dmConfigFile::GetInt(config, "server.socket_proxy", -1);
         dmConfigFile::Delete(config);
     }
     else
