@@ -949,8 +949,7 @@
         camera-state (or (g/user-data self ::camera-state) {:movement :idle})
         movements-enabled (g/node-value self :movements-enabled)
         free-cam-mode (:free-cam-mode camera-state)
-        {:keys [initial-x initial-y]} camera-state
-        {:keys [x y type button key-code]} action
+        {:keys [x y type key-code]} action
         local-cam (g/node-value self :local-camera)
         movement (if (= type :mouse-pressed)
                    (camera-movement action movements-enabled)
@@ -1045,25 +1044,32 @@
 (def ^:private camera-speed-precision 0.35)
 
 (defn- warp-mouse-around-edges
-  [^ImageView image-view [^double cursor-x ^double cursor-y] [last-x last-y]]
+  [^ImageView image-view cursor-x cursor-y last-x last-y]
   ;; NOTE: Unfortunately, Wayland doesn't support XWarpPointer, so we can't support this feature on Wayland just yet
   ;; TODO: We shouldn't have to check for image-view here, we shold be doing it before
   (if (and (not i/is-wayland) image-view cursor-x last-x)
-    (let [screen-w (.getFitWidth image-view)
-          screen-h (.getFitHeight image-view)
-          padding 1
-          [warp-x ^double warp-y]
-          (cond
-            (< cursor-x 0)        [(- screen-w padding) cursor-y]
-            (> cursor-x screen-w) [padding cursor-y]
-            (< cursor-y 0)        [cursor-x (- screen-h padding)]
-            (> cursor-y screen-h) [cursor-x padding]
-            :else nil)]
+    (let [screen-w ^double (.getFitWidth image-view)
+          screen-h ^double (.getFitHeight image-view)
+          cursor-x ^double cursor-x
+          cursor-y ^double cursor-y
+          padding 1.0
+          warp-x (cond
+                   (< cursor-x 0.0)      (- screen-w padding)
+                   (> cursor-x screen-w) padding
+                   (< cursor-y 0.0)      cursor-x
+                   (> cursor-y screen-h) cursor-x
+                   :else nil)
+          warp-y (cond
+                   (< cursor-x 0.0)      cursor-y
+                   (> cursor-x screen-w) cursor-y
+                   (< cursor-y 0.0)      (- screen-h padding)
+                   (> cursor-y screen-h) padding
+                   :else nil)]
       (if warp-x
         ;; NOTE: make-gl-pane! flips the ImageView's Y axis, so we have to flip back for the localToScreen to work
-        (let [screen-abs-pos (.localToScreen image-view warp-x (- screen-h warp-y))]
+        (let [screen-abs-pos (.localToScreen image-view warp-x (- screen-h ^double warp-y))]
           (i/warp-cursor (.getX screen-abs-pos) (.getY screen-abs-pos))
-          [(double warp-x) (double warp-y) (double warp-x) (double warp-y)])
+          [warp-x warp-y warp-x warp-y])
         [cursor-x cursor-y last-x last-y]))
     [cursor-x cursor-y last-x last-y]))
 
@@ -1113,11 +1119,9 @@
         (when (not= final-camera current-camera)
           (set-camera! self current-camera final-camera false)))
       (let [viewport (g/node-value self :viewport)
-            {:keys [^double last-x ^double last-y ^double initial-x ^double initial-y movement dragging]} camera-state
+            {:keys [last-x last-y movement]} camera-state
             camera (g/node-value self :camera)
             filter-fn (:filter-fn camera)
-            {:keys [mouse-buttons]} input-state
-            is-primary (contains? mouse-buttons :primary)
             [mouse-x mouse-y] (:view-pos input-state)
             has-mouse-moved (and mouse-x mouse-y last-x last-y
                                  (not= :idle movement)
@@ -1125,7 +1129,7 @@
                                      (not= mouse-y last-y)))
             image-view (g/node-value self :image-view)
             [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
-            (warp-mouse-around-edges image-view [mouse-x mouse-y] [last-x last-y])
+            (warp-mouse-around-edges image-view mouse-x mouse-y last-x last-y)
             camera (cond-> camera
                      has-mouse-moved
                      (cond->
@@ -1145,6 +1149,13 @@
           (g/user-data-swap! self ::camera-state assoc
                              :last-x mouse-x
                              :last-y mouse-y))))))
+
+;; NOTE: Merge this back in or use an fnk thingie?
+(defn- handle-input-fnk [self input-state action user-data]
+  (handle-input self input-state action user-data))
+
+(defn- handle-update-tick-fnk [self input-state dt]
+  (handle-update-tick self input-state dt))
 
 (g/defnode CameraController
   (property prefs g/Any)
@@ -1174,8 +1185,8 @@
               {:forward forward :left left :backward backward :right right :down down :up up
                :all (into [] cat [forward left backward right down up])})))
 
-  (output input-handler Runnable :cached (g/constantly handle-input))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
+  (output input-handler Runnable :cached (g/constantly handle-input-fnk))
+  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
 
 (defn show-settings! [^Parent owner prefs localization]
   (popup/show-settings! owner prefs localization 260 [:scene :perspective-camera]

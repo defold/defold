@@ -74,7 +74,7 @@
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)

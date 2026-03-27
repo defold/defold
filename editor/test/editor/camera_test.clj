@@ -18,8 +18,7 @@
             [editor.math :as math]
             [editor.types :as t]
             [editor.geom :as geom])
-  (:import [editor.types Camera Region AABB]
-           [javax.vecmath Point3d SingularMatrixException Vector3d]))
+  (:import [javax.vecmath Point3d Vector3d]))
 
 (deftest frame-zero-aabb
   (testing "Framing an orthographic camera on a zero AABB should produce a valid projection matrix"
@@ -109,19 +108,19 @@
         camera (assoc camera :focus-distance 100.0)
         velocity (Vector3d. 0.0 0.0 0.0)
         forward (Vector3d. 1.0 0.0 0.0)
-        dt (/ 1.0 60.0)]
-    (let [result (reduce
-                   (fn [cam _]
-                     (or (#'c/wasd-move velocity cam forward 5.0 dt) cam))
-                   camera
-                   (range 20))
-          start-pos (t/position camera)
-          end-pos (t/position result)
-          displacement (doto (Vector3d. end-pos) (.sub start-pos))]
-      (is (> (.length displacement) 0.0))
-      (let [norm-disp (doto (Vector3d. displacement) (.normalize))
-            norm-fwd (doto (Vector3d. forward) (.normalize))]
-        (is (> (.dot norm-disp norm-fwd) 0.99))))))
+        dt (/ 1.0 60.0)
+        result (reduce
+                 (fn [cam _]
+                   (or (#'c/wasd-move velocity cam forward 5.0 dt) cam))
+                 camera
+                 (range 20))
+        start-pos (t/position camera)
+        end-pos (t/position result)
+        displacement (doto (Vector3d. end-pos) (.sub start-pos))]
+    (is (> (.length displacement) 0.0))
+    (let [norm-disp (doto (Vector3d. displacement) (.normalize))
+          norm-fwd (doto (Vector3d. forward) (.normalize))]
+      (is (> (.dot norm-disp norm-fwd) 0.99)))))
 
 (deftest wasd-move-decelerates-when-no-target-direction
   (let [camera (c/make-camera :perspective)
@@ -136,11 +135,11 @@
                         camera
                         (range 30))
         speed-before (.length velocity)
-        stopped-camera (reduce
-                         (fn [cam _]
-                           (or (#'c/wasd-move velocity cam zero-dir 5.0 dt) cam))
-                         moving-camera
-                         (range 200))
+        _ (reduce
+            (fn [cam _]
+              (or (#'c/wasd-move velocity cam zero-dir 5.0 dt) cam))
+            moving-camera
+            (range 200))
         speed-after (.length velocity)]
     (is (> speed-before 0.1) "Should have built up velocity")
     (is (< speed-after 0.001) "Velocity should have decayed to near zero")))
