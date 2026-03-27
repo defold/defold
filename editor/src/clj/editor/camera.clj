@@ -28,6 +28,7 @@
            [javafx.scene Cursor Node Parent]
            [javafx.scene.image ImageView]
            [javafx.scene.input KeyCode]
+           [javafx.stage Window]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -1043,35 +1044,37 @@
 (def ^:private camera-speed-boost 3.0)
 (def ^:private camera-speed-precision 0.35)
 
-(defn- warp-mouse-around-edges
-  [^ImageView image-view cursor-x cursor-y last-x last-y]
+(defn- warp-mouse-around-edges [^ImageView image-view screen-x screen-y view-x view-y last-x last-y]
   ;; NOTE: Unfortunately, Wayland doesn't support XWarpPointer, so we can't support this feature on Wayland just yet
   ;; TODO: We shouldn't have to check for image-view here, we shold be doing it before
-  (if (and (not i/is-wayland) image-view cursor-x last-x)
-    (let [screen-w ^double (.getFitWidth image-view)
-          screen-h ^double (.getFitHeight image-view)
-          cursor-x ^double cursor-x
-          cursor-y ^double cursor-y
-          padding 1.0
+  (if (and (not i/is-wayland) image-view screen-x last-x)
+    (let [win ^Window (.getWindow (ui/main-scene))
+          win-x (.getX win)
+          win-y (.getY win)
+          win-w (.getWidth win)
+          win-h (.getHeight win)
+          screen-x ^double screen-x
+          screen-y ^double screen-y
+          padding 5.0
+          _ (println screen-x screen-y win-x win-y win-w win-h)
           warp-x (cond
-                   (< cursor-x 0.0)      (- screen-w padding)
-                   (> cursor-x screen-w) padding
-                   (< cursor-y 0.0)      cursor-x
-                   (> cursor-y screen-h) cursor-x
+                   (< screen-x (+ win-x padding))           (+ win-x win-w (- padding))
+                   (> screen-x (- (+ win-x win-w) padding)) (+ win-x padding)
                    :else nil)
           warp-y (cond
-                   (< cursor-x 0.0)      cursor-y
-                   (> cursor-x screen-w) cursor-y
-                   (< cursor-y 0.0)      (- screen-h padding)
-                   (> cursor-y screen-h) padding
+                   (< screen-y (+ win-y padding))           (+ win-y win-h (- padding))
+                   (> screen-y (- (+ win-y win-h) padding)) (+ win-y padding)
                    :else nil)]
-      (if warp-x
-        ;; NOTE: make-gl-pane! flips the ImageView's Y axis, so we have to flip back for the localToScreen to work
-        (let [screen-abs-pos (.localToScreen image-view warp-x (- screen-h ^double warp-y))]
-          (i/warp-cursor (.getX screen-abs-pos) (.getY screen-abs-pos))
-          [warp-x warp-y warp-x warp-y])
-        [cursor-x cursor-y last-x last-y]))
-    [cursor-x cursor-y last-x last-y]))
+      (if (or warp-x warp-y)
+        (let [warp-x (or warp-x screen-x)
+              warp-y (or warp-y screen-y)
+              bounds (.localToScreen image-view (.getBoundsInLocal image-view))
+              view-x (- ^double warp-x (.getMinX bounds))
+              view-y (- ^double warp-y (.getMinY bounds))]
+          (i/warp-cursor warp-x warp-y)
+          [view-x view-y view-x view-y])
+        [view-x view-y last-x last-y]))
+    [view-x view-y last-x last-y]))
 
 (defn- compute-target-dir [pressed-keys free-cam-shortcuts camera-forward camera-right camera-up]
   (let [target-dir (Vector3d.)
@@ -1122,6 +1125,7 @@
             {:keys [last-x last-y movement]} camera-state
             camera (g/node-value self :camera)
             filter-fn (:filter-fn camera)
+            [screen-x screen-y] (:cursor-pos input-state)
             [mouse-x mouse-y] (:view-pos input-state)
             has-mouse-moved (and mouse-x mouse-y last-x last-y
                                  (not= :idle movement)
@@ -1129,7 +1133,7 @@
                                      (not= mouse-y last-y)))
             image-view (g/node-value self :image-view)
             [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
-            (warp-mouse-around-edges image-view mouse-x mouse-y last-x last-y)
+            (warp-mouse-around-edges image-view screen-x screen-y mouse-x mouse-y last-x last-y)
             camera (cond-> camera
                      has-mouse-moved
                      (cond->
