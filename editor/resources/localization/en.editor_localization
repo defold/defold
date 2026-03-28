@@ -1259,6 +1259,15 @@ property.label.size = Size
 property.label.text = Text
 property.label.tracking = Tracking
 
+# Properties: light
+
+property.light.color = Color
+property.light.intensity = Intensity
+property.light.range = Range
+property.light.direction = Direction
+property.light.inner-cone-angle = Inner Cone Angle
+property.light.outer-cone-angle = Outer Cone Angle
+
 # Properties: mesh
 
 property.mesh.normal-stream = Normal Stream
@@ -2232,6 +2241,7 @@ quick-help.start-or-attach-debugger = Start or Attach Debugger
 # Error Messages
 error.assigned-image-has-internal-errors = The assigned image has internal errors.
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
+error.light.invalid-source = The light file could not be parsed. Fix the text format or revert your changes.
 error.sound.invalid-ogg-file = Invalid Ogg file.
 error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
 error.sound.could-not-read-audio-file = Couldn't read audio file {resource}.
