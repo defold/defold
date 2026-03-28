@@ -69,7 +69,7 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
-                "platform", "manifest-private-key", "manifest-public-key", "build-report-json", "build-report-html"})
+                "platform", "build-report-json", "build-report-html"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
@@ -136,7 +136,6 @@ public class GameProjectBuilder extends Builder {
             builder.addOutput(input.disableMinifyPath().changeExt(".arci").disableCache());
             builder.addOutput(input.disableMinifyPath().changeExt(".arcd").disableCache());
             builder.addOutput(input.disableMinifyPath().changeExt(".dmanifest").disableCache());
-            builder.addOutput(input.disableMinifyPath().changeExt(".public.der").disableCache());
             builder.addOutput(input.disableMinifyPath().changeExt(".graph.json").disableCache());
         }
         TimeProfiler.stop();
@@ -254,8 +253,6 @@ public class GameProjectBuilder extends Builder {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
-        String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
-        String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
@@ -264,57 +261,6 @@ public class GameProjectBuilder extends Builder {
         manifestBuilder.setProjectIdentifier(projectIdentifier);
         manifestBuilder.setBuildVariant(variant);
         manifestBuilder.setResourceGraph(resourceGraph);
-
-        // Try manifest signing keys specified through the publisher
-        if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
-            if (!Files.exists(Paths.get(privateKeyFilepath))) {
-                String altPrivateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
-                if (!Files.exists(Paths.get(altPrivateKeyFilepath))) {
-                    throw new IOException(String.format("Couldn't find private key at either: '%s' or '%s'", privateKeyFilepath, altPrivateKeyFilepath));
-                }
-                privateKeyFilepath = altPrivateKeyFilepath;
-            }
-
-            if (!Files.exists(Paths.get(publicKeyFilepath))) {
-                String altPublicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
-                if (!Files.exists(Paths.get(altPublicKeyFilepath))) {
-                    throw new IOException(String.format("Couldn't find public key at either: '%s' or '%s'", publicKeyFilepath, altPublicKeyFilepath));
-                }
-                publicKeyFilepath = altPublicKeyFilepath;
-            }
-        }
-        // Try manifest signing keys specified in project options
-        else {
-            privateKeyFilepath = project.option("manifest-private-key", "");
-            if (!privateKeyFilepath.isEmpty() && !Files.exists(Paths.get(privateKeyFilepath))) {
-                throw new IOException(String.format("Couldn't find private key at: '%s'", privateKeyFilepath));
-            }
-            publicKeyFilepath = project.option("manifest-public-key", "");
-            if (!publicKeyFilepath.isEmpty() && !Files.exists(Paths.get(publicKeyFilepath))) {
-                throw new IOException(String.format("Couldn't find public key at: '%s'", publicKeyFilepath));
-            }
-        }
-
-        // If no keys were provided, generate them instead.
-        if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
-            File privateKeyFileHandle = Paths.get(project.getRootDirectory(), "manifest.private.der").toFile();
-            File publicKeyFileHandle = Paths.get(project.getRootDirectory(), "manifest.public.der").toFile();
-
-            privateKeyFilepath = privateKeyFileHandle.getAbsolutePath();
-            publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
-
-            if (!privateKeyFileHandle.exists() || !publicKeyFileHandle.exists()) {
-                logger.info("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
-                try {
-                    ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
-                } catch (NoSuchAlgorithmException exception) {
-                    throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
-                }
-            }
-        }
-
-        manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
-        manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
         manifestBuilder.addSupportedEngineVersion(EngineVersion.version);
         if (supportedEngineVersionsString != null) {
@@ -350,7 +296,6 @@ public class GameProjectBuilder extends Builder {
     public void build(Task task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
-        FileInputStream publicKeyInputStream = null;
 
         IResource input = task.input(0);
 
@@ -370,7 +315,7 @@ public class GameProjectBuilder extends Builder {
                 TimeProfiler.stop();
 
                 // create full list of resources including the custom resources
-                // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
+                // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, or .resourcepack.zip
                 // also make sure to not archive the comp counter files
                 Set<IResource> resources = getCustomResources(project);
                 resources.addAll(resourceGraph.getResources());
@@ -421,16 +366,12 @@ public class GameProjectBuilder extends Builder {
                 // game.dmanifest
                 task.getOutputs().get(3).setContent(manifestFile);
 
-                // game.public.der
-                publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
-                task.getOutputs().get(4).setContent(publicKeyInputStream);
-
                 // game.graph.json
                 resourceGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
                 logger.info("Writing the resource graph to json");
                 tstart = System.currentTimeMillis();
                 String resourceGraphJSON = resourceGraph.toJSON();
-                task.getOutputs().get(5).setContent(resourceGraphJSON.getBytes());
+                task.getOutputs().get(4).setContent(resourceGraphJSON.getBytes());
                 tend = System.currentTimeMillis();
                 logger.info("Writing the resource graph to json took %f s", (tend-tstart)/1000.0);
 
@@ -462,7 +403,6 @@ public class GameProjectBuilder extends Builder {
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);
-            IOUtils.closeQuietly(publicKeyInputStream);
         }
     }
 

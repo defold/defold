@@ -46,7 +46,8 @@ namespace dmLiveUpdate
  * @return manifest_reference [type:number] reference to the Manifest that is currently loaded
  */
 
-/*# add a resource to the data archive and runtime index
+// Deprecated legacy liveupdate.* APIs.
+/* add a resource to the data archive and runtime index
  *
  * add a resource to the data archive and runtime index. The resource will be verified
  * internally before being added to the data archive.
@@ -101,7 +102,7 @@ namespace dmLiveUpdate
  * ```
  */
 
-/*# create, verify, and store a manifest to device
+/* create, verify, and store a manifest to device
  *
  * Create a new manifest from a buffer. The created manifest is verified
  * by ensuring that the manifest was signed using the bundled public/private
@@ -155,7 +156,7 @@ namespace dmLiveUpdate
  * ```
  */
 
-/*# register and store a live update zip file
+/* register and store a live update zip file
  *
  * Stores a zip file and uses it for live update content. The contents of the
  * zip file will be verified against the manifest to ensure file integrity.
@@ -279,7 +280,7 @@ namespace dmLiveUpdate
  *
  */
 
-/*# is any liveupdate data mounted and currently in use
+/* is any liveupdate data mounted and currently in use
  *
  * Is any liveupdate data mounted and currently in use?
  * This can be used to determine if a new manifest or zip file should be downloaded.
@@ -287,7 +288,7 @@ namespace dmLiveUpdate
  * @note deprecated
  * @name liveupdate.is_using_liveupdate_data
  * @return bool [type:boolean] true if a liveupdate archive (any format) has been loaded
- * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
+ * @note: Old downloaded files may be automatically discarded upon startup if they are no longer compatible with the bundled content.
  */
 
 
@@ -421,7 +422,7 @@ namespace dmLiveUpdate
  */
 
  /*# LIVEUPDATE_SIGNATURE_MISMATCH
- * Mismatch between manifest expected signature and actual signature.
+ * Mismatch between expected and actual integrity data for legacy liveupdate verification.
  *
  * @name liveupdate.LIVEUPDATE_SIGNATURE_MISMATCH
  * @constant
