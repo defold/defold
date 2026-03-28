@@ -3189,20 +3189,6 @@ static uint32_t WebGPUGetTextureResourceSize(HContext context, HTexture _texture
     return size_total + sizeof(*texture);
 }
 
-static void WebGPULockAssetContainer(HContext)
-{
-}
-
-static void WebGPUUnlockAssetContainer(HContext)
-{
-}
-
-static dmOpaqueHandleContainer<uintptr_t>* WebGPUGetAssetContainer(HContext _context)
-{
-    WebGPUContext* context = (WebGPUContext*)_context;
-    return &context->m_BaseContext.m_AssetHandleContainer;
-}
-
 static void WebGPUEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture _texture)
 {
     TRACE_CALL;

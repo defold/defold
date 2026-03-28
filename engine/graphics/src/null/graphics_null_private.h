@@ -129,7 +129,6 @@ namespace dmGraphics
 
         GraphicsContext                    m_BaseContext;
         HJobContext                        m_JobContext;
-        dmMutex::HMutex                    m_AssetContainerMutex;
 
         SetTextureAsyncState               m_SetTextureAsyncState;
         VertexStreamBufferList             m_VertexStreams[MAX_VERTEX_BUFFERS];

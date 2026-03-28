@@ -159,6 +159,7 @@ namespace dmGraphics
     {
         HWindow                            m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
         uint64_t                           m_TextureFormatSupport;
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;

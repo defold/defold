@@ -403,7 +403,6 @@ namespace dmGraphics
         // Async process resources
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
         // Per-fence resources
         dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;

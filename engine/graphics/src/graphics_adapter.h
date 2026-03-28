@@ -127,9 +127,6 @@ namespace dmGraphics
     typedef void (*SetTextureFn)(HContext context, HTexture texture, const TextureParams& params);
     typedef void (*SetTextureAsyncFn)(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
     typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
-    typedef void (*LockAssetContainerFn)(HContext context);
-    typedef void (*UnlockAssetContainerFn)(HContext context);
-    typedef dmOpaqueHandleContainer<uintptr_t>* (*GetAssetContainerFn)(HContext context);
     typedef uint32_t (*GetTextureResourceSizeFn)(HContext context, HTexture texture);
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
@@ -229,9 +226,6 @@ namespace dmGraphics
         SetTextureFn m_SetTexture;
         SetTextureAsyncFn m_SetTextureAsync;
         SetTextureParamsFn m_SetTextureParams;
-        LockAssetContainerFn m_LockAssetContainer;
-        UnlockAssetContainerFn m_UnlockAssetContainer;
-        GetAssetContainerFn m_GetAssetContainer;
         GetTextureResourceSizeFn m_GetTextureResourceSize;
         EnableTextureFn m_EnableTexture;
         DisableTextureFn m_DisableTexture;
@@ -333,9 +327,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureAsync); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureParams); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, LockAssetContainer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnlockAssetContainer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAssetContainer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureResourceSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableTexture); \

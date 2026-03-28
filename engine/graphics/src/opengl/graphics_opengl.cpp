@@ -1820,7 +1820,7 @@ static void LogFrameBufferError(GLenum status)
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             context->m_GLHandlesData.m_Mutex = dmMutex::New();
-            context->m_AssetHandleContainerMutex = dmMutex::New();
+            context->m_BaseContext.m_AssetHandleContainerMutex = dmMutex::New();
 
             if (context->m_JobContext == 0x0)
             {
@@ -1838,8 +1838,8 @@ static void LogFrameBufferError(GLenum status)
                 dmMutex::Delete(context->m_GLHandlesData.m_Mutex);
                 context->m_GLHandlesData.m_Mutex = 0;
 
-                dmMutex::Delete(context->m_AssetHandleContainerMutex);
-                context->m_AssetHandleContainerMutex = 0;
+                dmMutex::Delete(context->m_BaseContext.m_AssetHandleContainerMutex);
+                context->m_BaseContext.m_AssetHandleContainerMutex = 0;
             }
         }
 
@@ -2805,7 +2805,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
 
-                DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
                 OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, binding.m_Texture);
                 if (!tex)
                 {
@@ -4649,13 +4649,13 @@ static void LogFrameBufferError(GLenum status)
 
         ApplySamplerState(context, tex);
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         // Even if we check for validity when the texture was flagged for async deletion,
@@ -4689,7 +4689,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (context->m_AsyncProcessingSupport)
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
             Job job = {0};
             job.m_Process = AsyncDeleteTextureProcess;
@@ -4760,7 +4760,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (tex == 0x0)
         {
@@ -4770,33 +4770,9 @@ static void LogFrameBufferError(GLenum status)
         SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    static void OpenGLLockAssetContainer(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*)_context;
-        if (context->m_AssetHandleContainerMutex)
-        {
-            dmMutex::Lock(context->m_AssetHandleContainerMutex);
-        }
-    }
-
-    static void OpenGLUnlockAssetContainer(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*)_context;
-        if (context->m_AssetHandleContainerMutex)
-        {
-            dmMutex::Unlock(context->m_AssetHandleContainerMutex);
-        }
-    }
-
-    static dmOpaqueHandleContainer<uintptr_t>* OpenGLGetAssetContainer(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*)_context;
-        return &context->m_BaseContext.m_AssetHandleContainer;
-    }
-
     static uint8_t OpenGLGetTexturePageCount(HTexture texture)
     {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Base.m_PageCount : 0;
     }
@@ -4821,7 +4797,7 @@ static void LogFrameBufferError(GLenum status)
         SetTexture((HContext) _context, ap.m_Texture, ap.m_Params);
         glFlush();
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
         int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
         data_state &= ~(1<<ap.m_Params.m_MipMap);
@@ -4849,7 +4825,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_AsyncProcessingSupport)
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
             tex->m_Base.m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
@@ -4874,7 +4850,7 @@ static void LogFrameBufferError(GLenum status)
     //     Which in this case would be just an int. And perhaps functions that check for validity of the high-level texture.
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_BaseContext.m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
@@ -4923,7 +4899,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
         }
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         tex->m_Base.m_MipMapCount = dmMath::Max(tex->m_Base.m_MipMapCount, (uint8_t)(params.m_MipMap+1));
@@ -5186,7 +5162,7 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetTextureResourceSize(HContext _context, HTexture texture)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (!tex)
         {
@@ -5421,7 +5397,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
             return GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;

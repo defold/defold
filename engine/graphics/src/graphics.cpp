@@ -42,24 +42,6 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
-    namespace
-    {
-        struct AssetContainerScopedLock
-        {
-            HContext m_Context;
-            explicit AssetContainerScopedLock(HContext ctx) : m_Context(ctx)
-            {
-                g_functions.m_LockAssetContainer(ctx);
-            }
-            ~AssetContainerScopedLock()
-            {
-                g_functions.m_UnlockAssetContainer(m_Context);
-            }
-            AssetContainerScopedLock(const AssetContainerScopedLock&)            = delete;
-            AssetContainerScopedLock& operator=(const AssetContainerScopedLock&) = delete;
-        };
-    } // namespace
-
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
         GraphicsAdapterIsSupportedCb              is_supported_cb,
         GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
@@ -2147,51 +2129,51 @@ namespace dmGraphics
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_Width : 0;
     }
     uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_Height : 0;
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_Depth : 0;
     }
     uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_OriginalWidth : 0;
     }
     uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_OriginalHeight : 0;
     }
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_MipMapCount : 0;
     }
     TextureType GetTextureType(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? t->m_Type : TEXTURE_TYPE_2D;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
@@ -2208,9 +2190,9 @@ namespace dmGraphics
     }
     uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if (t && dmAtomicGet32(&((Texture*)t)->m_DataState))
         {
@@ -2257,9 +2239,9 @@ namespace dmGraphics
     }
     uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         if (!t)
         {
             return 0;
@@ -2268,9 +2250,9 @@ namespace dmGraphics
     }
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        AssetContainerScopedLock lock(context);
-        dmOpaqueHandleContainer<uintptr_t>* container = g_functions.m_GetAssetContainer(context);
-        const Texture* t = GetAssetFromContainer<Texture>(*container, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
     uint8_t GetTexturePageCount(HTexture texture)

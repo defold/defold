@@ -180,7 +180,6 @@ namespace dmGraphics
         OpenGLUniformBuffer*    m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         OpenGLTextureBinding    m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
 
-        dmMutex::HMutex                    m_AssetHandleContainerMutex;
         OpenGLHandlesData                  m_GLHandlesData;
 
         PipelineState           m_PipelineState;      // Last applied pipeline state

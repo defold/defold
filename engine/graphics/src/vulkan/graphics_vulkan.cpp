@@ -248,7 +248,7 @@ namespace dmGraphics
 
     static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
     {
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
     }
@@ -428,7 +428,7 @@ namespace dmGraphics
 
     static bool EndRenderPass(VulkanContext* context)
     {
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         if (!current_rt->m_IsBound)
@@ -443,7 +443,7 @@ namespace dmGraphics
 
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
     {
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
@@ -1329,7 +1329,7 @@ namespace dmGraphics
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
-            context->m_AssetHandleContainerMutex = dmMutex::New();
+            context->m_BaseContext.m_AssetHandleContainerMutex = dmMutex::New();
         }
 
         // Create framebuffers, default renderpass etc.
@@ -1463,9 +1463,9 @@ bail:
 
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
-            if (context->m_AssetHandleContainerMutex)
+            if (context->m_BaseContext.m_AssetHandleContainerMutex)
             {
-                dmMutex::Delete(context->m_AssetHandleContainerMutex);
+                dmMutex::Delete(context->m_BaseContext.m_AssetHandleContainerMutex);
             }
 
             delete context;
@@ -4085,7 +4085,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         VulkanTexture* texture = VulkanNewTextureInternal(params);
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
     }
 
@@ -4098,7 +4098,7 @@ bail:
     static void VulkanDeleteTexture(HContext _context, HTexture texture)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
         context->m_BaseContext.m_AssetHandleContainer.Release(texture);
     }
@@ -4480,7 +4480,7 @@ bail:
         FlushFenceResourcesToDestroy(context);
 
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
             if (main_render_target)
             {
@@ -4500,7 +4500,7 @@ bail:
         DestroySwapChain(vk_device, context->m_SwapChain);
 
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
             if (current_swapchain_texture)
             {
@@ -4518,7 +4518,7 @@ bail:
     {
         DM_PROFILE(__FUNCTION__);
         VulkanContext* context = (VulkanContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(context, tex, params);
     }
@@ -4536,7 +4536,7 @@ bail:
 
         VulkanTexture* tex;
         {
-            DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
         }
 
@@ -4732,7 +4732,7 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         if (context->m_AsyncProcessingSupport)
         {
-            DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
             PrepareTextureForUploading(context, tex, params);
@@ -4790,34 +4790,16 @@ bail:
     static void VulkanSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         VulkanSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
-    }
-
-    static void VulkanLockAssetContainer(HContext _context)
-    {
-        VulkanContext* context = (VulkanContext*)_context;
-        dmMutex::Lock(context->m_AssetHandleContainerMutex);
-    }
-
-    static void VulkanUnlockAssetContainer(HContext _context)
-    {
-        VulkanContext* context = (VulkanContext*)_context;
-        dmMutex::Unlock(context->m_AssetHandleContainerMutex);
-    }
-
-    static dmOpaqueHandleContainer<uintptr_t>* VulkanGetAssetContainer(HContext _context)
-    {
-        VulkanContext* context = (VulkanContext*)_context;
-        return &context->m_AssetHandleContainer;
     }
 
     // NOTE: Currently over estimates the resource usage for compressed formats!
     static uint32_t VulkanGetTextureResourceSize(HContext _context, HTexture texture)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (!tex)
         {
@@ -4843,7 +4825,7 @@ bail:
 
     static uint8_t VulkanGetTexturePageCount(HTexture texture)
     {
-        DM_MUTEX_SCOPED_LOCK(g_VulkanContext->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(g_VulkanContext->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Base.m_PageCount : 0;
     }
@@ -4902,7 +4884,7 @@ bail:
 
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
 
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
@@ -5003,7 +4985,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
             return GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
@@ -5076,7 +5058,7 @@ bail:
     VkImage VulkanGetImage(HContext _context, HTexture texture)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Handle.m_Image : 0;
     }
@@ -5084,7 +5066,7 @@ bail:
     VkImageView VulkanGetImageView(HContext _context, HTexture texture)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Handle.m_ImageView : 0;
     }
