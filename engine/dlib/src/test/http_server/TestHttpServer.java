@@ -23,6 +23,9 @@ import java.util.regex.*;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.io.*;
 import java.nio.file.Files;
@@ -78,6 +81,272 @@ class Range
     }
 }
 
+class TestConnectProxyServer
+{
+    private ServerSocket m_ServerSocket;
+
+    public TestConnectProxyServer() throws IOException
+    {
+        m_ServerSocket = new ServerSocket();
+        m_ServerSocket.setReuseAddress(true);
+        m_ServerSocket.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0));
+    }
+
+    public int getLocalPort()
+    {
+        return m_ServerSocket.getLocalPort();
+    }
+
+    public void start()
+    {
+        Thread acceptThread = new Thread(new Runnable() {
+            @Override
+            public void run()
+            {
+                acceptLoop();
+            }
+        }, "TestConnectProxyAccept");
+        acceptThread.setDaemon(true);
+        acceptThread.start();
+    }
+
+    private void acceptLoop()
+    {
+        while (!m_ServerSocket.isClosed())
+        {
+            try
+            {
+                final Socket clientSocket = m_ServerSocket.accept();
+                Thread worker = new Thread(new Runnable() {
+                    @Override
+                    public void run()
+                    {
+                        handleClient(clientSocket);
+                    }
+                }, "TestConnectProxyWorker");
+                worker.setDaemon(true);
+                worker.start();
+            }
+            catch (SocketException e)
+            {
+                if (m_ServerSocket.isClosed())
+                    return;
+                throw new RuntimeException(e);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private static void closeQuietly(Socket socket)
+    {
+        if (socket != null)
+        {
+            try
+            {
+                socket.close();
+            }
+            catch (IOException e)
+            {
+            }
+        }
+    }
+
+    private static void writeResponse(OutputStream output, String response) throws IOException
+    {
+        output.write(response.getBytes("ISO-8859-1"));
+        output.flush();
+    }
+
+    private static String readLine(InputStream input) throws IOException
+    {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int c = input.read();
+        while (c != -1)
+        {
+            if (c == '\n')
+                break;
+            if (c != '\r')
+                buffer.write(c);
+            c = input.read();
+        }
+
+        if (c == -1 && buffer.size() == 0)
+            return null;
+
+        return buffer.toString("ISO-8859-1");
+    }
+
+    private static int findPortSeparator(String hostAndPort)
+    {
+        if (hostAndPort.startsWith("["))
+        {
+            int closingBracket = hostAndPort.indexOf(']');
+            if (closingBracket != -1 && closingBracket + 1 < hostAndPort.length() && hostAndPort.charAt(closingBracket + 1) == ':')
+                return closingBracket + 1;
+        }
+        return hostAndPort.lastIndexOf(':');
+    }
+
+    private static Socket connectTargetSocket(String host, int port) throws IOException
+    {
+        IOException lastException = null;
+        InetAddress[] addresses = InetAddress.getAllByName(host);
+        for (InetAddress address : addresses)
+        {
+            Socket socket = new Socket();
+            try
+            {
+                socket.setTcpNoDelay(true);
+                socket.connect(new InetSocketAddress(address, port), 5000);
+                return socket;
+            }
+            catch (IOException e)
+            {
+                lastException = e;
+                closeQuietly(socket);
+            }
+        }
+
+        if (lastException != null)
+            throw lastException;
+
+        throw new UnknownHostException(host);
+    }
+
+    private static void tunnel(Socket inputSocket, Socket outputSocket, Socket clientSocket, Socket targetSocket)
+    {
+        try
+        {
+            InputStream input = inputSocket.getInputStream();
+            OutputStream output = outputSocket.getOutputStream();
+            byte[] buffer = new byte[8192];
+            int read = input.read(buffer);
+            while (read != -1)
+            {
+                output.write(buffer, 0, read);
+                output.flush();
+                read = input.read(buffer);
+            }
+        }
+        catch (IOException e)
+        {
+        }
+        finally
+        {
+            closeQuietly(clientSocket);
+            closeQuietly(targetSocket);
+        }
+    }
+
+    private void handleClient(Socket clientSocket)
+    {
+        Socket targetSocket = null;
+        try
+        {
+            clientSocket.setTcpNoDelay(true);
+
+            InputStream clientInput = clientSocket.getInputStream();
+            OutputStream clientOutput = clientSocket.getOutputStream();
+
+            String requestLine = readLine(clientInput);
+            if (requestLine == null)
+                return;
+
+            String headerLine = readLine(clientInput);
+            while (headerLine != null && headerLine.length() > 0)
+            {
+                headerLine = readLine(clientInput);
+            }
+
+            String[] requestParts = requestLine.split(" ");
+            if (requestParts.length != 3 || !"CONNECT".equals(requestParts[0]))
+            {
+                writeResponse(clientOutput, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+                return;
+            }
+
+            String hostAndPort = requestParts[1];
+            int separator = findPortSeparator(hostAndPort);
+            if (separator <= 0)
+            {
+                writeResponse(clientOutput, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+                return;
+            }
+
+            String host = hostAndPort.substring(0, separator);
+            if (host.startsWith("[") && host.endsWith("]"))
+                host = host.substring(1, host.length() - 1);
+
+            int port = Integer.parseInt(hostAndPort.substring(separator + 1));
+
+            try
+            {
+                targetSocket = connectTargetSocket(host, port);
+            }
+            catch (IOException e)
+            {
+                writeResponse(clientOutput, "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n");
+                return;
+            }
+
+            writeResponse(clientOutput, "HTTP/1.1 200 Connection established\r\n\r\n");
+
+            final Socket clientSocketFinal = clientSocket;
+            final Socket targetSocketFinal = targetSocket;
+
+            Thread clientToTarget = new Thread(new Runnable() {
+                @Override
+                public void run()
+                {
+                    tunnel(clientSocketFinal, targetSocketFinal, clientSocketFinal, targetSocketFinal);
+                }
+            }, "TestConnectProxyClientToTarget");
+            Thread targetToClient = new Thread(new Runnable() {
+                @Override
+                public void run()
+                {
+                    tunnel(targetSocketFinal, clientSocketFinal, clientSocketFinal, targetSocketFinal);
+                }
+            }, "TestConnectProxyTargetToClient");
+
+            clientToTarget.setDaemon(true);
+            targetToClient.setDaemon(true);
+
+            clientToTarget.start();
+            targetToClient.start();
+
+            clientToTarget.join();
+            targetToClient.join();
+        }
+        catch (NumberFormatException e)
+        {
+            try
+            {
+                OutputStream clientOutput = clientSocket.getOutputStream();
+                writeResponse(clientOutput, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+            }
+            catch (IOException ioe)
+            {
+            }
+        }
+        catch (IOException e)
+        {
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
+        finally
+        {
+            closeQuietly(targetSocket);
+            closeQuietly(clientSocket);
+        }
+    }
+}
+
 public class TestHttpServer extends AbstractHandler
 {
     // Max number of retries when starting the server.
@@ -90,7 +359,9 @@ public class TestHttpServer extends AbstractHandler
     Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
     Pattern m_EchoPattern = Pattern.compile("/echo/(.*)");
     Pattern m_ClosePattern = Pattern.compile("/close");
+    Pattern m_CloseReusedPattern = Pattern.compile("/close-reused");
     Pattern m_SleepPattern = Pattern.compile("/sleep/(\\d+)");
+    Map<Object, Integer> m_CloseReusedConnections = Collections.synchronizedMap(new IdentityHashMap<Object, Integer>());
     public TestHttpServer()
     {
         super();
@@ -502,6 +773,22 @@ public class TestHttpServer extends AbstractHandler
             baseRequest.setHandled(true);
             response.getWriter().print("will close connection now.");
             response.setStatus(HttpServletResponse.SC_OK);
+        } else if (m_CloseReusedPattern.matcher(target).matches()) {
+            Object connection = baseRequest.getHttpChannel().getConnection();
+            int reuse_count;
+            synchronized (m_CloseReusedConnections) {
+                Integer count = m_CloseReusedConnections.get(connection);
+                reuse_count = count == null ? 0 : count.intValue();
+                m_CloseReusedConnections.put(connection, reuse_count + 1);
+            }
+
+            if (reuse_count == 0) {
+                baseRequest.setHandled(true);
+                response.getWriter().print("reused connection is healthy.");
+                response.setStatus(HttpServletResponse.SC_OK);
+            } else {
+                HttpConnection.getCurrentConnection().getHttpChannel().getConnection().close();
+            }
         } else if (closem.matches()) {
             HttpConnection.getCurrentConnection().getHttpChannel().getConnection().close();
         } else if (sleepm.matches()) {
@@ -522,6 +809,8 @@ public class TestHttpServer extends AbstractHandler
         try
         {
             Server server = new Server();
+            TestConnectProxyServer proxyServer = new TestConnectProxyServer();
+            proxyServer.start();
             
             ServerConnector connector = new ServerConnector(server);
             connector.setIdleTimeout(10000); // millis
@@ -603,6 +892,7 @@ public class TestHttpServer extends AbstractHandler
             int port = ((ServerConnector)connectors[0]).getLocalPort();
             int port_ssl = ((ServerConnector)connectors[1]).getLocalPort();
             int port_ssl_test = ((ServerConnector)connectors[2]).getLocalPort();
+            int port_proxy = proxyServer.getLocalPort();
 
             // Early exit if any of the connectors is not opened or closed.
             if ((port == -1) || (port == -2)) {
@@ -617,6 +907,10 @@ public class TestHttpServer extends AbstractHandler
                 System.out.println("ERROR: Connector 2 is not opened or closed!");
                 return;
             }
+            if ((port_proxy == -1) || (port_proxy == -2)) {
+                System.out.println("ERROR: Proxy connector is not opened or closed!");
+                return;
+            }
 
             try {
                 String tempname = "test_http_server.cfg.tmp";
@@ -628,6 +922,7 @@ public class TestHttpServer extends AbstractHandler
                 writer.println(String.format("socket=%d", port));
                 writer.println(String.format("socket_ssl=%d", port_ssl));
                 writer.println(String.format("socket_ssl_test=%d", port_ssl_test));
+                writer.println(String.format("socket_proxy=%d", port_proxy));
                 writer.close();
 
                 File tempfile = new File(tempname);
