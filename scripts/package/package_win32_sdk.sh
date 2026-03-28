@@ -25,18 +25,43 @@
 
 set -e
 
-VSWHERE=./scripts/windows/vswhere2/vswhere2.exe
+while IFS='=' read -r key value; do
+	case "$key" in
+		MSVC_VERSION) MSVC_VERSION="$value" ;;
+		SDK_VERSION) SDK_VERSION="$value" ;;
+		SDK_ROOT) SDK_ROOT="$value" ;;
+		SDK_PATH) SDK_PATH="$value" ;;
+		VS_ROOT) VS_ROOT="$value" ;;
+		YEAR) YEAR="$value" ;;
+	esac
+done < <(python - <<'PY'
+import os
+import sys
 
-# E.g. 14.44.35207
-MSVC_VERSION="$(${VSWHERE} | grep -e vs_version | cut -d' ' -f2-)"
-# E.g. 10.0.26100.0
-SDK_VERSION="$(${VSWHERE} | grep -e sdk_version | cut -d' ' -f2-)"
-# E.g. C:\Program Files (x86)\Windows Kits\10\
-SDK_ROOT="$(${VSWHERE} | grep -e sdk_root | cut -d' ' -f2-)"
-SDK_PATH="$(dirname "${SDK_ROOT}")"
-# E.g. C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207
-VS_ROOT="$(${VSWHERE} | grep -e vs_root | cut -d' ' -f2-)"
-YEAR="$(echo ${VS_ROOT} | cut -d "\\" -f4- | cut -d "\\" -f1)"
+sys.path.insert(0, os.path.join(os.getcwd(), 'build_tools'))
+import sdk
+
+info = sdk.win_locale_vswhere('x86_64-win32')
+if info is None:
+    raise SystemExit("Failed to locate Visual Studio using the system vswhere.exe")
+
+sdk_root = info['sdk_root'].rstrip("\\/")
+sdk_path = os.path.dirname(sdk_root)
+year = os.path.normpath(info['vs_root']).split(os.sep)[-4]
+
+values = {
+    'MSVC_VERSION': info['vs_version'],
+    'SDK_VERSION': info['sdk_version'],
+    'SDK_ROOT': info['sdk_root'],
+    'SDK_PATH': sdk_path,
+    'VS_ROOT': info['vs_root'],
+    'YEAR': year,
+}
+
+for key, value in values.items():
+    print(f"{key}={value}")
+PY
+)
 
 echo "Found MSVC_VERSION=${MSVC_VERSION}"
 echo "Found VS_ROOT=${VS_ROOT}"
