@@ -38,7 +38,8 @@ namespace dmLiveUpdate
  * @language Lua
  */
 
-/*# return a reference to the Manifest that is currently loaded
+// Deprecated legacy liveupdate.* APIs.
+/* return a reference to the Manifest that is currently loaded
  *
  * Return a reference to the Manifest that is currently loaded.
  *
@@ -46,7 +47,6 @@ namespace dmLiveUpdate
  * @return manifest_reference [type:number] reference to the Manifest that is currently loaded
  */
 
-// Deprecated legacy liveupdate.* APIs.
 /* add a resource to the data archive and runtime index
  *
  * add a resource to the data archive and runtime index. The resource will be verified
