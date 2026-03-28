@@ -873,7 +873,7 @@
     (make-image-nodes-in-atlas atlas-node image-msgs)))
 
 (defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
-  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
+  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource (g/now) workspace)]
     (into []
           (comp (remove (comp empty? :image))
                 (if remove-duplicates
@@ -1229,6 +1229,7 @@
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- get-animation-images [animation evaluation-context]

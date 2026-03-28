@@ -77,7 +77,19 @@ namespace dmRender
      */
     typedef struct NamedConstantBuffer* HNamedConstantBuffer;
 
-    typedef struct Sampler*                 HSampler;
+    /*#
+    * Sampler handle
+    * @typedef
+    * @name HSampler
+    */
+    typedef struct Sampler* HSampler;
+
+    /*#
+    * Light prototype handle. Used to create light instances.
+    * @typedef
+    * @name HLightPrototype
+    */
+    typedef struct LightPrototype* HLightPrototype;
 
     /*#
      * @enum
@@ -152,7 +164,7 @@ namespace dmRender
 
 
     /*#
-     * The maximum number of textures the render object can hold (currently 8)
+     * The maximum number of textures the render object can hold (16)
      * @constant
      * @name dmRender::RenderObject::MAX_TEXTURE_COUNT
      */
@@ -184,7 +196,7 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT       = 8;
+        static const uint32_t MAX_TEXTURE_COUNT       = 16;
         static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
         HNamedConstantBuffer            m_ConstantBuffer;

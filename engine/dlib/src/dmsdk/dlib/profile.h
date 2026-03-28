@@ -248,7 +248,8 @@ typedef void (*ProfilePropertyResetFn)(void* ctx, ProfileIdx idx);
 const uint32_t PROFILER_MAX_NUM_PROPERTIES = 256;
 
 /*# Structure for registering a profile listener
- * @struct ProfileListener
+ * @struct
+ * @name ProfileListener
  */
 struct ProfileListener
 {
@@ -366,7 +367,7 @@ void ProfileScopeEnd(const char* name, uint64_t name_hash);
  * Log text via the registered profilers
  * @name ProfileLogText
  * @param name [type:const char*] Name of the scope
- * @param ... Arguments for internal logging function
+ * @param ... [type: va_list] Arguments for internal logging function
  */
 #ifdef __GNUC__
     void ProfileLogText(const char* text, ...) __attribute__ ((format (printf, 1, 2)));

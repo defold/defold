@@ -24,50 +24,80 @@
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lsp.server :as lsp.server]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.async-support :as async-support]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.coll :as coll])
   (:import [java.io PipedInputStream PipedOutputStream]))
 
 (set! *warn-on-reflection* true)
 
-(defmacro await-lsp [& forms]
-  `(test-util/with-ui-run-later-rebound
-     (let [result# (do ~@forms)]
-       (Thread/sleep 100)
-       result#)))
+(def ^:private await-lsp-settle-rounds 5)
+(def ^:private await-lsp-settle-sleep-ms 20)
+
+(defmacro await-lsp [lsp & forms]
+  `(let [lsp# ~lsp
+         run-laters# (atom [])]
+     (with-redefs [ui/do-run-later (fn [run-later-fn#]
+                                     (swap! run-laters# conj run-later-fn#))]
+       (let [result# (do ~@forms)]
+         (loop [remaining-settle-rounds# await-lsp-settle-rounds]
+           (lsp/await lsp#)
+           (Thread/sleep (unchecked-long await-lsp-settle-sleep-ms))
+           (let [pending-run-laters# @run-laters#]
+             (reset! run-laters# [])
+             (cond
+               (not (coll/empty? pending-run-laters#))
+               (do
+                 (run! #(%)
+                       pending-run-laters#)
+                 (recur await-lsp-settle-rounds))
+
+               (pos? remaining-settle-rounds#)
+               (recur (dec remaining-settle-rounds#))
+
+               :else
+               result#)))))))
+
+(defmacro with-scratch-project [project-path & forms]
+  `(test-util/with-scratch-project ~project-path
+     (try
+       ~@forms
+       (finally
+         (await-lsp (lsp/get-node-lsp ~'project))))))
 
 (defn- set-servers! [lsp new-servers]
-  (await-lsp
+  (await-lsp lsp
     (lsp/set-servers! lsp new-servers)))
 
 (defn- open-view! [lsp view-node resource lines]
-  (await-lsp
+  (await-lsp lsp
     (lsp/open-view! lsp view-node resource lines)))
 
 (defn- close-view! [lsp view-node]
-  (await-lsp
+  (await-lsp lsp
     (lsp/close-view! lsp view-node)))
 
-(defn- edit-file! [code-resource-node-id lines-or-text]
-  (await-lsp
+(defn- edit-file! [lsp code-resource-node-id lines-or-text]
+  (await-lsp lsp
     (test-util/set-code-editor-source! code-resource-node-id lines-or-text)))
 
-(defn- rename-file! [resource new-file-name]
-  (await-lsp
+(defn- rename-file! [lsp resource new-file-name]
+  (await-lsp lsp
     (asset-browser/rename resource new-file-name test-util/localization)))
 
-(defn- delete-file! [resource]
-  (await-lsp
+(defn- delete-file! [lsp resource]
+  (await-lsp lsp
     (asset-browser/delete [resource])))
 
-(defn- resource-sync! [workspace]
-  (await-lsp
+(defn- resource-sync! [lsp workspace]
+  (await-lsp lsp
     (workspace/resource-sync! workspace)))
 
-(defn- handler-run! [command project]
-  (await-lsp
+(defn- handler-run! [command lsp project]
+  (await-lsp lsp
     (test-util/handler-run command [{:name :global :env {:project-graph (project/graph project)}}] {})))
 
 (def ^:private undo! (partial handler-run! :edit.undo))
@@ -75,28 +105,50 @@
 (def ^:private redo! (partial handler-run! :edit.redo))
 
 (defn- pull-diagnostics! [lsp & args]
-  (await-lsp
+  (await-lsp lsp
     (let [ret (promise)]
       (apply lsp/pull-workspace-diagnostics! lsp ret args)
       @ret)))
 
 (defn- hover! [lsp resource cursor]
-  (await-lsp
+  (await-lsp lsp
     (let [ret (promise)]
       (lsp/hover! lsp resource cursor ret)
       @ret)))
 
 (defn- prepare-rename [lsp resource cursor]
-  (await-lsp
+  (await-lsp lsp
     (let [ret (promise)]
       (lsp/prepare-rename lsp resource cursor ret)
       @ret)))
 
 (defn- rename [lsp prepared-range new-name]
-  (await-lsp
+  (await-lsp lsp
     (let [ret (promise)]
       (lsp/rename lsp prepared-range new-name ret)
       @ret)))
+
+(defn- await-until [pred]
+  (async-support/eventually
+    (a/go-loop []
+      (if-let [value (pred)]
+        value
+        (do
+          (<! (a/timeout 10))
+          (recur))))))
+
+(defn- await-value= [expected f]
+  (await-until
+    (fn []
+      (let [actual (f)]
+        (when (= expected actual)
+          actual)))))
+
+(defmacro await= [expected actual-expr]
+  `(let [expected# ~expected]
+     (await-until
+       (fn []
+         (= expected# ~actual-expr)))))
 
 (defn- make-test-server-launcher [request-handlers]
   (reify lsp.server/Launcher
@@ -144,16 +196,15 @@
 
 (deftest lsp-server-test
   (testing "Initialize + open text document -> should publish diagnostics"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [in (a/chan 10)
             out (a/chan 10)]
-        (await-lsp
-          (lsp.server/make
-            project
-            (make-test-server-launcher default-handlers)
-            in out
-            :on-publish-diagnostics #(apply vector :on-publish-diagnostics %&)
-            :on-initialized #(vector :on-initialized %)))
+        (lsp.server/make
+          project
+          (make-test-server-launcher default-handlers)
+          in out
+          :on-publish-diagnostics #(apply vector :on-publish-diagnostics %&)
+          :on-initialized #(vector :on-initialized %))
         (is (= [[:on-initialized
                  {:text-document-sync {:open-close true
                                        :change :incremental}
@@ -167,13 +218,12 @@
                  (test-util/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
                             :message "It's a bad start!" :severity :error)]}]]
-               (await-lsp
-                 (async-support/eventually
-                   (a/go
-                     (>! in (lsp.server/open-text-document (test-util/resource workspace "/foo.json") foo-json-lines))
-                     (<! (a/timeout 10))
-                     (a/close! in)
-                     (<! (a/reduce conj [] out)))))))))))
+               (async-support/eventually
+                 (a/go
+                   (>! in (lsp.server/open-text-document (test-util/resource workspace "/foo.json") foo-json-lines))
+                   (<! (a/timeout 10))
+                   (a/close! in)
+                   (<! (a/reduce conj [] out))))))))))
 
 (g/defnode LSPViewNode
   (property diagnostics g/Any (default []))
@@ -181,7 +231,7 @@
   (property completion-trigger-characters g/Any (default #{})))
 
 (deftest start-open-order-test
-  (test-util/with-scratch-project "test/resources/lsp_project"
+  (with-scratch-project "test/resources/lsp_project"
     (let [lsp (lsp/get-node-lsp project)]
       (testing "Start server + open resource -> should receive diagnostics"
         (let [;; set servers
@@ -190,9 +240,9 @@
               ;; open view
               view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
               _ (open-view! lsp view-node (test-util/resource workspace "/foo.json") foo-json-lines)]
-          (is (= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
-                    :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
-                 (g/node-value view-node :diagnostics)))
+          (is (await= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
+                         :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
+                      (g/node-value view-node :diagnostics)))
           (close-view! lsp view-node)))
       (testing "Open resource + start server -> should receive diagnostics"
         (let [;; open view
@@ -201,9 +251,9 @@
               ;; set servers
               _ (set-servers! lsp #{{:languages #{"json"}
                                      :launcher (make-test-server-launcher default-handlers)}})]
-          (is (= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
-                    :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
-                 (g/node-value view-node :diagnostics)))
+          (is (await= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
+                         :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
+                      (g/node-value view-node :diagnostics)))
           (close-view! lsp view-node))))))
 
 (deftest text-sync-kind-test
@@ -217,7 +267,7 @@
                                                       (swap! change-notifications conj [sync-kind v]))
                            "shutdown" (constantly nil)
                            "exit" (constantly nil)})]
-      (test-util/with-scratch-project "test/resources/lsp_project"
+      (with-scratch-project "test/resources/lsp_project"
         (let [lsp (lsp/get-node-lsp project)
               _ (set-servers!
                   lsp
@@ -233,27 +283,28 @@
               lines (g/node-value foo-node :lines)
               _ (open-view! lsp view-node (test-util/resource workspace "/foo.json") lines)
               _ (edit-file!
+                  lsp
                   foo-node
                   (data/splice-lines lines {data/document-start-cursor-range ["NEWTEXT"]}))]
-          (is (= #{[lsp.server/lsp-text-document-sync-kind-incremental
-                    {:textDocument {:uri (lsp.server/resource-uri foo-resource)
-                                    :version 1}
-                     :contentChanges [{:range {:start {:line 0
-                                                       :character 0}
-                                               :end {:line 0
-                                                     :character 0}}
-                                       :text "NEWTEXT"}]}]
-                   [lsp.server/lsp-text-document-sync-kind-full
-                    {:textDocument {:uri (lsp.server/resource-uri foo-resource)
-                                    :version 1}
-                     :contentChanges [{:text "NEWTEXT{\"asd\": 1}"}]}]}
-                 @change-notifications))
-          (edit-file! foo-node lines)
+          (is (await= #{[lsp.server/lsp-text-document-sync-kind-incremental
+                         {:textDocument {:uri (lsp.server/resource-uri foo-resource)
+                                         :version 1}
+                          :contentChanges [{:range {:start {:line 0
+                                                            :character 0}
+                                                    :end {:line 0
+                                                          :character 0}}
+                                            :text "NEWTEXT"}]}]
+                        [lsp.server/lsp-text-document-sync-kind-full
+                         {:textDocument {:uri (lsp.server/resource-uri foo-resource)
+                                         :version 1}
+                          :contentChanges [{:text "NEWTEXT{\"asd\": 1}"}]}]}
+                      @change-notifications))
+          (edit-file! lsp foo-node lines)
           (close-view! lsp view-node))))))
 
 (deftest polled-resources-test
   (testing "Modifying resources without any views should make the language servers open the document anyway"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [server-opened-docs (atom #{})
             lsp (lsp/get-node-lsp project)
             foo-resource (test-util/resource workspace "/foo.json")
@@ -274,23 +325,25 @@
                                 "exit" (constantly nil)})}})
 
             ;; modify => dirty
-            _ (edit-file! foo-node "{}")
-            _ (is (= #{(lsp.server/resource-uri foo-resource)} @server-opened-docs))
+            _ (edit-file! lsp foo-node "{}")
+            _ (is (await= #{(lsp.server/resource-uri foo-resource)}
+                          @server-opened-docs))
 
             ;; modify to initial => clean
-            _ (edit-file! foo-node initial-source)
-            _ (is (= #{} @server-opened-docs))
+            _ (edit-file! lsp foo-node initial-source)
+            _ (is (await= #{} @server-opened-docs))
 
             ;; undo => dirty again
-            _ (undo! project)
-            _ (is (= #{(lsp.server/resource-uri foo-resource)} @server-opened-docs))
+            _ (undo! lsp project)
+            _ (is (await= #{(lsp.server/resource-uri foo-resource)}
+                          @server-opened-docs))
 
             ;; redo => clean again
-            _ (redo! project)
-            _ (is (= #{} @server-opened-docs))]))))
+            _ (redo! lsp project)
+            _ (is (await= #{} @server-opened-docs))]))))
 
 (deftest open-close-test
-  (test-util/with-scratch-project "test/resources/lsp_project"
+  (with-scratch-project "test/resources/lsp_project"
     (let [lsp (lsp/get-node-lsp project)
           server-opened-docs (atom #{})
           handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
@@ -310,10 +363,10 @@
               foo-resource-uri (lsp.server/resource-uri foo-resource)
               ;; open view
               _ (open-view! lsp view-node foo-resource foo-json-lines)
-              _ (is (= #{foo-resource-uri} @server-opened-docs))
+              _ (is (await= #{foo-resource-uri} @server-opened-docs))
               ;; close view
               _ (close-view! lsp view-node)
-              _ (is (= #{} @server-opened-docs))]))
+              _ (is (await= #{} @server-opened-docs))]))
       (testing "Open view -> notify open, modify lines + close view -> still open"
         (let [_ (set-servers!
                   lsp
@@ -325,15 +378,15 @@
               foo-resource-uri (lsp.server/resource-uri foo-resource)
               ;; open view
               _ (open-view! lsp view-node foo-resource foo-json-lines)
-              _ (is (= #{foo-resource-uri} @server-opened-docs))
+              _ (is (await= #{foo-resource-uri} @server-opened-docs))
               ;; modify lines, close view
-              _ (edit-file! foo-resource-node "{}")
+              _ (edit-file! lsp foo-resource-node "{}")
               _ (close-view! lsp view-node)
-              _ (is (= #{foo-resource-uri} @server-opened-docs))])))))
+              _ (is (await= #{foo-resource-uri} @server-opened-docs))])))))
 
 (deftest resource-changes-test
   (testing "Modify lines -> notify open, rename file -> close + open modified"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [lsp (lsp/get-node-lsp project)
             server-opened-docs (atom {})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
@@ -355,18 +408,18 @@
             foo-resource-uri (lsp.server/resource-uri foo-resource)
 
             ;; modify
-            _ (edit-file! foo-resource-node "{}")
-            _ (is (= {foo-resource-uri "{}"} @server-opened-docs))
+            _ (edit-file! lsp foo-resource-node "{}")
+            _ (is (await= {foo-resource-uri "{}"} @server-opened-docs))
 
             ;; rename foo.json to bar.json
-            _ (rename-file! [foo-resource] "bar")
+            _ (rename-file! lsp [foo-resource] "bar")
             bar-resource (test-util/resource workspace "/bar.json")
             bar-resource-uri (lsp.server/resource-uri bar-resource)
-            _ (is (= {bar-resource-uri "{}"} @server-opened-docs))]
-        (edit-file! (test-util/resource-node project "/bar.json") old-foo-content)
-        (rename-file! [bar-resource] "foo"))))
+            _ (is (await= {bar-resource-uri "{}"} @server-opened-docs))]
+        (edit-file! lsp (test-util/resource-node project "/bar.json") old-foo-content)
+        (rename-file! lsp [bar-resource] "foo"))))
   (testing "Open view -> notify open, change on disk + resource sync -> notify changed"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [lsp (lsp/get-node-lsp project)
             change-notifications (atom [])
             server-opened-docs (atom #{})
@@ -392,18 +445,18 @@
             lines (g/node-value foo-resource-node :lines)
             ;; open view
             _ (open-view! lsp view-node foo-resource lines)
-            _ (is (= #{foo-resource-uri} @server-opened-docs))
+            _ (is (await= #{foo-resource-uri} @server-opened-docs))
             ;; modify on disk + sync
             _ (test-support/spit-until-new-mtime foo-resource "NEW_CONTENT")
-            _ (resource-sync! workspace)
-            _ (is (= [{:textDocument {:uri foo-resource-uri :version 1}
-                       :contentChanges [{:text "NEW_CONTENT"}]}]
-                     @change-notifications))]
+            _ (resource-sync! lsp workspace)
+            _ (is (await= [{:textDocument {:uri foo-resource-uri :version 1}
+                            :contentChanges [{:text "NEW_CONTENT"}]}]
+                          @change-notifications))]
         (test-support/spit-until-new-mtime foo-resource old-foo-content)
-        (resource-sync! workspace)
+        (resource-sync! lsp workspace)
         (close-view! lsp view-node))))
   (testing "Modify lines -> notify open; delete file + sync -> notify closed"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [lsp (lsp/get-node-lsp project)
             server-opened-docs (atom #{})
             handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
@@ -423,17 +476,17 @@
             foo-resource-node (test-util/resource-node project "/foo.json")
             foo-resource-uri (lsp.server/resource-uri foo-resource)
             ;; modify lines
-            _ (edit-file! foo-resource-node "{}")
-            _ (is (= #{foo-resource-uri} @server-opened-docs))
+            _ (edit-file! lsp foo-resource-node "{}")
+            _ (is (await= #{foo-resource-uri} @server-opened-docs))
             ;; delete file
-            _ (delete-file! foo-resource)
-            _ (is (= #{} @server-opened-docs))]
+            _ (delete-file! lsp foo-resource)
+            _ (is (await= #{} @server-opened-docs))]
         (test-support/spit-until-new-mtime foo-resource old-foo-content)
-        (resource-sync! workspace)))))
+        (resource-sync! lsp workspace)))))
 
 (deftest workspace-diagnostics-test
   (testing "Workspace diagnostics with different pull diagnostics kinds"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [workspace-lint-exit-promise (promise)
             document-lint-exit-promise (promise)
             no-lint-exit-promise (promise)
@@ -480,26 +533,25 @@
                       "shutdown" (constantly nil)
                       "exit" (fn [_ _]
                                (deliver no-lint-exit-promise true))})}})]
-        (is (= {(workspace/find-resource workspace "/foo.json")
-                (sorted-set
-                  (data/map->CursorRange
-                    {:from (data/->Cursor 0 0)
-                     :to (data/->Cursor 0 1)
-                     :message "Workspace diagnostics error"
-                     :severity :error})
-                  (data/map->CursorRange
-                    {:from (data/->Cursor 0 1)
-                     :to (data/->Cursor 0 2)
-                     :message "Text document diagnostics error"
-                     :severity :error}))}
-               (pull-diagnostics! lsp)))
-        (await-lsp
-          (set-servers! lsp #{})
-          (is (true? (deref workspace-lint-exit-promise 200 false)))
-          (is (true? (deref document-lint-exit-promise 200 false)))
-          (is (true? (deref no-lint-exit-promise 200 false)))))))
+        (is (await= {(workspace/find-resource workspace "/foo.json")
+                     (sorted-set
+                       (data/map->CursorRange
+                         {:from (data/->Cursor 0 0)
+                          :to (data/->Cursor 0 1)
+                          :message "Workspace diagnostics error"
+                          :severity :error})
+                       (data/map->CursorRange
+                         {:from (data/->Cursor 0 1)
+                          :to (data/->Cursor 0 2)
+                          :message "Text document diagnostics error"
+                          :severity :error}))}
+                    (pull-diagnostics! lsp)))
+        (set-servers! lsp #{})
+        (is (true? (deref workspace-lint-exit-promise 200 false)))
+        (is (true? (deref document-lint-exit-promise 200 false)))
+        (is (true? (deref no-lint-exit-promise 200 false))))))
   (testing "Failing server does not block workspace diagnostics"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [working-exit-promise (promise)
             broken-exit-promise (promise)
             lsp (lsp/get-node-lsp project)
@@ -531,19 +583,18 @@
                       "shutdown" (constantly nil)
                       "exit" (fn [_ _]
                                (deliver broken-exit-promise true))})}})]
-        (is (= {(workspace/find-resource workspace "/foo.json")
-                (sorted-set (data/map->CursorRange
-                              {:from (data/->Cursor 0 0)
-                               :to (data/->Cursor 0 1)
-                               :message "It's a bad start!"
-                               :severity :error}))}
-               (pull-diagnostics! lsp)))
-        (await-lsp
-          (set-servers! lsp #{})
-          (is (true? (deref working-exit-promise 200 false)))
-          (is (true? (deref broken-exit-promise 200 false)))))))
+        (is (await= {(workspace/find-resource workspace "/foo.json")
+                     (sorted-set (data/map->CursorRange
+                                   {:from (data/->Cursor 0 0)
+                                    :to (data/->Cursor 0 1)
+                                    :message "It's a bad start!"
+                                    :severity :error}))}
+                    (pull-diagnostics! lsp)))
+        (set-servers! lsp #{})
+        (is (true? (deref working-exit-promise 200 false)))
+        (is (true? (deref broken-exit-promise 200 false))))))
   (testing "the LSP client only waits up to a timeout"
-    (test-util/with-scratch-project "test/resources/lsp_project"
+    (with-scratch-project "test/resources/lsp_project"
       (let [exit-promise (promise)
             lsp (lsp/get-node-lsp project)
             _ (set-servers!
@@ -564,12 +615,11 @@
                                 "exit" (fn [_ _]
                                          (deliver exit-promise true))})}})]
         (is (nil? (pull-diagnostics! lsp :timeout-ms 500)))
-        (await-lsp
-          (set-servers! lsp #{})
-          (is (true? (deref exit-promise 1100 false))))))))
+        (set-servers! lsp #{})
+        (is (true? (deref exit-promise 1100 false)))))))
 
 (deftest hover-test
-  (test-util/with-scratch-project "test/resources/lsp_project"
+  (with-scratch-project "test/resources/lsp_project"
     (let [unmatched-promise (promise)
           matched-promise (promise)
           lsp (lsp/get-node-lsp project)
@@ -592,18 +642,18 @@
                                                                      (deliver matched-promise request)
                                                                      {:contents {:kind :markdown :value "hover"}})
                                               "exit" (constantly nil)})}})]
-      (is (= [(data/map->CursorRange {:from (data/->Cursor 0 1)
-                                      :to (data/->Cursor 0 2)
-                                      :type :hover
-                                      :hoverable true
-                                      :content (lsp.server/->MarkupContent :markdown "hover")})]
-             (hover! lsp (test-util/resource workspace "/foo.json") (data/->Cursor 0 1))))
-      (is (realized? matched-promise))
+      (is (await= [(data/map->CursorRange {:from (data/->Cursor 0 1)
+                                           :to (data/->Cursor 0 2)
+                                           :type :hover
+                                           :hoverable true
+                                           :content (lsp.server/->MarkupContent :markdown "hover")})]
+                  (hover! lsp (test-util/resource workspace "/foo.json") (data/->Cursor 0 1))))
+      (is (true? (await-until #(when (realized? matched-promise) true))))
       (is (not (realized? unmatched-promise)))
-      (await-lsp (set-servers! lsp #{})))))
+      (set-servers! lsp #{}))))
 
 (deftest content-modified-errors-are-retried-test
-  (test-util/with-scratch-project "test/resources/lsp_project"
+  (with-scratch-project "test/resources/lsp_project"
     (let [hover-requests (atom 0)
           lsp (lsp/get-node-lsp project)
           _ (set-servers! lsp #{{:languages #{"json"}
@@ -616,17 +666,17 @@
                                                                        (throw (ex-info "Content modified." {:jsonrpc/code -32801}))
                                                                        {:contents {:kind :markdown :value "hover"}}))
                                               "exit" (constantly nil)})}})]
-      (is (= [(data/map->CursorRange {:from (data/->Cursor 0 1)
-                                      :to (data/->Cursor 0 2)
-                                      :type :hover
-                                      :hoverable true
-                                      :content (lsp.server/->MarkupContent :markdown "hover")})]
-             (hover! lsp (test-util/resource workspace "/foo.json") (data/->Cursor 0 1))))
-      (is (= 2 @hover-requests))
-      (await-lsp (set-servers! lsp #{})))))
+      (is (await= [(data/map->CursorRange {:from (data/->Cursor 0 1)
+                                           :to (data/->Cursor 0 2)
+                                           :type :hover
+                                           :hoverable true
+                                           :content (lsp.server/->MarkupContent :markdown "hover")})]
+                  (hover! lsp (test-util/resource workspace "/foo.json") (data/->Cursor 0 1))))
+      (is (await= 2 @hover-requests))
+      (set-servers! lsp #{}))))
 
 (deftest rename-test
-  (test-util/with-scratch-project "test/resources/lsp_project"
+  (with-scratch-project "test/resources/lsp_project"
     (let [lsp (lsp/get-node-lsp project)
           _ (set-servers! lsp #{{:languages #{"json"}
                                  :launcher (make-test-server-launcher
@@ -642,8 +692,10 @@
                                               "shutdown" (constantly nil)
                                               "exit" (constantly nil)})}})]
       (let [resource (test-util/resource workspace "/foo.json")
-            rename-region (prepare-rename lsp resource (data/->Cursor 0 0))]
+            rename-region (await-value=
+                            #code/range[[0 0] [0 1]]
+                            #(prepare-rename lsp resource (data/->Cursor 0 0)))]
         (is (= #code/range[[0 0] [0 1]] rename-region))
-        (is (= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
-               (rename lsp rename-region "foo")))
-        (await-lsp (set-servers! lsp #{}))))))
+        (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
+                    (rename lsp rename-region "foo")))
+        (set-servers! lsp #{})))))

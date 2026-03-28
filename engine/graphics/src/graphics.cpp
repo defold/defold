@@ -939,7 +939,7 @@ namespace dmGraphics
         ps.m_WriteColorMask           = DM_GRAPHICS_STATE_WRITE_R | DM_GRAPHICS_STATE_WRITE_G | DM_GRAPHICS_STATE_WRITE_B | DM_GRAPHICS_STATE_WRITE_A;
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        ps.m_DepthTestEnabled         = 1;
+        ps.m_DepthTestEnabled         = 0;
         ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
@@ -1409,6 +1409,11 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+        program->m_UniformBufferLayouts.SetCapacity(0);
+        program->m_UniformBufferLayouts.SetSize(0);
+        memset(program->m_ResourceBindings, 0, sizeof(program->m_ResourceBindings));
+        program->m_MaxSet     = 0;
+        program->m_MaxBinding = 0;
 
         DestroyShaderMeta(program->m_ShaderMeta);
     }

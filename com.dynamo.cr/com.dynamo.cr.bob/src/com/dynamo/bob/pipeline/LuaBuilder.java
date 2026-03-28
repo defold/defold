@@ -80,6 +80,10 @@ public abstract class LuaBuilder extends Builder {
 
     private LuaScanner.Result luaScannerResult;
 
+    protected boolean allowGoProperties() {
+        return false;
+    }
+
     /**
      * Get a LuaScanner instance for a resource
      * This will cache the LuaScanner instance per resource to avoid parsing the
@@ -113,6 +117,9 @@ public abstract class LuaBuilder extends Builder {
             }
 
             luaScannerResult = LuaScanner.parse(script, Bob.VARIANT_DEBUG.equals(variant));
+            if (!allowGoProperties() && !luaScannerResult.properties().isEmpty()) {
+                throw new CompileExceptionError(resource, luaScannerResult.properties().getFirst().startLine() + 1, "go.property cannot be used in this file type");
+            }
             for (LuaScanner.ParseError error : luaScannerResult.errors()) {
                 throw new CompileExceptionError(resource, error.startLine() + 1, error.message());
             }

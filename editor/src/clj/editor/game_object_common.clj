@@ -39,10 +39,9 @@
 
 (defn template-pb-map
   ([workspace resource-type]
-   (g/with-auto-evaluation-context evaluation-context
-     (template-pb-map workspace resource-type evaluation-context)))
-  ([workspace resource-type evaluation-context]
-   (let [template (workspace/template workspace resource-type evaluation-context)
+   (template-pb-map (g/now) workspace resource-type))
+  ([basis workspace resource-type]
+   (let [template (workspace/template basis workspace resource-type)
          read-fn (:read-fn resource-type)]
      (with-open [reader (StringReader. template)]
        (read-fn reader)))))

@@ -355,7 +355,7 @@ def _parse_comment(text):
     # * followed by non-white-space (the tag)
     # * followed by possible spaces
     # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
+    lst = re.findall(r'^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
     tags = {
         "path": "",
         "language": "",
@@ -411,7 +411,7 @@ def extract_type_from_docstr(s):
     return "", s
 
 def is_optional(str):
-    m = re.search('^\[(.*)\]', str)
+    m = re.search(r'^\[(.*)\]', str)
     if m and m.group(1):
         return True, m.group(1)
 
@@ -507,7 +507,7 @@ def validate_cpp_type(t, doc):
 
 def parse_document(doc_str, file=None):
     doc = script_doc_ddf_pb2.Document()
-    lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
+    lst = re.findall(r'/\*#(.*?)\*/', doc_str, re.DOTALL)
     element_list = []
     doc_info = None
     for comment_str in lst:
@@ -530,7 +530,7 @@ def parse_document(doc_str, file=None):
             doc.info.language = "Lua"
 
     if doc.info.name != "Editor":
-        print("Validating %s types in %s (%s)" % (doc.info.language, doc.info.name, doc.info.path))
+        print("Validating %s types in %s (%s) %s" % (doc.info.language, doc.info.name, doc.info.path, file))
         errors = []
         warnings = []
         if doc.info.language == "Lua":
@@ -767,5 +767,4 @@ if __name__ == '__main__':
     else:
         print ('Unknown type: %s' % options.type)
         sys.exit(5)
-
 

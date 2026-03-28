@@ -20,7 +20,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -39,7 +39,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -59,7 +59,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -78,7 +78,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -98,7 +98,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -117,7 +117,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -137,7 +137,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -156,7 +156,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -176,7 +176,7 @@ jobs:
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -197,7 +197,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.zip || true
 
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.zip

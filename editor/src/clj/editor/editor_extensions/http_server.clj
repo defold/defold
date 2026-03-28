@@ -113,8 +113,9 @@
 
 (defn- make-ext-resource-response-fn [workspace]
   (rt/varargs-lua-fn ext-resource-response [{:keys [rt evaluation-context]} varargs]
-    (let [{:keys [status headers resource-path] :or {status 200}} (rt/->clj rt resource-response-args-coercer varargs)]
-      (let [resource (workspace/resolve-workspace-resource workspace resource-path evaluation-context)]
+    (let [basis (:basis evaluation-context)
+          {:keys [status headers resource-path] :or {status 200}} (rt/->clj rt resource-response-args-coercer varargs)]
+      (let [resource (workspace/resolve-workspace-resource basis workspace resource-path)]
         (-> (http-server/response status headers resource)
             (with-meta {:type :response})
             (rt/wrap-userdata "http.server.resource_response(...)"))))))

@@ -27,10 +27,10 @@
 (defn- lua-info
   ([code]
    (g/with-auto-or-fake-evaluation-context evaluation-context
-     (lp/lua-info nil fn/constantly-true code evaluation-context)))
+     (lp/lua-info (:basis evaluation-context) nil fn/constantly-true code)))
   ([workspace valid-resource-kind? code]
    (g/with-auto-or-fake-evaluation-context evaluation-context
-     (lp/lua-info workspace valid-resource-kind? code evaluation-context))))
+     (lp/lua-info (:basis evaluation-context) workspace valid-resource-kind? code))))
 
 (deftest test-require
   (testing "bare require function call"

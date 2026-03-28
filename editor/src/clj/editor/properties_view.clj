@@ -764,7 +764,7 @@
 
 (fxui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
-  [{:keys [localization-state context selected-node-properties]}]
+  [{:keys [localization-state context displayed-node-properties]}]
   {:fx/type fxui/titled-pane
    :title (localization-state properties-message)
    :content {:fx/type fxui/scroll
@@ -772,10 +772,10 @@
              :content {:fx/type grid-view
                        :localization-state localization-state
                        :context context
-                       :properties selected-node-properties}}})
+                       :properties displayed-node-properties}}})
 
 (g/defnk produce-pane-desc
-  [workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
+  [workspace project app-view search-results-view displayed-node-properties color-dropper-view prefs localization]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type properties-pane-view
           :localization localization
@@ -786,7 +786,7 @@
                     :localization localization
                     :search-results-view search-results-view
                     :color-dropper-view color-dropper-view}
-          :selected-node-properties selected-node-properties}})
+          :displayed-node-properties displayed-node-properties}})
 
 (g/defnode PropertiesView
   (property prefs g/Any)
@@ -797,7 +797,7 @@
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
   (input color-dropper-view g/NodeID)
-  (input selected-node-properties g/Any)
+  (input displayed-node-properties g/Any)
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
@@ -810,6 +810,5 @@
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
-          (g/connect app-view :selected-node-properties view :selected-node-properties)
           (g/connect search-results-view :_node-id view :search-results-view)
           (g/connect color-dropper-view :_node-id view :color-dropper-view))))))

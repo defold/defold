@@ -218,9 +218,8 @@ def build(bld):
     if bld.env.PLATFORM in ['arm64-linux', 'x86_64-linux']:
         create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_zip', extra_features = ['embed'], extra_libs = ['THREAD'], embed_source = ['data/foo.zip'])
-    create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/foo.gz', 'data/foo.deflate'])
+    create_test(bld, 'test_zip', extra_libs = ['THREAD'])
+    create_test(bld, 'test_zlib', extra_libs = ['THREAD'])
 
     create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.lz4'])

@@ -35,7 +35,7 @@ jobs:
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: astcenc-${{ matrix.platform }}
           path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
@@ -70,7 +70,7 @@ jobs:
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: astcenc-${{ matrix.platform }}
           path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
@@ -105,7 +105,7 @@ jobs:
         run: |
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: astcenc-${{ matrix.platform }}
           path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz
@@ -153,7 +153,7 @@ jobs:
           ls -lh share/ext/astcenc/build/${{ matrix.platform }} || true
         shell: bash
       - name: Archive results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: astcenc-${{ matrix.platform }}
           path: share/ext/astcenc/build/${{ matrix.platform }}/astcenc-*.tar.gz

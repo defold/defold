@@ -72,7 +72,7 @@
            [editor.gl.texture TextureLifecycle]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
-           [javax.vecmath Quat4d]
+           [javax.vecmath Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -1418,14 +1418,24 @@
   ;; from disk during resource-sync. The id must be unique within the gui scene.
   (g/node-value node-id :id evaluation-context))
 
-(defmethod scene-tools/manip-move ::GuiNode [evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout evaluation-context node-id :position scene/apply-move-delta delta))
+(defn- manip-gui-node [node-id prop-kw apply-delta-fn vecmath-delta manip-phase initial-evaluation-context]
+  (case manip-phase
+    :manip-phase/commit
+    {:manip/tx-data (basic-layout-property-update-in-current-layout initial-evaluation-context node-id prop-kw apply-delta-fn vecmath-delta)}
 
-(defmethod scene-tools/manip-rotate ::GuiNode [evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout evaluation-context node-id :rotation scene/apply-rotate-delta delta))
+    :manip-phase/preview
+    (let [old-value (g/node-value node-id prop-kw initial-evaluation-context)
+          new-value (apply-delta-fn old-value vecmath-delta)]
+      {:manip/prop-kw->override-value {prop-kw new-value}})))
 
-(defmethod scene-tools/manip-scale ::GuiNode [evaluation-context node-id delta]
-  (basic-layout-property-update-in-current-layout evaluation-context node-id :scale scene/apply-scale-delta delta))
+(defmethod scene-tools/manip-move ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :position scene/apply-move-delta delta manip-phase initial-evaluation-context))
+
+(defmethod scene-tools/manip-rotate ::GuiNode [node-id ^Quat4d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :rotation scene/apply-rotate-delta delta manip-phase initial-evaluation-context))
+
+(defmethod scene-tools/manip-scale ::GuiNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (manip-gui-node node-id :scale scene/apply-scale-delta delta manip-phase initial-evaluation-context))
 
 (defn- transfer-overrides-target-properties
   [target-node-id target-layout-name evaluation-context]
@@ -2227,11 +2237,12 @@
 
 (defn- contains-resource?
   [project gui-scene resource evaluation-context]
-  (let [workspace (project/workspace project evaluation-context)
+  (let [basis (:basis evaluation-context)
+        workspace (project/workspace project evaluation-context)
         acc-fn (fn [target-node]
                  (->> (g/node-value target-node :node-msgs evaluation-context)
                       (filter #(= :type-template (:type %)))
-                      (keep #(workspace/resolve-workspace-resource workspace (:template %) evaluation-context))))]
+                      (keep #(workspace/resolve-workspace-resource basis workspace (:template %)))))]
     (project/node-refers-to-resource? project gui-scene resource acc-fn)))
 
 (g/defnode TemplateNode
@@ -4033,7 +4044,8 @@
         custom-data        (for [loader-fn custom-loader-fns
                                  :let [result (loader-fn project self scene graph-id resource)]]
                              result)
-        resolve-resource #(workspace/resolve-resource resource %)]
+        basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       ;; TODO(save-value-cleanup): We could use set-properties-from-pb-map when setting Gui$NodeDesc properties as well.
       (gu/set-properties-from-pb-map self Gui$SceneDesc scene
@@ -4082,7 +4094,7 @@
         (g/connect materials-node :node-outline self :child-outlines)
         (g/connect materials-node :add-handler-info self :handler-infos)
         (for [materials-desc (:materials scene)
-              :let [resource (workspace/resolve-resource resource (:material materials-desc))]]
+              :let [resource (resolve-resource (:material materials-desc))]]
           (g/make-nodes graph-id [material [MaterialNode :name (:name materials-desc) :material resource]]
             (attach-material self materials-node material))))
 
