@@ -127,12 +127,11 @@ namespace dmGraphics
     {
         NullContext(const ContextParams& params);
 
+        GraphicsContext                    m_BaseContext;
         HJobContext                        m_JobContext;
         dmMutex::HMutex                    m_AssetContainerMutex;
 
-        HWindow                            m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBufferList             m_VertexStreams[MAX_VERTEX_BUFFERS];
 
         HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];
@@ -144,20 +143,14 @@ namespace dmGraphics
         FrameBuffer*                       m_CurrentFrameBuffer;
         NullProgram*                       m_Program;
         PipelineState                      m_PipelineState;
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
         dmArray<uint8_t>                   m_PerDrawUniformData;
 
-        uint32_t                           m_Width;
-        uint32_t                           m_Height;
         int32_t                            m_ScissorRect[4];
-        uint32_t                           m_TextureFormatSupport;
         uint32_t                           m_TextureUnit;
         // Only use for testing
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
-        uint32_t                           m_PrintDeviceInfo        : 1;
         uint32_t                           m_ContextFeatures        : 8;
     };
 }

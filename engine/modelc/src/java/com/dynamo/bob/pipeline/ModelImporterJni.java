@@ -72,10 +72,12 @@ public class ModelImporterJni {
 
     // The suffix of the path dictates which loader it will use
     public static native Modelimporter.Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
+
     //public static native int AddressOf(Object o);
     public static native void TestException(String message);
 
-    public static class ModelException extends Exception {
+    /** Thrown from native code when model loading fails (also extends IOException for API compatibility). */
+    public static class ModelException extends IOException {
         public ModelException(String errorMessage) {
             super(errorMessage);
         }

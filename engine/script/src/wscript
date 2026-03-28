@@ -21,8 +21,10 @@ def build(bld):
 
     if 'web' in bld.env.PLATFORM:
         script.source = remove_from_node_list(script.source, 'script_html5.cpp')
+        script.source = remove_from_node_list(script.source, 'http_service.cpp')
     else:
         script.source = remove_from_node_list(script.source, 'script_html5_js.cpp')
+        script.source = remove_from_node_list(script.source, 'http_service_null.cpp')
 
     # luabitop
     if 'lua' in waflib.Utils.to_list(script.env['STLIB_LUA']):

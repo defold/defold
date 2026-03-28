@@ -518,7 +518,7 @@ namespace dmGraphics
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        VkResult res = SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);

@@ -51,7 +51,7 @@ namespace dmGraphics
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
     { \
-        if(g_VulkanContext->m_VerifyGraphicsCalls && result != VK_SUCCESS) { \
+        if(g_VulkanContext->m_BaseContext.m_VerifyGraphicsCalls && result != VK_SUCCESS) { \
             dmLogError("Vulkan Error (%s:%d) %s", __FILE__, __LINE__, VkResultToStr(result)); \
             assert(0); \
         } \
@@ -157,31 +157,31 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
         m_Instance                = vk_instance;
         m_NumFramesInFlight       = DM_MAX_FRAMES_IN_FLIGHT;
-        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+        m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_UseValidationLayers     = params.m_UseValidationLayers;
-        m_Window                  = params.m_Window;
-        m_Width                   = params.m_Width;
-        m_Height                  = params.m_Height;
+        m_BaseContext.m_Window                  = params.m_Window;
+        m_BaseContext.m_Width                   = params.m_Width;
+        m_BaseContext.m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
         m_JobContext              = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
-        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
-            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
-        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
-            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_BaseContext.m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     HContext VulkanGetContext()
     {
-        return g_VulkanContext;
+        return (HContext) g_VulkanContext;
     }
 
     template <typename T>
@@ -249,7 +249,7 @@ namespace dmGraphics
     static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, rt);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
     }
 
@@ -323,9 +323,9 @@ namespace dmGraphics
         VkSamplerAddressMode vk_wrap_v = GetVulkanSamplerAddressMode(vwrap);
 
         if (magfilter == TEXTURE_FILTER_DEFAULT)
-            magfilter = context->m_DefaultTextureMagFilter;
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
         if (minfilter == TEXTURE_FILTER_DEFAULT)
-            minfilter = context->m_DefaultTextureMinFilter;
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
 
         // Convert mag filter to Vulkan type
         if (magfilter == TEXTURE_FILTER_NEAREST)
@@ -405,9 +405,9 @@ namespace dmGraphics
         TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
-            minfilter = context->m_DefaultTextureMinFilter;
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
         if (magfilter == TEXTURE_FILTER_DEFAULT)
-            magfilter = context->m_DefaultTextureMagFilter;
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
 
         for (uint32_t i=0; i < texture_samplers.Size(); i++)
         {
@@ -429,7 +429,7 @@ namespace dmGraphics
     static bool EndRenderPass(VulkanContext* context)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         if (!current_rt->m_IsBound)
         {
@@ -444,8 +444,8 @@ namespace dmGraphics
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (current_rt->m_Id == rt->m_Id &&
             current_rt->m_IsBound)
@@ -505,14 +505,14 @@ namespace dmGraphics
         {
             if (rt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
                 TouchResource(context, texture_color);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             TouchResource(context, depth_stencil_texture);
         }
     }
@@ -677,11 +677,11 @@ namespace dmGraphics
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
 
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         if (rt == 0x0)
         {
             rt                          = new RenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
-            context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+            context->m_MainRenderTarget = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         }
 
         rt->m_Handle.m_RenderPass  = context->m_MainRenderPass;
@@ -831,7 +831,7 @@ namespace dmGraphics
         VulkanSetTextureInternal(context, context->m_DefaultTextureCubeMap, default_texture_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
-        context->m_CurrentSwapchainTexture  = StoreAssetInContainer(context->m_AssetHandleContainer, VulkanNewTextureInternal({}), ASSET_TYPE_TEXTURE);
+        context->m_CurrentSwapchainTexture  = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, VulkanNewTextureInternal({}), ASSET_TYPE_TEXTURE);
 
         return res;
     }
@@ -1029,26 +1029,26 @@ namespace dmGraphics
         // Check for optional extensions so that we can enable them if they exist
         if (VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
     #endif
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionETC2)
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionBC)
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
         }
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
@@ -1082,7 +1082,7 @@ namespace dmGraphics
 
         // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
-        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
 
         // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
@@ -1094,7 +1094,7 @@ namespace dmGraphics
             if (vk_format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ||
                 vk_format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)
             {
-                context->m_TextureFormatSupport |= 1 << texture_format;
+                context->m_BaseContext.m_TextureFormatSupport |= 1 << texture_format;
             }
         }
     }
@@ -1102,7 +1102,7 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_BaseContext.m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1188,8 +1188,8 @@ namespace dmGraphics
         }
 
         LogicalDevice logical_device;
-        uint32_t created_width  = context->m_Width;
-        uint32_t created_height = context->m_Height;
+        uint32_t created_width  = context->m_BaseContext.m_Width;
+        uint32_t created_height = context->m_BaseContext.m_Height;
         const bool want_vsync   = context->m_SwapInterval != 0;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
@@ -1212,9 +1212,9 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
 
-        if (context->m_PrintDeviceInfo)
+        if (context->m_BaseContext.m_PrintDeviceInfo)
         {
-            VulkanPrintDeviceInfo(context);
+            VulkanPrintDeviceInfo(_context);
         }
 
         SetupSupportedTextureFormats(context);
@@ -1297,7 +1297,7 @@ namespace dmGraphics
 
         context->m_LogicalDevice    = logical_device;
         context->m_WaitForPresent   = (PFN_vkWaitForPresentKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkWaitForPresentKHR");
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
@@ -1315,9 +1315,9 @@ namespace dmGraphics
 
         // GLFW3 handles window size changes differently, so we need to cater for that.
     #ifndef __MACH__
-        if (created_width != context->m_Width || created_height != context->m_Height)
+        if (created_width != context->m_BaseContext.m_Width || created_height != context->m_BaseContext.m_Height)
         {
-            dmPlatform::SetWindowSize(context->m_Window, created_width, created_height);
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, created_width, created_height);
         }
     #endif
 
@@ -1436,7 +1436,7 @@ bail:
 
             g_VulkanContext = new VulkanContext(params, vk_instance);
 
-            if (NativeInitializeContext(g_VulkanContext))
+            if (NativeInitializeContext((HContext) g_VulkanContext))
             {
                 return (HContext) g_VulkanContext;
             }
@@ -1481,14 +1481,14 @@ bail:
     static void VulkanGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        out_min_filter = context->m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_DefaultTextureMagFilter;
+        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        NativeBeginFrame(context);
+        NativeBeginFrame(_context);
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         uint32_t frameInFlight = context->m_CurrentFrameInFlight;
@@ -1504,8 +1504,8 @@ bail:
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_Window);
-                context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
+                context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+                context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
                 res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
                 CHECK_VK_ERROR(res);
@@ -1549,14 +1549,14 @@ bail:
         vkBeginCommandBuffer(cmd, &beginInfo);
 
         // Set framebuffer for the acquired swap chain image
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
 
         context->m_FrameBegun      = 1;
         context->m_CurrentPipeline = 0;
 
         // Update current swapchain texture for rendering
-        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
         assert(tex_sc);
         memset(tex_sc, 0, sizeof(VulkanTexture));
 
@@ -1653,7 +1653,7 @@ bail:
         context->m_FrameBegun = 0;
 
     #if defined(ANDROID) || defined(DM_PLATFORM_IOS) || defined(DM_PLATFORM_VENDOR)
-        dmPlatform::SwapBuffers(context->m_Window);
+        dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
     #endif
     }
 
@@ -1691,7 +1691,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentRenderTarget);
 
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
@@ -1747,7 +1747,7 @@ bail:
             }
             else
             {
-                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil)->m_Format;
+                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil)->m_Format;
             }
 
             VkImageAspectFlags vk_aspect = 0;
@@ -1972,7 +1972,7 @@ bail:
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
-            VulkanDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+            VulkanDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
@@ -2350,7 +2350,7 @@ bail:
 
     static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
-        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_handle);
 
         if (texture == 0x0)
         {
@@ -2657,7 +2657,7 @@ bail:
 
     static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
-        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         VulkanProgram* program_ptr = context->m_CurrentProgram;
@@ -3136,7 +3136,7 @@ bail:
         VulkanProgram* program_ptr = (VulkanProgram*) program;
         VulkanContext* context = (VulkanContext*) _context;
 
-        DestroyProgram(context, program_ptr);
+        DestroyProgram(_context, program_ptr);
 
         DestroyShader(context, program_ptr->m_VertexModule);
         DestroyShader(context, program_ptr->m_FragmentModule);
@@ -3246,7 +3246,7 @@ bail:
             if (!ReloadShader(context, program->m_ComputeModule, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT))
                 return false;
 
-            DestroyProgram(context, program);
+            DestroyProgram(_context, program);
             CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
             CreateComputeProgram(context, program, program->m_ComputeModule);
         }
@@ -3257,7 +3257,7 @@ bail:
             if (!ReloadShader(context, program->m_FragmentModule, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT))
                 return false;
 
-            DestroyProgram(context, program);
+            DestroyProgram(_context, program);
             CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
             CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
         }
@@ -3451,7 +3451,7 @@ bail:
     {
         VulkanContext* context              = (VulkanContext*) _context;
         context->m_ViewportChanged          = 1;
-        RenderTarget* current_rt            = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        RenderTarget* current_rt            = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         current_rt->m_Scissor.extent.width  = width;
         current_rt->m_Scissor.extent.height = height;
         current_rt->m_Scissor.offset.x      = x;
@@ -3635,7 +3635,7 @@ bail:
 
         for (int i = 0; i < num_color_textures; ++i)
         {
-            VulkanTexture* color_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, color_textures[i]);
+            VulkanTexture* color_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, color_textures[i]);
 
             assert(!color_texture_ptr->m_Destroyed && color_texture_ptr->m_Handle.m_ImageView != VK_NULL_HANDLE && color_texture_ptr->m_Handle.m_Image != VK_NULL_HANDLE);
             uint8_t color_buffer_index = GetBufferTypeIndex(buffer_types[i]);
@@ -3659,7 +3659,7 @@ bail:
 
         if (depth_stencil_texture)
         {
-            VulkanTexture* depth_stencil_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, depth_stencil_texture);
+            VulkanTexture* depth_stencil_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, depth_stencil_texture);
             if (num_color_textures == 0)
             {
                 fb_width  = rtOut->m_DepthStencilTextureParams.m_Height;
@@ -3785,8 +3785,8 @@ bail:
                     vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
                 }
 
-                HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
-                VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, new_texture_color_handle);
+                HTexture new_texture_color_handle = NewTexture((HContext) context, params.m_ColorBufferCreationParams[i]);
+                VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
 
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -3851,8 +3851,8 @@ bail:
                 GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            texture_depth_stencil                    = NewTexture(context, stencil_depth_create_params);
-            VulkanTexture* texture_depth_stencil_ptr = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_depth_stencil);
+            texture_depth_stencil                    = NewTexture((HContext) context, stencil_depth_create_params);
+            VulkanTexture* texture_depth_stencil_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);
 
             // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(context,
@@ -3869,26 +3869,26 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void VulkanDeleteRenderTarget(HContext _context, HRenderTarget render_target)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
-        context->m_AssetHandleContainer.Release(render_target);
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_TextureColor[i])
             {
-                DeleteTexture(context, rt->m_TextureColor[i]);
+                DeleteTexture(_context, rt->m_TextureColor[i]);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
-            DeleteTexture(context, rt->m_TextureDepthStencil);
+            DeleteTexture(_context, rt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(context, rt);
@@ -3907,7 +3907,7 @@ bail:
     static HTexture VulkanGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (IsColorBufferType(buffer_type))
         {
@@ -3923,7 +3923,7 @@ bail:
     static void VulkanGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
 
         if (IsColorBufferType(buffer_type))
@@ -3948,7 +3948,7 @@ bail:
     static void VulkanSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*)_context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -3957,7 +3957,7 @@ bail:
 
             if (rt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
@@ -3992,7 +3992,7 @@ bail:
             rt->m_DepthStencilTextureParams.m_Width = width;
             rt->m_DepthStencilTextureParams.m_Height = height;
 
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             DestroyResourceDeferred(context, depth_stencil_texture);
 
             // Check tiling support for this format
@@ -4031,7 +4031,7 @@ bail:
     static bool VulkanIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return (context->m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
+        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params)
@@ -4086,7 +4086,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         VulkanTexture* texture = VulkanNewTextureInternal(params);
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        return StoreAssetInContainer(context->m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
     }
 
     static void VulkanDeleteTextureInternal(VulkanTexture* texture)
@@ -4099,8 +4099,8 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture));
-        context->m_AssetHandleContainer.Release(texture);
+        VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
+        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
     }
 
     static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
@@ -4481,10 +4481,10 @@ bail:
 
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-            RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+            RenderTarget* main_render_target = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
             if (main_render_target)
             {
-                context->m_AssetHandleContainer.Release(context->m_MainRenderTarget);
+                context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget);
                 delete main_render_target;
                 context->m_MainRenderTarget    = 0x0;
                 context->m_CurrentRenderTarget = 0x0;
@@ -4501,10 +4501,10 @@ bail:
 
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-            VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+            VulkanTexture* current_swapchain_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
             if (current_swapchain_texture)
             {
-                context->m_AssetHandleContainer.Release(context->m_CurrentSwapchainTexture);
+                context->m_BaseContext.m_AssetHandleContainer.Release(context->m_CurrentSwapchainTexture);
                 delete current_swapchain_texture;
                 context->m_CurrentSwapchainTexture = 0x0;
             }
@@ -4519,7 +4519,7 @@ bail:
         DM_PROFILE(__FUNCTION__);
         VulkanContext* context = (VulkanContext*)_context;
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(context, tex, params);
     }
 
@@ -4537,7 +4537,7 @@ bail:
         VulkanTexture* tex;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-            tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, ap.m_Texture);
+            tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
         }
 
         // Texture might have been deleted before the job thread has started processing this job.
@@ -4733,7 +4733,7 @@ bail:
         if (context->m_AsyncProcessingSupport)
         {
             DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
             PrepareTextureForUploading(context, tex, params);
 
@@ -4751,7 +4751,7 @@ bail:
         } 
         else
         {
-            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
             VulkanSetTextureInternal(context, tex, params);
             if (callback)
             {
@@ -4791,7 +4791,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         VulkanSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
@@ -4818,7 +4818,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (!tex)
         {
             return 0;
@@ -4844,7 +4844,7 @@ bail:
     static uint8_t VulkanGetTexturePageCount(HTexture texture)
     {
         DM_MUTEX_SCOPED_LOCK(g_VulkanContext->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Base.m_PageCount : 0;
     }
 
@@ -4903,7 +4903,7 @@ bail:
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
 
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
@@ -4957,17 +4957,17 @@ bail:
 
     static HWindow VulkanGetWindow(HContext context)
     {
-        return ((VulkanContext*) context)->m_Window;
+        return ((VulkanContext*) context)->m_BaseContext.m_Window;
     }
 
     static uint32_t VulkanGetWidth(HContext context)
     {
-        return ((VulkanContext*) context)->m_Width;
+        return ((VulkanContext*) context)->m_BaseContext.m_Width;
     }
 
     static uint32_t VulkanGetHeight(HContext context)
     {
-        return ((VulkanContext*) context)->m_Height;
+        return ((VulkanContext*) context)->m_BaseContext.m_Height;
     }
 
     static uint32_t VulkanGetDisplayDpi(HContext context)
@@ -5006,11 +5006,11 @@ bail:
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
-            return GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }
@@ -5077,7 +5077,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Handle.m_Image : 0;
     }
 
@@ -5085,7 +5085,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
         return tex ? tex->m_Handle.m_ImageView : 0;
     }
 

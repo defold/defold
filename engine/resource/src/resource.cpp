@@ -254,6 +254,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_JobThreadContext = params->m_JobThreadContext;
 
     int num_mounted = 0;
+    bool mount_unsupported = false;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
     {
         if (strcmp(factory->m_UriParts.m_Scheme, type_pairs[i].m_Scheme) != 0)
@@ -268,6 +269,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             dmResourceProvider::Result provider_result = dmResourceProvider::CreateMount(loader, &factory->m_UriParts, 0, &archive);
             if (dmResourceProvider::RESULT_OK != provider_result)
             {
+                if (provider_result == dmResourceProvider::RESULT_NOT_SUPPORTED)
+                {
+                    mount_unsupported = true;
+                    continue;
+                }
                 dmLogError("Failed to mount base archive: %d for mount %s://%s%s", provider_result, factory->m_UriParts.m_Scheme, factory->m_UriParts.m_Location, factory->m_UriParts.m_Path);
                 continue;
             }
@@ -312,7 +318,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (!num_mounted)
     {
-        dmLogWarning("No resource loaders mounted that could match uri %s", uri);
+        if (!mount_unsupported)
+        {
+            dmLogWarning("No resource loaders mounted that could match uri %s", uri);
+        }
         DeleteFactory(factory);
         dmMessage::DeleteSocket(socket);
         return 0;

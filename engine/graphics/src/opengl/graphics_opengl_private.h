@@ -167,8 +167,8 @@ namespace dmGraphics
     {
         OpenGLContext(const ContextParams& params);
 
+        GraphicsContext         m_BaseContext;
         SetTextureAsyncState    m_SetTextureAsyncState;
-        HWindow                 m_Window;
         HJobContext             m_JobContext;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
@@ -181,7 +181,6 @@ namespace dmGraphics
         OpenGLTextureBinding    m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
 
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         OpenGLHandlesData                  m_GLHandlesData;
 
         PipelineState           m_PipelineState;      // Last applied pipeline state
@@ -190,23 +189,16 @@ namespace dmGraphics
         int32_t                 m_ScissorRect[4];
         int32_t                 m_ScissorRectDirty[4];
         HOpenglID               m_GlobalVAO;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
         uint32_t                m_MaxTextureSize;
-        TextureFilter           m_DefaultTextureMinFilter;
-        TextureFilter           m_DefaultTextureMagFilter;
         uint32_t                m_MaxElementVertices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
         uint32_t                m_IndexBufferFormatSupport;
-        uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
-        uint32_t                m_VerifyGraphicsCalls              : 1;
-        uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
 

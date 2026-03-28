@@ -186,26 +186,21 @@ namespace dmGraphics
 
     struct WebGPUContext
     {
+        GraphicsContext                    m_BaseContext;
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
         dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
-        HWindow m_Window;
-
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-        uint64_t                           m_TextureFormatSupport;
 
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;
         WebGPUTexture*                     m_DefaultTextureCubeMap;
@@ -240,10 +235,7 @@ namespace dmGraphics
 
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
-        uint32_t            m_Width;
-        uint32_t            m_Height;
 
-        uint32_t            m_PrintDeviceInfo : 1;
         uint32_t            m_ContextFeatures : 3;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;

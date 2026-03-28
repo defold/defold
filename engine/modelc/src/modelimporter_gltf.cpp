@@ -797,7 +797,38 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
     for (size_t i = 0; i < gltf_mesh->primitives_count; ++i)
     {
+        if (scene->m_LoadError)
+            return;
+
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
+
+        for (cgltf_size ai = 0; ai < prim->attributes_count; ++ai)
+        {
+            cgltf_attribute* attr = &prim->attributes[ai];
+
+            // we only support JOINTS_0 and WEIGHTS_0, so we need to emit an error if any of these cases are true.
+            if (attr->type == cgltf_attribute_type_joints && attr->index > 0)
+            {
+                char buf[512];
+                dmSnPrintf(buf, sizeof(buf),
+                    "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. JOINTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex, to use this content you need to fix the issues in an external tool.",
+                    model->m_Name, i, (unsigned)attr->index);
+                dmLogError("%s", buf);
+                SetLoadError(scene, buf);
+                return;
+            }
+            if (attr->type == cgltf_attribute_type_weights && attr->index > 0)
+            {
+                char buf[512];
+                dmSnPrintf(buf, sizeof(buf),
+                    "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. WEIGHTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex, to use this content you need to fix the issues in an external tool.",
+                    model->m_Name, i, (unsigned)attr->index);
+                dmLogError("%s", buf);
+                SetLoadError(scene, buf);
+                return;
+            }
+        }
+
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateNameFromHash("mesh", i);
 
@@ -971,7 +1002,8 @@ static void FixupNonSkinnedModels(Scene* scene, Bone* parent, Node* node)
         if (!mesh->m_Weights.Empty())
             continue;
 
-        if (!mesh->m_Material->m_IsSkinned)
+        // Skips uninitialized mesh slots (e.g. fatal error mid-LoadPrimitives) and non-skinned materials.
+        if (!mesh->m_Material || !mesh->m_Material->m_IsSkinned)
             continue;
 
         // We duplicate the material, and create a non skinned version
@@ -1701,6 +1733,11 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     LoadTextures(scene, data, &cache);
     LoadMaterials(scene, data, &cache);
     LoadMeshes(scene, data);
+
+    // Make sure we early-out so we don't touch uninitialized data
+    if (scene->m_LoadError)
+        return;
+
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);
     LoadAnimations(scene, data);
@@ -1717,7 +1754,7 @@ static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
     LoadScene(scene, data->m_Data);
-    return true;
+    return scene->m_LoadError == 0;
 }
 
 static bool ValidateGltf(Scene* scene)
@@ -1759,6 +1796,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        cgltf_free(data);
         return 0;
     }
 
@@ -1784,7 +1822,11 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (!NeedsResolve(scene))
     {
         scene->m_LoadFinalizeFn = 0;
-        LoadFinalizeGltf(scene);
+        if (!LoadFinalizeGltf(scene))
+        {
+            ClearScene(scene);
+            return scene;
+        }
         ValidateGltf(scene);
     }
 

@@ -382,10 +382,9 @@ namespace dmGraphics
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        HWindow                            m_Window;
+        GraphicsContext                    m_BaseContext;
         FWindowResizeCallback              m_WindowResizeCallback;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                      m_PipelineCache;
         PipelineState                      m_PipelineState;
         SwapChain*                         m_SwapChain;
@@ -435,28 +434,21 @@ namespace dmGraphics
         HTexture                        m_CurrentSwapchainTexture;
 
         // Misc state
-        TextureFilter                   m_DefaultTextureMinFilter;
-        TextureFilter                   m_DefaultTextureMagFilter;
         VulkanTexture*                  m_DefaultTexture2D;
         VulkanTexture*                  m_DefaultTexture2DArray;
         VulkanTexture*                  m_DefaultTextureCubeMap;
         VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture*                  m_DefaultStorageImage2D;
         VulkanTexture                   m_ResolveTexture;
-        uint64_t                        m_TextureFormatSupport;
         int32_atomic_t                  m_DeleteContextRequested;
         PFN_vkWaitForPresentKHR         m_WaitForPresent;
 
-        uint32_t                        m_Width;
-        uint32_t                        m_Height;
         uint32_t                        m_WindowWidth;
         uint32_t                        m_WindowHeight;
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;
-        uint32_t                        m_VerifyGraphicsCalls  : 1;
-        uint32_t                        m_PrintDeviceInfo      : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;

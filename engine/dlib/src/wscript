@@ -55,8 +55,8 @@ def build(bld):
     extra_defines = []
     extra_defines.extend(zlib_conf_defines)
 
-    extra_defines +=['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
-    extra_defines +=['MINIZ_USE_ANSI', 'ZIP_NO_DEFLATE', 'ZIP_NO_DISC_IO']   # defold defines
+    extra_defines += ['MINIZ_NO_TIME']
+    extra_defines += ['ZIP_ENABLE_INFLATE=1', 'ZIP_ENABLE_DEFLATE=0', 'ZIP_HAVE_SYMLINK=0']
 
     if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
@@ -126,14 +126,21 @@ def build(bld):
     if build_util.get_target_os() in ['macos', 'ios']:
         source_files = remove_files(source_files, ['time_posix.cpp'])
 
+    if 'web' in bld.env.PLATFORM:
+        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'sslsocket.cpp', 'configfile_http.cpp'])
+        extra_defines.append('DM_NO_HTTP_CACHE')
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
                      target   = 'dlib',
+                     use      = ['zip'],
                      defines  = ['VALGRIND'] + extra_defines)
 
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
+    if 'web' in bld.env.PLATFORM:
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -145,6 +152,7 @@ def build(bld):
     dlib_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
                           includes    = dlib.includes,
                           defines     = dlib.defines,
+                          use         = ['zip_noasan'],
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
@@ -187,7 +195,7 @@ def build(bld):
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
-    libzip_dirs = ['zip/**/*.cpp']
+    libzip_dirs = ['zip/**/*.c']
     libzip = bld.stlib(features    = 'c cxx',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
