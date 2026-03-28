@@ -546,6 +546,13 @@ def default_flags(self):
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']
+            if Options.options.wasm_size_analysis:
+                # Keep source attribution outside the main wasm so size measurements
+                # still reflect the optimized binary while enabling deeper analysis.
+                flags += ['-gline-tables-only']
+                for flag in ['-gsource-map', '-gseparate-dwarf']:
+                    if flag not in linkflags:
+                        linkflags += [flag]
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
@@ -2138,6 +2145,7 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--wasm-size-analysis', action='store_true', default=False, dest='wasm_size_analysis', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')

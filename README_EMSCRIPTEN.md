@@ -130,3 +130,5 @@ To debug memory and alignment issues the following parameters should be added bo
 - `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
+
+For size analysis of `wasm-web` builds, add `--wasm-size-analysis` to the build. This keeps the normal `--emit-symbol-map` flow and also adds line-table debug info plus `.wasm.map` and separate DWARF sidecars, which makes it easier to attribute wasm functions back to source without changing the optimized code generation.

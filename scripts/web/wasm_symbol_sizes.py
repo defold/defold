@@ -39,6 +39,10 @@ def infer_output_path(wasm_path):
     return pathlib.Path(str(wasm_path) + ".symbol-sizes.tsv")
 
 
+def infer_wasm_map_path(wasm_path):
+    return pathlib.Path(str(wasm_path) + ".map")
+
+
 def find_default_wasm(dynamo_home, platform, engine):
     bin_dir = pathlib.Path(dynamo_home).resolve() / "bin" / platform
 
@@ -103,21 +107,32 @@ def run_bloaty(wasm_path, bloaty):
 
 
 def extract_function_rows(bloaty_tsv, symbol_map):
+    reverse_symbol_map = {}
+    for func_index, name in symbol_map.items():
+        reverse_symbol_map.setdefault(name, []).append(func_index)
+
     rows = []
     lines = bloaty_tsv.splitlines()
     for line in lines[1:]:
         columns = line.split("\t")
         if len(columns) != 3:
             continue
-        match = FUNC_RE.match(columns[0])
-        if not match:
+        symbol = columns[0]
+        if symbol.startswith("[section "):
             continue
-        func_index = int(match.group(1))
+
         file_size_bytes = int(columns[2])
-        name = symbol_map.get(func_index, columns[0])
+        match = FUNC_RE.match(symbol)
+        if match:
+            func_index = int(match.group(1))
+            name = symbol_map.get(func_index, symbol)
+        else:
+            indices = reverse_symbol_map.get(symbol, [])
+            func_index = indices[0] if len(indices) == 1 else -1
+            name = symbol
         rows.append((file_size_bytes, func_index, name))
 
-    rows.sort(key=lambda row: (-row[0], row[1]))
+    rows.sort(key=lambda row: (-row[0], row[1], row[2]))
     return rows
 
 
@@ -125,7 +140,7 @@ def write_output(rows, output_path):
     with output_path.open("w", encoding="utf-8", newline="") as output_file:
         output_file.write("file_size_bytes\tfunc_index\tname\n")
         for file_size_bytes, func_index, name in rows:
-            output_file.write(f"{file_size_bytes}\t{func_index}\t{name}\n")
+            output_file.write(f"{file_size_bytes}\t{'' if func_index < 0 else func_index}\t{name}\n")
 
 
 def print_top_rows(rows, top_count):
@@ -194,12 +209,20 @@ def main():
 
     symbols_path = pathlib.Path(args.symbols).resolve() if args.symbols else infer_symbols_path(wasm_path)
     output_path = pathlib.Path(args.output).resolve() if args.output else infer_output_path(wasm_path)
+    wasm_map_path = infer_wasm_map_path(wasm_path)
 
     symbol_map = {}
     if symbols_path.is_file():
         symbol_map = load_symbol_map(symbols_path)
     else:
         print(f"warning: symbol map not found, using raw func[N] names: {symbols_path}", file=sys.stderr)
+
+    if not wasm_map_path.is_file():
+        print(
+            f"note: source map not found: {wasm_map_path}. "
+            f"Rebuild with --wasm-size-analysis if you want source-level attribution.",
+            file=sys.stderr,
+        )
 
     bloaty_tsv = run_bloaty(wasm_path, args.bloaty)
     if bloaty_tsv is None:

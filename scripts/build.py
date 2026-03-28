@@ -3050,10 +3050,17 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'If used, outputs verbose logging')
 
+    parser.add_option('--wasm-size-analysis', dest='wasm_size_analysis',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
+
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
     waf_options = list(filter(lambda x: x[:2] == '--', all_args))
+    if options.wasm_size_analysis:
+        waf_options.append('--wasm-size-analysis')
 
     if len(args) == 0:
         parser.error('No command specified')
