@@ -870,6 +870,16 @@
         (is (= "127.0.0.1" (.address d)))
         (is (= "192.168.0.10" (.localAddress d)))))))
 
+;; Verifies interface snapshots compare equal even if the same interfaces arrive in a different order.
+(deftest mdns-same-interfaces-ignores-list-order
+  (let [interfaces (->> (enumeration-seq (NetworkInterface/getNetworkInterfaces))
+                        (take 2)
+                        vec)]
+    (is (= 2 (count interfaces)) "Expected at least two network interfaces to test reordered snapshots.")
+    (when (= 2 (count interfaces))
+      (is (MDNS$TestHooks/sameInterfaces interfaces (vec (reverse interfaces))))
+      (is (not (MDNS$TestHooks/sameInterfaces interfaces [(first interfaces)]))))))
+
 ;; Verifies refreshNetworks clears stale discovery state on interface changes because cached data is interface-bound.
 (deftest mdns-refresh-networks-clears-state-on-interface-change
   (let [mdns (MDNS. (dummy-logger))

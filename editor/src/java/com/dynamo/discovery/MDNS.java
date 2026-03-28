@@ -27,11 +27,13 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class MDNS {
 
@@ -128,6 +130,11 @@ public class MDNS {
         // Added so interface-change tests can assert that refresh() clears cached host addresses.
         public static int hostCount(MDNS mdns) {
             return mdns.hosts.size();
+        }
+
+        // Added so interface-change tests can verify refresh() ignores interface reordering.
+        public static boolean sameInterfaces(List<NetworkInterface> left, List<NetworkInterface> right) {
+            return MDNS.sameInterfaces(left, right);
         }
     }
 
@@ -272,6 +279,36 @@ public class MDNS {
         return result;
     }
 
+    private static String getInterfaceKey(NetworkInterface networkInterface) {
+        return networkInterface.getIndex() + ":" + networkInterface.getName();
+    }
+
+    private static boolean sameInterfaces(List<NetworkInterface> left, List<NetworkInterface> right) {
+        if (left == right) {
+            return true;
+        }
+
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+
+        Set<String> leftKeys = new HashSet<String>();
+        for (NetworkInterface networkInterface : left) {
+            leftKeys.add(getInterfaceKey(networkInterface));
+        }
+
+        if (leftKeys.size() != left.size()) {
+            return false;
+        }
+
+        Set<String> rightKeys = new HashSet<String>();
+        for (NetworkInterface networkInterface : right) {
+            rightKeys.add(getInterfaceKey(networkInterface));
+        }
+
+        return rightKeys.size() == right.size() && leftKeys.equals(rightKeys);
+    }
+
     public boolean setup() throws IOException {
         try {
             multicastAddress = InetAddress.getByName(MDNS_MCAST_ADDR_IP);
@@ -332,7 +369,7 @@ public class MDNS {
 
     private void refreshNetworks() throws IOException {
         List<NetworkInterface> newInterfaces = getMCastInterfaces();
-        boolean interfacesChanged = !newInterfaces.equals(interfaces);
+        boolean interfacesChanged = !sameInterfaces(newInterfaces, interfaces);
         if (interfacesChanged) {
             interfaces = newInterfaces;
             closeConnections();
