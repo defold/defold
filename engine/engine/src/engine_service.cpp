@@ -295,6 +295,7 @@ namespace dmEngineService
             if (r != dmWebServer::RESULT_OK)
             {
                 dmLogError("Unable to create engine web-server (%d)", r);
+                free(local_address_str);
                 return false;
             }
 

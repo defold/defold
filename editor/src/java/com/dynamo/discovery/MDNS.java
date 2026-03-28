@@ -141,6 +141,14 @@ public class MDNS {
     private record HostAddress(String address, long expires, long refreshAt) {
     }
 
+    private record InterfaceSignature(int index, String name, Set<InetAddress> boundAddresses) {
+        InterfaceSignature(NetworkInterface networkInterface) {
+            this(networkInterface.getIndex(),
+                    networkInterface.getName(),
+                    new HashSet<InetAddress>(Collections.list(networkInterface.getInetAddresses())));
+        }
+    }
+
     private static class ServiceAccumulator {
         String fullName;
         String instanceName;
@@ -279,10 +287,6 @@ public class MDNS {
         return result;
     }
 
-    private static String getInterfaceKey(NetworkInterface networkInterface) {
-        return networkInterface.getIndex() + ":" + networkInterface.getName();
-    }
-
     private static boolean sameInterfaces(List<NetworkInterface> left, List<NetworkInterface> right) {
         if (left == right) {
             return true;
@@ -292,18 +296,18 @@ public class MDNS {
             return false;
         }
 
-        Set<String> leftKeys = new HashSet<String>();
+        Set<InterfaceSignature> leftKeys = new HashSet<InterfaceSignature>();
         for (NetworkInterface networkInterface : left) {
-            leftKeys.add(getInterfaceKey(networkInterface));
+            leftKeys.add(new InterfaceSignature(networkInterface));
         }
 
         if (leftKeys.size() != left.size()) {
             return false;
         }
 
-        Set<String> rightKeys = new HashSet<String>();
+        Set<InterfaceSignature> rightKeys = new HashSet<InterfaceSignature>();
         for (NetworkInterface networkInterface : right) {
-            rightKeys.add(getInterfaceKey(networkInterface));
+            rightKeys.add(new InterfaceSignature(networkInterface));
         }
 
         return rightKeys.size() == right.size() && leftKeys.equals(rightKeys);

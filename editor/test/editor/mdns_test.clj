@@ -874,10 +874,11 @@
 (deftest mdns-same-interfaces-ignores-list-order
   (let [interfaces (->> (enumeration-seq (NetworkInterface/getNetworkInterfaces))
                         (take 2)
-                        vec)]
+                        vec)
+        refetched (mapv #(NetworkInterface/getByName (.getName ^NetworkInterface %)) interfaces)]
     (is (= 2 (count interfaces)) "Expected at least two network interfaces to test reordered snapshots.")
     (when (= 2 (count interfaces))
-      (is (MDNS$TestHooks/sameInterfaces interfaces (vec (reverse interfaces))))
+      (is (MDNS$TestHooks/sameInterfaces interfaces (vec (reverse refetched))))
       (is (not (MDNS$TestHooks/sameInterfaces interfaces [(first interfaces)]))))))
 
 ;; Verifies refreshNetworks clears stale discovery state on interface changes because cached data is interface-bound.
