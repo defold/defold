@@ -377,7 +377,7 @@ namespace dmGraphics
 
         SetupSupportedTextureFormats(context);
 
-        InitializeFrameBuffers(context, color_format, depth_format);
+        InitializeFrameBuffers(_context, color_format, depth_format);
 
         context->m_FenceEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (!context->m_FenceEvent)
@@ -443,20 +443,20 @@ namespace dmGraphics
                 assert(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED));
             }
 
-            if (!DX12Initialize(context))
+            if (!DX12Initialize((HContext) context))
             {
-                DeleteContext(context);
+                DeleteContext((HContext) context);
                 return 0;
             }
 
-            return context;
+            return (HContext) context;
         }
         return 0x0;
     }
 
     static HContext DX12GetContext()
     {
-        return g_DX12Context;
+        return (HContext) g_DX12Context;
     }
 
     static void DX12DeleteContext(HContext _context)
@@ -1603,7 +1603,7 @@ namespace dmGraphics
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
-            DX12DisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+            DX12DisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;

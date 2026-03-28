@@ -1222,7 +1222,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_BindGroupCache.SetCapacity(32, 64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
     context->m_ComputePipelineCache.SetCapacity(32, 64);
-    SetSwapInterval(context, params.m_SwapInterval);
+    SetSwapInterval((HContext) context, params.m_SwapInterval);
 
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB; // Transcoded
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA;
@@ -1395,8 +1395,8 @@ static HContext WebGPUNewContext(const ContextParams& params)
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
         memset(g_WebGPUContext, 0, sizeof(*g_WebGPUContext));
         if (InitializeWebGPUContext(g_WebGPUContext, params))
-            return g_WebGPUContext;
-        DeleteContext(g_WebGPUContext);
+            return (HContext) g_WebGPUContext;
+        DeleteContext((HContext) g_WebGPUContext);
     }
     return NULL;
 }
@@ -1416,7 +1416,7 @@ static bool WebGPUIsSupported()
 static HContext WebGPUGetContext()
 {
     TRACE_CALL;
-    return g_WebGPUContext;
+    return (HContext) g_WebGPUContext;
 }
 
 static void WebGPUFinalize()
@@ -1742,9 +1742,10 @@ static void WebGPUBeginFrame(HContext _context)
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     {
-        const uint32_t windowWidth = GetWindowWidth(context->m_BaseContext.m_Window), windowHeight = GetWindowHeight(context->m_BaseContext.m_Window);
-        if (!context->m_MainRenderTarget || windowWidth != context->m_BaseContext.m_Width || windowHeight != context->m_BaseContext.m_Height) // (re)create
-            WebGPUConfigure(context, windowWidth, windowHeight);
+        const uint32_t window_width = GetWindowWidth(_context);
+        const uint32_t window_height = GetWindowHeight(_context);
+        if (!context->m_MainRenderTarget || window_width != context->m_BaseContext.m_Width || window_height != context->m_BaseContext.m_Height) // (re)create
+            WebGPUConfigure(context, window_width, window_height);
         WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureDepthStencil);
 #if defined(DM_GRAPHICS_WEBGPU2)
         WGPUSurfaceTexture surfaceColorTexture = WGPU_SURFACE_TEXTURE_INIT;
@@ -1982,7 +1983,7 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
 
     if (context->m_CurrentUniformBuffers[set][binding])
     {
-        WebGPUDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        WebGPUDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
     }
 
     context->m_CurrentUniformBuffers[set][binding] = ubo;
@@ -1995,7 +1996,6 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
 
 static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
 {
-    WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
     WebGPUDisableUniformBuffer(_context, uniform_buffer);

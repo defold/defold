@@ -109,7 +109,7 @@ namespace dmGraphics
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
-        if (!InitializeVulkan(context))
+        if (!InitializeVulkan(_context))
         {
             return false;
         }
@@ -130,7 +130,7 @@ namespace dmGraphics
 
             SynchronizeDevice(vk_device);
 
-            VulkanDestroyResources(context);
+            VulkanDestroyResources(_context);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 

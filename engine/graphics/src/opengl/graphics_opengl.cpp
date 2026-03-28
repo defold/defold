@@ -477,10 +477,8 @@ static void LogFrameBufferError(GLenum status)
 
     OpenGLContext* g_Context = 0x0;
 
-    static HOpenglID AddNewGLHandle(HContext _context, GLuint handle)
+    static HOpenglID AddNewGLHandle(OpenGLContext* context, GLuint handle)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_GLHandlesData.m_Mutex);
         HOpenglID result_idx = context->m_GLHandlesData.m_AllGLHandles.Size();
         if (!context->m_GLHandlesData.m_FreeIndexes.Empty())
@@ -1005,12 +1003,12 @@ static void LogFrameBufferError(GLenum status)
         {
             g_Context = new OpenGLContext(params);
 
-            if (OpenGLInitialize(g_Context, params))
+            if (OpenGLInitialize((HContext) g_Context, params))
             {
                 return (HContext) g_Context;
             }
 
-            DeleteContext(g_Context);
+            DeleteContext((HContext) g_Context);
         }
         return 0x0;
     }
@@ -1114,8 +1112,7 @@ static void LogFrameBufferError(GLenum status)
 
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext _context)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        HWindow window = GetWindow(context);
+        HWindow window = GetWindow(_context);
 
         /*
             Check in order
@@ -1137,7 +1134,7 @@ static void LogFrameBufferError(GLenum status)
                 size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
                 dmStrlCpy(proc_str + l, extension_name, 256-l);
 
-                if(!OpenGLIsExtensionSupported(context, proc_str))
+                if(!OpenGLIsExtensionSupported(_context, proc_str))
                 {
                     continue;
                 }
@@ -1172,7 +1169,7 @@ static void LogFrameBufferError(GLenum status)
             TextureCreationParams tcp;
             tcp.m_Width = tcp.m_OriginalWidth = tcp.m_Height = tcp.m_OriginalHeight = 2;
             tcp.m_Type = TEXTURE_TYPE_2D;
-            HTexture texture_handle = dmGraphics::NewTexture(context, tcp);
+            HTexture texture_handle = dmGraphics::NewTexture(_context, tcp);
 
             assert(ASSET_TYPE_TEXTURE == GetAssetType(texture_handle));
             OpenGLTexture* tex = (OpenGLTexture*) context->m_BaseContext.m_AssetHandleContainer.Get(texture_handle);
@@ -1187,7 +1184,7 @@ static void LogFrameBufferError(GLenum status)
             params.m_MipMap = 0;
             SetTextureAsync(_context, texture_handle, params, 0, 0);
 
-            while(GetTextureStatusFlags(context, texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            while(GetTextureStatusFlags(_context, texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
                 dmTime::Sleep(100);
             }
@@ -1251,7 +1248,6 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLPrintDeviceInfo(HContext _context)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
         #if defined(DM_GRAPHICS_USE_OPENGLES)
         dmLogInfo("Device: OpenGL ES");
         #else
@@ -1262,14 +1258,14 @@ static void LogFrameBufferError(GLenum status)
         dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
 
         dmLogInfo("Extensions:");
-        for (uint32_t i = 0; i < OpenGLGetNumSupportedExtensions(context); ++i)
+        for (uint32_t i = 0; i < OpenGLGetNumSupportedExtensions(_context); ++i)
         {
-            dmLogInfo("  %s", OpenGLGetSupportedExtension(context, i));
+            dmLogInfo("  %s", OpenGLGetSupportedExtension(_context, i));
         }
 
         dmLogInfo("Context features:");
     #define PRINT_FEATURE_IF_SUPPORTED(feature) \
-        if (IsContextFeatureSupported(context, feature)) \
+        if (IsContextFeatureSupported(_context, feature)) \
             dmLogInfo("  %s", #feature);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
@@ -1493,43 +1489,43 @@ static void LogFrameBufferError(GLenum status)
             extensions_ptr[max_len-1] = 0;
 
             const GLubyte* extensions = (const GLubyte*) extensions_ptr;
-            StoreExtensions(context, extensions);
+            StoreExtensions(_context, extensions);
             free(extensions_ptr);
         }
     #else
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
         assert(extensions);
-        StoreExtensions(context, extensions);
+        StoreExtensions(_context, extensions);
     #endif
 
     #define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
         if (function == 0x0)\
             function = (type) GetExtProcAddress(name, extension_name, core_name, context);
 
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, _context);
     #ifdef ANDROID
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array",           "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC,           context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array",           "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC,              context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array",           "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array",           "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC,    context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawArraysInstanced,     "glDrawArraysInstanced",     NULL,                      "glDrawArraysInstanced",     DM_PFNGLDRAWARRAYSINSTANCEDPROC,     context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawElementsInstanced,   "glDrawElementsInstanced",   NULL,                      "glDrawElementsInstanced",   DM_PFNGLDRAWELEMENTSINSTANCEDPROC,   context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glVertexAttribDivisor,     "glVertexAttribDivisor",     NULL,                      "glVertexAttribDivisor",     DM_PFNGLVERTEXATTRIBDIVISORPROC,     context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,               "glMemoryBarrier",           "shader_image_load_store", "glMemoryBarrier",           DM_PFNGLMEMORYBARRIERPROC,           context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture,            "glBindImageTexture",        "shader_image_load_store", "glBindImageTexture",        DM_PFNGLBINDIMAGETEXTUREPROC,        context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,             "glDispatchCompute",         "compute_shader",          "glDispatchCompute",         DM_PFNGLDISPATCHCOMPUTEPROC,         context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,              "glBindBufferBase",           "",                       "glBindBufferBase",          DM_PFNGLBINDBUFFERBASEPROC,          context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,        "glGetUniformBlockIndex",     "",                       "glGetUniformBlockIndex",    DM_PFNGLGETUNIFORMBLOCKINDEXPROC,    context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,     "glGetActiveUniformBlockiv",  "",                       "glGetActiveUniformBlockiv", DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,         "glGetActiveUniformsiv",      "",                       "glGetActiveUniformsiv",     DM_PFNGLGETACTIVEUNIFORMSIVPROC,     context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,         "glUniformBlockBinding",      "",                       "glUniformBlockBinding",     DM_PFNGLUNIFORMBLOCKBINDINGPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array",           "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC,           _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array",           "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC,              _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array",           "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array",           "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC,    _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawArraysInstanced,     "glDrawArraysInstanced",     NULL,                      "glDrawArraysInstanced",     DM_PFNGLDRAWARRAYSINSTANCEDPROC,     _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawElementsInstanced,   "glDrawElementsInstanced",   NULL,                      "glDrawElementsInstanced",   DM_PFNGLDRAWELEMENTSINSTANCEDPROC,   _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glVertexAttribDivisor,     "glVertexAttribDivisor",     NULL,                      "glVertexAttribDivisor",     DM_PFNGLVERTEXATTRIBDIVISORPROC,     _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,               "glMemoryBarrier",           "shader_image_load_store", "glMemoryBarrier",           DM_PFNGLMEMORYBARRIERPROC,           _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture,            "glBindImageTexture",        "shader_image_load_store", "glBindImageTexture",        DM_PFNGLBINDIMAGETEXTUREPROC,        _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,             "glDispatchCompute",         "compute_shader",          "glDispatchCompute",         DM_PFNGLDISPATCHCOMPUTEPROC,         _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,              "glBindBufferBase",           "",                       "glBindBufferBase",          DM_PFNGLBINDBUFFERBASEPROC,          _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,        "glGetUniformBlockIndex",     "",                       "glGetUniformBlockIndex",    DM_PFNGLGETUNIFORMBLOCKINDEXPROC,    _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,     "glGetActiveUniformBlockiv",  "",                       "glGetActiveUniformBlockiv", DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC, _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,         "glGetActiveUniformsiv",      "",                       "glGetActiveUniformsiv",     DM_PFNGLGETACTIVEUNIFORMSIVPROC,     _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,         "glUniformBlockBinding",      "",                       "glUniformBlockBinding",     DM_PFNGLUNIFORMBLOCKBINDINGPROC,     _context);
     #endif
 
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
-        if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
-            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
+        if (OpenGLIsExtensionSupported(_context, "GL_IMG_texture_compression_pvrtc") ||
+            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_pvrtc"))
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
@@ -1537,16 +1533,16 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
 
-        if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture") ||
-            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc") ||
-            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc1"))
+        if (OpenGLIsExtensionSupported(_context, "GL_OES_compressed_ETC1_RGB8_texture") ||
+            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc") ||
+            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc1"))
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
-        if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_s3tc") ||
-            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_s3tc"))
+        if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_s3tc") ||
+            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_s3tc"))
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
             // We'll use BC3 for this
@@ -1555,33 +1551,33 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
-        if (OpenGLIsExtensionSupported(context, "GL_ARB_texture_compression_rgtc") ||
-            OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_rgtc") ||
-            OpenGLIsExtensionSupported(context, "EXT_texture_compression_rgtc"))
+        if (OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
+            OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_rgtc") ||
+            OpenGLIsExtensionSupported(_context, "EXT_texture_compression_rgtc"))
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
-        if (OpenGLIsExtensionSupported(context, "GL_ARB_texture_compression_bptc") ||
-            OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_bptc") ||
-            OpenGLIsExtensionSupported(context, "EXT_texture_compression_bptc") )
+        if (OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_bptc") ||
+            OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_bptc") ||
+            OpenGLIsExtensionSupported(_context, "EXT_texture_compression_bptc") )
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(context, "GL_ARB_ES3_compatibility"))
+        if (OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility"))
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(context, "GL_KHR_texture_compression_astc_ldr") ||
-            OpenGLIsExtensionSupported(context, "GL_OES_texture_compression_astc") ||
-            OpenGLIsExtensionSupported(context, "OES_texture_compression_astc") ||
-            OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
+        if (OpenGLIsExtensionSupported(_context, "GL_KHR_texture_compression_astc_ldr") ||
+            OpenGLIsExtensionSupported(_context, "GL_OES_texture_compression_astc") ||
+            OpenGLIsExtensionSupported(_context, "OES_texture_compression_astc") ||
+            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_astc"))
         {
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = 1;
@@ -1610,21 +1606,21 @@ static void LogFrameBufferError(GLenum status)
         else
         {
             // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
-            if (OpenGLIsExtensionSupported(context, "EXT_color_buffer_half_float"))
+            if (OpenGLIsExtensionSupported(_context, "EXT_color_buffer_half_float"))
             {
                 context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
                 context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
             }
 
             // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
-            if (OpenGLIsExtensionSupported(context, "WEBGL_color_buffer_float"))
+            if (OpenGLIsExtensionSupported(_context, "WEBGL_color_buffer_float"))
             {
                 context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
                 context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
             }
 
             // https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/
-            if (OpenGLIsExtensionSupported(context, "ANGLE_instanced_arrays"))
+            if (OpenGLIsExtensionSupported(_context, "ANGLE_instanced_arrays"))
             {
                 context->m_InstancingSupport = 1;
             }
@@ -1642,11 +1638,11 @@ static void LogFrameBufferError(GLenum status)
             // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
             // see https://github.com/defold/defold/issues/8030
             // and https://github.com/defold/defold/issues/11009
-            if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
+            if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(_context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
                 unsigned char fakeZeroBuffer[] = {
                     0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
                     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    
+
                     0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
                     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 
@@ -1701,7 +1697,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_PackedDepthStencilSupport = 1;
     #endif
 
-        if ((OpenGLIsExtensionSupported(context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(context, "GL_EXT_packed_depth_stencil")))
+        if ((OpenGLIsExtensionSupported(_context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(_context, "GL_EXT_packed_depth_stencil")))
         {
             context->m_PackedDepthStencilSupport = 1;
         }
@@ -1741,18 +1737,18 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-        if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture"))
+        if (OpenGLIsExtensionSupported(_context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
-        if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_filter_anisotropic"))
+        if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_filter_anisotropic"))
         {
             context->m_AnisotropySupport = 1;
             glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &context->m_MaxAnisotropy);
         }
 
-        if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_EXT_texture_array"))
+        if (context->m_IsGles3Version || OpenGLIsExtensionSupported(_context, "GL_EXT_texture_array"))
         {
             context->m_TextureArraySupport         = 1;
             context->m_MultiTargetRenderingSupport = 1;
@@ -1769,8 +1765,8 @@ static void LogFrameBufferError(GLenum status)
         }
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__) || defined(DM_GRAPHICS_USE_OPENGLES)
-        if (OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint") ||
-            OpenGLIsExtensionSupported(context, "OES_element_index_uint"))
+        if (OpenGLIsExtensionSupported(_context, "GL_OES_element_index_uint") ||
+            OpenGLIsExtensionSupported(_context, "OES_element_index_uint"))
         {
             context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
         }
@@ -1778,7 +1774,7 @@ static void LogFrameBufferError(GLenum status)
     #if !defined(__EMSCRIPTEN__)
         // Note: This is enabled automatically for WebGL2, and the defined value is not available **at all** on WebGL1,
         //       so if we don't want to do crazy workarounds for WebGL let's just ignore it and move on.
-        if (!context->m_IsGles3Version && OpenGLIsExtensionSupported(context, "GL_ARB_seamless_cube_map"))
+        if (!context->m_IsGles3Version && OpenGLIsExtensionSupported(_context, "GL_ARB_seamless_cube_map"))
         {
             glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
             CLEAR_GL_ERROR;
@@ -1813,7 +1809,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
-            OpenGLPrintDeviceInfo(context);
+            OpenGLPrintDeviceInfo(_context);
         }
 
         context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_AUX_CONTEXT);
@@ -1831,7 +1827,7 @@ static void LogFrameBufferError(GLenum status)
                 dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
             }
-            else if(!ValidateAsyncJobProcessing(context))
+            else if(!ValidateAsyncJobProcessing(_context))
             {
                 dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
@@ -1851,7 +1847,7 @@ static void LogFrameBufferError(GLenum status)
         {
             GLuint handle;
             glGenVertexArrays(1, &handle);
-            context->m_GlobalVAO = AddNewGLHandle(_context, handle);
+            context->m_GlobalVAO = AddNewGLHandle(context, handle);
         }
 
         SetSwapInterval(_context, params.m_SwapInterval);
@@ -1985,8 +1981,8 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLBeginFrame(HContext _context)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
 #if defined(ANDROID)
+        OpenGLContext* context = (OpenGLContext*) _context;
         dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
 #endif
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
@@ -2105,7 +2101,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (context->m_CurrentUniformBuffers[set][binding])
         {
-            OpenGLDisableUniformBuffer(context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+            OpenGLDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
         }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
@@ -2113,7 +2109,6 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
-        OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
@@ -2285,15 +2280,13 @@ static void LogFrameBufferError(GLenum status)
 
     static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext _context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        HVertexDeclaration vd = NewVertexDeclaration(context, stream_declaration);
+        HVertexDeclaration vd = NewVertexDeclaration(_context, stream_declaration);
         vd->m_Stride = stride;
         return vd;
     }
 
     static HVertexDeclaration OpenGLNewVertexDeclaration(HContext _context, HVertexStreamDeclaration stream_declaration)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
@@ -2410,7 +2403,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (context->m_ModificationVersion != vertex_declaration->m_ModificationVersion || vertex_declaration->m_BoundForProgram != program)
         {
-            BindVertexDeclarationProgram(context, vertex_declaration, program);
+            BindVertexDeclarationProgram(_context, vertex_declaration, program);
         }
 
         for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; i++)
@@ -2963,7 +2956,6 @@ static void LogFrameBufferError(GLenum status)
 
     static GLuint DoCreateShader(HContext _context, GLenum type, const void* program, uint32_t program_size, char* error_buffer, uint32_t error_buffer_size)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
         GLint size = program_size;
@@ -3021,7 +3013,7 @@ static void LogFrameBufferError(GLenum status)
     static OpenGLShader* CreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, char* error_buffer, uint32_t error_buffer_size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLuint shader_id = DoCreateShader(context, type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
+        GLuint shader_id = DoCreateShader(_context, type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
@@ -4043,12 +4035,12 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLuint handle = 0;
                 glGenRenderbuffers(1, &handle);
-                attachment.m_Buffer = AddNewGLHandle((HContext)context, handle);
+                attachment.m_Buffer = AddNewGLHandle(context, handle);
                 CHECK_GL_ERROR;
                 break;
             }
             case ATTACHMENT_TYPE_TEXTURE:
-                attachment.m_Texture = NewTexture(context, creation_params);
+                attachment.m_Texture = NewTexture((HContext) context, creation_params);
                 break;
             default: assert(0);
         }
@@ -4094,7 +4086,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(context, rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
+                SetTexture(_context, rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
                 AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], attachments, DM_ARRAY_SIZE(attachments));
@@ -4165,7 +4157,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(context, rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
+                SetTexture(_context, rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
@@ -4184,7 +4176,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(context, rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
+                SetTexture(_context, rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
@@ -4237,7 +4229,7 @@ static void LogFrameBufferError(GLenum status)
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
-        rt->m_Id = AddNewGLHandle(_context, handle);
+        rt->m_Id = AddNewGLHandle(context, handle);
         CHECK_GL_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, handle);
         CHECK_GL_ERROR;
@@ -4345,7 +4337,6 @@ static void LogFrameBufferError(GLenum status)
 
     uint32_t OpenGLGetDefaultFramebufferId(HContext _context)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
         return dmPlatform::OpenGLGetDefaultFramebufferId();
     }
 
@@ -4512,7 +4503,7 @@ static void LogFrameBufferError(GLenum status)
         rt->m_StencilAttachment.m_Params.m_Width       = width;
         rt->m_StencilAttachment.m_Params.m_Height      = height;
 
-        ApplyRenderTargetAttachments(context, rt, true);
+        ApplyRenderTargetAttachments(_context, rt, true);
     }
 
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
@@ -4622,7 +4613,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
         for (uint16_t idx = 0; idx < num_texture_ids; ++idx)
         {
-            static_ids[idx] = AddNewGLHandle(_context, gl_texture_ids[idx]);
+            static_ids[idx] = AddNewGLHandle(context, gl_texture_ids[idx]);
         }
         free(gl_texture_ids);
 
@@ -4731,7 +4722,7 @@ static void LogFrameBufferError(GLenum status)
         while(i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
         {
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-            if(!(dmGraphics::GetTextureStatusFlags(context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            if(!(dmGraphics::GetTextureStatusFlags((HContext) context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
                 OpenGLDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
@@ -4748,12 +4739,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(texture);
         // We can only delete valid textures
-        if (!IsAssetHandleValid(context, texture))
+        if (!IsAssetHandleValid(_context, texture))
         {
             return;
         }
         // If they're not uploaded yet, we cannot delete them
-        if(dmGraphics::GetTextureStatusFlags(context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        if(dmGraphics::GetTextureStatusFlags(_context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
             PushSetTextureAsyncDeleteTexture(context->m_SetTextureAsyncState, texture);
         }
@@ -4830,7 +4821,7 @@ static void LogFrameBufferError(GLenum status)
         //       The window handle (pointer) isn't protected by a mutex either,
         //       but it is currently not used with our GLFW version (yet) so
         //       we don't necessarily need to guard it right now.
-        SetTexture(_context, ap.m_Texture, ap.m_Params);
+        SetTexture((HContext) _context, ap.m_Texture, ap.m_Params);
         glFlush();
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
@@ -4877,7 +4868,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            SetTexture(context, texture, params);
+            SetTexture(_context, texture, params);
         }
     }
 
@@ -4971,7 +4962,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (!params.m_SubUpdate)
             {
-                SetTextureParams(context, texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+                SetTextureParams(_context, texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
             }
 
             switch (params.m_Format)
@@ -5289,7 +5280,7 @@ static void LogFrameBufferError(GLenum status)
         assert(unit < DM_MAX_TEXTURE_UNITS);
 
         // Note: We don't really need to unbind the gl handle here. The only thing that can happen
-        //       is that if the render state is incorrectly set up from the engine, we might sample 
+        //       is that if the render state is incorrectly set up from the engine, we might sample
         //       from the wrong texture (which all other adapters also do).
         OpenGLTextureBinding& binding = context->m_CurrentTextures[unit];
         binding.m_Texture = 0x0;
@@ -5298,7 +5289,6 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
         assert(buffer_size >= width * height * 4);
         glReadPixels(x, y, width, height,
                      GL_BGRA,
