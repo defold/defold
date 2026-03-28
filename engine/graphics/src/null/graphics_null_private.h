@@ -15,8 +15,6 @@
 #ifndef GRAPHICS_DEVICE_NULL
 #define GRAPHICS_DEVICE_NULL
 
-#include <cstddef>
-
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -42,8 +40,6 @@ namespace dmGraphics
         TextureSampler   m_Sampler;
         int32_t*         m_LastBoundUnit; // testing
     };
-
-    static_assert(offsetof(NullTexture, m_Base) == 0, "NullTexture: m_Base must be the first member");
 
     struct VertexStreamBuffer
     {

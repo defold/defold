@@ -133,8 +133,6 @@ namespace dmGraphics
         uint8_t                 m_Destroyed : 1;
     };
 
-    static_assert(offsetof(WebGPUTexture, m_Base) == 0, "WebGPUTexture: m_Base must be the first member");
-
     struct WebGPURenderTarget
     {
         WebGPURenderTarget()

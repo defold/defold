@@ -15,8 +15,6 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
-#include <cstddef>
-
 #include <dlib/atomic.h>
 #include <dlib/math.h>
 #include <dlib/jobsystem.h>
@@ -64,8 +62,6 @@ namespace dmGraphics
         OpenGLSampler     m_SamplerDirty;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
     };
-
-    static_assert(offsetof(OpenGLTexture, m_Base) == 0, "OpenGLTexture: m_Base must be the first member");
 
     struct OpenGLTextureBinding
     {

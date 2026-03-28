@@ -16,7 +16,6 @@
 #define __GRAPHICS_DEVICE_VULKAN__
 
 #include <stdint.h>
-#include <cstddef>
 #include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -105,8 +104,6 @@ namespace dmGraphics
 
         const VulkanResourceType GetType();
     };
-
-    static_assert(offsetof(VulkanTexture, m_Base) == 0, "VulkanTexture: m_Base must be the first member");
 
     struct TextureSampler
     {

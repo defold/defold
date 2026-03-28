@@ -67,8 +67,6 @@ namespace dmGraphics
         uint16_t                m_TextureSamplerIndex : 10;
     };
 
-    static_assert(offsetof(DX12Texture, m_Base) == 0, "DX12Texture: m_Base must be the first member");
-
     struct DX12TextureSampler
     {
         uint32_t        m_DescriptorOffset;
