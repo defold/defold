@@ -26,6 +26,12 @@
 
 namespace dmRender
 {
+    static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
+    static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 8;
+    static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 1;
+    static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 5;
+    static const uint32_t VECTOR_BAND_TEXTURE_HEIGHT = 1;
+
     FontMapParams::FontMapParams()
     : m_FontCollection(0)
     , m_NameHash(0)
@@ -165,6 +171,116 @@ namespace dmRender
         ClearTexture(font_map, width, height);
     }
 
+    static void RecreateTextureWithData(dmGraphics::HContext graphics_context,
+                                        dmGraphics::HTexture* texture,
+                                        uint32_t width,
+                                        uint32_t height,
+                                        dmGraphics::TextureFormat format,
+                                        dmGraphics::TextureFilter min_filter,
+                                        dmGraphics::TextureFilter mag_filter,
+                                        const void* data,
+                                        uint32_t data_size)
+    {
+        dmGraphics::TextureCreationParams tex_create_params;
+        tex_create_params.m_Width = width;
+        tex_create_params.m_Height = height;
+        tex_create_params.m_OriginalWidth = width;
+        tex_create_params.m_OriginalHeight = height;
+
+        if (*texture)
+        {
+            dmGraphics::DeleteTexture(graphics_context, *texture);
+        }
+
+        *texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
+
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_Format = format;
+        tex_params.m_Width = width;
+        tex_params.m_Height = height;
+        tex_params.m_Depth = 1;
+        tex_params.m_MinFilter = min_filter;
+        tex_params.m_MagFilter = mag_filter;
+        tex_params.m_DataSize = data_size;
+        tex_params.m_Data = data;
+
+        dmGraphics::SetTexture(graphics_context, *texture, tex_params);
+    }
+
+    static void CreateVectorTextures(HFontMap font_map)
+    {
+        // MVP placeholder data contract:
+        // - This still is not the full Slug font path, but the curve payload is
+        //   now stored as quadratic Bézier segments instead of triangle points.
+        // - Each curve uses two RGBA32F texels matching the access pattern in
+        //   the reference Slug pixel shader:
+        //     texel N     = (p0.x, p0.y, p1.x, p1.y)
+        //     texel N + 1 = (p2.x, p2.y, 0.0, 0.0)
+        //   where p0 / p1 / p2 are the quadratic control points.
+        // - The hardcoded glyph is a circle approximation built from four
+        //   clockwise quarter arcs in glyph-local [0,1] space.
+        // - The band texture is a tiny stand-in for Slug's band indirection:
+        //     texel 0 = (curve_count, unused)
+        //     texel 1..4 = (curve_texel_x, curve_texel_y) for the four curves
+        //   We currently keep this in RG32F because the Defold MVP shader path
+        //   still uses float samplers for Bob / ES compatibility.
+        static const float curve_texture_data[] =
+        {
+            // Right -> top quarter arc.
+            0.90f,       0.50f,       0.86568546f, 0.86568546f,
+            0.50f,       0.90f,       0.0f,        0.0f,
+            // Top -> left quarter arc.
+            0.50f,       0.90f,       0.13431458f, 0.86568546f,
+            0.10f,       0.50f,       0.0f,        0.0f,
+            // Left -> bottom quarter arc.
+            0.10f,       0.50f,       0.13431458f, 0.13431458f,
+            0.50f,       0.10f,       0.0f,        0.0f,
+            // Bottom -> right quarter arc.
+            0.50f,       0.10f,       0.86568546f, 0.13431458f,
+            0.90f,       0.50f,       0.0f,        0.0f,
+        };
+
+        static const float band_texture_data[] =
+        {
+            4.0f, 0.0f,
+            0.0f, 0.0f,
+            2.0f, 0.0f,
+            4.0f, 0.0f,
+            6.0f, 0.0f,
+        };
+
+        RecreateTextureWithData(font_map->m_GraphicsContext,
+                                &font_map->m_Texture,
+                                VECTOR_CURVE_TEXTURE_WIDTH,
+                                VECTOR_CURVE_TEXTURE_HEIGHT,
+                                dmGraphics::TEXTURE_FORMAT_RGBA32F,
+                                dmGraphics::TEXTURE_FILTER_NEAREST,
+                                dmGraphics::TEXTURE_FILTER_NEAREST,
+                                curve_texture_data,
+                                sizeof(curve_texture_data));
+
+        RecreateTextureWithData(font_map->m_GraphicsContext,
+                                &font_map->m_BandTexture,
+                                VECTOR_BAND_TEXTURE_WIDTH,
+                                VECTOR_BAND_TEXTURE_HEIGHT,
+                                dmGraphics::TEXTURE_FORMAT_RG32F,
+                                dmGraphics::TEXTURE_FILTER_NEAREST,
+                                dmGraphics::TEXTURE_FILTER_NEAREST,
+                                band_texture_data,
+                                sizeof(band_texture_data));
+    }
+
+    static void RestoreLegacyTexture(HFontMap font_map)
+    {
+        if (font_map->m_BandTexture)
+        {
+            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_BandTexture);
+            font_map->m_BandTexture = 0;
+        }
+
+        RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
+    }
+
     /**
      * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
      * @param font_map Font map handle
@@ -241,6 +357,7 @@ namespace dmRender
         }
 
         font_map->m_GraphicsContext = graphics_context;
+        font_map->m_IsVector = 0;
         RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
         return true;
     }
@@ -301,6 +418,23 @@ namespace dmRender
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         font_map->m_Material = material;
+
+        bool is_vector_material = false;
+        if (material)
+        {
+            is_vector_material = GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
+        }
+
+        if (is_vector_material)
+        {
+            CreateVectorTextures(font_map);
+        }
+        else if (font_map->m_IsVector)
+        {
+            RestoreLegacyTexture(font_map);
+        }
+
+        font_map->m_IsVector = is_vector_material ? 1 : 0;
     }
 
     HMaterial GetFontMapMaterial(HFontMap font_map)
@@ -807,7 +941,10 @@ namespace dmRender
         // The cache size
         size += font_map->m_CacheCellCount*( (sizeof(CacheGlyph) * sizeof(uint32_t)) );
         // The texture size
-        size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
+        if (font_map->m_Texture)
+            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
+        if (font_map->m_BandTexture)
+            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_BandTexture);
         return size;
     }
 

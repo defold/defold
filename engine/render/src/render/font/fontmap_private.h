@@ -40,6 +40,8 @@ namespace dmRender
 
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+            if (m_BandTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_BandTexture);
 
             dmHashTable<uint64_t, FontGlyph*>::Iterator iter = m_Glyphs.GetIterator();
             while(iter.Next())
@@ -56,7 +58,8 @@ namespace dmRender
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
-        dmGraphics::HTexture    m_Texture;
+        dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or Slug curve texture for vector fonts
+        dmGraphics::HTexture    m_BandTexture;   // Slug band texture for vector fonts
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
 
@@ -111,6 +114,7 @@ namespace dmRender
         uint8_t                 m_IsCacheSizeTooSmall:1;
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
+        uint8_t                 m_IsVector:1;
         uint8_t                 :7;
     };
 }

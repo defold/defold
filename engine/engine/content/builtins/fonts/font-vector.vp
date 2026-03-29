@@ -1,0 +1,28 @@
+#version 140
+
+// Slug-style vertex contract for MVP1.
+in mediump vec4 position;
+in mediump vec4 texcoord;
+in mediump vec4 jacobian;
+in mediump vec4 banding;
+in lowp vec4 color;
+
+out mediump vec2 var_texcoord;
+out mediump vec4 var_color;
+out mediump vec4 var_banding;
+out mediump vec4 var_glyph;
+
+uniform vs_uniforms
+{
+    mat4 view_proj;
+    vec4 viewport;
+};
+
+void main()
+{
+    var_texcoord = texcoord.xy;
+    var_color = color;
+    var_banding = banding;
+    var_glyph = texcoord;
+    gl_Position = view_proj * vec4(position.xyz, 1.0);
+}

@@ -13,8 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>                         // for uint32_t, int16_t
+#include <string.h>                         // for memset
 #include <dlib/align.h>                     // for DM_ALIGNED
 #include <dlib/log.h>                       // for dmLog*
+#include <dlib/math.h>                      // for dmMath::Max
 #include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/vmath.h>                     // for Vector4
 #include <dlib/time.h>                      // for dmTime::GetMonotonicTime()
@@ -37,7 +39,12 @@ static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
 struct DM_ALIGNED(16) GlyphVertex
 {
     // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
+    // The first 68 bytes mirror the Slug Vertex4U layout used by the vector font MVP.
     float m_Position[4];
+    float m_VectorTexcoord[4];
+    float m_VectorJacobian[4];
+    float m_VectorBanding[4];
+    uint8_t m_VectorColor[4];
     float m_UV[2];
     float m_FaceColor[4];
     float m_OutlineColor[4];
@@ -75,6 +82,10 @@ dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backen
 
     dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(context);
     dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "texcoord", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "jacobian", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "banding", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "face_color", 4, dmGraphics::TYPE_FLOAT, true);
     dmGraphics::AddVertexStream(stream_declaration, "outline_color", 4, dmGraphics::TYPE_FLOAT, true);
@@ -90,6 +101,25 @@ dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backen
 }
 
 #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
+
+static void ClearGlyphVertex(GlyphVertex& vertex)
+{
+    memset(&vertex, 0, sizeof(vertex));
+}
+
+static uint8_t ToUNorm8(float v)
+{
+    v = dmMath::Max(0.0f, dmMath::Min(1.0f, v));
+    return (uint8_t)(v * 255.0f + 0.5f);
+}
+
+static void SetVectorColor(GlyphVertex& vertex, const Vector4& color)
+{
+    vertex.m_VectorColor[0] = ToUNorm8(color.getX());
+    vertex.m_VectorColor[1] = ToUNorm8(color.getY());
+    vertex.m_VectorColor[2] = ToUNorm8(color.getZ());
+    vertex.m_VectorColor[3] = ToUNorm8(color.getW());
+}
 
 static void OutputGlyph(FontGlyph* glyph,
                         float recip_w, float recip_h,
@@ -160,6 +190,11 @@ static void OutputGlyph(FontGlyph* glyph,
     GlyphVertex& v4_layer_face = vertices[face_index + 3];
     GlyphVertex& v5_layer_face = vertices[face_index + 4];
     GlyphVertex& v6_layer_face = vertices[face_index + 5];
+
+    ClearGlyphVertex(v1_layer_face);
+    ClearGlyphVertex(v2_layer_face);
+    ClearGlyphVertex(v3_layer_face);
+    ClearGlyphVertex(v6_layer_face);
 
     float xx = x - f_size_diff * 0.5f;
 
@@ -293,6 +328,59 @@ static void OutputGlyph(FontGlyph* glyph,
     #undef SET_VERTEX_LAYER_MASK
 }
 
+static void OutputGlyphVector(uint32_t vertexindex,
+                              const dmVMath::Matrix4& transform,
+                              float x,
+                              float y,
+                              float width,
+                              float ascent,
+                              float descent,
+                              const Vector4& face_color,
+                              GlyphVertex* vertices)
+{
+    GlyphVertex& v1 = vertices[vertexindex];
+    GlyphVertex& v2 = vertices[vertexindex + 1];
+    GlyphVertex& v3 = vertices[vertexindex + 2];
+    GlyphVertex& v4 = vertices[vertexindex + 3];
+    GlyphVertex& v5 = vertices[vertexindex + 4];
+    GlyphVertex& v6 = vertices[vertexindex + 5];
+
+    ClearGlyphVertex(v1);
+    ClearGlyphVertex(v2);
+    ClearGlyphVertex(v3);
+    ClearGlyphVertex(v6);
+
+    (Vector4&)v1.m_Position = transform * Vector4(x,         y - descent, 0.0f, 1.0f);
+    (Vector4&)v2.m_Position = transform * Vector4(x,         y + ascent,  0.0f, 1.0f);
+    (Vector4&)v3.m_Position = transform * Vector4(x + width, y - descent, 0.0f, 1.0f);
+    (Vector4&)v6.m_Position = transform * Vector4(x + width, y + ascent,  0.0f, 1.0f);
+
+    #define SET_VECTOR_VERTEX(v, u, vv) \
+        v.m_VectorTexcoord[0] = u; \
+        v.m_VectorTexcoord[1] = vv; \
+        v.m_VectorTexcoord[2] = 0.0f; \
+        v.m_VectorTexcoord[3] = 0.0f; \
+        v.m_VectorJacobian[0] = 1.0f; \
+        v.m_VectorJacobian[1] = 0.0f; \
+        v.m_VectorJacobian[2] = 0.0f; \
+        v.m_VectorJacobian[3] = 1.0f; \
+        v.m_VectorBanding[0] = 0.0f; \
+        v.m_VectorBanding[1] = 0.0f; \
+        v.m_VectorBanding[2] = 0.0f; \
+        v.m_VectorBanding[3] = 0.0f; \
+        SetVectorColor(v, face_color);
+
+    SET_VECTOR_VERTEX(v1, 0.0f, 0.0f)
+    SET_VECTOR_VERTEX(v2, 0.0f, 1.0f)
+    SET_VECTOR_VERTEX(v3, 1.0f, 0.0f)
+    SET_VECTOR_VERTEX(v6, 1.0f, 1.0f)
+
+    #undef SET_VECTOR_VERTEX
+
+    v4 = v3;
+    v5 = v2;
+}
+
 static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
 {
     uint32_t len = dmUtf8::StrLen(text);
@@ -329,6 +417,76 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
     }
 
     TextLayoutFree(layout);
+}
+
+static uint32_t CreateFontVectorVertexData(HFontMap font_map,
+                                           TextLayout* layout,
+                                           const TextEntry& te,
+                                           GlyphVertex* vertices,
+                                           uint32_t num_vertices)
+{
+    const Vector4 face_color = dmGraphics::UnpackRGBA(te.m_FaceColor);
+    const float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
+    const float leading = line_height * te.m_Leading;
+    const float glyph_width = dmMath::Max(1.0f, line_height * 0.75f);
+    const float glyph_ascent = dmMath::Max(1.0f, font_map->m_MaxAscent);
+    const float glyph_descent = dmMath::Max(0.0f, font_map->m_MaxDescent);
+
+    TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    uint32_t line_count = TextLayoutGetLineCount(layout);
+    TextLine* lines = TextLayoutGetLines(layout);
+
+    uint32_t vertexindex = 0;
+    const uint32_t vertices_per_quad = 6;
+
+    uint32_t align = te.m_Align;
+    float x_offset = OffsetX(align, te.m_Width);
+    if (font_map->m_IsMonospaced)
+    {
+        x_offset -= font_map->m_Padding * 0.5f;
+    }
+    float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
+
+    for (uint32_t i = 0; i < line_count; ++i)
+    {
+        TextLine& line = lines[i];
+        int32_t first_x = glyphs[line.m_Index].m_X;
+        int32_t first_y = glyphs[line.m_Index].m_Y;
+
+        const float line_start_x = x_offset - OffsetX(align, line.m_Width);
+        const float line_start_y = y_offset - i * leading;
+
+        int gi_end = line.m_Index + line.m_Length;
+        for (int gi = line.m_Index; gi < gi_end; ++gi)
+        {
+            if (vertexindex + vertices_per_quad > num_vertices)
+            {
+                dmLogWarning("Character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
+                return vertexindex;
+            }
+
+            TextGlyph* g = &glyphs[gi];
+            if (dmUtf8::IsWhiteSpace(g->m_Codepoint))
+                continue;
+
+            float x = line_start_x + (g->m_X - first_x);
+            float y = line_start_y + (g->m_Y - first_y);
+
+            OutputGlyphVector(vertexindex,
+                              te.m_Transform,
+                              x,
+                              y,
+                              glyph_width,
+                              glyph_ascent,
+                              glyph_descent,
+                              face_color,
+                              vertices);
+
+            vertexindex += vertices_per_quad;
+        }
+    }
+
+    return vertexindex;
 }
 
 
@@ -393,6 +551,13 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     uint32_t    line_count          = TextLayoutGetLineCount(layout);
     TextLine*   lines               = TextLayoutGetLines(layout);
     uint32_t    valid_glyph_count   = glyph_count;
+
+    if (font_map->m_IsVector)
+    {
+        uint32_t vector_vertex_count = CreateFontVectorVertexData(font_map, layout, te, vertices, num_vertices);
+        TextLayoutFree(layout);
+        return vector_vertex_count;
+    }
 
     uint32_t vertexindex        = 0;
     uint32_t vertices_per_quad  = 6;

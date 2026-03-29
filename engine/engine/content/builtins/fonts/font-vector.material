@@ -1,0 +1,24 @@
+name: "font_vector"
+tags: "gui"
+vertex_program: "/builtins/fonts/font-vector.vp"
+fragment_program: "/builtins/fonts/font-vector.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+samplers {
+  name: "curve_texture"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_DEFAULT
+  filter_mag: FILTER_MODE_MAG_DEFAULT
+  max_anisotropy: 1.0
+}
+samplers {
+  name: "band_texture"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_DEFAULT
+  filter_mag: FILTER_MODE_MAG_DEFAULT
+  max_anisotropy: 1.0
+}

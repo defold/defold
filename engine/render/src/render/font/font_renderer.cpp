@@ -133,6 +133,7 @@ namespace dmRender
     }
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
+    static dmhash_t g_ViewportHash = dmHashString64("viewport");
 
     static float CalcSdfScale(const Matrix4& view_proj, float half_w, float half_h, const Matrix4& world_transform)
     {
@@ -346,20 +347,39 @@ namespace dmRender
         ro->m_SetBlendFactors = 1;
         ro->m_Material = first_te.m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
+        ro->m_Textures[1] = font_map->m_BandTexture;
         ro->m_VertexStart = text_context.m_VertexIndex;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
+        Vector4 viewport(0.0f, 0.0f, 0.0f, 0.0f);
+
+        dmGraphics::HContext gc = GetGraphicsContext(render_context);
+        int32_t vp_x = 0;
+        int32_t vp_y = 0;
+        uint32_t vp_w = 0;
+        uint32_t vp_h = 0;
+        dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
+        (void)vp_x;
+        (void)vp_y;
+        if (vp_w != 0 && vp_h != 0)
+        {
+            viewport = Vector4((float)vp_w, (float)vp_h, 1.0f / (float)vp_w, 1.0f / (float)vp_h);
+        }
 
         dmRender::ClearNamedConstantBuffer(constants_buffer);
         dmRender::SetNamedConstants(constants_buffer, (HConstant*)first_te.m_RenderConstants, first_te.m_NumRenderConstants);
         dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
+        dmRender::SetNamedConstant(constants_buffer, g_ViewportHash, &viewport, 1);
 
         ro->m_ConstantBuffer = constants_buffer;
 
         // The cache size may have changed, and we need to update the font map glyph texture
-        UpdateCacheTexture(font_map);
+        if (!font_map->m_IsVector)
+        {
+            UpdateCacheTexture(font_map);
+        }
 
         bool calc_sdf_scale = font_map->m_IsSdf;
         Matrix4 sdf_view_proj;
@@ -367,15 +387,6 @@ namespace dmRender
         float sdf_half_h = 0.0f;
         if (calc_sdf_scale)
         {
-            dmGraphics::HContext gc = GetGraphicsContext(render_context);
-            int32_t vp_x = 0;
-            int32_t vp_y = 0;
-            uint32_t vp_w = 0;
-            uint32_t vp_h = 0;
-            dmGraphics::GetViewport(gc, &vp_x, &vp_y, &vp_w, &vp_h);
-            (void)vp_x;
-            (void)vp_y;
-
             if (vp_w == 0 || vp_h == 0)
             {
                 calc_sdf_scale = false;
