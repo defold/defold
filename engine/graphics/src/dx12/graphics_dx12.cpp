@@ -594,21 +594,21 @@ namespace dmGraphics
         view_desc.Format                          = texture->m_ResourceDesc.Format;
         view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
         view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        view_desc.Texture2D.MipLevels             = texture->m_MipMapCount;
+        view_desc.Texture2D.MipLevels             = texture->m_Base.m_MipMapCount;
 
-        if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY)
+        if (texture->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
         {
             view_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
             view_desc.Texture2DArray.MostDetailedMip = 0;
-            view_desc.Texture2DArray.MipLevels       = texture->m_MipMapCount;
+            view_desc.Texture2DArray.MipLevels       = texture->m_Base.m_MipMapCount;
             view_desc.Texture2DArray.FirstArraySlice = 0;  // Start from the first slice
             view_desc.Texture2DArray.ArraySize       = texture->m_LayerCount;  // Number of slices
             view_desc.Texture2DArray.PlaneSlice      = 0;  // This is generally 0 for 2D arrays (1D textures have planes)
         }
-        else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        else if (texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
         {
             view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURECUBE;
-            view_desc.TextureCube.MipLevels           = texture->m_MipMapCount;
+            view_desc.TextureCube.MipLevels           = texture->m_Base.m_MipMapCount;
             view_desc.TextureCube.MostDetailedMip     = 0;
             view_desc.TextureCube.ResourceMinLODClamp = 0.0f;
         }
@@ -1278,7 +1278,7 @@ namespace dmGraphics
         // Calculate offset/footprint per array slice
         for (uint32_t array = 0; array < tex_layer_count; ++array)
         {
-            const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_MipMapCount, tex_layer_count);
+            const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, tex_layer_count);
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
             UINT rows = 0;
@@ -1327,7 +1327,7 @@ namespace dmGraphics
 
         // Copy only the selected mip level's data
         CopyTextureDataMipmapLevel(params, format_dst, format_src, fp, num_rows, tex_layer_count,
-            texture->m_MipMapCount, slice_row_pitch, pixels, upload_data, target_mip);
+            texture->m_Base.m_MipMapCount, slice_row_pitch, pixels, upload_data, target_mip);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -1349,7 +1349,7 @@ namespace dmGraphics
         // Copy per array slice
         for (uint32_t array = 0; array < texture->m_LayerCount; ++array)
         {
-            const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_MipMapCount, texture->m_LayerCount);
+            const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_Base.m_MipMapCount, texture->m_LayerCount);
 
             D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
             copy_dst.pResource                   = texture->m_Resource;
@@ -2279,7 +2279,7 @@ namespace dmGraphics
                         frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, i);
 
                         // Transition all mipmaps into pixel read state
-                        for (int i = 0; i < texture->m_MipMapCount; ++i)
+                        for (int i = 0; i < texture->m_Base.m_MipMapCount; ++i)
                         {
                             if (texture->m_ResourceStates[i] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                             {
@@ -3073,27 +3073,27 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         DX12Texture* tex = new DX12Texture;
         memset(tex, 0, sizeof(DX12Texture));
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = dmMath::Max((uint16_t)1, params.m_Depth);
+        tex->m_Base.m_Type        = params.m_Type;
+        tex->m_Base.m_Width       = params.m_Width;
+        tex->m_Base.m_Height      = params.m_Height;
+        tex->m_Base.m_Depth       = dmMath::Max((uint16_t)1, params.m_Depth);
         tex->m_LayerCount  = dmMath::Max((uint16_t)1, (uint16_t) params.m_LayerCount);
-        tex->m_MipMapCount = params.m_MipMapCount;
-        tex->m_PageCount   = params.m_LayerCount;
-
-        // tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_Base.m_MipMapCount = params.m_MipMapCount;
+        tex->m_Base.m_PageCount   = params.m_LayerCount;
+        tex->m_Base.m_NumTextureIds   = 1;
+        tex->m_Base.m_UsageHintFlags    = params.m_UsageHintBits;
 
         if (params.m_OriginalWidth == 0)
         {
-            tex->m_OriginalWidth  = params.m_Width;
-            tex->m_OriginalHeight = params.m_Height;
-            tex->m_OriginalDepth  = params.m_Depth;
+            tex->m_Base.m_OriginalWidth  = params.m_Width;
+            tex->m_Base.m_OriginalHeight = params.m_Height;
+            tex->m_Base.m_OriginalDepth  = params.m_Depth;
         }
         else
         {
-            tex->m_OriginalWidth  = params.m_OriginalWidth;
-            tex->m_OriginalHeight = params.m_OriginalHeight;
-            tex->m_OriginalDepth  = params.m_OriginalDepth;
+            tex->m_Base.m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_Base.m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         }
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
@@ -3246,13 +3246,13 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             sampler.m_MagFilter     != magfilter              ||
             sampler.m_AddressModeU  != uwrap                  ||
             sampler.m_AddressModeV  != vwrap                  ||
-            sampler.m_MaxLod        != texture->m_MipMapCount ||
+            sampler.m_MaxLod        != texture->m_Base.m_MipMapCount ||
             sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
             texture->m_TextureSamplerIndex = sampler_index;
         }
@@ -3284,12 +3284,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         uint32_t tex_data_size       = params.m_DataSize;
         DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(format_orig);
 
-        if (tex->m_MipMapCount == 1 && params.m_MipMap > 0)
+        if (tex->m_Base.m_MipMapCount == 1 && params.m_MipMap > 0)
         {
             return;
         }
 
-        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        tex->m_Base.m_MipMapCount = (uint8_t) dmMath::Max((uint16_t)tex->m_Base.m_MipMapCount, (uint16_t)(params.m_MipMap + 1));
 
         // Note: There's no 8 bit RGB format, we have to expand this to four channels
         // TODO: Can we use R11G11B10 somehow?
@@ -3314,7 +3314,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             desc.Height              = params.m_Height;
             desc.Flags               = D3D12_RESOURCE_FLAG_NONE;
             desc.DepthOrArraySize    = depth_or_array_size;
-            desc.MipLevels           = tex->m_MipMapCount;
+            desc.MipLevels           = tex->m_Base.m_MipMapCount;
             desc.SampleDesc.Count    = 1;
             desc.SampleDesc.Quality  = 0;
             desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -3326,7 +3326,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&tex->m_Resource));
             CHECK_HR_ERROR(hr);
 
-            for (int i = 0; i < tex->m_MipMapCount; ++i)
+            for (int i = 0; i < tex->m_Base.m_MipMapCount; ++i)
             {
                 tex->m_ResourceStates[i] = D3D12_RESOURCE_STATE_COPY_DEST;
             }
@@ -3335,6 +3335,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         }
 
         TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_actual, params, (uint8_t*) tex_data_ptr);
+
+        tex->m_Base.m_Format = format_actual;
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3347,26 +3349,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static uint32_t DX12GetTextureResourceSize(HContext context, HTexture texture)
     {
         return 0;
-    }
-
-    static uint16_t DX12GetTextureWidth(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_Width;
-    }
-
-    static uint16_t DX12GetTextureHeight(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_Height;
-    }
-
-    static uint16_t DX12GetOriginalTextureWidth(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_OriginalWidth;
-    }
-
-    static uint16_t DX12GetOriginalTextureHeight(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
@@ -3529,25 +3511,9 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         }
     }
 
-    static uint32_t DX12GetTextureStatusFlags(HContext context, HTexture texture)
-    {
-        return TEXTURE_STATUS_OK;
-    }
-
     static bool DX12IsExtensionSupported(HContext context, const char* extension)
     {
         return true;
-    }
-
-    static TextureType DX12GetTextureType(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_Type;
-    }
-
-    static uint32_t DX12GetTextureUsageHintFlags(HContext context, HTexture texture)
-    {
-        return 0;
-        // return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static uint8_t DX12GetTexturePageCount(HTexture texture)
@@ -3555,7 +3521,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         // TODO: mutex is missed?
         // ScopedLock lock(g_DX12Context->m_AssetHandleContainerMutex);
         DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_PageCount : 0;
+        return tex ? tex->m_Base.m_PageCount : 0;
 
     }
 
@@ -3569,24 +3535,9 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return "";
     }
 
-    static uint8_t DX12GetNumTextureHandles(HContext context, HTexture texture)
-    {
-        return 1;
-    }
-
     static bool DX12IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
         return true;
-    }
-
-    static uint16_t DX12GetTextureDepth(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_Depth;
-    }
-
-    static uint8_t DX12GetTextureMipmapCount(HContext context, HTexture texture)
-    {
-        return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
     static bool DX12IsAssetHandleValid(HContext _context, HAssetHandle asset_handle)

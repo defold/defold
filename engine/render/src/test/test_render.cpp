@@ -730,12 +730,12 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     // we bind test_texture_0 to unit 0, but that binding will be overwritten by the name hash binding
     // since the "texture_sampler_1" sampler is bound to unit 0
-    dmGraphics::Texture* tex0_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_0);
+    dmGraphics::NullTexture* tex0_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_0);
     ASSERT_EQ(m_Context->m_TextureBindTable[0].m_Texture, test_texture_0);
     ASSERT_EQ(-1, tex0_ptr->m_LastBoundUnit[0]);
 
     // test_texture_1 is bound by hash to unit 0 ("texture_sampler_1")
-    dmGraphics::Texture* tex1_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_1);
+    dmGraphics::NullTexture* tex1_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_1);
     ASSERT_EQ(m_Context->m_TextureBindTable[1].m_Texture, test_texture_1);
     ASSERT_EQ(0, tex1_ptr->m_LastBoundUnit[0]);
 
@@ -757,7 +757,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
-    dmGraphics::Texture* tex_array = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_array);
+    dmGraphics::NullTexture* tex_array = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_array);
     ASSERT_EQ(m_Context->m_TextureBindTable[3].m_Texture, test_texture_array);
     ASSERT_EQ(2, tex_array->m_LastBoundUnit[0]);
     ASSERT_EQ(3, tex_array->m_LastBoundUnit[1]);
@@ -892,7 +892,7 @@ TEST_F(dmRenderTest, TestRenderObjectMaxTextureBindings)
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
     {
-        dmGraphics::Texture* tex = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, textures[i]);
+        dmGraphics::NullTexture* tex = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, textures[i]);
         ASSERT_EQ((int32_t) i, tex->m_LastBoundUnit[0]);
         dmGraphics::DeleteTexture(m_GraphicsContext, textures[i]);
     }
