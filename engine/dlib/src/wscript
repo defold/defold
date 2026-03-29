@@ -201,6 +201,8 @@ def build(bld):
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
                  defines     = ['VALGRIND'] + extra_defines)
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip.env.append_unique('CFLAGS', '-ansi') 
 
     libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
@@ -208,6 +210,8 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip_noasan.env.append_unique('CFLAGS', '-ansi')
 
     image = bld.stlib(features  = 'c cxx',
                     includes    = '.',
