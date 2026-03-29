@@ -960,11 +960,6 @@ class Configuration(object):
         if not result:
             self.fatal("Failed sdk check")
 
-        clang = self._find_program(target_platform, 'clang', self.sdk_info['bin_paths']['path'])
-        if not clang:
-            self.fatal("clang not found in PATH")
-        self._log(f"Found clang: {clang}")
-
         cmake = shutil.which('cmake')
         if not cmake:
             self.fatal("CMake not found in PATH")
