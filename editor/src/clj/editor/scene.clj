@@ -1209,11 +1209,11 @@
 
 (handler/defhandler :scene.stop :global
   (active? [app-view evaluation-context]
-           (when-let [view (active-scene-view app-view evaluation-context)]
-             (seq (g/node-value view :updatables evaluation-context))))
+    (when-let [view (active-scene-view app-view evaluation-context)]
+      (seq (g/node-value view :updatables evaluation-context))))
   (enabled? [app-view evaluation-context]
-            (when-let [view (active-scene-view app-view evaluation-context)]
-              (seq (g/node-value view :active-updatables evaluation-context))))
+    (when-let [view (active-scene-view app-view evaluation-context)]
+      (seq (g/node-value view :active-updatables evaluation-context))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
@@ -1258,11 +1258,11 @@
 
 (handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
-            (when-let [view (active-scene-view app-view evaluation-context)]
-              (let [selected (g/node-value view :selection evaluation-context)]
-                (not (empty? selected)))))
+    (when-let [view (active-scene-view app-view evaluation-context)]
+      (let [selected (g/node-value view :selection evaluation-context)]
+        (not (empty? selected)))))
   (run [app-view] (some-> (active-scene-view app-view)
                           (frame-selection! true))))
 
@@ -1274,11 +1274,13 @@
 
 (handler/defhandler :scene.realign-camera :global
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
-  (run [app-view] (some-> (active-scene-view app-view)
-                          (view->camera)
-                          (c/realign-camera true))))
+  (run [app-view]
+    (g/with-auto-evaluation-context evaluation-context
+      (when-let [scene-view (active-scene-view app-view evaluation-context)]
+        (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
+          (c/realign-camera camera true))))))
 
 (handler/defhandler :scene.set-camera-type :global
   (label [user-data]
@@ -1289,10 +1291,11 @@
         (localization/message "command.scene.set-camera-type"))
       (localization/message "command.scene.set-camera-type")))
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (run [app-view user-data]
-       (when-some [view (active-scene-view app-view)]
-         (c/set-camera-type! (view->camera view) (:camera-type user-data))))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-some [view (active-scene-view app-view evaluation-context)]
+        (c/set-camera-type! (view->camera (:basis evaluation-context) view) (:camera-type user-data)))))
   (options [user-data]
     (when-not user-data
       [{:label (localization/message "command.scene.set-camera-type.option.orthographic")
@@ -1302,51 +1305,54 @@
         :command :scene.set-camera-type
         :user-data {:camera-type :perspective}}]))
   (state [app-view user-data evaluation-context]
-         (some-> (active-scene-view app-view evaluation-context)
-                 (g/node-value :camera-type evaluation-context)
-                 (= (:camera-type user-data)))))
+    (some-> (active-scene-view app-view evaluation-context)
+            (g/node-value :camera-type evaluation-context)
+            (= (:camera-type user-data)))))
 
 (handler/defhandler :scene.toggle-interaction-mode :workbench
   (active? [app-view evaluation-context]
     (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context] (not (camera-animating? app-view evaluation-context)))
   (run [app-view]
-    (some-> (active-scene-view app-view)
-            (view->camera)
-            (c/realign-camera true)))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-let [scene-view (active-scene-view app-view evaluation-context)]
+        (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
+          (c/realign-camera camera true)))))
   (state [app-view evaluation-context]
     (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context)) evaluation-context)))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :scene.toggle-camera-type :workbench
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
-            (and (not (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context))
-                                  evaluation-context))
-                 (not (camera-animating? app-view evaluation-context))))
+    (and (not (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context))
+                            evaluation-context))
+         (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
-       (when-some [view (active-scene-view app-view)]
-         (c/set-camera-type! (view->camera view)
-                             (case (g/node-value view :camera-type)
-                               :orthographic :perspective
-                               :perspective :orthographic))))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-some [view (active-scene-view app-view evaluation-context)]
+        (c/set-camera-type! (view->camera (:basis evaluation-context) view)
+                            (case (g/node-value view :camera-type evaluation-context)
+                              :orthographic :perspective
+                              :perspective :orthographic)))))
   (state [app-view evaluation-context]
-         (some-> (active-scene-view app-view evaluation-context)
-                 (g/node-value :camera-type evaluation-context)
-                 (= :perspective))))
+    (some-> (active-scene-view app-view evaluation-context)
+            (g/node-value :camera-type evaluation-context)
+            (= :perspective))))
 
 (handler/defhandler :scene.free-camera.activate :workbench
   (enabled? [app-view evaluation-context]
-    (some-> (active-scene-view app-view)
-            (view->camera)
-            (g/node-value :movements-enabled)
-            (contains? :look)))
+    (when-let [scene-view (active-scene-view app-view evaluation-context)]
+      (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
+        (contains? (g/node-value camera :movements-enabled evaluation-context) :look))))
   (run [app-view]
-    (when-let [scene-view (active-scene-view app-view)]
-      (let [camera (view->camera scene-view)
-            image-view (g/node-value scene-view :image-view)]
-        (c/start-free-cam-mode! image-view camera (i/get-cursor-pos))))))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-let [scene-view (active-scene-view app-view evaluation-context)]
+        (let [camera (view->camera (:basis evaluation-context) scene-view)
+              image-view (g/node-value scene-view :image-view evaluation-context)]
+          (when (and camera image-view)
+            (c/start-free-cam-mode! image-view camera (i/get-cursor-pos))))))))
 
 ;; NOTE: If we don't register these commands deleting the commands default shortcut makes the command unreachable unless
 ;; we clear player prefs, so add these dummy commands to keep them active
@@ -1490,12 +1496,13 @@
         (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
           (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (profiler/profile "update-tick" -1
-      (let [update-tick-handlers (g/sources-of view-id :update-tick-handlers)
-            input-state (g/user-data view-id ::input-state)]
-        (reduce (fn [input-state [node-id label]]
-                  (when input-state
-                    ((g/node-value node-id label) node-id input-state dt)))
-                input-state update-tick-handlers)))
+      (g/with-auto-evaluation-context evaluation-context
+        (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)
+              input-state (g/user-data view-id ::input-state)]
+          (reduce (fn [input-state [node-id label]]
+                    (when input-state
+                      ((g/node-value node-id label evaluation-context) node-id input-state dt)))
+                  input-state update-tick-handlers))))
     (when (seq action-queue)
       (g/user-data! view-id ::input-action-queue [])
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))

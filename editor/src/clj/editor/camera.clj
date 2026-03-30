@@ -761,7 +761,7 @@
   ([camera-node start-camera end-camera animate? on-animation-end]
    (if animate?
      (let [duration 0.5]
-       (g/transact (g/set-property camera-node :animating true))
+       (g/set-property! camera-node :animating true)
        ;; NOTE: If the user was dollying during an animation, cancel the dolly
        (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
          (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil))
@@ -769,16 +769,14 @@
                  (fn [^double t]
                    (let [t (- (* t t 3) (* t t t 2))
                          cam (interpolate start-camera end-camera t)]
-                     (g/transact
-                       (g/set-property camera-node :local-camera cam))))
+                     (g/set-property! camera-node :local-camera cam)))
                  (fn []
                    (g/transact
                      [(g/set-property camera-node :local-camera end-camera)
                       (g/set-property camera-node :animating false)])
                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
                    (when on-animation-end (on-animation-end)))))
-     (g/transact
-       (g/set-property camera-node :local-camera end-camera)))
+     (g/set-property! camera-node :local-camera end-camera))
    nil))
 
 (defn- toggle-free-cam-css [image-view active]
@@ -890,7 +888,7 @@
   [camera-node animate?]
   (let [local-cam (g/node-value camera-node :local-camera)
         is-perspective (= (:type local-cam) :perspective)]
-    (g/transact (g/set-property camera-node :cached-3d-camera local-cam))
+    (g/set-property! camera-node :cached-3d-camera local-cam)
     (let [end-camera (cond-> local-cam
                        is-perspective camera-perspective->orthographic
                        :always camera-orthographic-realign
