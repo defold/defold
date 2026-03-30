@@ -13,6 +13,9 @@ uniform mediump sampler2D band_texture;
 const float CURVE_TEXTURE_WIDTH = 512.0;
 const float BAND_TEXTURE_WIDTH = 128.0;
 const int MAX_VECTOR_CURVES = 64;
+const float LAYER_MODE_FACE = 0.0;
+const float LAYER_MODE_OUTLINE = 1.0;
+const float LAYER_MODE_SHADOW = 2.0;
 
 vec4 SampleCurveTexel(float x)
 {
@@ -220,9 +223,27 @@ void main()
     float inside = IsInsideGlyph(p, curve_start, curve_count);
     float layer_mode = var_banding.z;
 
-    if (layer_mode < 0.5)
+    if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
         if (inside < 0.5)
+        {
+            discard;
+        }
+        out_fragColor = var_color;
+        return;
+    }
+
+    if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5)
+    {
+        if (inside >= 0.5)
+        {
+            out_fragColor = var_color;
+            return;
+        }
+
+        vec2 outline_radius = max(var_banding.xy, vec2(0.0001));
+        float outline_distance_sq = ComputeOutlineDistanceSq(p, curve_start, curve_count, outline_radius);
+        if (outline_distance_sq > 1.0)
         {
             discard;
         }
