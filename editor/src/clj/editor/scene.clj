@@ -1635,7 +1635,7 @@
     (doto parent
       (ui/on-mouse! (fn [type _]
                       (cond (= type :exit)
-                            (g/set-property! view-id :cursor-pos [0.0 0.0]))))
+                            (g/set-property! view-id :cursor-pos nil))))
       (.setOnMousePressed event-handler)
       (.setOnMouseReleased event-handler)
       (.setOnMouseClicked event-handler)
