@@ -1623,7 +1623,8 @@
       (fn [_ _ focused]
         (when (and (not focused)
                    (c/free-cam-mode-active? camera-id))
-          (c/stop-free-cam-mode! image-view camera-id))))
+          (c/stop-free-cam-mode! image-view camera-id)
+          (g/user-data! view-id ::input-state (i/make-input-state)))))
     (doto parent
       (ui/on-mouse! (fn [type _]
                       (cond (= type :exit)
