@@ -50,10 +50,10 @@
       (.setAutoFix true)
       (.setHideOnEscape true))))
 
-(defn- ensure-focus-traversable! [^Control control]
-  (ui/observe (.focusTraversableProperty control)
+(defn- ensure-focus-traversable! [^Node node]
+  (ui/observe (.focusTraversableProperty node)
     (fn [_ _ _]
-      (.setFocusTraversable control true))))
+      (.setFocusTraversable node true))))
 
 (defn slider-setting
   ([prefs ^PopupControl popup prefs-path label-text range-min range-max]
