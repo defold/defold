@@ -165,7 +165,12 @@
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
-(g/defnk produce-scene-info [layout-size image-path->rect updatable :as ret] ret)
+(g/defnk produce-atlas-scene-info [layout-size image-path->rect]
+  {:layout-size layout-size
+   :image-path->rect image-path->rect})
+
+(g/defnk produce-animation-scene-info [atlas-scene-info updatable]
+  (assoc atlas-scene-info :updatable updatable))
 
 (g/defnk produce-image-scene [_node-id image-resource order scene-info]
   (let [{:keys [layout-size image-path->rect updatable]} scene-info
@@ -372,8 +377,7 @@
     (g/connect atlas-node     :anim-data        animation-node :anim-data)
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
-    (g/connect atlas-node     :layout-size      animation-node :layout-size)
-    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)
+    (g/connect atlas-node     :scene-info       animation-node :atlas-scene-info)
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
@@ -437,7 +441,7 @@
   (input child-build-errors g/Any :array)
   (input id-counts NameCounts)
   (input anim-data g/Any)
-  (input layout-size g/Any)
+  (input atlas-scene-info g/Any)
 
   (input rename-patterns g/Str)
   (output rename-patterns g/Str (gu/passthrough rename-patterns))
@@ -445,7 +449,6 @@
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
 
-  (input image-path->rect g/Any)
   (input gpu-texture g/Any)
 
   (output animation Animation (g/fnk [id atlas-images fps flip-horizontal flip-vertical playback]
@@ -463,7 +466,7 @@
                            :tx-attach-fn attach-image-to-animation}]}))
   (output ddf-message g/Any :cached produce-anim-ddf)
   (output updatable g/Any :cached produce-animation-updatable)
-  (output scene-info g/Any produce-scene-info)
+  (output scene-info g/Any produce-animation-scene-info)
   (output scene g/Any :cached produce-animation-scene)
   (output own-build-errors g/Any (g/fnk [_node-id fps id id-counts]
                                    (g/package-errors _node-id
@@ -828,8 +831,7 @@
                                                                               :tx-attach-fn attach-animation-to-atlas}]}))
   (output save-value       g/Any          :cached produce-save-value)
   (output build-targets    g/Any          :cached produce-build-targets)
-  (output updatable        g/Any          (g/fnk [] nil))
-  (output scene-info       g/Any          produce-scene-info)
+  (output scene-info       g/Any          produce-atlas-scene-info)
   (output scene            g/Any          :cached produce-scene)
   (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
