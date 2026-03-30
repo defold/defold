@@ -943,7 +943,7 @@
     (when (and x y)
       (i/warp-cursor x y)))
   (g/set-property! camera-node :cursor-type :default)
-  (g/user-data-swap! camera-node ::camera-state update :free-cam-mode (constantly false)))
+  (g/user-data-swap! camera-node ::camera-state assoc :free-cam-mode false))
 
 (defn handle-input [self input-state action _user-data]
   (let [image-view (g/node-value self :image-view)
@@ -1153,13 +1153,6 @@
                              :last-x mouse-x
                              :last-y mouse-y))))))
 
-;; NOTE: Merge this back in or use an fnk thingie?
-(defn- handle-input-fnk [self input-state action user-data]
-  (handle-input self input-state action user-data))
-
-(defn- handle-update-tick-fnk [self input-state dt]
-  (handle-update-tick self input-state dt))
-
 (g/defnode CameraController
   (property prefs g/Any)
   (property image-view ImageView)
@@ -1188,8 +1181,8 @@
               {:forward forward :left left :backward backward :right right :down down :up up
                :all (into [] cat [forward left backward right down up])})))
 
-  (output input-handler Runnable :cached (g/constantly handle-input-fnk))
-  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick-fnk)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
 
 (defn show-settings! [^Parent owner prefs localization]
   (popup/show-settings! owner prefs localization 260 [:scene :perspective-camera]

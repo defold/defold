@@ -1619,7 +1619,7 @@
               (catch Throwable error
                 (reset! process-events? false)
                 (error-reporting/report-exception! error)))))]
-    (ui/observe (.focusedProperty parent)
+    (ui/observe (.focusedProperty (ui/main-stage))
       (fn [_ _ focused]
         (when (and (not focused)
                    (c/free-cam-mode-active? camera-id))
