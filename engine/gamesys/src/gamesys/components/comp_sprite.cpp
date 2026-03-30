@@ -1132,18 +1132,35 @@ namespace dmGameSystem
             const float* tex_coords = (const float*) texture_set_ddf->m_TexCoords.m_Data;
             const float* tc         = &tex_coords[frame_index * 4 * 2];
 
-            // Full 2D affine from unit square to atlas quad (supports rotation). Corners: 0=TL, 1=TR, 2=BR, 3=BL.
-            // Column-major: col0=(1,0) edge, col1=(0,1) edge, col2=translation.
+            // Full 2D affine from unit square (s,t) to atlas: p = mat * vec3(s,t,1). GLSL mat3 columns are
+            // [0]=∂p/∂s, [1]=∂p/∂t, [2]=translation (BL). Corner order from TextureSetGenerator.putRect:
+            // unrotated: BL, TL, TR, BR; rotated 90° CW in atlas: TL, TR, BR, BL.
+            const dmGameSystemDDF::SpriteGeometry* geometry = data->m_Geometries[i];
             float* tt_packed = data->m_TextureTransformsPacked[i];
-            tt_packed[0] = tc[2] - tc[0];
-            tt_packed[1] = tc[3] - tc[1];
-            tt_packed[2] = 0.0f;
-            tt_packed[3] = tc[6] - tc[0];
-            tt_packed[4] = tc[7] - tc[1];
-            tt_packed[5] = 0.0f;
-            tt_packed[6] = tc[0];
-            tt_packed[7] = tc[1];
-            tt_packed[8] = 1.0f;
+            if (geometry->m_Rotated)
+            {
+                tt_packed[0] = tc[4] - tc[6];
+                tt_packed[1] = tc[5] - tc[7];
+                tt_packed[2] = 0.0f;
+                tt_packed[3] = tc[0] - tc[6];
+                tt_packed[4] = tc[1] - tc[7];
+                tt_packed[5] = 0.0f;
+                tt_packed[6] = tc[6];
+                tt_packed[7] = tc[7];
+                tt_packed[8] = 1.0f;
+            }
+            else
+            {
+                tt_packed[0] = tc[6] - tc[0];
+                tt_packed[1] = tc[7] - tc[1];
+                tt_packed[2] = 0.0f;
+                tt_packed[3] = tc[2] - tc[0];
+                tt_packed[4] = tc[3] - tc[1];
+                tt_packed[5] = 0.0f;
+                tt_packed[6] = tc[0];
+                tt_packed[7] = tc[1];
+                tt_packed[8] = 1.0f;
+            }
 
             uses_geometries |= data->m_Geometries[i]->m_TrimMode != dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
         }
