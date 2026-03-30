@@ -38,6 +38,12 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
+            free(m_VectorCurveData);
+            m_VectorCurveData = 0;
+
+            free(m_VectorBandData);
+            m_VectorBandData = 0;
+
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
             if (m_BandTexture)
@@ -49,6 +55,7 @@ namespace dmRender
                 FontGlyph* glyph = iter.GetValue();
                 if ( (glyph->m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED) == 0)
                     free((void*)glyph->m_Bitmap.m_Data);
+                free((void*)glyph->m_Outline.m_Commands);
                 delete glyph;
             }
         }
@@ -62,6 +69,8 @@ namespace dmRender
         dmGraphics::HTexture    m_BandTexture;   // Slug band texture for vector fonts
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
+        float*                  m_VectorCurveData;
+        float*                  m_VectorBandData;
 
         dmHashTable64<FontGlyph*>   m_Glyphs;       // Ache with generated glyphs (with bitmap data!)
         dmHashTable64<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache texture
@@ -104,6 +113,10 @@ namespace dmRender
         uint16_t                m_CacheCellCount;       // Number of cells in total
         uint16_t                m_MaxGlyphWidth;        // Maximum width of any of the used glyphs
         uint16_t                m_MaxGlyphHeight;       // Maximum height of any of the used glyphs
+        uint16_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
+        uint16_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
+        uint16_t                m_VectorBandCapacity;   // Number of texels in the vector band texture
+        uint16_t                m_VectorBandCursor;     // Next free texel in the vector band texture
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_Padding;              // The padding of the cell

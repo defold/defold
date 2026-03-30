@@ -333,8 +333,10 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float x,
                               float y,
                               float width,
+                              float left_bearing,
                               float ascent,
                               float descent,
+                              float band_index,
                               const Vector4& face_color,
                               GlyphVertex* vertices)
 {
@@ -350,15 +352,18 @@ static void OutputGlyphVector(uint32_t vertexindex,
     ClearGlyphVertex(v3);
     ClearGlyphVertex(v6);
 
-    (Vector4&)v1.m_Position = transform * Vector4(x,         y - descent, 0.0f, 1.0f);
-    (Vector4&)v2.m_Position = transform * Vector4(x,         y + ascent,  0.0f, 1.0f);
-    (Vector4&)v3.m_Position = transform * Vector4(x + width, y - descent, 0.0f, 1.0f);
-    (Vector4&)v6.m_Position = transform * Vector4(x + width, y + ascent,  0.0f, 1.0f);
+    float quad_left = x + left_bearing;
+    float quad_right = quad_left + width;
+
+    (Vector4&)v1.m_Position = transform * Vector4(quad_left,  y - descent, 0.0f, 1.0f);
+    (Vector4&)v2.m_Position = transform * Vector4(quad_left,  y + ascent,  0.0f, 1.0f);
+    (Vector4&)v3.m_Position = transform * Vector4(quad_right, y - descent, 0.0f, 1.0f);
+    (Vector4&)v6.m_Position = transform * Vector4(quad_right, y + ascent,  0.0f, 1.0f);
 
     #define SET_VECTOR_VERTEX(v, u, vv) \
         v.m_VectorTexcoord[0] = u; \
         v.m_VectorTexcoord[1] = vv; \
-        v.m_VectorTexcoord[2] = 0.0f; \
+        v.m_VectorTexcoord[2] = band_index; \
         v.m_VectorTexcoord[3] = 0.0f; \
         v.m_VectorJacobian[0] = 1.0f; \
         v.m_VectorJacobian[1] = 0.0f; \
@@ -420,6 +425,7 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
 }
 
 static uint32_t CreateFontVectorVertexData(HFontMap font_map,
+                                           uint32_t frame,
                                            TextLayout* layout,
                                            const TextEntry& te,
                                            GlyphVertex* vertices,
@@ -428,9 +434,6 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     const Vector4 face_color = dmGraphics::UnpackRGBA(te.m_FaceColor);
     const float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
     const float leading = line_height * te.m_Leading;
-    const float glyph_width = dmMath::Max(1.0f, line_height * 0.75f);
-    const float glyph_ascent = dmMath::Max(1.0f, font_map->m_MaxAscent);
-    const float glyph_descent = dmMath::Max(0.0f, font_map->m_MaxDescent);
 
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     uint32_t line_count = TextLayoutGetLineCount(layout);
@@ -472,13 +475,41 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             float x = line_start_x + (g->m_X - first_x);
             float y = line_start_y + (g->m_Y - first_y);
 
+            uint32_t glyph_index = g->m_GlyphIndex;
+            HFont font = g->m_Font;
+            FontGlyph* glyph = 0;
+            FontResult r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
+            if (FONT_RESULT_OK != r)
+            {
+                glyph_index = FontGetGlyphIndex(font, FALLBACK_CODEPOINT);
+                r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
+            }
+
+            CacheGlyph* cache_glyph = 0;
+            if (FONT_RESULT_OK == r && glyph && glyph->m_Outline.m_CommandCount > 0)
+            {
+                uint64_t glyph_key = dmRender::MakeGlyphIndexKey(font, glyph_index);
+                if (!IsInCache(font_map, glyph_key))
+                {
+                    AddGlyphToCache(font_map, frame, glyph_key, glyph, 0);
+                }
+                cache_glyph = GetFromCache(font_map, glyph_key, frame);
+            }
+
+            if (!cache_glyph || !glyph)
+            {
+                continue;
+            }
+
             OutputGlyphVector(vertexindex,
                               te.m_Transform,
                               x,
                               y,
-                              glyph_width,
-                              glyph_ascent,
-                              glyph_descent,
+                              glyph->m_Width,
+                              glyph->m_LeftBearing,
+                              glyph->m_Ascent,
+                              glyph->m_Descent,
+                              cache_glyph->m_VectorBandIndex,
                               face_color,
                               vertices);
 
@@ -554,7 +585,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
 
     if (font_map->m_IsVector)
     {
-        uint32_t vector_vertex_count = CreateFontVectorVertexData(font_map, layout, te, vertices, num_vertices);
+        uint32_t vector_vertex_count = CreateFontVectorVertexData(font_map, frame, layout, te, vertices, num_vertices);
         TextLayoutFree(layout);
         return vector_vertex_count;
     }

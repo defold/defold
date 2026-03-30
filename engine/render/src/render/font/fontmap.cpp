@@ -23,13 +23,14 @@
 #include <dlib/zlib.h>
 
 #include <algorithm> // std::sort
+#include <math.h>
 
 namespace dmRender
 {
     static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
-    static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 8;
+    static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 512;
     static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 1;
-    static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 5;
+    static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 128;
     static const uint32_t VECTOR_BAND_TEXTURE_HEIGHT = 1;
 
     FontMapParams::FontMapParams()
@@ -209,45 +210,36 @@ namespace dmRender
 
     static void CreateVectorTextures(HFontMap font_map)
     {
-        // MVP placeholder data contract:
-        // - This still is not the full Slug font path, but the curve payload is
-        //   now stored as quadratic Bézier segments instead of triangle points.
-        // - Each curve uses two RGBA32F texels matching the access pattern in
-        //   the reference Slug pixel shader:
-        //     texel N     = (p0.x, p0.y, p1.x, p1.y)
-        //     texel N + 1 = (p2.x, p2.y, 0.0, 0.0)
-        //   where p0 / p1 / p2 are the quadratic control points.
-        // - The hardcoded glyph is a circle approximation built from four
-        //   clockwise quarter arcs in glyph-local [0,1] space.
-        // - The band texture is a tiny stand-in for Slug's band indirection:
-        //     texel 0 = (curve_count, unused)
-        //     texel 1..4 = (curve_texel_x, curve_texel_y) for the four curves
-        //   We currently keep this in RG32F because the Defold MVP shader path
-        //   still uses float samplers for Bob / ES compatibility.
-        static const float curve_texture_data[] =
-        {
-            // Right -> top quarter arc.
-            0.90f,       0.50f,       0.86568546f, 0.86568546f,
-            0.50f,       0.90f,       0.0f,        0.0f,
-            // Top -> left quarter arc.
-            0.50f,       0.90f,       0.13431458f, 0.86568546f,
-            0.10f,       0.50f,       0.0f,        0.0f,
-            // Left -> bottom quarter arc.
-            0.10f,       0.50f,       0.13431458f, 0.13431458f,
-            0.50f,       0.10f,       0.0f,        0.0f,
-            // Bottom -> right quarter arc.
-            0.50f,       0.10f,       0.86568546f, 0.13431458f,
-            0.90f,       0.50f,       0.0f,        0.0f,
-        };
+        font_map->m_VectorCurveCapacity = VECTOR_CURVE_TEXTURE_WIDTH * VECTOR_CURVE_TEXTURE_HEIGHT;
+        font_map->m_VectorBandCapacity = VECTOR_BAND_TEXTURE_WIDTH * VECTOR_BAND_TEXTURE_HEIGHT;
+        font_map->m_VectorCurveCursor = 0;
+        font_map->m_VectorBandCursor = 0;
 
-        static const float band_texture_data[] =
+        uint32_t curve_float_count = font_map->m_VectorCurveCapacity * 4;
+        uint32_t band_float_count = font_map->m_VectorBandCapacity * 2;
+
+        free(font_map->m_VectorCurveData);
+        free(font_map->m_VectorBandData);
+
+        font_map->m_VectorCurveData = (float*)malloc(sizeof(float) * curve_float_count);
+        font_map->m_VectorBandData = (float*)malloc(sizeof(float) * band_float_count);
+
+        if (!font_map->m_VectorCurveData || !font_map->m_VectorBandData)
         {
-            4.0f, 0.0f,
-            0.0f, 0.0f,
-            2.0f, 0.0f,
-            4.0f, 0.0f,
-            6.0f, 0.0f,
-        };
+            dmLogError("Failed to allocate vector font textures for %s", dmHashReverseSafe64(font_map->m_NameHash));
+            free(font_map->m_VectorCurveData);
+            free(font_map->m_VectorBandData);
+            font_map->m_VectorCurveData = 0;
+            font_map->m_VectorBandData = 0;
+            font_map->m_VectorCurveCapacity = 0;
+            font_map->m_VectorCurveCursor = 0;
+            font_map->m_VectorBandCapacity = 0;
+            font_map->m_VectorBandCursor = 0;
+            return;
+        }
+
+        memset(font_map->m_VectorCurveData, 0, sizeof(float) * curve_float_count);
+        memset(font_map->m_VectorBandData, 0, sizeof(float) * band_float_count);
 
         RecreateTextureWithData(font_map->m_GraphicsContext,
                                 &font_map->m_Texture,
@@ -256,8 +248,8 @@ namespace dmRender
                                 dmGraphics::TEXTURE_FORMAT_RGBA32F,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
-                                curve_texture_data,
-                                sizeof(curve_texture_data));
+                                font_map->m_VectorCurveData,
+                                sizeof(float) * curve_float_count);
 
         RecreateTextureWithData(font_map->m_GraphicsContext,
                                 &font_map->m_BandTexture,
@@ -266,12 +258,23 @@ namespace dmRender
                                 dmGraphics::TEXTURE_FORMAT_RG32F,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
-                                band_texture_data,
-                                sizeof(band_texture_data));
+                                font_map->m_VectorBandData,
+                                sizeof(float) * band_float_count);
     }
 
     static void RestoreLegacyTexture(HFontMap font_map)
     {
+        free(font_map->m_VectorCurveData);
+        font_map->m_VectorCurveData = 0;
+
+        free(font_map->m_VectorBandData);
+        font_map->m_VectorBandData = 0;
+
+        font_map->m_VectorCurveCapacity = 0;
+        font_map->m_VectorCurveCursor = 0;
+        font_map->m_VectorBandCapacity = 0;
+        font_map->m_VectorBandCursor = 0;
+
         if (font_map->m_BandTexture)
         {
             dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_BandTexture);
@@ -443,6 +446,12 @@ namespace dmRender
         return font_map->m_Material;
     }
 
+    bool GetFontMapIsVector(HFontMap font_map)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        return font_map->m_IsVector != 0;
+    }
+
     float GetFontMapSize(dmRender::HFontMap font_map)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
@@ -507,6 +516,25 @@ namespace dmRender
 
         if (type == FONT_TYPE_STBTTF)
         {
+            if (font_map->m_IsVector)
+            {
+                FontGlyphOptions glyph_options;
+                glyph_options.m_Scale = FontGetScaleFromSize(font, font_map->m_Size);
+                glyph_options.m_GenerateOutline = true;
+
+                FontGlyph* out = new FontGlyph;
+                r = FontGetGlyphByIndex(font, glyph_index, &glyph_options, out);
+                if (FONT_RESULT_OK != r)
+                {
+                    delete out;
+                    return r;
+                }
+
+                *glyph = out;
+                AddGlyph(font_map, key, *glyph);
+                return r;
+            }
+
             // Since generating the SDF takes a long time (several milliseconds)
             // we simply opt out of creating that data just-in-time
             r = HandleCacheMiss(font_map, font, glyph_index, key, glyph);
@@ -800,6 +828,278 @@ namespace dmRender
         dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_Texture, tex_params);
     }
 
+    static void UpdateVectorTexture(HFontMap font_map,
+                                    dmGraphics::HTexture texture,
+                                    dmGraphics::TextureFormat format,
+                                    uint32_t width,
+                                    uint32_t height,
+                                    const void* data,
+                                    uint32_t data_size)
+    {
+        dmGraphics::TextureParams tex_params;
+        memset(&tex_params, 0, sizeof(tex_params));
+        tex_params.m_Format = format;
+        tex_params.m_Width = width;
+        tex_params.m_Height = height;
+        tex_params.m_Depth = 1;
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        tex_params.m_Data = data;
+        tex_params.m_DataSize = data_size;
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, texture, tex_params);
+    }
+
+    static void UploadVectorTextures(HFontMap font_map)
+    {
+        if (!font_map->m_Texture || !font_map->m_BandTexture)
+        {
+            return;
+        }
+
+        UpdateVectorTexture(font_map,
+                            font_map->m_Texture,
+                            dmGraphics::TEXTURE_FORMAT_RGBA32F,
+                            VECTOR_CURVE_TEXTURE_WIDTH,
+                            VECTOR_CURVE_TEXTURE_HEIGHT,
+                            font_map->m_VectorCurveData,
+                            sizeof(float) * font_map->m_VectorCurveCapacity * 4);
+
+        UpdateVectorTexture(font_map,
+                            font_map->m_BandTexture,
+                            dmGraphics::TEXTURE_FORMAT_RG32F,
+                            VECTOR_BAND_TEXTURE_WIDTH,
+                            VECTOR_BAND_TEXTURE_HEIGHT,
+                            font_map->m_VectorBandData,
+                            sizeof(float) * font_map->m_VectorBandCapacity * 2);
+    }
+
+    static void ResetVectorCache(HFontMap font_map)
+    {
+        font_map->m_GlyphCache.Clear();
+        font_map->m_CacheCursor = 0;
+        font_map->m_VectorCurveCursor = 0;
+        font_map->m_VectorBandCursor = 0;
+
+        for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
+        {
+            CacheGlyph* glyph = &font_map->m_Cache[i];
+            glyph->m_Glyph = 0;
+            glyph->m_Frame = 0;
+            glyph->m_GlyphKey = 0;
+            glyph->m_VectorCurveTexel = 0;
+            glyph->m_VectorCurveTexelCount = 0;
+            glyph->m_VectorBandIndex = 0;
+            glyph->m_VectorCurveCount = 0;
+        }
+
+        if (font_map->m_VectorCurveData && font_map->m_VectorBandData)
+        {
+            memset(font_map->m_VectorCurveData, 0, sizeof(float) * font_map->m_VectorCurveCapacity * 4);
+            memset(font_map->m_VectorBandData, 0, sizeof(float) * font_map->m_VectorBandCapacity * 2);
+            UploadVectorTextures(font_map);
+        }
+    }
+
+    static bool IsSameOutlinePoint(const FontCurvePoint& a, const FontCurvePoint& b)
+    {
+        return fabsf(a.m_X - b.m_X) < 0.0001f && fabsf(a.m_Y - b.m_Y) < 0.0001f;
+    }
+
+    static FontCurvePoint MakeMidpoint(const FontCurvePoint& a, const FontCurvePoint& b)
+    {
+        FontCurvePoint point;
+        point.m_X = (a.m_X + b.m_X) * 0.5f;
+        point.m_Y = (a.m_Y + b.m_Y) * 0.5f;
+        return point;
+    }
+
+    static FontCurvePoint NormalizeOutlinePoint(const FontGlyph* glyph, const FontCurvePoint& point)
+    {
+        FontCurvePoint out = point;
+
+        float width = dmMath::Max(0.0001f, glyph->m_Width);
+        float height = dmMath::Max(0.0001f, glyph->m_Ascent + glyph->m_Descent);
+
+        out.m_X = (point.m_X - glyph->m_LeftBearing) / width;
+        out.m_Y = (point.m_Y + glyph->m_Descent) / height;
+        return out;
+    }
+
+    static void StoreEncodedQuadratic(HFontMap font_map,
+                                      uint32_t curve_texel,
+                                      const FontCurvePoint& p0,
+                                      const FontCurvePoint& p1,
+                                      const FontCurvePoint& p2)
+    {
+        float* curve_data = font_map->m_VectorCurveData;
+        uint32_t texel0 = curve_texel * 4;
+        uint32_t texel1 = (curve_texel + 1) * 4;
+
+        curve_data[texel0 + 0] = p0.m_X;
+        curve_data[texel0 + 1] = p0.m_Y;
+        curve_data[texel0 + 2] = p1.m_X;
+        curve_data[texel0 + 3] = p1.m_Y;
+
+        curve_data[texel1 + 0] = p2.m_X;
+        curve_data[texel1 + 1] = p2.m_Y;
+        curve_data[texel1 + 2] = 0.0f;
+        curve_data[texel1 + 3] = 0.0f;
+    }
+
+    static uint32_t CountEncodedQuadratics(const FontGlyph* glyph)
+    {
+        uint32_t curve_count = 0;
+        FontCurvePoint current = {0.0f, 0.0f};
+        FontCurvePoint contour_start = {0.0f, 0.0f};
+        bool has_current = false;
+        bool has_contour = false;
+
+        for (uint32_t i = 0; i < glyph->m_Outline.m_CommandCount; ++i)
+        {
+            const FontCurveCommand& command = glyph->m_Outline.m_Commands[i];
+            switch (command.m_Type)
+            {
+                case FONT_CURVE_MOVE_TO:
+                    current = command.m_Points[0];
+                    contour_start = current;
+                    has_current = true;
+                    has_contour = true;
+                    break;
+                case FONT_CURVE_LINE_TO:
+                    if (has_current)
+                    {
+                        current = command.m_Points[0];
+                        ++curve_count;
+                    }
+                    break;
+                case FONT_CURVE_QUADRATIC_TO:
+                    if (has_current)
+                    {
+                        current = command.m_Points[1];
+                        ++curve_count;
+                    }
+                    break;
+                case FONT_CURVE_CLOSE:
+                    if (has_current && has_contour && !IsSameOutlinePoint(current, contour_start))
+                    {
+                        ++curve_count;
+                    }
+                    has_current = false;
+                    has_contour = false;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return curve_count;
+    }
+
+    static bool EncodeGlyphOutlineToVectorCache(HFontMap font_map, CacheGlyph* cache_glyph, FontGlyph* glyph)
+    {
+        if (!glyph->m_Outline.m_Commands || glyph->m_Outline.m_CommandCount == 0)
+        {
+            return false;
+        }
+
+        uint32_t curve_count = CountEncodedQuadratics(glyph);
+        if (curve_count == 0)
+        {
+            return false;
+        }
+
+        uint32_t required_curve_texels = curve_count * 2;
+        uint32_t required_band_texels = 1;
+
+        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
+            font_map->m_VectorBandCursor + required_band_texels > font_map->m_VectorBandCapacity)
+        {
+            ResetVectorCache(font_map);
+        }
+
+        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
+            font_map->m_VectorBandCursor + required_band_texels > font_map->m_VectorBandCapacity)
+        {
+            dmLogWarning("The vector font cache is too small to fit glyph %u in %s", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
+            return false;
+        }
+
+        uint16_t curve_texel = font_map->m_VectorCurveCursor;
+        uint16_t band_index = font_map->m_VectorBandCursor;
+        uint32_t encoded_curve_index = 0;
+
+        FontCurvePoint current = {0.0f, 0.0f};
+        FontCurvePoint contour_start = {0.0f, 0.0f};
+        bool has_current = false;
+        bool has_contour = false;
+
+        for (uint32_t i = 0; i < glyph->m_Outline.m_CommandCount; ++i)
+        {
+            const FontCurveCommand& command = glyph->m_Outline.m_Commands[i];
+            switch (command.m_Type)
+            {
+                case FONT_CURVE_MOVE_TO:
+                    current = command.m_Points[0];
+                    contour_start = current;
+                    has_current = true;
+                    has_contour = true;
+                    break;
+                case FONT_CURVE_LINE_TO:
+                    if (has_current)
+                    {
+                        FontCurvePoint next = command.m_Points[0];
+                        FontCurvePoint p0 = NormalizeOutlinePoint(glyph, current);
+                        FontCurvePoint p1 = NormalizeOutlinePoint(glyph, MakeMidpoint(current, next));
+                        FontCurvePoint p2 = NormalizeOutlinePoint(glyph, next);
+                        StoreEncodedQuadratic(font_map, curve_texel + encoded_curve_index * 2, p0, p1, p2);
+                        current = next;
+                        ++encoded_curve_index;
+                    }
+                    break;
+                case FONT_CURVE_QUADRATIC_TO:
+                    if (has_current)
+                    {
+                        FontCurvePoint p0 = NormalizeOutlinePoint(glyph, current);
+                        FontCurvePoint p1 = NormalizeOutlinePoint(glyph, command.m_Points[0]);
+                        FontCurvePoint p2 = NormalizeOutlinePoint(glyph, command.m_Points[1]);
+                        StoreEncodedQuadratic(font_map, curve_texel + encoded_curve_index * 2, p0, p1, p2);
+                        current = command.m_Points[1];
+                        ++encoded_curve_index;
+                    }
+                    break;
+                case FONT_CURVE_CLOSE:
+                    if (has_current && has_contour && !IsSameOutlinePoint(current, contour_start))
+                    {
+                        FontCurvePoint p0 = NormalizeOutlinePoint(glyph, current);
+                        FontCurvePoint p1 = NormalizeOutlinePoint(glyph, MakeMidpoint(current, contour_start));
+                        FontCurvePoint p2 = NormalizeOutlinePoint(glyph, contour_start);
+                        StoreEncodedQuadratic(font_map, curve_texel + encoded_curve_index * 2, p0, p1, p2);
+                        ++encoded_curve_index;
+                    }
+                    has_current = false;
+                    has_contour = false;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        float* band_data = font_map->m_VectorBandData;
+        band_data[band_index * 2 + 0] = (float)curve_texel;
+        band_data[band_index * 2 + 1] = (float)encoded_curve_index;
+
+        font_map->m_VectorCurveCursor += required_curve_texels;
+        font_map->m_VectorBandCursor += required_band_texels;
+
+        cache_glyph->m_VectorCurveTexel = curve_texel;
+        cache_glyph->m_VectorCurveTexelCount = required_curve_texels;
+        cache_glyph->m_VectorBandIndex = band_index;
+        cache_glyph->m_VectorCurveCount = encoded_curve_index;
+
+        UploadVectorTextures(font_map);
+        return true;
+    }
+
     struct CompareCacheGlyphPred
     {
         CacheGlyph* m_Glyphs;
@@ -898,6 +1198,24 @@ namespace dmRender
         {
             // Clear the old data from the cache
             font_map->m_GlyphCache.Erase(cache_glyph->m_GlyphKey);
+        }
+
+        if (font_map->m_IsVector)
+        {
+            cache_glyph->m_Glyph = glyph;
+            cache_glyph->m_GlyphKey = glyph_key;
+            cache_glyph->m_Frame = frame;
+
+            if (!EncodeGlyphOutlineToVectorCache(font_map, cache_glyph, glyph))
+            {
+                cache_glyph->m_Glyph = 0;
+                cache_glyph->m_GlyphKey = 0;
+                cache_glyph->m_Frame = 0;
+                return;
+            }
+
+            font_map->m_GlyphCache.Put(glyph_key, cache_glyph);
+            return;
         }
 
         // If the blit would write outside of the texture, then we try to resize it

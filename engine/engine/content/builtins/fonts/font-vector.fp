@@ -10,14 +10,18 @@ out vec4 out_fragColor;
 uniform mediump sampler2D curve_texture;
 uniform mediump sampler2D band_texture;
 
+const float CURVE_TEXTURE_WIDTH = 512.0;
+const float BAND_TEXTURE_WIDTH = 128.0;
+const int MAX_VECTOR_CURVES = 64;
+
 vec4 SampleCurveTexel(float x)
 {
-    return texture(curve_texture, vec2((x + 0.5) / 8.0, 0.5));
+    return textureLod(curve_texture, vec2((x + 0.5) / CURVE_TEXTURE_WIDTH, 0.5), 0.0);
 }
 
 vec2 SampleBandTexel(float x)
 {
-    return texture(band_texture, vec2((x + 0.5) / 5.0, 0.5)).xy;
+    return textureLod(band_texture, vec2((x + 0.5) / BAND_TEXTURE_WIDTH, 0.5), 0.0).xy;
 }
 
 float QuadraticAxis(float t, float p0, float p1, float p2)
@@ -98,37 +102,28 @@ float CountQuadraticCrossings(vec2 p, vec2 p0, vec2 p1, vec2 p2)
 
 void main()
 {
-    mediump float curve_count = SampleBandTexel(0.0).x;
+    vec2 glyph_header = SampleBandTexel(var_glyph.z);
+    mediump float curve_start = glyph_header.x;
+    mediump float curve_count = glyph_header.y;
     if (curve_count <= 0.0)
     {
         discard;
     }
 
     mediump vec2 p = var_texcoord;
-    vec2 curve_loc0 = SampleBandTexel(1.0);
-    vec2 curve_loc1 = SampleBandTexel(2.0);
-    vec2 curve_loc2 = SampleBandTexel(3.0);
-    vec2 curve_loc3 = SampleBandTexel(4.0);
-
-    vec4 curve0a = SampleCurveTexel(curve_loc0.x);
-    vec4 curve0b = SampleCurveTexel(curve_loc0.x + 1.0);
-    vec4 curve1a = SampleCurveTexel(curve_loc1.x);
-    vec4 curve1b = SampleCurveTexel(curve_loc1.x + 1.0);
-    vec4 curve2a = SampleCurveTexel(curve_loc2.x);
-    vec4 curve2b = SampleCurveTexel(curve_loc2.x + 1.0);
-    vec4 curve3a = SampleCurveTexel(curve_loc3.x);
-    vec4 curve3b = SampleCurveTexel(curve_loc3.x + 1.0);
-
-    float use0 = step(0.5, curve_count);
-    float use1 = step(1.5, curve_count);
-    float use2 = step(2.5, curve_count);
-    float use3 = step(3.5, curve_count);
-
     mediump float crossings = 0.0;
-    crossings += use0 * CountQuadraticCrossings(p, curve0a.xy, curve0a.zw, curve0b.xy);
-    crossings += use1 * CountQuadraticCrossings(p, curve1a.xy, curve1a.zw, curve1b.xy);
-    crossings += use2 * CountQuadraticCrossings(p, curve2a.xy, curve2a.zw, curve2b.xy);
-    crossings += use3 * CountQuadraticCrossings(p, curve3a.xy, curve3a.zw, curve3b.xy);
+    for (int i = 0; i < MAX_VECTOR_CURVES; ++i)
+    {
+        if (float(i) >= curve_count)
+        {
+            break;
+        }
+
+        float curve_texel = curve_start + float(i * 2);
+        vec4 curve_a = SampleCurveTexel(curve_texel);
+        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+        crossings += CountQuadraticCrossings(p, curve_a.xy, curve_a.zw, curve_b.xy);
+    }
 
     float inside = mod(crossings, 2.0);
     if (inside < 0.5)

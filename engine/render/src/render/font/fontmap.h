@@ -107,9 +107,13 @@ namespace dmRender
     struct CacheGlyph
     {
         FontGlyph*  m_Glyph;
-        uint32_t    m_Frame; // Age
-        int16_t     m_X;     // The top left texel in the cache texture
-        int16_t     m_Y;     // The top left texel in the cache texture
+        uint32_t    m_Frame;                 // Age
+        int16_t     m_X;                     // The top left texel in the cache texture
+        int16_t     m_Y;                     // The top left texel in the cache texture
+        uint16_t    m_VectorCurveTexel;      // First curve texel for vector glyphs
+        uint16_t    m_VectorCurveTexelCount; // Number of curve texels used by the glyph
+        uint16_t    m_VectorBandIndex;       // Band/header texel index for vector glyphs
+        uint16_t    m_VectorCurveCount;      // Number of encoded quadratic segments
         // TODO: add page here as well
         // private
         uint64_t    m_GlyphKey;
@@ -178,6 +182,13 @@ namespace dmRender
      * @return HMaterial handle
      */
     HMaterial GetFontMapMaterial(HFontMap font_map);
+
+    /**
+     * Check if the font map uses the vector text path
+     * @param font_map Font map handle
+     * @return true if the font map uses the vector path
+     */
+    bool GetFontMapIsVector(HFontMap font_map);
 
     struct TextMetrics
     {

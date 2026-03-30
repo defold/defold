@@ -77,6 +77,42 @@ TEST_F(FontTest, LoadTTF)
     // Empty. Just loading/unloading a font
 }
 
+TEST_F(FontTest, GlyphOutlineWithoutBitmap)
+{
+    FontGlyphOptions options;
+    options.m_Scale = FontGetScaleFromSize(m_Font, 28.0f);
+    options.m_GenerateOutline = true;
+
+    FontGlyph glyph;
+    FontResult r = FontGetGlyph(m_Font, 'O', &options, &glyph);
+    ASSERT_EQ(FONT_RESULT_OK, r);
+    ASSERT_EQ((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    ASSERT_LT(0u, glyph.m_Outline.m_CommandCount);
+
+    bool has_move = false;
+    bool has_curve = false;
+    bool has_close = false;
+
+    for (uint32_t i = 0; i < glyph.m_Outline.m_CommandCount; ++i)
+    {
+        FontCurveCommand& command = glyph.m_Outline.m_Commands[i];
+        if (command.m_Type == FONT_CURVE_MOVE_TO)
+            has_move = true;
+        else if (command.m_Type == FONT_CURVE_QUADRATIC_TO)
+            has_curve = true;
+        else if (command.m_Type == FONT_CURVE_CLOSE)
+            has_close = true;
+    }
+
+    ASSERT_TRUE(has_move);
+    ASSERT_TRUE(has_curve);
+    ASSERT_TRUE(has_close);
+
+    r = FontFreeGlyph(m_Font, &glyph);
+    ASSERT_EQ(FONT_RESULT_OK, r);
+    ASSERT_EQ((FontCurveCommand*)0, glyph.m_Outline.m_Commands);
+}
+
 
 static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
 {
