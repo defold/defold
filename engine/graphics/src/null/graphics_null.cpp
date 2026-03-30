@@ -1189,7 +1189,7 @@ namespace dmGraphics
     static HRenderTarget NullNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         NullContext* context      = (NullContext*) _context;
-        RenderTarget* rt          = new RenderTarget();
+        NullRenderTarget* rt          = new NullRenderTarget();
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -1279,13 +1279,40 @@ namespace dmGraphics
             }
         }
 
+        rt->m_Base.m_BufferTypeFlags = buffer_type_flags;
+        rt->m_Base.m_Id              = GetNextRenderTargetId();
+        {
+            TextureParams* dim = 0;
+            for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (buffer_type_flags & color_buffer_flags[i])
+                {
+                    dim = &rt->m_ColorTextureParams[i];
+                    break;
+                }
+            }
+            if (!dim && (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT))
+            {
+                dim = &rt->m_DepthBufferParams;
+            }
+            else if (!dim && (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
+            {
+                dim = &rt->m_StencilBufferParams;
+            }
+            if (dim)
+            {
+                rt->m_Base.m_Width  = dim->m_Width;
+                rt->m_Base.m_Height = dim->m_Height;
+            }
+        }
+
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void NullDeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
+        NullRenderTarget* rt = GetAssetFromContainer<NullRenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -1323,7 +1350,7 @@ namespace dmGraphics
         {
             assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            NullRenderTarget* rt = GetAssetFromContainer<NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
             context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
         }
     }
@@ -1331,7 +1358,7 @@ namespace dmGraphics
     static HTexture NullGetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
+        NullRenderTarget* rt = GetAssetFromContainer<NullRenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (IsColorBufferType(buffer_type))
         {
@@ -1348,39 +1375,10 @@ namespace dmGraphics
         return 0;
     }
 
-    static void NullGetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        RenderTarget* rt      = GetAssetFromContainer<RenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
-        TextureParams* params = 0;
-
-        if (IsColorBufferType(buffer_type))
-        {
-            uint32_t i = GetBufferTypeIndex(buffer_type);
-            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
-            params = &rt->m_ColorTextureParams[i];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            params = &rt->m_DepthBufferParams;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            params = &rt->m_StencilBufferParams;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        width  = params->m_Width;
-        height = params->m_Height;
-    }
-
     static void NullSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
+        NullRenderTarget* rt = GetAssetFromContainer<NullRenderTarget>(g_NullContext->m_BaseContext.m_AssetHandleContainer, render_target);
 
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
         void** color_buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {
@@ -1454,6 +1452,9 @@ namespace dmGraphics
             delete [] (char*) rt->m_FrameBuffer.m_StencilBuffer;
             rt->m_FrameBuffer.m_StencilBuffer = new char[buffer_size];
         }
+
+        rt->m_Base.m_Width  = width;
+        rt->m_Base.m_Height = height;
     }
 
     static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
@@ -1979,7 +1980,7 @@ namespace dmGraphics
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }

@@ -34,16 +34,19 @@ namespace dmGraphics
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
-    RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_SubPasses(0)
+    VulkanRenderTarget::VulkanRenderTarget(const uint32_t rtId)
+        : m_Base{}
+        , m_SubPasses(0)
         , m_TextureDepthStencil(0)
-        , m_Id(rtId)
+        , m_Destroyed(0)
         , m_IsBound(0)
+        , m_ColorAttachmentCount(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
-        m_Extent.width  = 0;
-        m_Extent.height = 0;
+        m_Base.m_Id = rtId;
+        m_Extent.width            = 0;
+        m_Extent.height           = 0;
         memset(m_TextureColor, 0, sizeof(m_TextureColor));
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
@@ -279,7 +282,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_PROGRAM;
     }
 
-    const VulkanResourceType RenderTarget::GetType()
+    const VulkanResourceType VulkanRenderTarget::GetType()
     {
         return RESOURCE_TYPE_RENDER_TARGET;
     }
@@ -1203,7 +1206,7 @@ bail:
 
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
-        RenderTarget* render_target, Pipeline* pipelineOut)
+        VulkanRenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1495,7 +1498,7 @@ bail:
         }
     }
 
-    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle)
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);

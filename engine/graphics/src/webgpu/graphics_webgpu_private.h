@@ -140,6 +140,8 @@ namespace dmGraphics
             memset(this, 0, sizeof(*this));
         }
 
+        RenderTarget m_Base;
+
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -149,8 +151,6 @@ namespace dmGraphics
         HTexture     m_TextureDepthStencil;
 
         float        m_Scissor[4];
-        uint32_t     m_Width;
-        uint32_t     m_Height;
         uint8_t      m_Multisample;
         uint32_t     m_ColorBufferCount : 7;
     };

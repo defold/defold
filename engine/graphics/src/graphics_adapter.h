@@ -119,7 +119,6 @@ namespace dmGraphics
     typedef void (*DeleteRenderTargetFn)(HContext context, HRenderTarget render_target);
     typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     typedef HTexture (*GetRenderTargetTextureFn)(HContext context, HRenderTarget render_target, BufferType buffer_type);
-    typedef void (*GetRenderTargetSizeFn)(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     typedef void (*SetRenderTargetSizeFn)(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height);
     typedef bool (*IsTextureFormatSupportedFn)(HContext context, TextureFormat format);
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
@@ -218,7 +217,6 @@ namespace dmGraphics
         DeleteRenderTargetFn m_DeleteRenderTarget;
         SetRenderTargetFn m_SetRenderTarget;
         GetRenderTargetTextureFn m_GetRenderTargetTexture;
-        GetRenderTargetSizeFn m_GetRenderTargetSize;
         SetRenderTargetSizeFn m_SetRenderTargetSize;
         IsTextureFormatSupportedFn m_IsTextureFormatSupported;
         NewTextureFn m_NewTexture;
@@ -319,7 +317,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteRenderTarget); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTarget); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetRenderTargetTexture); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetRenderTargetSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTargetSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsTextureFormatSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewTexture); \

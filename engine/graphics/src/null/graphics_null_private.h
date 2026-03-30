@@ -80,8 +80,9 @@ namespace dmGraphics
         uint32_t m_Size;
     };
 
-    struct RenderTarget
+    struct NullRenderTarget
     {
+        RenderTarget    m_Base;
         TextureParams   m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams   m_DepthBufferParams;
         TextureParams   m_StencilBufferParams;

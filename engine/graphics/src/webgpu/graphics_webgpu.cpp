@@ -986,6 +986,9 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
     if (!context->m_MainRenderTarget)
     {
         context->m_MainRenderTarget                = new WebGPURenderTarget();
+        context->m_MainRenderTarget->m_Base.m_Id   = DM_RENDERTARGET_BACKBUFFER_ID;
+        context->m_MainRenderTarget->m_Base.m_BufferTypeFlags =
+            BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
         context->m_MainRenderTarget->m_Multisample = dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT);
         if (!context->m_MainRenderTarget->m_Multisample)
             context->m_MainRenderTarget->m_Multisample = 1;
@@ -995,8 +998,8 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         context->m_MainRenderTarget->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
         context->m_MainRenderTarget->m_ColorBufferLoadOps[0]  = ATTACHMENT_OP_LOAD;
     }
-    context->m_MainRenderTarget->m_Width = context->m_BaseContext.m_Width = width;
-    context->m_MainRenderTarget->m_Height = context->m_BaseContext.m_Height = height;
+    context->m_MainRenderTarget->m_Base.m_Width = context->m_BaseContext.m_Width = width;
+    context->m_MainRenderTarget->m_Base.m_Height = context->m_BaseContext.m_Height = height;
     // colorbuffer
     if (context->m_MainRenderTarget->m_Multisample == 1)
     {
@@ -1706,16 +1709,16 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clear_col
 
         context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
         context->m_CurrentRenderPass.m_Target->m_Scissor[1] = 0;
-        context->m_CurrentRenderPass.m_Target->m_Scissor[2] = context->m_CurrentRenderPass.m_Target->m_Width;
-        context->m_CurrentRenderPass.m_Target->m_Scissor[3] = context->m_CurrentRenderPass.m_Target->m_Height;
+        context->m_CurrentRenderPass.m_Target->m_Scissor[2] = context->m_CurrentRenderPass.m_Target->m_Base.m_Width;
+        context->m_CurrentRenderPass.m_Target->m_Scissor[3] = context->m_CurrentRenderPass.m_Target->m_Base.m_Height;
     }
 
     if (context->m_ViewportChanged)
     {
-        const int32_t vx1 = dmMath::Clamp(context->m_ViewportRect[0], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Width));
-        const int32_t vy1 = dmMath::Clamp(context->m_ViewportRect[1], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Height));
-        const int32_t vx2 = dmMath::Clamp(context->m_ViewportRect[2], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Width));
-        const int32_t vy2 = dmMath::Clamp(context->m_ViewportRect[3], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Height));
+        const int32_t vx1 = dmMath::Clamp(context->m_ViewportRect[0], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Base.m_Width));
+        const int32_t vy1 = dmMath::Clamp(context->m_ViewportRect[1], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Base.m_Height));
+        const int32_t vx2 = dmMath::Clamp(context->m_ViewportRect[2], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Base.m_Width));
+        const int32_t vy2 = dmMath::Clamp(context->m_ViewportRect[3], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Base.m_Height));
         wgpuRenderPassEncoderSetViewport(context->m_CurrentRenderPass.m_Encoder, vx1, vy1, vx2 - vx1, vy2 - vy1, 0.0f, 1.0f);
         wgpuRenderPassEncoderSetScissorRect(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentRenderPass.m_Target->m_Scissor[0], context->m_CurrentRenderPass.m_Target->m_Scissor[1], context->m_CurrentRenderPass.m_Target->m_Scissor[2], context->m_CurrentRenderPass.m_Target->m_Scissor[3]);
         context->m_ViewportChanged = 0;
@@ -3238,8 +3241,10 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPURenderTarget* rt = new WebGPURenderTarget();
-    rt->m_Multisample      = 1;
-    rt->m_Width = rt->m_Height = 0;
+    rt->m_Multisample                = 1;
+    rt->m_Base.m_BufferTypeFlags     = buffer_type_flags;
+    rt->m_Base.m_Id                  = GetNextRenderTargetId();
+    rt->m_Base.m_Width = rt->m_Base.m_Height = 0;
 
     // colors
     const BufferType color_buffer_flags[] = {
@@ -3261,12 +3266,12 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
                 texture->m_Base.m_Format = params.m_ColorBufferParams[i].m_Format;
                 WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_ColorBufferParams[i].m_Format), 1, 1, g_rendertarget_usage);
                 rt->m_TextureColor[rt->m_ColorBufferCount] = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
-                if (!rt->m_Width)
+                if (!rt->m_Base.m_Width)
                 {
-                    rt->m_Width  = texture->m_Base.m_Width;
-                    rt->m_Height = texture->m_Base.m_Height;
+                    rt->m_Base.m_Width  = texture->m_Base.m_Width;
+                    rt->m_Base.m_Height = texture->m_Base.m_Height;
                 }
-                assert(rt->m_Width == texture->m_Base.m_Width && rt->m_Height == texture->m_Base.m_Height);
+                assert(rt->m_Base.m_Width == texture->m_Base.m_Width && rt->m_Base.m_Height == texture->m_Base.m_Height);
             }
             ++rt->m_ColorBufferCount;
         }
@@ -3296,15 +3301,15 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
         assert(texture);
         WebGPURealizeTexture(texture, format, 1, 1, WGPUTextureUsage_RenderAttachment);
         rt->m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
-        if (!rt->m_Width)
+        if (!rt->m_Base.m_Width)
         {
-            rt->m_Width  = texture->m_Base.m_Width;
-            rt->m_Height = texture->m_Base.m_Height;
+            rt->m_Base.m_Width  = texture->m_Base.m_Width;
+            rt->m_Base.m_Height = texture->m_Base.m_Height;
         }
-        assert(rt->m_Width == texture->m_Base.m_Width && rt->m_Height == texture->m_Base.m_Height);
+        assert(rt->m_Base.m_Width == texture->m_Base.m_Width && rt->m_Base.m_Height == texture->m_Base.m_Height);
     }
 
-    assert(rt->m_Width && rt->m_Height);
+    assert(rt->m_Base.m_Width && rt->m_Base.m_Height);
     return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
 }
 
@@ -3352,14 +3357,6 @@ static HTexture WebGPUGetRenderTargetTexture(HContext context, HRenderTarget _rt
     if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
         return rt->m_TextureDepthStencil;
     return NULL;
-}
-
-static void WebGPUGetRenderTargetSize(HContext context, HRenderTarget _rt, BufferType buffer_type, uint32_t& width, uint32_t& height)
-{
-    TRACE_CALL;
-    WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _rt);
-    width                  = rt->m_Width;
-    height                 = rt->m_Height;
 }
 
 static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)

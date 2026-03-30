@@ -2093,7 +2093,13 @@ namespace dmGraphics
     }
     void GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        g_functions.m_GetRenderTargetSize(context, render_target, buffer_type, width, height);
+        (void)buffer_type;
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
+        assert(rt);
+        width  = rt->m_Width;
+        height = rt->m_Height;
     }
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {

@@ -4225,7 +4225,8 @@ static void LogFrameBufferError(GLenum status)
     #endif
 
         OpenGLRenderTarget* rt = new OpenGLRenderTarget();
-        rt->m_BufferTypeFlags  = buffer_type_flags;
+        rt->m_Base.m_BufferTypeFlags = buffer_type_flags;
+        rt->m_Base.m_Id              = GetNextRenderTargetId();
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
@@ -4292,6 +4293,33 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_FRAMEBUFFER_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
+
+        TextureParams* dim = 0;
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_ColorAttachments[i].m_Type != ATTACHMENT_TYPE_UNUSED)
+            {
+                dim = &rt->m_ColorAttachments[i].m_Params;
+                break;
+            }
+        }
+        if (!dim && rt->m_DepthStencilAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+        {
+            dim = &rt->m_DepthStencilAttachment.m_Params;
+        }
+        else if (!dim && rt->m_DepthAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+        {
+            dim = &rt->m_DepthAttachment.m_Params;
+        }
+        else if (!dim && rt->m_StencilAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+        {
+            dim = &rt->m_StencilAttachment.m_Params;
+        }
+        if (dim)
+        {
+            rt->m_Base.m_Width  = dim->m_Width;
+            rt->m_Base.m_Height = dim->m_Height;
+        }
 
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
@@ -4452,39 +4480,6 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static void OpenGLGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        TextureParams* params = 0;
-
-        if (IsColorBufferType(buffer_type))
-        {
-            uint32_t i = GetBufferTypeIndex(buffer_type);
-            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
-            params = &rt->m_ColorAttachments[i].m_Params;
-        }
-        else if (rt->m_DepthStencilAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
-        {
-            params = &rt->m_DepthStencilAttachment.m_Params;
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-        {
-            params = &rt->m_DepthAttachment.m_Params;
-        }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            params = &rt->m_StencilAttachment.m_Params;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        width  = params->m_Width;
-        height = params->m_Height;
-    }
-
     static void OpenGLSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -4502,6 +4497,9 @@ static void LogFrameBufferError(GLenum status)
         rt->m_DepthAttachment.m_Params.m_Height        = height;
         rt->m_StencilAttachment.m_Params.m_Width       = width;
         rt->m_StencilAttachment.m_Params.m_Height      = height;
+
+        rt->m_Base.m_Width  = width;
+        rt->m_Base.m_Height = height;
 
         ApplyRenderTargetAttachments(_context, rt, true);
     }

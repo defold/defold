@@ -154,9 +154,11 @@ namespace dmGraphics
         bool             m_DepthStencilAttachment;
     };
 
-    struct RenderTarget
+    struct VulkanRenderTarget
     {
-    	RenderTarget(const uint32_t rtId);
+        VulkanRenderTarget(const uint32_t rtId);
+
+        RenderTarget   m_Base;
 
         struct VulkanHandle
         {
@@ -181,7 +183,6 @@ namespace dmGraphics
         VkExtent2D     m_Extent;
         VkRect2D       m_Scissor;
 
-        const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
         uint32_t       m_ColorAttachmentCount : 7;
@@ -315,7 +316,7 @@ namespace dmGraphics
             DeviceBuffer::VulkanHandle        m_DeviceBuffer;
             VulkanTexture::VulkanHandle       m_Texture;
             VulkanProgram::VulkanHandle       m_Program;
-            RenderTarget::VulkanHandle        m_RenderTarget;
+            VulkanRenderTarget::VulkanHandle  m_RenderTarget;
             VulkanCommandBuffer::VulkanHandle m_CommandBuffer;
         };
         VulkanResourceType m_ResourceType;
@@ -483,7 +484,7 @@ namespace dmGraphics
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
-    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, RenderTarget* render_target, Pipeline* pipelineOut);
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, VulkanRenderTarget* render_target, Pipeline* pipelineOut);
     VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut);
 
     // Destroy functions
@@ -499,7 +500,7 @@ namespace dmGraphics
     void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
     void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle);
-    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle);
+    void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle);
 
     // Get functions
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);

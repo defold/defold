@@ -43,6 +43,17 @@ namespace dmGraphics
         int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
     };
 
+    // Shared render target metadata embedded as m_Base in each backend render target (OpenGLRenderTarget, VulkanRenderTarget, etc.).
+    // Each adapter keeps RenderTarget as the first member so GetAssetFromContainer<RenderTarget>(container, handle) is valid
+    // alongside GetAssetFromContainer<BackendRenderTarget>(...).
+    struct RenderTarget
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_BufferTypeFlags;
+        uint32_t m_Id;
+    };
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
