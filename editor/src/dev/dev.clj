@@ -101,7 +101,7 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-map)))
+  (ffirst (g/targets-of (workspace) :resource-list)))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))

@@ -45,7 +45,8 @@
    (g/with-auto-evaluation-context evaluation-context
      (select-save-values project proj-path-predicate evaluation-context)))
   ([project proj-path-predicate evaluation-context]
-   (let [resources-by-proj-path (g/valid-node-value project :resource-map evaluation-context)
+   (let [workspace (g/valid-node-value project :workspace evaluation-context)
+         resources-by-proj-path (g/valid-node-value workspace :resource-map evaluation-context)
          resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path evaluation-context)]
      (coll/into-> resource-nodes-by-proj-path (sorted-map)
        (keep (fn [[proj-path resource-node-id]]
