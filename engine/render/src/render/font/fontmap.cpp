@@ -41,6 +41,7 @@ namespace dmRender
     , m_Size(0.0f)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
+    , m_ShadowBlur(0.0f)
     , m_MaxAscent(0.0f)
     , m_MaxDescent(0.0f)
     , m_SdfSpread(1.0f)
@@ -301,6 +302,7 @@ namespace dmRender
         font_map->m_Size = params.m_Size;
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
+        font_map->m_ShadowBlur = params.m_ShadowBlur;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
         font_map->m_SdfSpread = params.m_SdfSpread;

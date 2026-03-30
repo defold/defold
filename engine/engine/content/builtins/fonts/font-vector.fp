@@ -3,6 +3,7 @@
 in mediump vec2 var_texcoord;
 in mediump vec4 var_color;
 in mediump vec4 var_banding;
+in mediump vec4 var_jacobian;
 in mediump vec4 var_glyph;
 
 out vec4 out_fragColor;
@@ -133,11 +134,10 @@ float IsInsideGlyph(vec2 p, float curve_start, float curve_count)
     return step(0.5, mod(ComputeGlyphCrossings(p, curve_start, curve_count), 2.0));
 }
 
-float QuadraticScaledDistanceSq(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 outline_radius)
+float QuadraticDistanceSqPixels(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 glyph_scale)
 {
     const int COARSE_STEPS = 8;
     const int REFINE_STEPS = 4;
-    vec2 inv_radius = 1.0 / max(outline_radius, vec2(0.0001));
 
     float best_t = 0.0;
     float best_distance_sq = 1e20;
@@ -146,7 +146,7 @@ float QuadraticScaledDistanceSq(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 outline_
     {
         float t = float(i) / float(COARSE_STEPS);
         vec2 curve_p = QuadraticPoint(t, p0, p1, p2);
-        vec2 delta = (curve_p - p) * inv_radius;
+        vec2 delta = (curve_p - p) * glyph_scale;
         float distance_sq = dot(delta, delta);
         if (distance_sq < best_distance_sq)
         {
@@ -166,8 +166,8 @@ float QuadraticScaledDistanceSq(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 outline_
         vec2 curve_a = QuadraticPoint(t_a, p0, p1, p2);
         vec2 curve_b = QuadraticPoint(t_b, p0, p1, p2);
 
-        vec2 delta_a = (curve_a - p) * inv_radius;
-        vec2 delta_b = (curve_b - p) * inv_radius;
+        vec2 delta_a = (curve_a - p) * glyph_scale;
+        vec2 delta_b = (curve_b - p) * glyph_scale;
         float distance_sq_a = dot(delta_a, delta_a);
         float distance_sq_b = dot(delta_b, delta_b);
 
@@ -190,7 +190,7 @@ float QuadraticScaledDistanceSq(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 outline_
     return best_distance_sq;
 }
 
-float ComputeOutlineDistanceSq(vec2 p, float curve_start, float curve_count, vec2 outline_radius)
+float ComputeCurveDistanceSqPixels(vec2 p, float curve_start, float curve_count, vec2 glyph_scale)
 {
     float best_distance_sq = 1e20;
     for (int i = 0; i < MAX_VECTOR_CURVES; ++i)
@@ -204,7 +204,7 @@ float ComputeOutlineDistanceSq(vec2 p, float curve_start, float curve_count, vec
         vec4 curve_a = SampleCurveTexel(curve_texel);
         vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
         best_distance_sq = min(best_distance_sq,
-            QuadraticScaledDistanceSq(p, curve_a.xy, curve_a.zw, curve_b.xy, outline_radius));
+            QuadraticDistanceSqPixels(p, curve_a.xy, curve_a.zw, curve_b.xy, glyph_scale));
     }
     return best_distance_sq;
 }
@@ -222,6 +222,9 @@ void main()
     mediump vec2 p = var_texcoord;
     float inside = IsInsideGlyph(p, curve_start, curve_count);
     float layer_mode = var_banding.z;
+    float outline_width = max(var_banding.x, 0.0);
+    float shadow_blur = max(var_banding.y, 0.0);
+    vec2 glyph_scale = max(var_jacobian.xy, vec2(0.0001));
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
@@ -241,13 +244,25 @@ void main()
             return;
         }
 
-        vec2 outline_radius = max(var_banding.xy, vec2(0.0001));
-        float outline_distance_sq = ComputeOutlineDistanceSq(p, curve_start, curve_count, outline_radius);
-        if (outline_distance_sq > 1.0)
+        float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale));
+        if (curve_distance <= outline_width)
+        {
+            out_fragColor = var_color;
+            return;
+        }
+
+        if (shadow_blur <= 0.0)
         {
             discard;
         }
-        out_fragColor = var_color;
+
+        if (curve_distance > (outline_width + shadow_blur))
+        {
+            discard;
+        }
+
+        float shadow_alpha = 1.0 - smoothstep(outline_width, outline_width + shadow_blur, curve_distance);
+        out_fragColor = vec4(var_color.rgb, var_color.a * shadow_alpha);
         return;
     }
 
@@ -256,9 +271,8 @@ void main()
         discard;
     }
 
-    vec2 outline_radius = max(var_banding.xy, vec2(0.0001));
-    float outline_distance_sq = ComputeOutlineDistanceSq(p, curve_start, curve_count, outline_radius);
-    if (outline_distance_sq > 1.0)
+    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale));
+    if (curve_distance > outline_width)
     {
         discard;
     }

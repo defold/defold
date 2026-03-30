@@ -351,8 +351,8 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float texcoord_max_y,
                               float offset_x,
                               float offset_y,
-                              float outline_width_u,
-                              float outline_width_v,
+                              float outline_width,
+                              float shadow_blur,
                               float layer_mode,
                               const Vector4& color,
                               GlyphVertex* vertices)
@@ -383,12 +383,12 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = band_index; \
         v.m_VectorTexcoord[3] = 0.0f; \
-        v.m_VectorJacobian[0] = 1.0f; \
-        v.m_VectorJacobian[1] = 0.0f; \
+        v.m_VectorJacobian[0] = width; \
+        v.m_VectorJacobian[1] = height; \
         v.m_VectorJacobian[2] = 0.0f; \
-        v.m_VectorJacobian[3] = 1.0f; \
-        v.m_VectorBanding[0] = outline_width_u; \
-        v.m_VectorBanding[1] = outline_width_v; \
+        v.m_VectorJacobian[3] = 0.0f; \
+        v.m_VectorBanding[0] = outline_width; \
+        v.m_VectorBanding[1] = shadow_blur; \
         v.m_VectorBanding[2] = layer_mode; \
         v.m_VectorBanding[3] = 0.0f; \
         SetVectorColor(v, color);
@@ -556,10 +556,14 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             float glyph_height = dmMath::Max(0.0001f, glyph->m_Ascent + glyph->m_Descent);
             float outline_width_u = font_map->m_OutlineWidth / dmMath::Max(0.0001f, glyph->m_Width);
             float outline_width_v = font_map->m_OutlineWidth / glyph_height;
-            float shadow_texcoord_min_x = emit_outline ? -outline_width_u : 0.0f;
-            float shadow_texcoord_min_y = emit_outline ? -outline_width_v : 0.0f;
-            float shadow_texcoord_max_x = emit_outline ? (1.0f + outline_width_u) : 1.0f;
-            float shadow_texcoord_max_y = emit_outline ? (1.0f + outline_width_v) : 1.0f;
+            float shadow_outline_width = emit_outline ? font_map->m_OutlineWidth : 0.0f;
+            float shadow_radius = shadow_outline_width + font_map->m_ShadowBlur;
+            float shadow_width_u = shadow_radius / dmMath::Max(0.0001f, glyph->m_Width);
+            float shadow_width_v = shadow_radius / glyph_height;
+            float shadow_texcoord_min_x = -shadow_width_u;
+            float shadow_texcoord_min_y = -shadow_width_v;
+            float shadow_texcoord_max_x = 1.0f + shadow_width_u;
+            float shadow_texcoord_max_y = 1.0f + shadow_width_v;
 
             if (emit_shadow)
             {
@@ -578,8 +582,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   shadow_texcoord_max_y,
                                   font_map->m_ShadowX,
                                   font_map->m_ShadowY,
-                                  outline_width_u,
-                                  outline_width_v,
+                                  shadow_outline_width,
+                                  font_map->m_ShadowBlur,
                                   2.0f,
                                   shadow_color,
                                   vertices);
@@ -602,8 +606,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   1.0f + outline_width_v,
                                   0.0f,
                                   0.0f,
-                                  outline_width_u,
-                                  outline_width_v,
+                                  font_map->m_OutlineWidth,
+                                  0.0f,
                                   1.0f,
                                   outline_color,
                                   vertices);
@@ -624,8 +628,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                               1.0f,
                               0.0f,
                               0.0f,
-                              outline_width_u,
-                              outline_width_v,
+                              font_map->m_OutlineWidth,
+                              0.0f,
                               0.0f,
                               face_color,
                               vertices);

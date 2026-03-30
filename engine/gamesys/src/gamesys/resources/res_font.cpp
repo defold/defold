@@ -355,6 +355,7 @@ namespace dmGameSystem
         params->m_NameHash           = dmHashString64(filename);
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
+        params->m_ShadowBlur         = ddf->m_ShadowBlur;
         params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
         params->m_OutlineWidth       = ddf->m_OutlineWidth;
         params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
