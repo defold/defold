@@ -55,8 +55,8 @@ def build(bld):
     extra_defines = []
     extra_defines.extend(zlib_conf_defines)
 
-    extra_defines +=['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
-    extra_defines +=['MINIZ_USE_ANSI', 'ZIP_NO_DEFLATE', 'ZIP_NO_DISC_IO']   # defold defines
+    extra_defines += ['MINIZ_NO_TIME']
+    extra_defines += ['ZIP_ENABLE_INFLATE=1', 'ZIP_ENABLE_DEFLATE=0', 'ZIP_HAVE_SYMLINK=0']
 
     if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
@@ -134,6 +134,7 @@ def build(bld):
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
                      target   = 'dlib',
+                     use      = ['zip'],
                      defines  = ['VALGRIND'] + extra_defines)
 
     # remove all null implementations
@@ -151,6 +152,7 @@ def build(bld):
     dlib_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
                           includes    = dlib.includes,
                           defines     = dlib.defines,
+                          use         = ['zip_noasan'],
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
@@ -193,12 +195,14 @@ def build(bld):
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
-    libzip_dirs = ['zip/**/*.cpp']
+    libzip_dirs = ['zip/**/*.c']
     libzip = bld.stlib(features    = 'c cxx',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
                  defines     = ['VALGRIND'] + extra_defines)
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip.env.append_unique('CFLAGS', '-ansi') 
 
     libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
@@ -206,6 +210,8 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip_noasan.env.append_unique('CFLAGS', '-ansi')
 
     image = bld.stlib(features  = 'c cxx',
                     includes    = '.',

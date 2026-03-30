@@ -155,6 +155,11 @@ namespace dmHttpClient
         Result Connect(const char* host, uint16_t port, bool secure, int timeout, int* canceled);
         Result CreateSSLSocket(const char* host, int timeout);
         ~Response();
+
+    private:
+        // Forbid assignment operator and copy-constructor. Response owns a pool handle.
+        Response(const Response&);
+        Response& operator=(const Response&);
     };
 
     /*
@@ -1142,28 +1147,29 @@ bail:
         // The assumption holds only for a single-threaded environment though
         // but as network errors will occur in practice the heuristic is probably
         // "good enough".
-        Response response = Response(client);
-        Result r;
         for (uint32_t i = 0; i < MAX_POOL_CONNECTIONS + 1; ++i)
         {
+            // One response owns one pooled connection for one physical attempt.
+            Response response(client);
+
             client->m_Statistics.m_Responses++;
 
             client->m_SocketResult = dmSocket::RESULT_OK;
 
             // host, port, secure, timeout, cancel
-            r = response.Connect(use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname,
-                                 use_proxy ? client->m_ProxyURI.m_Port : client->m_HostURI.m_Port,
-                                 use_proxy ? false : client->m_Secure,
-                                 client->m_RequestTimeout,
-                                 client->m_CancelFlag);
+            Result r = response.Connect(use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname,
+                                        use_proxy ? client->m_ProxyURI.m_Port : client->m_HostURI.m_Port,
+                                        use_proxy ? false : client->m_Secure,
+                                        client->m_RequestTimeout,
+                                        client->m_CancelFlag);
             if (r != RESULT_OK)
             {
-                break;
+                return r;
             }
 
             if( HasRequestTimedOut(client) )
             {
-                break;
+                return r;
             }
 
             // client, response, path, method
@@ -1177,7 +1183,7 @@ bail:
 
                 if( HasRequestTimedOut(client) )
                 {
-                    break;
+                    return r;
                 }
 
                 uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
@@ -1191,40 +1197,36 @@ bail:
                     // Otherwise, we have to regard this type of connection shutdown as
                     // an error.
 
-                    // implicit continue here
+                    continue;
                 }
                 else
                 {
-                    break;
+                    return r;
                 }
             }
-            else
+            else if (r == RESULT_OK && use_proxy)
             {
-                break;
+                if (client->m_Secure)
+                {
+                    r = response.CreateSSLSocket(client->m_HostURI.m_Hostname, client->m_RequestTimeout);
+                }
+
+                if (r == RESULT_OK)
+                {
+                    r = DoDoRequest(client, response, path, method);
+                }
+
+                if (r != RESULT_OK && r != RESULT_NOT_200_OK)
+                {
+                    response.m_CloseConnection = 1;
+                }
             }
-            response = Response(client);
+
+            return r;
         }
 
-
-        if (r == RESULT_OK && use_proxy)
-        {
-            if (client->m_Secure)
-            {
-                r = response.CreateSSLSocket(client->m_HostURI.m_Hostname, client->m_RequestTimeout);
-            }
-            
-            if (r == RESULT_OK)
-            {
-                r = DoDoRequest(client, response, path, method);
-            }
-        }
-
-        if (r != RESULT_OK && r != RESULT_NOT_200_OK)
-        {
-            response.m_CloseConnection = 1;
-        }
-
-        return r;
+        dmLogWarning("All connection attempts to remote host are prematurely closed. This error is very unlikely.");
+        return RESULT_UNKNOWN;
     }
 
 #if !defined(DM_NO_HTTP_CACHE)
