@@ -80,6 +80,8 @@ namespace dmRender
         float m_Alpha;
         /// Font outline alpha
         float m_OutlineAlpha;
+        /// Font outline width
+        float m_OutlineWidth;
         /// Font shadow alpha
         float m_ShadowAlpha;
 

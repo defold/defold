@@ -356,6 +356,7 @@ namespace dmGameSystem
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
         params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
+        params->m_OutlineWidth       = ddf->m_OutlineWidth;
         params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
         params->m_Alpha              = ddf->m_Alpha;
         params->m_LayerMask          = ddf->m_LayerMask;
@@ -527,24 +528,45 @@ namespace dmGameSystem
     static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
         FontResource* resource = (FontResource*)user_ctx;
+        bool is_vector = dmRender::GetFontMapIsVector(font_map);
 
-        // Increment all child resources (i.e. .ttf) before we send them to the thread
-        FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);
-        job_info->m_Job = dmGameSystem::FontGenAddGlyphByIndex(job_info->m_FontGenJobData, font, glyph_index, TextCallbackJobInfo, (void*)job_info);
-        if (!job_info->m_Job)
+        if (!is_vector)
         {
-            DestroyJobInfo(job_info);
-            return FONT_RESULT_ERROR;
+            // Increment all child resources (i.e. .ttf) before we send them to the thread
+            FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);
+            job_info->m_Job = dmGameSystem::FontGenAddGlyphByIndex(job_info->m_FontGenJobData, font, glyph_index, TextCallbackJobInfo, (void*)job_info);
+            if (!job_info->m_Job)
+            {
+                DestroyJobInfo(job_info);
+                return FONT_RESULT_ERROR;
+            }
+
+            PushPendingJob(resource, job_info);
+
+            // Instead of keeping track of the async creation process here, we create a null dummy glyph
+            // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.
+            // This will prevent from further calls to this cache miss function in the meantime.
+            FontGlyph* glyph = new FontGlyph;
+            memset(glyph, 0, sizeof(*glyph));
+            glyph->m_GlyphIndex = (uint16_t)glyph_index;
+            *out = glyph;
+            return FONT_RESULT_OK;
         }
 
-        PushPendingJob(resource, job_info);
-
-        // Instead of keeping track of the async creation process here, we create a null dummy glyph
-        // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.
-        // This will prevent from further calls to this cache miss function in the meantime.
         FontGlyph* glyph = new FontGlyph;
         memset(glyph, 0, sizeof(*glyph));
-        glyph->m_GlyphIndex = (uint16_t)glyph_index;
+
+        FontGlyphOptions options;
+        options.m_Scale = FontGetScaleFromSize(font, dmRender::GetFontMapSize(font_map));
+        options.m_GenerateOutline = true;
+
+        FontResult r = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+        if (r != FONT_RESULT_OK)
+        {
+            delete glyph;
+            return r;
+        }
+
         *out = glyph;
         return FONT_RESULT_OK;
     }
@@ -600,34 +622,38 @@ namespace dmGameSystem
 
     static dmResource::Result PrewarmFont(dmResource::HFactory factory, const char* path, FontResource* font)
     {
-        if (font->m_IsDynamic)
-        {
-            // Prewarm cache
-            bool all_chars = font->m_DDF->m_AllChars;
-            bool has_chars = font->m_DDF->m_Characters != 0 && font->m_DDF->m_Characters[0] != 0;
-            if (all_chars || !has_chars)
-            {
-                font->m_PrewarmDone = 1;
-                return dmResource::RESULT_OK;
-            }
+        font->m_Prewarming = 0;
+        font->m_PrewarmDone = 1;
+        return dmResource::RESULT_OK;
 
-            font->m_Prewarming = 1;
-            font->m_PrewarmDone = 0;
+        // if (font->m_IsDynamic)
+        // {
+        //     // Prewarm cache
+        //     bool all_chars = font->m_DDF->m_AllChars;
+        //     bool has_chars = font->m_DDF->m_Characters != 0 && font->m_DDF->m_Characters[0] != 0;
+        //     if (all_chars || !has_chars)
+        //     {
+        //         font->m_PrewarmDone = 1;
+        //         return dmResource::RESULT_OK;
+        //     }
 
-            dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
-            if (dmResource::RESULT_OK != r)
-            {
-                font->m_Prewarming = 0;
-                dmLogError("Failed to prewarm glyph cache for font '%s'", path);
-                return dmResource::RESULT_OK;
-            }
-        }
-        else
-        {
-            font->m_PrewarmDone = 1;
-        }
+        //     font->m_Prewarming = 1;
+        //     font->m_PrewarmDone = 0;
 
-        return font->m_Prewarming ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
+        //     dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
+        //     if (dmResource::RESULT_OK != r)
+        //     {
+        //         font->m_Prewarming = 0;
+        //         dmLogError("Failed to prewarm glyph cache for font '%s'", path);
+        //         return dmResource::RESULT_OK;
+        //     }
+        // }
+        // else
+        // {
+        //     font->m_PrewarmDone = 1;
+        // }
+
+        // return font->m_Prewarming ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResFontPreload(const dmResource::ResourcePreloadParams* params)

@@ -92,6 +92,7 @@ namespace dmRender
         float                   m_SdfShadow;
         float                   m_Alpha;
         float                   m_OutlineAlpha;
+        float                   m_OutlineWidth;
         float                   m_ShadowAlpha;
 
         uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs

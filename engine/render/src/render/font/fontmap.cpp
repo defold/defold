@@ -46,6 +46,10 @@ namespace dmRender
     , m_SdfSpread(1.0f)
     , m_SdfOutline(0)
     , m_SdfShadow(0)
+    , m_Alpha(1.0f)
+    , m_OutlineAlpha(0.0f)
+    , m_OutlineWidth(0.0f)
+    , m_ShadowAlpha(0.0f)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
     , m_CacheCellWidth(0)
@@ -304,6 +308,7 @@ namespace dmRender
         font_map->m_SdfShadow = params.m_SdfShadow;
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
+        font_map->m_OutlineWidth = params.m_OutlineWidth;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
