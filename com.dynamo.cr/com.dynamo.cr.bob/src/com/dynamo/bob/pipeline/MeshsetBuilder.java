@@ -145,9 +145,11 @@ public class MeshsetBuilder extends Builder  {
 
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
-        Modelimporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
-        if (scene == null) {
-            throw new CompileExceptionError(task.input(0), -1, "Error loading model");
+        Modelimporter.Scene scene;
+        try {
+            scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
+        } catch (IOException e) {
+            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
         // MeshSet

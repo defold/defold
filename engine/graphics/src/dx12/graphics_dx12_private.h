@@ -15,6 +15,7 @@
 #ifndef DM_GRAPHICS_DX12_PRIVATE_H
 #define DM_GRAPHICS_DX12_PRIVATE_H
 
+#include <cstddef>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -57,21 +58,13 @@ namespace dmGraphics
 
     struct DX12Texture
     {
-        ID3D12Resource*       m_Resource;
-        D3D12_RESOURCE_DESC   m_ResourceDesc;
-        D3D12_RESOURCE_STATES m_ResourceStates[16];
+        Texture             m_Base;
+        ID3D12Resource*         m_Resource;
+        D3D12_RESOURCE_DESC     m_ResourceDesc;
+        D3D12_RESOURCE_STATES   m_ResourceStates[16];
 
-        TextureType         m_Type;
-        uint16_t            m_Width;
-        uint16_t            m_Height;
-        uint16_t            m_Depth;
-        uint16_t            m_LayerCount;
-        uint16_t            m_OriginalWidth;
-        uint16_t            m_OriginalHeight;
-        uint16_t            m_OriginalDepth;
-        uint16_t            m_MipMapCount         : 5;
-        uint16_t            m_TextureSamplerIndex : 10;
-        uint8_t             m_PageCount; // page count of texture array
+        uint16_t                m_LayerCount;
+        uint16_t                m_TextureSamplerIndex : 10;
     };
 
     struct DX12TextureSampler
@@ -235,6 +228,7 @@ namespace dmGraphics
 
     struct DX12Context
     {
+        GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
 
 #if defined(DM_PLATFORM_VENDOR)
@@ -252,8 +246,6 @@ namespace dmGraphics
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
-        HWindow                            m_Window;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;
 
@@ -273,11 +265,6 @@ namespace dmGraphics
         DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;
 
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
-        uint64_t                           m_TextureFormatSupport;
-        uint32_t                           m_Width;
-        uint32_t                           m_Height;
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
@@ -285,9 +272,7 @@ namespace dmGraphics
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
         uint32_t                           m_ViewportChanged      : 1;
-        uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
-        uint32_t                           m_PrintDeviceInfo      : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
 
@@ -312,7 +297,7 @@ namespace dmGraphics
 
     #define CHECK_HR_ERROR(result) \
     { \
-        if(g_DX12Context->m_VerifyGraphicsCalls && FAILED(result)) { \
+        if(g_DX12Context->m_BaseContext.m_VerifyGraphicsCalls && FAILED(result)) { \
             char msg[256]; \
             char buffer[1024]; \
             dmLog::HResultToString(result, msg, sizeof(msg)); \

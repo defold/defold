@@ -1036,7 +1036,8 @@
 
 (defn- load-tile-source [project self resource tile-set]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
 
         animation-nodes-tx-data
         (mapv (partial make-animation-node self project nil)

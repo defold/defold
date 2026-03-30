@@ -1326,7 +1326,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
     ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
-    dmGraphics::DeleteTexture(m_Context, texture);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1610,7 +1610,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
         dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
-        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_AssetHandleContainer, rt);
+        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_BaseContext.m_AssetHandleContainer, rt);
         ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
         ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
 

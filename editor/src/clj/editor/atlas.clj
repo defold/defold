@@ -897,7 +897,7 @@
     (make-image-nodes-in-animation animation-node image-msgs)))
 
 (defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
-  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
+  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource (g/now) workspace)]
     (into []
           (comp (remove (comp empty? :image))
                 (if remove-duplicates

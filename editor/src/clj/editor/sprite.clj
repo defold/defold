@@ -665,7 +665,8 @@
 
 (defn- load-sprite [project self resource sprite-desc]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)

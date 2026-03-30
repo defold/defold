@@ -26,21 +26,21 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
 {
     memset(context, 0, sizeof(*context));
     context->m_NumFramesInFlight       = MAX_FRAMES_IN_FLIGHT;
-    context->m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-    context->m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-    context->m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-    context->m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-    context->m_Window                  = params.m_Window;
-    context->m_Width                   = params.m_Width;
-    context->m_Height                  = params.m_Height;
+    context->m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+    context->m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+    context->m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+    context->m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+    context->m_BaseContext.m_Window                  = params.m_Window;
+    context->m_BaseContext.m_Width                   = params.m_Width;
+    context->m_BaseContext.m_Height                  = params.m_Height;
     context->m_UseValidationLayers     = params.m_UseValidationLayers;
 
-    context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-    context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-    context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
-    context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-    context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-    context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE;
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA;
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_16BPP;
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
 }
 
 static IDXGIFactory4* CreateDXGIFactory()
@@ -125,8 +125,8 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     hr = context->m_Device->CreateCommandQueue(&cmd_queue_desc, IID_PPV_ARGS(&context->m_CommandQueue));
     CHECK_HR_ERROR(hr);
 
-    uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
-    uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
+    uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+    uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
     // Create swapchain
     DXGI_MODE_DESC back_buffer_desc = {};
@@ -142,7 +142,7 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     swap_chain_desc.BufferDesc           = back_buffer_desc;
     swap_chain_desc.BufferUsage          = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swap_chain_desc.SwapEffect           = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    swap_chain_desc.OutputWindow         = dmPlatform::GetWindowsHWND(context->m_Window);
+    swap_chain_desc.OutputWindow         = dmPlatform::GetWindowsHWND(context->m_BaseContext.m_Window);
     swap_chain_desc.SampleDesc           = sample_desc;
     swap_chain_desc.Windowed             = true;
 
