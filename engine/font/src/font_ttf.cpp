@@ -12,6 +12,7 @@
 
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/time.h>
 
 #include <stdlib.h> // free
 
@@ -27,6 +28,37 @@
 
 #if defined(FONT_USE_HARFBUZZ)
     #include <harfbuzz/hb.h>
+#endif
+
+//#define FONT_TTF_DEBUG_TIMING
+
+#if defined(FONT_TTF_DEBUG_TIMING)
+struct FontTimingScope
+{
+    const char* m_Label;
+    const char* m_FontPath;
+    uint32_t    m_GlyphIndex;
+    uint64_t    m_Start;
+
+    FontTimingScope(const char* label, const char* font_path, uint32_t glyph_index)
+    : m_Label(label)
+    , m_FontPath(font_path)
+    , m_GlyphIndex(glyph_index)
+    , m_Start(dmTime::GetMonotonicTime())
+    {
+    }
+
+    ~FontTimingScope()
+    {
+        uint64_t tend = dmTime::GetMonotonicTime();
+        float elapsed_ms = (tend - m_Start) / 1000.0f;
+        dmLogWarning("FONT_TTF_DEBUG_TIMING: %s font='%s' glyph=%u took %.3f ms", m_Label, m_FontPath ? m_FontPath : "<null>", m_GlyphIndex, elapsed_ms);
+    }
+};
+
+#define FONT_TTF_TIMING_SCOPE(label, font_path, glyph_index) FontTimingScope font_timing_scope(label, font_path, glyph_index)
+#else
+#define FONT_TTF_TIMING_SCOPE(label, font_path, glyph_index)
 #endif
 
 struct TTFFont
@@ -193,6 +225,8 @@ static void OutlineClosePath(OutlineBuildContext* ctx)
 
 static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, float scale, FontGlyph* glyph)
 {
+    FONT_TTF_TIMING_SCOPE(__FUNCTION__, font->m_Path, glyph_index);
+
     stbtt_vertex* vertices = 0;
     int vertex_count = stbtt_GetGlyphShape(&font->m_Font, glyph_index, &vertices);
     if (vertex_count < 0)
@@ -276,6 +310,7 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
 static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
+    FONT_TTF_TIMING_SCOPE(__FUNCTION__, font->m_Path, glyph_index);
 
     memset(glyph, 0, sizeof(*glyph));
     glyph->m_GlyphIndex = glyph_index;
