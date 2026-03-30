@@ -115,10 +115,10 @@ namespace dmRender
         uint16_t                m_CacheCellCount;       // Number of cells in total
         uint16_t                m_MaxGlyphWidth;        // Maximum width of any of the used glyphs
         uint16_t                m_MaxGlyphHeight;       // Maximum height of any of the used glyphs
-        uint16_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
-        uint16_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
-        uint16_t                m_VectorBandCapacity;   // Number of texels in the vector band texture
-        uint16_t                m_VectorBandCursor;     // Next free texel in the vector band texture
+        uint32_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
+        uint32_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
+        uint32_t                m_VectorBandCapacity;   // Number of texels in the vector band texture
+        uint32_t                m_VectorBandCursor;     // Next free texel / row in the vector band texture
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_Padding;              // The padding of the cell

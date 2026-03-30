@@ -24,14 +24,16 @@
 
 #include <algorithm> // std::sort
 #include <math.h>
+#include <vector>
 
 namespace dmRender
 {
     static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
     static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 512;
-    static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 1;
-    static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 128;
-    static const uint32_t VECTOR_BAND_TEXTURE_HEIGHT = 1;
+    static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 64;
+    static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 2048;
+    static const uint32_t VECTOR_BAND_TEXTURE_HEIGHT = 128;
+    static const uint8_t VECTOR_MAX_BANDS = 8;
 
     FontMapParams::FontMapParams()
     : m_FontCollection(0)
@@ -221,7 +223,7 @@ namespace dmRender
         font_map->m_VectorBandCursor = 0;
 
         uint32_t curve_float_count = font_map->m_VectorCurveCapacity * 4;
-        uint32_t band_float_count = font_map->m_VectorBandCapacity * 2;
+        uint32_t band_float_count = font_map->m_VectorBandCapacity * 4;
 
         free(font_map->m_VectorCurveData);
         free(font_map->m_VectorBandData);
@@ -260,7 +262,7 @@ namespace dmRender
                                 &font_map->m_BandTexture,
                                 VECTOR_BAND_TEXTURE_WIDTH,
                                 VECTOR_BAND_TEXTURE_HEIGHT,
-                                dmGraphics::TEXTURE_FORMAT_RG32F,
+                                dmGraphics::TEXTURE_FORMAT_RGBA32F,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 font_map->m_VectorBandData,
@@ -873,11 +875,11 @@ namespace dmRender
 
         UpdateVectorTexture(font_map,
                             font_map->m_BandTexture,
-                            dmGraphics::TEXTURE_FORMAT_RG32F,
+                            dmGraphics::TEXTURE_FORMAT_RGBA32F,
                             VECTOR_BAND_TEXTURE_WIDTH,
                             VECTOR_BAND_TEXTURE_HEIGHT,
                             font_map->m_VectorBandData,
-                            sizeof(float) * font_map->m_VectorBandCapacity * 2);
+                            sizeof(float) * font_map->m_VectorBandCapacity * 4);
     }
 
     static void ResetVectorCache(HFontMap font_map)
@@ -897,12 +899,18 @@ namespace dmRender
             glyph->m_VectorCurveTexelCount = 0;
             glyph->m_VectorBandIndex = 0;
             glyph->m_VectorCurveCount = 0;
+            glyph->m_VectorBandMaxX = 0;
+            glyph->m_VectorBandMaxY = 0;
+            glyph->m_VectorBandScaleX = 0.0f;
+            glyph->m_VectorBandScaleY = 0.0f;
+            glyph->m_VectorBandOffsetX = 0.0f;
+            glyph->m_VectorBandOffsetY = 0.0f;
         }
 
         if (font_map->m_VectorCurveData && font_map->m_VectorBandData)
         {
             memset(font_map->m_VectorCurveData, 0, sizeof(float) * font_map->m_VectorCurveCapacity * 4);
-            memset(font_map->m_VectorBandData, 0, sizeof(float) * font_map->m_VectorBandCapacity * 2);
+            memset(font_map->m_VectorBandData, 0, sizeof(float) * font_map->m_VectorBandCapacity * 4);
             UploadVectorTextures(font_map);
         }
     }
@@ -953,88 +961,38 @@ namespace dmRender
         curve_data[texel1 + 3] = 0.0f;
     }
 
-    static uint32_t CountEncodedQuadratics(const FontGlyph* glyph)
+    struct EncodedVectorCurve
     {
-        uint32_t curve_count = 0;
-        FontCurvePoint current = {0.0f, 0.0f};
-        FontCurvePoint contour_start = {0.0f, 0.0f};
-        bool has_current = false;
-        bool has_contour = false;
+        FontCurvePoint m_P0;
+        FontCurvePoint m_P1;
+        FontCurvePoint m_P2;
+        float          m_MinX;
+        float          m_MinY;
+        float          m_MaxX;
+        float          m_MaxY;
+        uint16_t       m_CurveTexel;
+    };
 
-        for (uint32_t i = 0; i < glyph->m_Outline.m_CommandCount; ++i)
-        {
-            const FontCurveCommand& command = glyph->m_Outline.m_Commands[i];
-            switch (command.m_Type)
-            {
-                case FONT_CURVE_MOVE_TO:
-                    current = command.m_Points[0];
-                    contour_start = current;
-                    has_current = true;
-                    has_contour = true;
-                    break;
-                case FONT_CURVE_LINE_TO:
-                    if (has_current)
-                    {
-                        current = command.m_Points[0];
-                        ++curve_count;
-                    }
-                    break;
-                case FONT_CURVE_QUADRATIC_TO:
-                    if (has_current)
-                    {
-                        current = command.m_Points[1];
-                        ++curve_count;
-                    }
-                    break;
-                case FONT_CURVE_CLOSE:
-                    if (has_current && has_contour && !IsSameOutlinePoint(current, contour_start))
-                    {
-                        ++curve_count;
-                    }
-                    has_current = false;
-                    has_contour = false;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        return curve_count;
+    static void PushEncodedQuadratic(std::vector<EncodedVectorCurve>& curves,
+                                     const FontGlyph* glyph,
+                                     const FontCurvePoint& p0,
+                                     const FontCurvePoint& p1,
+                                     const FontCurvePoint& p2)
+    {
+        EncodedVectorCurve curve;
+        curve.m_P0 = NormalizeOutlinePoint(glyph, p0);
+        curve.m_P1 = NormalizeOutlinePoint(glyph, p1);
+        curve.m_P2 = NormalizeOutlinePoint(glyph, p2);
+        curve.m_MinX = dmMath::Min(curve.m_P0.m_X, dmMath::Min(curve.m_P1.m_X, curve.m_P2.m_X));
+        curve.m_MinY = dmMath::Min(curve.m_P0.m_Y, dmMath::Min(curve.m_P1.m_Y, curve.m_P2.m_Y));
+        curve.m_MaxX = dmMath::Max(curve.m_P0.m_X, dmMath::Max(curve.m_P1.m_X, curve.m_P2.m_X));
+        curve.m_MaxY = dmMath::Max(curve.m_P0.m_Y, dmMath::Max(curve.m_P1.m_Y, curve.m_P2.m_Y));
+        curve.m_CurveTexel = 0;
+        curves.push_back(curve);
     }
 
-    static bool EncodeGlyphOutlineToVectorCache(HFontMap font_map, CacheGlyph* cache_glyph, FontGlyph* glyph)
+    static void CollectEncodedQuadratics(const FontGlyph* glyph, std::vector<EncodedVectorCurve>& curves)
     {
-        if (!glyph->m_Outline.m_Commands || glyph->m_Outline.m_CommandCount == 0)
-        {
-            return false;
-        }
-
-        uint32_t curve_count = CountEncodedQuadratics(glyph);
-        if (curve_count == 0)
-        {
-            return false;
-        }
-
-        uint32_t required_curve_texels = curve_count * 2;
-        uint32_t required_band_texels = 1;
-
-        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
-            font_map->m_VectorBandCursor + required_band_texels > font_map->m_VectorBandCapacity)
-        {
-            ResetVectorCache(font_map);
-        }
-
-        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
-            font_map->m_VectorBandCursor + required_band_texels > font_map->m_VectorBandCapacity)
-        {
-            dmLogWarning("The vector font cache is too small to fit glyph %u in %s", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
-            return false;
-        }
-
-        uint16_t curve_texel = font_map->m_VectorCurveCursor;
-        uint16_t band_index = font_map->m_VectorBandCursor;
-        uint32_t encoded_curve_index = 0;
-
         FontCurvePoint current = {0.0f, 0.0f};
         FontCurvePoint contour_start = {0.0f, 0.0f};
         bool has_current = false;
@@ -1055,33 +1013,21 @@ namespace dmRender
                     if (has_current)
                     {
                         FontCurvePoint next = command.m_Points[0];
-                        FontCurvePoint p0 = NormalizeOutlinePoint(glyph, current);
-                        FontCurvePoint p1 = NormalizeOutlinePoint(glyph, MakeMidpoint(current, next));
-                        FontCurvePoint p2 = NormalizeOutlinePoint(glyph, next);
-                        StoreEncodedQuadratic(font_map, curve_texel + encoded_curve_index * 2, p0, p1, p2);
+                        PushEncodedQuadratic(curves, glyph, current, MakeMidpoint(current, next), next);
                         current = next;
-                        ++encoded_curve_index;
                     }
                     break;
                 case FONT_CURVE_QUADRATIC_TO:
                     if (has_current)
                     {
-                        FontCurvePoint p0 = NormalizeOutlinePoint(glyph, current);
-                        FontCurvePoint p1 = NormalizeOutlinePoint(glyph, command.m_Points[0]);
-                        FontCurvePoint p2 = NormalizeOutlinePoint(glyph, command.m_Points[1]);
-                        StoreEncodedQuadratic(font_map, curve_texel + encoded_curve_index * 2, p0, p1, p2);
+                        PushEncodedQuadratic(curves, glyph, current, command.m_Points[0], command.m_Points[1]);
                         current = command.m_Points[1];
-                        ++encoded_curve_index;
                     }
                     break;
                 case FONT_CURVE_CLOSE:
                     if (has_current && has_contour && !IsSameOutlinePoint(current, contour_start))
                     {
-                        FontCurvePoint p0 = NormalizeOutlinePoint(glyph, current);
-                        FontCurvePoint p1 = NormalizeOutlinePoint(glyph, MakeMidpoint(current, contour_start));
-                        FontCurvePoint p2 = NormalizeOutlinePoint(glyph, contour_start);
-                        StoreEncodedQuadratic(font_map, curve_texel + encoded_curve_index * 2, p0, p1, p2);
-                        ++encoded_curve_index;
+                        PushEncodedQuadratic(curves, glyph, current, MakeMidpoint(current, contour_start), contour_start);
                     }
                     has_current = false;
                     has_contour = false;
@@ -1091,17 +1037,219 @@ namespace dmRender
             }
         }
 
+    }
+
+    struct CurveBandRef
+    {
+        uint32_t m_CurveIndex;
+        float    m_SortKey;
+    };
+
+    static void CollectHorizontalBand(const std::vector<EncodedVectorCurve>& curves,
+                                      float band_min_y,
+                                      float band_max_y,
+                                      std::vector<uint32_t>& out_curve_indices)
+    {
+        std::vector<CurveBandRef> refs;
+        refs.reserve(curves.size());
+
+        for (uint32_t i = 0; i < curves.size(); ++i)
+        {
+            const EncodedVectorCurve& curve = curves[i];
+            if (curve.m_MaxY >= band_min_y && curve.m_MinY <= band_max_y)
+            {
+                CurveBandRef ref = { i, curve.m_MaxX };
+                refs.push_back(ref);
+            }
+        }
+
+        std::sort(refs.begin(), refs.end(), [](const CurveBandRef& a, const CurveBandRef& b) {
+            return a.m_SortKey > b.m_SortKey;
+        });
+
+        out_curve_indices.reserve(refs.size());
+        for (uint32_t i = 0; i < refs.size(); ++i)
+        {
+            out_curve_indices.push_back(refs[i].m_CurveIndex);
+        }
+    }
+
+    static void CollectVerticalBand(const std::vector<EncodedVectorCurve>& curves,
+                                    float band_min_x,
+                                    float band_max_x,
+                                    std::vector<uint32_t>& out_curve_indices)
+    {
+        std::vector<CurveBandRef> refs;
+        refs.reserve(curves.size());
+
+        for (uint32_t i = 0; i < curves.size(); ++i)
+        {
+            const EncodedVectorCurve& curve = curves[i];
+            if (curve.m_MaxX >= band_min_x && curve.m_MinX <= band_max_x)
+            {
+                CurveBandRef ref = { i, curve.m_MaxY };
+                refs.push_back(ref);
+            }
+        }
+
+        std::sort(refs.begin(), refs.end(), [](const CurveBandRef& a, const CurveBandRef& b) {
+            return a.m_SortKey > b.m_SortKey;
+        });
+
+        out_curve_indices.reserve(refs.size());
+        for (uint32_t i = 0; i < refs.size(); ++i)
+        {
+            out_curve_indices.push_back(refs[i].m_CurveIndex);
+        }
+    }
+
+    static inline uint32_t GetVectorBandTexelOffset(uint32_t row, uint32_t column)
+    {
+        return (row * VECTOR_BAND_TEXTURE_WIDTH + column) * 4;
+    }
+
+    static bool EncodeGlyphOutlineToVectorCache(HFontMap font_map, CacheGlyph* cache_glyph, FontGlyph* glyph)
+    {
+        if (!glyph->m_Outline.m_Commands || glyph->m_Outline.m_CommandCount == 0)
+        {
+            return false;
+        }
+
+        std::vector<EncodedVectorCurve> encoded_curves;
+        CollectEncodedQuadratics(glyph, encoded_curves);
+        uint32_t curve_count = encoded_curves.size();
+        if (curve_count == 0)
+        {
+            return false;
+        }
+
+        uint32_t required_curve_texels = curve_count * 2;
+        uint8_t num_hbands = dmMath::Clamp((uint8_t)(curve_count / 2), (uint8_t)1, VECTOR_MAX_BANDS);
+        uint8_t num_vbands = dmMath::Clamp((uint8_t)(curve_count / 2), (uint8_t)1, VECTOR_MAX_BANDS);
+
+        float min_x = encoded_curves[0].m_MinX;
+        float min_y = encoded_curves[0].m_MinY;
+        float max_x = encoded_curves[0].m_MaxX;
+        float max_y = encoded_curves[0].m_MaxY;
+        for (uint32_t i = 1; i < curve_count; ++i)
+        {
+            min_x = dmMath::Min(min_x, encoded_curves[i].m_MinX);
+            min_y = dmMath::Min(min_y, encoded_curves[i].m_MinY);
+            max_x = dmMath::Max(max_x, encoded_curves[i].m_MaxX);
+            max_y = dmMath::Max(max_y, encoded_curves[i].m_MaxY);
+        }
+
+        std::vector< std::vector<uint32_t> > hbands(num_hbands);
+        std::vector< std::vector<uint32_t> > vbands(num_vbands);
+        uint32_t total_loc_entries = 0;
+
+        float bb_h = dmMath::Max(0.0001f, max_y - min_y);
+        float bb_w = dmMath::Max(0.0001f, max_x - min_x);
+        float hband_height = bb_h / (float)num_hbands;
+        float vband_width = bb_w / (float)num_vbands;
+
+        for (uint32_t i = 0; i < num_hbands; ++i)
+        {
+            float band_min_y = min_y + hband_height * i;
+            float band_max_y = min_y + hband_height * (i + 1);
+            CollectHorizontalBand(encoded_curves, band_min_y, band_max_y, hbands[i]);
+            total_loc_entries += hbands[i].size();
+        }
+
+        for (uint32_t i = 0; i < num_vbands; ++i)
+        {
+            float band_min_x = min_x + vband_width * i;
+            float band_max_x = min_x + vband_width * (i + 1);
+            CollectVerticalBand(encoded_curves, band_min_x, band_max_x, vbands[i]);
+            total_loc_entries += vbands[i].size();
+        }
+
+        uint32_t header_size = num_hbands + num_vbands;
+        uint32_t row_width_needed = header_size + total_loc_entries;
+        if (row_width_needed > VECTOR_BAND_TEXTURE_WIDTH)
+        {
+            dmLogWarning("The vector band row is too wide to fit glyph %u in %s", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
+            return false;
+        }
+
+        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
+            font_map->m_VectorBandCursor + 1 > VECTOR_BAND_TEXTURE_HEIGHT)
+        {
+            ResetVectorCache(font_map);
+        }
+
+        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
+            font_map->m_VectorBandCursor + 1 > VECTOR_BAND_TEXTURE_HEIGHT)
+        {
+            dmLogWarning("The vector font cache is too small to fit glyph %u in %s", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
+            return false;
+        }
+
+        uint16_t curve_texel = font_map->m_VectorCurveCursor;
+        uint16_t band_index = font_map->m_VectorBandCursor;
+
+        for (uint32_t i = 0; i < encoded_curves.size(); ++i)
+        {
+            encoded_curves[i].m_CurveTexel = curve_texel + i * 2;
+            StoreEncodedQuadratic(font_map,
+                                  encoded_curves[i].m_CurveTexel,
+                                  encoded_curves[i].m_P0,
+                                  encoded_curves[i].m_P1,
+                                  encoded_curves[i].m_P2);
+        }
+
         float* band_data = font_map->m_VectorBandData;
-        band_data[band_index * 2 + 0] = (float)curve_texel;
-        band_data[band_index * 2 + 1] = (float)encoded_curve_index;
+        uint32_t loc_cursor = header_size;
+
+        for (uint32_t i = 0; i < num_hbands; ++i)
+        {
+            uint32_t texel = GetVectorBandTexelOffset(band_index, i);
+            band_data[texel + 0] = (float)hbands[i].size();
+            band_data[texel + 1] = (float)loc_cursor;
+            band_data[texel + 2] = 0.0f;
+            band_data[texel + 3] = 0.0f;
+
+            for (uint32_t j = 0; j < hbands[i].size(); ++j)
+            {
+                uint32_t loc_texel = GetVectorBandTexelOffset(band_index, loc_cursor++);
+                band_data[loc_texel + 0] = (float)encoded_curves[hbands[i][j]].m_CurveTexel;
+                band_data[loc_texel + 1] = 0.0f;
+                band_data[loc_texel + 2] = 0.0f;
+                band_data[loc_texel + 3] = 0.0f;
+            }
+        }
+
+        for (uint32_t i = 0; i < num_vbands; ++i)
+        {
+            uint32_t texel = GetVectorBandTexelOffset(band_index, num_hbands + i);
+            band_data[texel + 0] = (float)vbands[i].size();
+            band_data[texel + 1] = (float)loc_cursor;
+            band_data[texel + 2] = 0.0f;
+            band_data[texel + 3] = 0.0f;
+
+            for (uint32_t j = 0; j < vbands[i].size(); ++j)
+            {
+                uint32_t loc_texel = GetVectorBandTexelOffset(band_index, loc_cursor++);
+                band_data[loc_texel + 0] = (float)encoded_curves[vbands[i][j]].m_CurveTexel;
+                band_data[loc_texel + 1] = 0.0f;
+                band_data[loc_texel + 2] = 0.0f;
+                band_data[loc_texel + 3] = 0.0f;
+            }
+        }
 
         font_map->m_VectorCurveCursor += required_curve_texels;
-        font_map->m_VectorBandCursor += required_band_texels;
+        font_map->m_VectorBandCursor += 1;
 
         cache_glyph->m_VectorCurveTexel = curve_texel;
         cache_glyph->m_VectorCurveTexelCount = required_curve_texels;
         cache_glyph->m_VectorBandIndex = band_index;
-        cache_glyph->m_VectorCurveCount = encoded_curve_index;
+        cache_glyph->m_VectorCurveCount = curve_count;
+        cache_glyph->m_VectorBandMaxX = num_vbands - 1;
+        cache_glyph->m_VectorBandMaxY = num_hbands - 1;
+        cache_glyph->m_VectorBandScaleX = bb_w > 0.0f ? (float)num_vbands / bb_w : 0.0f;
+        cache_glyph->m_VectorBandScaleY = bb_h > 0.0f ? (float)num_hbands / bb_h : 0.0f;
+        cache_glyph->m_VectorBandOffsetX = -min_x * cache_glyph->m_VectorBandScaleX;
+        cache_glyph->m_VectorBandOffsetY = -min_y * cache_glyph->m_VectorBandScaleY;
 
         UploadVectorTextures(font_map);
         return true;

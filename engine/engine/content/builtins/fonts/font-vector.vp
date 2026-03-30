@@ -6,12 +6,14 @@ in mediump vec4 texcoord;
 in mediump vec4 jacobian;
 in mediump vec4 banding;
 in lowp vec4 color;
+in mediump vec4 sdf_params;
 
 out mediump vec2 var_texcoord;
 out mediump vec4 var_color;
 out mediump vec4 var_banding;
 out mediump vec4 var_jacobian;
 out mediump vec4 var_glyph;
+out mediump vec4 var_params;
 
 uniform vs_uniforms
 {
@@ -25,6 +27,7 @@ void main()
     var_color = color;
     var_banding = banding;
     var_jacobian = jacobian;
-    var_glyph = texcoord;
-    gl_Position = view_proj * vec4(position.xyz, 1.0);
+    var_glyph = vec4(texcoord.z, texcoord.w, position.z, position.w);
+    var_params = sdf_params;
+    gl_Position = view_proj * vec4(position.xy, 0.0, 1.0);
 }

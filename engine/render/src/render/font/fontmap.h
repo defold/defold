@@ -116,8 +116,14 @@ namespace dmRender
         int16_t     m_Y;                     // The top left texel in the cache texture
         uint16_t    m_VectorCurveTexel;      // First curve texel for vector glyphs
         uint16_t    m_VectorCurveTexelCount; // Number of curve texels used by the glyph
-        uint16_t    m_VectorBandIndex;       // Band/header texel index for vector glyphs
+        uint16_t    m_VectorBandIndex;       // Band/header row index for vector glyphs
         uint16_t    m_VectorCurveCount;      // Number of encoded quadratic segments
+        uint8_t     m_VectorBandMaxX;        // Maximum vertical band index
+        uint8_t     m_VectorBandMaxY;        // Maximum horizontal band index
+        float       m_VectorBandScaleX;      // Vertical band scale
+        float       m_VectorBandScaleY;      // Horizontal band scale
+        float       m_VectorBandOffsetX;     // Vertical band offset
+        float       m_VectorBandOffsetY;     // Horizontal band offset
         // TODO: add page here as well
         // private
         uint64_t    m_GlyphKey;
