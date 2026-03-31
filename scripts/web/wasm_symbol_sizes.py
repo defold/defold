@@ -220,7 +220,7 @@ def main():
     if not wasm_map_path.is_file():
         print(
             f"note: source map not found: {wasm_map_path}. "
-            f"Rebuild with --wasm-size-analysis if you want source-level attribution.",
+            f"Rebuild with --size-analyze if you want source-level attribution.",
             file=sys.stderr,
         )
 

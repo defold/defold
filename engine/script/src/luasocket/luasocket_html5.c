@@ -70,14 +70,12 @@ static int global_unload(lua_State *L) {
 }
 
 static int global_unsupported(lua_State *L) {
-    (void) L;
     lua_pushnil(L);
     lua_pushliteral(L, "LuaSocket networking is not supported on HTML5");
     return 2;
 }
 
 static int global_dns_unsupported(lua_State *L) {
-    (void) L;
     lua_pushnil(L);
     lua_pushliteral(L, "LuaSocket DNS is not supported on HTML5");
     return 2;
