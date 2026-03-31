@@ -32,7 +32,6 @@
 #include "../../../graphics/src/graphics_private.h"
 #include "../../../graphics/src/null/graphics_null_private.h"
 #include "../../../graphics/src/test/test_graphics_util.h"
-#include <graphics/graphics_util.h>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -45,6 +44,8 @@
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
+const static uint32_t COLOR_WHITE_RGBA = 0xffffffffu;
+const static uint32_t COLOR_TRANSPARENT_RGBA = 0x00000000u;
 
 #define EPSILON 0.0001f
 #define ASSERT_VEC4(exp, act)\
@@ -1853,9 +1854,9 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
 
     dmRender::TextEntry te = {};
     te.m_Transform = Matrix4::identity();
-    te.m_FaceColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 1.0f));
-    te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
-    te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = COLOR_TRANSPARENT_RGBA;
+    te.m_ShadowColor = COLOR_TRANSPARENT_RGBA;
     te.m_Width = settings.m_Width;
     te.m_Height = 0.0f;
     te.m_Leading = settings.m_Leading;
@@ -1900,9 +1901,9 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
 
     dmRender::TextEntry te = {};
     te.m_Transform = Matrix4::identity();
-    te.m_FaceColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 1.0f));
-    te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
-    te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_OutlineColor = COLOR_TRANSPARENT_RGBA;
+    te.m_ShadowColor = COLOR_TRANSPARENT_RGBA;
     te.m_Width = 128.0f;
     te.m_Height = 0.0f;
     te.m_Leading = 1.0f;
