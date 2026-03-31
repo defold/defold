@@ -503,16 +503,16 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (rt->m_TextureColor[i])
+            if (rt->m_Base.m_TextureColor[i])
             {
-                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
                 TouchResource(context, texture_color);
             }
         }
 
-        if (rt->m_TextureDepthStencil)
+        if (rt->m_Base.m_TextureDepthStencil)
         {
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
             TouchResource(context, depth_stencil_texture);
         }
     }
@@ -1711,7 +1711,7 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        bool has_depth_stencil_texture = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil;
+        bool has_depth_stencil_texture = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil;
         bool clear_depth_stencil       = flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
 
         float r = ((float)red)/255.0f;
@@ -1751,7 +1751,7 @@ bail:
             }
             else
             {
-                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil)->m_Format;
+                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureDepthStencil)->m_Format;
             }
 
             VkImageAspectFlags vk_aspect = 0;
@@ -3692,12 +3692,12 @@ bail:
 
         for (int i = 0; i < num_color_textures; ++i)
         {
-            rtOut->m_TextureColor[i] = color_textures[i];
+            rtOut->m_Base.m_TextureColor[i] = color_textures[i];
             rtOut->m_ColorAttachmentBufferTypes[i] = buffer_types[i];
         }
 
         rtOut->m_ColorAttachmentCount = num_color_textures;
-        rtOut->m_TextureDepthStencil  = depth_stencil_texture;
+        rtOut->m_Base.m_TextureDepthStencil  = depth_stencil_texture;
         rtOut->m_Extent.width         = fb_width;
         rtOut->m_Extent.height        = fb_height;
         rtOut->m_Base.m_Width         = fb_width;
@@ -3887,15 +3887,15 @@ bail:
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            if (rt->m_TextureColor[i])
+            if (rt->m_Base.m_TextureColor[i])
             {
-                DeleteTexture(_context, rt->m_TextureColor[i]);
+                DeleteTexture(_context, rt->m_Base.m_TextureColor[i]);
             }
         }
 
-        if (rt->m_TextureDepthStencil)
+        if (rt->m_Base.m_TextureDepthStencil)
         {
-            DeleteTexture(_context, rt->m_TextureDepthStencil);
+            DeleteTexture(_context, rt->m_Base.m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(context, rt);
@@ -3918,11 +3918,11 @@ bail:
 
         if (IsColorBufferType(buffer_type))
         {
-            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+            return rt->m_Base.m_TextureColor[GetBufferTypeIndex(buffer_type)];
         }
         else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
         {
-            return rt->m_TextureDepthStencil;
+            return rt->m_Base.m_TextureDepthStencil;
         }
         return 0;
     }
@@ -3937,9 +3937,9 @@ bail:
             rt->m_ColorTextureParams[i].m_Width = width;
             rt->m_ColorTextureParams[i].m_Height = height;
 
-            if (rt->m_TextureColor[i])
+            if (rt->m_Base.m_TextureColor[i])
             {
-                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
@@ -3969,12 +3969,12 @@ bail:
             }
         }
 
-        if (rt->m_TextureDepthStencil)
+        if (rt->m_Base.m_TextureDepthStencil)
         {
             rt->m_DepthStencilTextureParams.m_Width = width;
             rt->m_DepthStencilTextureParams.m_Height = height;
 
-            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
             DestroyResourceDeferred(context, depth_stencil_texture);
 
             // Check tiling support for this format
@@ -4001,10 +4001,10 @@ bail:
 
         DestroyRenderTarget(context, rt);
         VkResult res = CreateRenderTarget(context,
-            rt->m_TextureColor,
+            rt->m_Base.m_TextureColor,
             rt->m_ColorAttachmentBufferTypes,
             rt->m_ColorAttachmentCount,
-            rt->m_TextureDepthStencil,
+            rt->m_Base.m_TextureDepthStencil,
             width, height,
             rt);
         CHECK_VK_ERROR(res);

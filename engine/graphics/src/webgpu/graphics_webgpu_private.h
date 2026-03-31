@@ -147,8 +147,6 @@ namespace dmGraphics
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
 
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture     m_TextureDepthStencil;
 
         float        m_Scissor[4];
         uint8_t      m_Multisample;

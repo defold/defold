@@ -45,13 +45,16 @@ namespace dmGraphics
 
     // Shared render target metadata embedded as m_Base in each backend render target (OpenGLRenderTarget, VulkanRenderTarget, etc.).
     // Each adapter keeps RenderTarget as the first member so GetAssetFromContainer<RenderTarget>(container, handle) is valid
-    // alongside GetAssetFromContainer<BackendRenderTarget>(...).
+    // alongside GetAssetFromContainer<BackendRenderTarget>(...). Color / depth–stencil attachment textures are stored here;
+    // adapters may keep extra fields for resolve targets, renderbuffers, or API-specific data.
     struct RenderTarget
     {
         uint32_t m_Width;
         uint32_t m_Height;
         uint32_t m_BufferTypeFlags;
         uint32_t m_Id;
+        HTexture m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture m_TextureDepthStencil;
     };
 
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;

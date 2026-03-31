@@ -71,12 +71,8 @@ namespace dmGraphics
 
     struct OpenGLRenderTargetAttachment
     {
-        TextureParams m_Params;
-        union
-        {
-            HTexture  m_Texture;
-            HOpenglID m_Buffer;
-        };
+        TextureParams  m_Params;
+        HOpenglID      m_Buffer; // valid when m_Type == ATTACHMENT_TYPE_BUFFER; texture handles live in OpenGLRenderTarget::m_Base
         AttachmentType m_Type;
         bool           m_Attached;
     };

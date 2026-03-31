@@ -37,7 +37,6 @@ namespace dmGraphics
     VulkanRenderTarget::VulkanRenderTarget(const uint32_t rtId)
         : m_Base{}
         , m_SubPasses(0)
-        , m_TextureDepthStencil(0)
         , m_Destroyed(0)
         , m_IsBound(0)
         , m_ColorAttachmentCount(0)
@@ -47,7 +46,6 @@ namespace dmGraphics
         m_Base.m_Id = rtId;
         m_Extent.width            = 0;
         m_Extent.height           = 0;
-        memset(m_TextureColor, 0, sizeof(m_TextureColor));
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 

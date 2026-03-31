@@ -177,8 +177,6 @@ namespace dmGraphics
         TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_DepthStencilTextureParams;
         SubPass*       m_SubPasses;
-        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture       m_TextureDepthStencil;
 
         VkExtent2D     m_Extent;
         VkRect2D       m_Scissor;

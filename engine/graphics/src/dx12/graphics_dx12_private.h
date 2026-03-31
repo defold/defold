@@ -159,9 +159,6 @@ namespace dmGraphics
         TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthStencilTextureParams;
 
-        HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture              m_TextureDepthStencil;
-
         DXGI_FORMAT           m_Format;
         DXGI_SAMPLE_DESC      m_SampleDesc;
 
