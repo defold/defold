@@ -29,10 +29,12 @@
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
 #include <dlib/transform.h>
+#include <dmsdk/dlib/utf8.h>
 #include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <font/text_layout.h>
+#include <render/font/fontmap.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
 
@@ -80,6 +82,8 @@ namespace dmGameSystem
         float                       m_Tracking;
 
         const char*                 m_Text;
+        HTextLayout                 m_TextLayout;
+        uint32_t                    m_TextLayoutFontVersion;
 
         uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
@@ -87,7 +91,8 @@ namespace dmGameSystem
         uint16_t                    m_UserAllocatedText : 1;
         uint16_t                    m_ReHash : 1;
         uint16_t                    m_LineBreak : 1;
-        uint16_t                    m_Padding : 11;
+        uint16_t                    m_TextLayoutDirty : 1;
+        uint16_t                    m_Padding : 10;
     };
 
     struct LabelWorld
@@ -103,6 +108,9 @@ namespace dmGameSystem
     static const dmhash_t LABEL_PROP_LEADING = dmHashString64("leading");
     static const dmhash_t LABEL_PROP_TRACKING = dmHashString64("tracking");
     static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashString64("line_break");
+
+    static void InvalidateTextLayout(LabelComponent* component);
+    static HTextLayout GetOrCreateTextLayout(LabelComponent* component);
 
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -125,6 +133,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i )
         {
             LabelComponent& component = components[i];
+            InvalidateTextLayout(&component);
             if (component.m_UserAllocatedText)
             {
                 free((void*)component.m_Text);
@@ -150,6 +159,74 @@ namespace dmGameSystem
     static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
         FontResource* font = GetFontResource(component, resource);
         return dmGameSystem::ResFontGetHandle(font);
+    }
+
+    static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
+    {
+        uint32_t len = dmUtf8::StrLen(text);
+        codepoints.SetCapacity(len);
+        codepoints.SetSize(0);
+        const char* cursor = text;
+        while (uint32_t c = dmUtf8::NextChar(&cursor))
+        {
+            codepoints.Push(c);
+        }
+        return len;
+    }
+
+    static void InvalidateTextLayout(LabelComponent* component)
+    {
+        if (component->m_TextLayout)
+        {
+            TextLayoutFree(component->m_TextLayout);
+            component->m_TextLayout = 0;
+        }
+        component->m_TextLayoutFontVersion = 0;
+        component->m_TextLayoutDirty = 1;
+    }
+
+    static HTextLayout GetOrCreateTextLayout(LabelComponent* component)
+    {
+        FontResource* font_resource = GetFontResource(component, component->m_Resource);
+        uint32_t font_version = font_resource ? ResFontGetVersion(font_resource) : 0;
+
+        if (!component->m_TextLayoutDirty && component->m_TextLayout && font_resource &&
+            component->m_TextLayoutFontVersion == font_version)
+        {
+            return component->m_TextLayout;
+        }
+
+        InvalidateTextLayout(component);
+
+        dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
+        if (!font_map || !component->m_Text)
+            return 0;
+
+        TextLayoutSettings settings = {0};
+        settings.m_Width = component->m_Size.getX();
+        settings.m_LineBreak = component->m_LineBreak;
+        settings.m_Leading = component->m_Leading;
+        settings.m_Tracking = component->m_Tracking;
+        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+
+        dmArray<uint32_t> codepoints;
+        TextToCodePoints(component->m_Text, codepoints);
+
+        HTextLayout layout = 0;
+        TextResult r = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints.Begin(), codepoints.Size(), &settings, &layout);
+        if (r != TEXT_RESULT_OK)
+        {
+            if (layout)
+                TextLayoutFree(layout);
+            return 0;
+        }
+
+        component->m_TextLayout = layout;
+        component->m_TextLayoutFontVersion = font_version;
+        component->m_TextLayoutDirty = 0;
+        return component->m_TextLayout;
     }
 
     void ReHash(LabelComponent* component)
@@ -236,6 +313,7 @@ namespace dmGameSystem
         label_component->m_Pivot    = label_desc->m_Pivot;
         label_component->m_Text = label_desc->m_Text;
         label_component->m_ReHash = 1;
+        label_component->m_TextLayoutDirty = 1;
         label_component->m_Leading = label_desc->m_Leading;
         label_component->m_Tracking = label_desc->m_Tracking;
         label_component->m_LineBreak = label_desc->m_LineBreak;
@@ -281,6 +359,7 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
 
         LabelComponent& component = world->m_Components.Get(index);
+        InvalidateTextLayout(&component);
         if (component.m_UserAllocatedText)
         {
             component.m_UserAllocatedText = 0;
@@ -486,6 +565,7 @@ namespace dmGameSystem
 
             dmRender::DrawTextParams text_params;
             CreateDrawTextParams(component, text_params);
+            text_params.m_TextLayout = GetOrCreateTextLayout(component);
 
             if (component->m_RenderConstants)
             {
@@ -550,6 +630,7 @@ namespace dmGameSystem
             }
             component->m_Text = strdup(textmsg->m_Text);
             component->m_UserAllocatedText = 1;
+            InvalidateTextLayout(component);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -562,6 +643,7 @@ namespace dmGameSystem
 
         LabelWorld* label_world = (LabelWorld*)params.m_World;
         LabelComponent* component = &label_world->m_Components.Get(*params.m_UserData);
+        InvalidateTextLayout(component);
         InitParametersFromDescription(component, ddf);
     }
 
@@ -576,7 +658,14 @@ namespace dmGameSystem
     // DEPRECATED
     void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics)
     {
-        dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+        LabelComponent* mutable_component = const_cast<LabelComponent*>(component);
+        dmRender::HFontMap font_map = GetFontMap(mutable_component, mutable_component->m_Resource);
+        HTextLayout layout = GetOrCreateTextLayout(mutable_component);
+        if (layout)
+        {
+            dmRender::GetTextMetrics(font_map, layout, &metrics);
+            return;
+        }
 
         TextLayoutSettings settings = {0};
         settings.m_Width = component->m_Size.getX();
@@ -661,7 +750,10 @@ namespace dmGameSystem
         }
         else if (IsReferencingProperty(LABEL_PROP_SIZE, set_property))
         {
-            return SetProperty(set_property, params.m_Value, component->m_Size, LABEL_PROP_SIZE);
+            dmGameObject::PropertyResult res = SetProperty(set_property, params.m_Value, component->m_Size, LABEL_PROP_SIZE);
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+                InvalidateTextLayout(component);
+            return res;
         }
         else if (IsReferencingProperty(LABEL_PROP_COLOR, set_property))
         {
@@ -685,6 +777,8 @@ namespace dmGameSystem
         {
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&component->m_Font);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+                InvalidateTextLayout(component);
             return res;
         }
         else if (set_property == LABEL_PROP_LEADING)
@@ -694,6 +788,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
             component->m_Leading = params.m_Value.m_Number;
+            InvalidateTextLayout(component);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (set_property == LABEL_PROP_TRACKING)
@@ -703,6 +798,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
             component->m_Tracking = params.m_Value.m_Number;
+            InvalidateTextLayout(component);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (set_property == LABEL_PROP_LINE_BREAK)
@@ -712,6 +808,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
             component->m_LineBreak = params.m_Value.m_Bool;
+            InvalidateTextLayout(component);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 

@@ -18,6 +18,7 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/font/text_layout.h>
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
@@ -155,6 +156,7 @@ namespace dmRender
         HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
         HFontMap            m_FontMap;
         HMaterial           m_Material;
+        HTextLayout         m_TextLayout;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
@@ -506,4 +508,3 @@ namespace dmRender
 }
 
 #endif
-

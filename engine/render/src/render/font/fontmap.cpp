@@ -331,6 +331,23 @@ namespace dmRender
         GetTextMetrics(font_map->m_FontRenderBackend, font_map, text, settings, metrics);
     }
 
+    void GetTextMetrics(HFontMap font_map, HTextLayout layout, TextMetrics* metrics)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+
+        metrics->m_Width = 0.0f;
+        metrics->m_Height = 0.0f;
+        metrics->m_MaxAscent = font_map->m_MaxAscent;
+        metrics->m_MaxDescent = font_map->m_MaxDescent;
+        metrics->m_LineCount = 0;
+
+        if (layout)
+        {
+            TextLayoutGetBounds(layout, &metrics->m_Width, &metrics->m_Height);
+            metrics->m_LineCount = TextLayoutGetLineCount(layout);
+        }
+    }
+
     uint64_t MakeGlyphIndexKey(HFont font, uint32_t glyph_index)
     {
         uint64_t path_hash = (uint64_t)FontGetPathHash(font);

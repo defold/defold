@@ -55,6 +55,7 @@ namespace dmGameSystem
     FontResource::FontResource()
     {
         memset(this, 0, sizeof(*this));
+        m_Version = 1;
     }
 
     // Used when recreating a font
@@ -329,6 +330,26 @@ namespace dmGameSystem
 
         }
         return dmResource::RESULT_OK;
+    }
+
+    static void SetupDynamicFontState(dmResource::HFactory factory, FontResource* font)
+    {
+        if (font->m_TTFResources.Full())
+        {
+            font->m_TTFResources.OffsetCapacity(4);
+            font->m_FontHashes.OffsetCapacity(4);
+        }
+
+        HFont hfont = dmGameSystem::GetFont(font->m_TTFResource);
+        uint32_t font_hash = FontGetPathHash(hfont);
+        dmhash_t ttf_hash;
+        dmResource::GetPath(factory, font->m_TTFResource, &ttf_hash);
+
+        font->m_TTFResources.Put(ttf_hash, font->m_TTFResource);
+        font->m_FontHashes.Put(font_hash, ttf_hash);
+
+        font->m_Jobs = dmResource::GetJobThread(factory);
+        font->m_PendingJobs.SetCapacity(1); // each font will need at least one job
     }
 
     static float CalcPadding(dmRenderDDF::FontMap* ddf, float* outline_padding, float* shadow_padding)
@@ -670,23 +691,7 @@ namespace dmGameSystem
                 return dmResource::RESULT_NOT_SUPPORTED;
             }
 
-            if (font->m_TTFResources.Full())
-            {
-                font->m_TTFResources.OffsetCapacity(4);
-                font->m_FontHashes.OffsetCapacity(4);
-            }
-
-            HFont hfont = dmGameSystem::GetFont(font->m_TTFResource);
-            uint32_t font_hash = FontGetPathHash(hfont);
-            dmhash_t ttf_hash;
-            dmResource::GetPath(params->m_Factory, font->m_TTFResource, &ttf_hash);
-
-            font->m_TTFResources.Put(ttf_hash, font->m_TTFResource);
-            font->m_FontHashes.Put(font_hash, ttf_hash);
-
-            font->m_Jobs = dmResource::GetJobThread(params->m_Factory);
-
-            font->m_PendingJobs.SetCapacity(1); // each font will need at least one job
+            SetupDynamicFontState(params->m_Factory, font);
         }
 
         r = CreateFont((dmRender::HRenderContext) params->m_Context, ddf, path, font);
@@ -747,6 +752,11 @@ namespace dmGameSystem
             return r;
         }
 
+        if (IsDynamic(ddf))
+        {
+            SetupDynamicFontState(params->m_Factory, tmp_font_map);
+        }
+
         r = CreateFont((dmRender::HRenderContext) params->m_Context, ddf, path, tmp_font_map);
         if (r != dmResource::RESULT_OK)
         {
@@ -763,6 +773,7 @@ namespace dmGameSystem
         PrewarmFont(params->m_Factory, path, resource_font_map);
         DeleteFontResource(params->m_Factory, tmp_font_map);
 
+        ++resource_font_map->m_Version;
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(resource_font_map));
         return dmResource::RESULT_OK;
     }
@@ -772,6 +783,11 @@ namespace dmGameSystem
     dmRender::HFontMap ResFontGetHandle(FontResource* resource)
     {
         return resource->m_FontMap;
+    }
+
+    uint32_t ResFontGetVersion(FontResource* resource)
+    {
+        return resource->m_Version;
     }
 
     dmResource::Result ResFontGetInfo(FontResource* resource, FontInfo* desc)
@@ -867,7 +883,12 @@ namespace dmGameSystem
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
-        return AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        r = AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        if (r == dmResource::RESULT_OK)
+        {
+            ++resource->m_Version;
+        }
+        return r;
     }
 
     dmResource::Result ResFontAddFontByPath(dmResource::HFactory factory, FontResource* resource, const char* ttf_path)
@@ -889,7 +910,12 @@ namespace dmGameSystem
         dmhash_t ttf_hash;
         dmResource::GetPath(factory, ttfresource, &ttf_hash); // We get it like this in case the path != canonical path
 
-        return AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        r = AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        if (r == dmResource::RESULT_OK)
+        {
+            ++resource->m_Version;
+        }
+        return r;
     }
 
     dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash)
@@ -925,6 +951,7 @@ namespace dmGameSystem
             return dmResource::RESULT_INVALID_DATA;
         }
 
+        ++font->m_Version;
         return dmResource::RESULT_OK;
     }
 

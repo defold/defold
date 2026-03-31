@@ -32,6 +32,7 @@
 #include "../../../graphics/src/graphics_private.h"
 #include "../../../graphics/src/null/graphics_null_private.h"
 #include "../../../graphics/src/test/test_graphics_util.h"
+#include <graphics/graphics_util.h>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -84,6 +85,70 @@ static void DestroyGlyphBank(dmRenderDDF::GlyphBank* bank)
     delete[] bank->m_Glyphs.m_Data;
     delete bank;
 }
+
+static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
+{
+    uint32_t len = dmUtf8::StrLen(text);
+    codepoints.SetCapacity(len);
+    codepoints.SetSize(0);
+    const char* cursor = text;
+    while (uint32_t c = dmUtf8::NextChar(&cursor))
+    {
+        codepoints.Push(c);
+    }
+    return len;
+}
+
+static HTextLayout CreateTextLayout(dmRender::HFontMap font_map, const char* text, const TextLayoutSettings& settings)
+{
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints(text, codepoints);
+
+    TextLayoutSettings layout_settings = settings;
+    HTextLayout layout = 0;
+    TextResult r = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints.Begin(), codepoints.Size(), &layout_settings, &layout);
+    EXPECT_EQ(TEXT_RESULT_OK, r);
+    EXPECT_NE((HTextLayout)0, layout);
+    return layout;
+}
+
+static uint32_t QueueTextAndCopyVertices(dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const dmRender::DrawTextParams& params, dmArray<uint8_t>& out_vertices, HTextLayout* out_layout, float* out_radius_sq)
+{
+    dmRender::RenderListBegin(render_context);
+    dmRender::DrawText(render_context, font_map, 0, 0, params);
+
+    dmRender::TextContext& text_context = render_context->m_TextContext;
+    if (out_layout)
+    {
+        *out_layout = text_context.m_TextEntries.Size() > 0 ? text_context.m_TextEntries[0].m_TextLayout : 0;
+    }
+    if (out_radius_sq)
+    {
+        *out_radius_sq = text_context.m_TextEntries.Size() > 0 ? text_context.m_TextEntries[0].m_FrustumCullingRadiusSq : 0.0f;
+    }
+
+    dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(render_context);
+    dmRender::DrawRenderList(render_context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t vertex_count = text_context.m_VertexIndex;
+    uint32_t vertex_stride = dmRender::GetFontVertexSize(text_context.m_FontRenderBackend);
+    uint32_t byte_count = vertex_count * vertex_stride;
+
+    out_vertices.SetCapacity(byte_count);
+    out_vertices.SetSize(byte_count);
+    if (byte_count > 0)
+    {
+        memcpy(out_vertices.Begin(), text_context.m_ClientBuffer, byte_count);
+    }
+
+    return vertex_count;
+}
+
+struct TestGlyphVertex
+{
+    float m_Position[4];
+};
 
 
 class dmRenderTest : public jc_test_base_class
@@ -1741,6 +1806,214 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(numlines, metrics.m_LineCount);
 
     dmRender::DestroyFontRenderBackend(font_backend);
+}
+
+TEST_F(dmRenderTest, GetPreparedTextMetrics)
+{
+    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
+
+    const char* text = "Hello World Bonanza";
+    TextLayoutSettings settings = {0};
+    settings.m_Width = 16.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+    settings.m_LineBreak = true;
+
+    dmRender::TextMetrics raw_metrics = {0};
+    dmRender::GetTextMetrics(font_backend, m_SystemFontMap, text, &settings, &raw_metrics);
+
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
+    ASSERT_NE((HTextLayout)0, layout);
+    dmRender::TextMetrics prepared_metrics = {0};
+    dmRender::GetTextMetrics(m_SystemFontMap, layout, &prepared_metrics);
+
+    ASSERT_EQ(raw_metrics.m_Width, prepared_metrics.m_Width);
+    ASSERT_EQ(raw_metrics.m_Height, prepared_metrics.m_Height);
+    ASSERT_EQ(raw_metrics.m_MaxAscent, prepared_metrics.m_MaxAscent);
+    ASSERT_EQ(raw_metrics.m_MaxDescent, prepared_metrics.m_MaxDescent);
+    ASSERT_EQ(raw_metrics.m_LineCount, prepared_metrics.m_LineCount);
+
+    TextLayoutFree(layout);
+    dmRender::DestroyFontRenderBackend(font_backend);
+}
+
+TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
+{
+    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
+
+    const char* text = "Hello World Bonanza";
+    const uint32_t max_vertices = 128;
+    const uint32_t vertex_stride = dmRender::GetFontVertexSize(font_backend);
+
+    TextLayoutSettings settings = {0};
+    settings.m_Width = 16.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+    settings.m_LineBreak = true;
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+    te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+    te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+    te.m_Width = settings.m_Width;
+    te.m_Height = 0.0f;
+    te.m_Leading = settings.m_Leading;
+    te.m_Tracking = settings.m_Tracking;
+    te.m_LineBreak = settings.m_LineBreak;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+
+    dmArray<uint8_t> raw_vertices;
+    raw_vertices.SetCapacity(max_vertices * vertex_stride);
+    raw_vertices.SetSize(max_vertices * vertex_stride);
+    memset(raw_vertices.Begin(), 0, raw_vertices.Size());
+
+    uint32_t raw_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, raw_vertices.Begin(), max_vertices);
+
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
+    ASSERT_NE((HTextLayout)0, layout);
+    dmRender::TextEntry prepared_te = te;
+    prepared_te.m_TextLayout = layout;
+
+    dmArray<uint8_t> prepared_vertices;
+    prepared_vertices.SetCapacity(max_vertices * vertex_stride);
+    prepared_vertices.SetSize(max_vertices * vertex_stride);
+    memset(prepared_vertices.Begin(), 0, prepared_vertices.Size());
+
+    uint32_t prepared_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, prepared_te, 1.0f, 1.0f, 1.0f, prepared_vertices.Begin(), max_vertices);
+
+    ASSERT_EQ(raw_count, prepared_count);
+    ASSERT_EQ(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
+
+    TextLayoutFree(layout);
+    dmRender::DestroyFontRenderBackend(font_backend);
+}
+
+TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
+{
+    dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
+
+    const char* text = "Hello World";
+    const uint32_t max_vertices = 128;
+    const uint32_t vertex_stride = dmRender::GetFontVertexSize(font_backend);
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+    te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+    te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+    te.m_Width = 128.0f;
+    te.m_Height = 0.0f;
+    te.m_Leading = 1.0f;
+    te.m_Tracking = 0.0f;
+    te.m_LineBreak = false;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+
+    dmArray<uint8_t> raw_vertices;
+    raw_vertices.SetCapacity(max_vertices * vertex_stride);
+    raw_vertices.SetSize(max_vertices * vertex_stride);
+    memset(raw_vertices.Begin(), 0, raw_vertices.Size());
+
+    uint32_t raw_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, raw_vertices.Begin(), max_vertices);
+
+    TextLayoutSettings wrapped_settings = {0};
+    wrapped_settings.m_Width = 16.0f;
+    wrapped_settings.m_Leading = 1.0f;
+    wrapped_settings.m_Tracking = 0.0f;
+    wrapped_settings.m_LineBreak = true;
+
+    HTextLayout wrapped_layout = CreateTextLayout(m_SystemFontMap, text, wrapped_settings);
+    ASSERT_NE((HTextLayout)0, wrapped_layout);
+    dmRender::TextEntry prepared_te = te;
+    prepared_te.m_TextLayout = wrapped_layout;
+
+    dmArray<uint8_t> prepared_vertices;
+    prepared_vertices.SetCapacity(max_vertices * vertex_stride);
+    prepared_vertices.SetSize(max_vertices * vertex_stride);
+    memset(prepared_vertices.Begin(), 0, prepared_vertices.Size());
+
+    uint32_t prepared_count = dmRender::CreateFontVertexData(font_backend, m_SystemFontMap, 0, text, prepared_te, 1.0f, 1.0f, 1.0f, prepared_vertices.Begin(), max_vertices);
+
+    ASSERT_EQ(raw_count, prepared_count);
+    ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
+
+    TextLayoutFree(wrapped_layout);
+    dmRender::DestroyFontRenderBackend(font_backend);
+}
+
+TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
+{
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial old_material = dmRender::GetFontMapMaterial(m_SystemFontMap);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
+
+    const char* text = "Hello World Bonanza";
+
+    dmRender::DrawTextParams raw_params;
+    raw_params.m_Text = text;
+    raw_params.m_Width = 128.0f;
+    raw_params.m_Height = 0.0f;
+    raw_params.m_Leading = 1.0f;
+    raw_params.m_Tracking = 0.0f;
+    raw_params.m_LineBreak = false;
+    raw_params.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    raw_params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+
+    dmArray<uint8_t> raw_vertices;
+    HTextLayout queued_raw_layout = 0;
+    float raw_radius_sq = 0.0f;
+    uint32_t raw_count = QueueTextAndCopyVertices(m_Context, m_SystemFontMap, raw_params, raw_vertices, &queued_raw_layout, &raw_radius_sq);
+
+    ASSERT_EQ((HTextLayout)0, queued_raw_layout);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_GT(raw_count, 0u);
+    ASSERT_GT(raw_vertices.Size(), 0u);
+
+    TextLayoutSettings wrapped_settings = {0};
+    wrapped_settings.m_Width = 16.0f;
+    wrapped_settings.m_Leading = 1.0f;
+    wrapped_settings.m_Tracking = 0.0f;
+    wrapped_settings.m_LineBreak = true;
+
+    HTextLayout wrapped_layout = CreateTextLayout(m_SystemFontMap, text, wrapped_settings);
+    ASSERT_NE((HTextLayout)0, wrapped_layout);
+
+    dmRender::DrawTextParams prepared_params = raw_params;
+    prepared_params.m_TextLayout = wrapped_layout;
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+
+    dmArray<uint8_t> prepared_vertices;
+    HTextLayout queued_prepared_layout = 0;
+    float prepared_radius_sq = 0.0f;
+    uint32_t prepared_count = QueueTextAndCopyVertices(m_Context, m_SystemFontMap, prepared_params, prepared_vertices, &queued_prepared_layout, &prepared_radius_sq);
+
+    ASSERT_EQ(wrapped_layout, queued_prepared_layout);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(raw_count, prepared_count);
+    ASSERT_EQ(raw_vertices.Size(), prepared_vertices.Size());
+    ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_vertices.Size()));
+    ASSERT_NE(raw_radius_sq, prepared_radius_sq);
+
+    TextLayoutFree(wrapped_layout);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::SetFontMapMaterial(m_SystemFontMap, old_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 // TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)

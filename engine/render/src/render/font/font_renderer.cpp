@@ -35,6 +35,7 @@
 #include "font_renderer_api.h"   // for the font renderer backend api
 
 #include <dmsdk/font/text_layout.h>
+#include <font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
@@ -43,6 +44,19 @@ DM_PROPERTY_U32(rmtp_FontVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of v
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static inline void AssertTextLayoutMatchesFontMap(HFontMap font_map, HTextLayout layout)
+    {
+#ifndef NDEBUG
+        if (layout)
+        {
+            assert(layout->m_FontCollection == GetFontCollection(font_map));
+        }
+#else
+        (void)font_map;
+        (void)layout;
+#endif
+    }
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
@@ -116,6 +130,7 @@ namespace dmRender
     , m_OutlineColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
+    , m_TextLayout(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
@@ -250,6 +265,7 @@ namespace dmRender
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
         te.m_Material = material;
+        te.m_TextLayout = params.m_TextLayout;
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -279,11 +295,17 @@ namespace dmRender
         // legacy options for glyph bank fonts
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
-        TextMetrics metrics;
+        TextMetrics metrics = {};
 
-        // TODO: Allow for callers to have their prepared HTextLayout
-
-        GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
+        if (params.m_TextLayout)
+        {
+            AssertTextLayoutMatchesFontMap(font_map, params.m_TextLayout);
+            GetTextMetrics(font_map, params.m_TextLayout, &metrics);
+        }
+        else
+        {
+            GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
+        }
 
         // find center and radius for frustum culling
         // TODO: Calculate proper AABB

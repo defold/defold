@@ -198,6 +198,14 @@ namespace dmRender
     void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics);
 
     /**
+     * Get text metrics from a prepared layout
+     * @param font_map Font map handle
+     * @param layout prepared text layout
+     * @param metrics Metrics, out-value
+     */
+    void GetTextMetrics(HFontMap font_map, HTextLayout layout, TextMetrics* metrics);
+
+    /**
      * Get the resource size for fontmap
      * @param font_map Font map handle
      * @return size

@@ -28,15 +28,18 @@
 #include "gamesys/resources/res_font.h"
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
+#include "gamesys/resources/res_ttf.h"
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/memory.h>
 #include <dlib/time.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
+#include <dlib/utf8.h>
 #include <testmain/testmain.h>
 
 #include <font/fontcollection.h>
@@ -49,6 +52,7 @@
 #include <gameobject/gameobject_props.h>
 
 #include <gamesys/gamesys_ddf.h>
+#include <gamesys/label_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 #include "../scripts/script_sys_gamesys.h"
@@ -1168,6 +1172,91 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
 }
 
+static dmGameSystem::LabelComponent* GetLabelComponent(dmGameObject::HInstance instance, dmhash_t component_id)
+{
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld world = 0;
+    EXPECT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, component_id, &component_type, &component, &world));
+    EXPECT_NE((void*)0, component);
+    return (dmGameSystem::LabelComponent*) component;
+}
+
+static void PostLabelSetText(dmGameObject::HCollection collection, dmhash_t go_id, dmhash_t component_id, const char* text, uintptr_t user_data)
+{
+    dmMessage::URL url;
+    dmMessage::ResetURL(&url);
+    url.m_Socket = dmGameObject::GetMessageSocket(collection);
+    url.m_Path = go_id;
+    url.m_Fragment = component_id;
+
+    uint32_t text_len = strlen(text);
+    uint32_t data_size = sizeof(dmGameSystemDDF::SetText) + text_len + 1;
+    ASSERT_LE(data_size, dmMessage::DM_MESSAGE_MAX_DATA_SIZE);
+
+    uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
+    dmGameSystemDDF::SetText* message = (dmGameSystemDDF::SetText*)data;
+    message->m_Text = (const char*)sizeof(dmGameSystemDDF::SetText);
+    memcpy(data + sizeof(dmGameSystemDDF::SetText), text, text_len + 1);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, user_data, 0, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0));
+}
+
+static HTextLayout SubmitLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection, bool draw)
+{
+    dmRender::RenderListBegin(render_context);
+    dmGameObject::Render(collection);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)render_context;
+    EXPECT_EQ(1u, render_context_ptr->m_TextContext.m_TextEntries.Size());
+    HTextLayout layout = render_context_ptr->m_TextContext.m_TextEntries.Size() > 0 ? render_context_ptr->m_TextContext.m_TextEntries[0].m_TextLayout : 0;
+
+    dmRender::RenderListEnd(render_context);
+    if (draw)
+    {
+        dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    }
+    dmRender::ClearRenderObjects(render_context);
+    return layout;
+}
+
+static HTextLayout RenderLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    return SubmitLabelAndGetTextLayout(render_context, collection, true);
+}
+
+static HTextLayout PrepareLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    return SubmitLabelAndGetTextLayout(render_context, collection, false);
+}
+
+static dmhash_t GetTextLayoutGlyphFontPathHash(dmGameSystem::FontResource* font_resource, HTextLayout layout)
+{
+    EXPECT_NE((HTextLayout)0, layout);
+    if (!layout)
+        return 0;
+
+    uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
+    EXPECT_GT(glyph_count, 0u);
+    if (glyph_count == 0)
+        return 0;
+
+    return dmGameSystem::ResFontGetPathHashFromFont(font_resource, TextLayoutGetGlyphs(layout)[0].m_Font);
+}
+
+static bool FindFallbackCodepoint(HFont primary_font, HFont fallback_font, uint32_t first_codepoint, uint32_t last_codepoint, uint32_t* out_codepoint)
+{
+    for (uint32_t codepoint = first_codepoint; codepoint <= last_codepoint; ++codepoint)
+    {
+        if (FontGetGlyphIndex(primary_font, codepoint) == 0 && FontGetGlyphIndex(fallback_font, codepoint) != 0)
+        {
+            *out_codepoint = codepoint;
+            return true;
+        }
+    }
+    return false;
+}
+
 TEST_F(BufferMetadataTest, MetadataLuaApi)
 {
     // import 'resource' lua api among others
@@ -2160,35 +2249,44 @@ TEST_F(FontTest, ScriptAddRemoveFont)
     dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
     HFontCollection font_collection = dmRender::GetFontCollection(font_map);
     uint32_t font_count_before = FontCollectionGetFontCount(font_collection);
+    uint32_t font_version = dmGameSystem::ResFontGetVersion(font);
 
     // Add the font via Lua and verify refcount + collection size.
     lua_State* L = scriptlibcontext.m_LuaState;
     ASSERT_TRUE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
     ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
     ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(font_version + 1, dmGameSystem::ResFontGetVersion(font));
+    font_version = dmGameSystem::ResFontGetVersion(font);
 
     dmLogInfo("Expected errors ->");
     // Adding the same font twice should fail and keep counts intact.
     ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
     ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, ttf_hash));
     ASSERT_EQ(font_count_before + 1, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(font_version, dmGameSystem::ResFontGetVersion(font));
 
     // Remove the font via Lua and verify refcount + collection size restored.
     ASSERT_TRUE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid_copy.ttf\"))"));
     ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, ttf_hash));
     ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(font_version + 1, dmGameSystem::ResFontGetVersion(font));
+    font_version = dmGameSystem::ResFontGetVersion(font);
 
     // The default font referenced by the .fontc should not be re-added (string path).
     ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), \"/font/valid.ttf\")"));
     ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(font_version, dmGameSystem::ResFontGetVersion(font));
 
     // The default font referenced by the .fontc should not be re-added (hashed path).
     ASSERT_FALSE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid.ttf\"))"));
     ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(font_version, dmGameSystem::ResFontGetVersion(font));
 
     // The default font referenced by the .fontc should not be removable.
     ASSERT_FALSE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), hash(\"/font/valid.ttf\"))"));
     ASSERT_EQ(font_count_before, FontCollectionGetFontCount(font_collection));
+    ASSERT_EQ(font_version, dmGameSystem::ResFontGetVersion(font));
 
     dmLogInfo("<- End of expected errors.");
 
@@ -3003,6 +3101,206 @@ TEST_F(ComponentTest, GuiTextSingleFlushAndOrder)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, LabelPreparedTextLayoutInvalidation)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* label_component = GetLabelComponent(go, label_id);
+    ASSERT_NE((void*)0, label_component);
+
+    dmRender::TextMetrics initial_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, initial_metrics);
+    ASSERT_GT(initial_metrics.m_Width, 0.0f);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    PostLabelSetText(m_Collection, go_id, label_id, "Label Label Label", (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::TextMetrics text_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, text_metrics);
+    ASSERT_GT(text_metrics.m_Width, initial_metrics.m_Width);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    dmGameObject::PropertyOptions options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("tracking"), options, dmGameObject::PropertyVar(1.0f)));
+
+    dmRender::TextMetrics tracking_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, tracking_metrics);
+    ASSERT_GT(tracking_metrics.m_Width, text_metrics.m_Width);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(true)));
+
+    dmRender::TextMetrics wrapped_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, wrapped_metrics);
+    ASSERT_GT(wrapped_metrics.m_LineCount, 1u);
+    ASSERT_GT(wrapped_metrics.m_Height, tracking_metrics.m_Height);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("leading"), options, dmGameObject::PropertyVar(2.0f)));
+
+    dmRender::TextMetrics leading_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, leading_metrics);
+    ASSERT_GT(leading_metrics.m_Height, wrapped_metrics.m_Height);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("size"), options, dmGameObject::PropertyVar(Vector3(1000.0f, 1.0f, 1.0f))));
+
+    dmRender::TextMetrics resized_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, resized_metrics);
+    ASSERT_LT(resized_metrics.m_Height, leading_metrics.m_Height);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    dmGameSystem::FontResource* dynamic_font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**) &dynamic_font_resource));
+    ASSERT_NE((void*)0, dynamic_font_resource);
+
+    const dmhash_t dynamic_font = dmHashString64("/font/dyn_glyph_bank_test_1.fontc");
+    const dmhash_t default_dynamic_ttf = dmHashString64("/font/valid.ttf");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetResourceProperty(go, label_id, dmHashString64("font"), dynamic_font));
+
+    dmRender::TextMetrics dynamic_font_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, dynamic_font_metrics);
+    ASSERT_GT(dynamic_font_metrics.m_Width, 0.0f);
+
+    HTextLayout dynamic_font_layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, dynamic_font_layout);
+    ASSERT_EQ(default_dynamic_ttf, GetTextLayoutGlyphFontPathHash(dynamic_font_resource, dynamic_font_layout));
+
+    uint32_t dynamic_font_version = dmGameSystem::ResFontGetVersion(dynamic_font_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", 0));
+    ASSERT_EQ(dynamic_font_version + 1, dmGameSystem::ResFontGetVersion(dynamic_font_resource));
+
+    dmRender::TextMetrics reloaded_dynamic_font_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(label_component, reloaded_dynamic_font_metrics);
+    ASSERT_GT(reloaded_dynamic_font_metrics.m_Width, 0.0f);
+
+    HTextLayout reloaded_dynamic_font_layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, reloaded_dynamic_font_layout);
+    ASSERT_EQ(default_dynamic_ttf, GetTextLayoutGlyphFontPathHash(dynamic_font_resource, reloaded_dynamic_font_layout));
+
+    DeleteInstance(m_Collection, go);
+    dmResource::Release(m_Factory, dynamic_font_resource);
+
+    const dmhash_t font_go_id = dmHashString64("/font_go");
+    dmGameObject::HInstance font_go = Spawn(m_Factory, m_Collection, "/resource/res_getset_prop.goc", font_go_id);
+    ASSERT_NE((void*)0, font_go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::LabelComponent* font_label_component = GetLabelComponent(font_go, label_id);
+    ASSERT_NE((void*)0, font_label_component);
+
+    void* replacement_font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/resource/font.fontc", &replacement_font_resource));
+
+    const dmhash_t replacement_font = dmHashString64("/resource/font.fontc");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetResourceProperty(font_go, label_id, dmHashString64("font"), replacement_font));
+
+    dmhash_t font_hash = 0;
+    GetResourceProperty(font_go, label_id, dmHashString64("font"), &font_hash);
+    ASSERT_EQ(replacement_font, font_hash);
+
+    dmRender::TextMetrics font_metrics = {};
+    dmGameSystem::CompLabelGetTextMetrics(font_label_component, font_metrics);
+    ASSERT_GT(font_metrics.m_Width, 0.0f);
+    ASSERT_NE((HTextLayout)0, RenderLabelAndGetTextLayout(m_RenderContext, m_Collection));
+
+    dmResource::Release(m_Factory, replacement_font_resource);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, LabelPreparedTextLayoutFallbackMutation)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+    const dmhash_t dynamic_font = dmHashString64("/font/dyn_glyph_bank_test_1.fontc");
+    const char* extra_ttf_path = "/font/NotoSansArabic-Regular.ttf";
+    const dmhash_t extra_ttf_hash = dmHashString64(extra_ttf_path);
+    const dmhash_t default_ttf_hash = dmHashString64("/font/valid.ttf");
+#if !defined(FONT_USE_HARFBUZZ) || !defined(FONT_USE_SKRIBIDI)
+    (void)extra_ttf_hash;
+#endif
+
+    uint32_t extra_ttf_size = 0;
+    uint8_t* extra_ttf_data = dmTestUtil::ReadHostFile("src/gamesys/test/font/NotoSansArabic-Regular.ttf", &extra_ttf_size);
+    ASSERT_NE((void*)0, extra_ttf_data);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, extra_ttf_path, extra_ttf_size, extra_ttf_data));
+
+    dmGameSystem::FontResource* dynamic_font_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", (void**) &dynamic_font_resource));
+    ASSERT_NE((void*)0, dynamic_font_resource);
+
+    dmGameSystem::TTFResource* extra_ttf_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetWithExt(m_Factory, extra_ttf_path, "ttf", (void**) &extra_ttf_resource));
+    ASSERT_NE((void*)0, extra_ttf_resource);
+
+    HFontCollection font_collection = dmRender::GetFontCollection(dmGameSystem::ResFontGetHandle(dynamic_font_resource));
+    HFont default_font = FontCollectionGetFont(font_collection, 0);
+    HFont extra_font = dmGameSystem::GetFont(extra_ttf_resource);
+
+    uint32_t fallback_codepoint = 0;
+    ASSERT_TRUE(FindFallbackCodepoint(default_font, extra_font, 0x0600, 0x06ff, &fallback_codepoint));
+
+    char fallback_text[8] = {0};
+    uint32_t fallback_text_len = dmUtf8::ToUtf8((uint16_t)fallback_codepoint, fallback_text);
+    ASSERT_GT(fallback_text_len, 0u);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetResourceProperty(go, label_id, dmHashString64("font"), dynamic_font));
+
+    PostLabelSetText(m_Collection, go_id, label_id, fallback_text, (uintptr_t)go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    HTextLayout initial_layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial_layout);
+    ASSERT_EQ(default_ttf_hash, GetTextLayoutGlyphFontPathHash(dynamic_font_resource, initial_layout));
+
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "font.add_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), \"/font/NotoSansArabic-Regular.ttf\")"));
+
+    HTextLayout added_layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, added_layout);
+    dmhash_t added_font_hash = GetTextLayoutGlyphFontPathHash(dynamic_font_resource, added_layout);
+#if defined(FONT_USE_HARFBUZZ) && defined(FONT_USE_SKRIBIDI)
+    ASSERT_EQ(extra_ttf_hash, added_font_hash);
+#else
+    ASSERT_EQ(default_ttf_hash, added_font_hash);
+#endif
+
+    ASSERT_TRUE(RunString(L, "font.remove_font(hash(\"/font/dyn_glyph_bank_test_1.fontc\"), \"/font/NotoSansArabic-Regular.ttf\")"));
+
+    HTextLayout removed_layout = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, removed_layout);
+    ASSERT_EQ(default_ttf_hash, GetTextLayoutGlyphFontPathHash(dynamic_font_resource, removed_layout));
+
+    DeleteInstance(m_Collection, go);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmResource::Release(m_Factory, dynamic_font_resource);
+    dmResource::Release(m_Factory, extra_ttf_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, extra_ttf_path));
+    dmMemory::AlignedFree(extra_ttf_data);
 }
 
 /* GUI Box Render */
