@@ -167,13 +167,19 @@ namespace dmGameSystem
         uint8_t                     m_NumTextures; // cached value from m_Resource->m_NumTextures
     };
 
+    struct SpriteCullingInfo
+    {
+        float m_Position[3];
+        float m_Radius;
+    };
+
     struct SpriteWorld
     {
         AnimationDataCache                  m_AnimationDataCache;
         dmObjectPool<SpriteComponent>       m_Components;
         DynamicAttributePool                m_DynamicVertexAttributePool;
         dmArray<dmRender::RenderObject*>    m_RenderObjects;
-        dmArray<float>                      m_CullingInfo; // array stores sprite center + radius as 4 floats: x,y,z,radius
+        dmArray<SpriteCullingInfo>          m_CullingInfo;
         // We currently assume the vertex format uses 2-tuple UVs
         dmArray<float>                      m_ScratchUVs[MAX_TEXTURE_COUNT];
         dmArray<Vector4>                    m_ScratchPositionWorld;
@@ -251,8 +257,8 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
-        sprite_world->m_CullingInfo.SetCapacity(comp_count * 4);
-        sprite_world->m_CullingInfo.SetSize(comp_count * 4);
+        sprite_world->m_CullingInfo.SetCapacity(comp_count);
+        sprite_world->m_CullingInfo.SetSize(comp_count);
         sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
@@ -2056,10 +2062,10 @@ namespace dmGameSystem
             Point3 pivot_scaled(-component->m_PivotX * size.getX(), -component->m_PivotY * size.getY(), 0.f);
             Vector3 world_pos = (component->m_World * pivot_scaled).getXYZ();
 
-            world->m_CullingInfo[i * 4] = world_pos.getX();
-            world->m_CullingInfo[i * 4 + 1] = world_pos.getY();
-            world->m_CullingInfo[i * 4 + 2] = world_pos.getZ();
-            world->m_CullingInfo[i * 4 + 3] = radius_sq;
+            world->m_CullingInfo[i].m_Position[0] = world_pos.getX();
+            world->m_CullingInfo[i].m_Position[1] = world_pos.getY();
+            world->m_CullingInfo[i].m_Position[2] = world_pos.getZ();
+            world->m_CullingInfo[i].m_Radius = radius_sq;
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -2069,16 +2075,16 @@ namespace dmGameSystem
         DM_PROFILE("Sprite");
 
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
-        const float* infos = sprite_world->m_CullingInfo.Begin();
+        const SpriteCullingInfo* infos = sprite_world->m_CullingInfo.Begin();
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
         for (uint32_t i = 0; i < num_entries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            uint32_t component_idx = entry->m_UserData;
-            Vector4 pos(infos[component_idx * 4], infos[component_idx * 4 + 1], infos[component_idx * 4 + 2], 1.0f);
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, pos, infos[component_idx * 4 + 3]);
+            const SpriteCullingInfo& culling_info = infos[entry->m_UserData];
+            Vector4 pos(culling_info.m_Position[0], culling_info.m_Position[1], culling_info.m_Position[2], 1.0f);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, pos, culling_info.m_Radius);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
