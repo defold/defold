@@ -19,7 +19,8 @@
             [editor.code.data :refer [line-number->CursorRange]]
             [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.coll :as coll])
   (:import [com.dynamo.bob Bob$OptionValidationException CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
            [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
            [com.dynamo.bob.fs IResource]
@@ -267,6 +268,14 @@
     (conj acc current)
     acc))
 
+(defn- merge-compilation-message-into-previous-entry
+  "Merge current into the previous entry in acc. If there is no previous entry,
+  current is orphaned context and should be discarded."
+  [acc current]
+  (if (coll/empty? acc)
+    nil
+    (merge-compilation-messages (peek acc) current)))
+
 (defn- next-compilation-line
   "Helper function for applying actions in the loop of `parse-compilation-log`."
   [{:keys [lines current acc] :as state} line & actions]
@@ -277,8 +286,10 @@
       (fn [state action]
         (case action
           :conj-message (assoc state :current (merge-compilation-messages current line))
-          :conj-message-to-previous (merge state {:current (merge-compilation-messages (last acc) (merge-compilation-messages current line))
-                                                  :acc (pop acc)})
+          :conj-message-to-previous (if-let [merged-entry (merge-compilation-message-into-previous-entry acc (merge-compilation-messages current line))]
+                                      (merge state {:current merged-entry
+                                                    :acc (pop acc)})
+                                      state)
           :included-from (assoc state :included-from? true)
           :replace-file (assoc state :current (merge (:current state) (select-keys line [:file :line])))
           :replace-type (assoc state :current (assoc (:current state) :type (:type line)))
@@ -328,7 +339,9 @@
               :ext-manifest-file original-ext-manifest-file}]
         (if-not lines
           (if (= :included-from (:type current))
-            (conj (pop acc) (merge-compilation-messages (last acc) current))
+            (if-let [merged-entry (merge-compilation-message-into-previous-entry acc current)]
+              (conj (pop acc) merged-entry)
+              acc)
             (conj-compilation-entry acc current))
           (let [line (parse-compilation-line (first lines) ext-manifest-file)
                 project-resource? (contains? nodes-by-resource-path (:file line))
