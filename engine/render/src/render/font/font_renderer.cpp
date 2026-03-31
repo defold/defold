@@ -226,6 +226,8 @@ namespace dmRender
         DM_PROFILE("DrawText");
 
         TextContext* text_context = &render_context->m_TextContext;
+        HTextLayout text_layout = params.m_TextLayout;
+        const char* text = params.m_Text ? params.m_Text : "";
 
         if (text_context->m_TextEntries.Full()) {
             dmLogWarning("Out of text-render entries: %u", text_context->m_TextEntries.Capacity());
@@ -249,15 +251,19 @@ namespace dmRender
             batch_key = dmHashFinal64(&key_state);
         }
 
-        uint32_t text_len = strlen(params.m_Text);
-        uint32_t offset = text_context->m_TextBuffer.Size();
-        if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
-            dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
-            return;
-        }
+        uint32_t offset = 0;
+        if (text_layout == 0x0)
+        {
+            uint32_t text_len = strlen(text);
+            offset = text_context->m_TextBuffer.Size();
+            if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
+                dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
+                return;
+            }
 
-        text_context->m_TextBuffer.PushArray(params.m_Text, text_len);
-        text_context->m_TextBuffer.Push('\0');
+            text_context->m_TextBuffer.PushArray(text, text_len);
+            text_context->m_TextBuffer.Push('\0');
+        }
 
         material = material ? material : GetFontMapMaterial(font_map);
         TextEntry te;
@@ -265,7 +271,7 @@ namespace dmRender
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
         te.m_Material = material;
-        te.m_TextLayout = params.m_TextLayout;
+        te.m_TextLayout = text_layout;
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -297,14 +303,14 @@ namespace dmRender
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         TextMetrics metrics = {};
 
-        if (params.m_TextLayout)
+        if (text_layout)
         {
-            AssertTextLayoutMatchesFontMap(font_map, params.m_TextLayout);
-            GetTextMetrics(font_map, params.m_TextLayout, &metrics);
+            AssertTextLayoutMatchesFontMap(font_map, text_layout);
+            GetTextMetrics(font_map, text_layout, &metrics);
         }
         else
         {
-            GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
+            GetTextMetrics(text_context->m_FontRenderBackend, font_map, text, &settings, &metrics);
         }
 
         // find center and radius for frustum culling
@@ -413,7 +419,7 @@ namespace dmRender
         for (uint32_t *i = begin;i != end; ++i)
         {
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
-            const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
+            const char* text = te.m_TextLayout ? "" : &text_context.m_TextBuffer[te.m_StringOffset];
 
             float sdf_scale = 0.0f;
             if (calc_sdf_scale)

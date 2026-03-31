@@ -1838,6 +1838,18 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
+TEST_F(dmRenderTest, GetTextMetricsWithNullPreparedLayout)
+{
+    dmRender::TextMetrics metrics = {};
+    dmRender::GetTextMetrics(m_SystemFontMap, (HTextLayout)0, &metrics);
+
+    ASSERT_EQ(0.0f, metrics.m_Width);
+    ASSERT_EQ(0.0f, metrics.m_Height);
+    ASSERT_EQ(2.0f, metrics.m_MaxAscent);
+    ASSERT_EQ(1.0f, metrics.m_MaxDescent);
+    ASSERT_EQ(0u, metrics.m_LineCount);
+}
+
 TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
 {
     dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
@@ -1983,6 +1995,7 @@ TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
     ASSERT_GT(raw_count, 0u);
     ASSERT_GT(raw_vertices.Size(), 0u);
+    ASSERT_EQ((uint32_t)(strlen(text) + 1), m_Context->m_TextContext.m_TextBuffer.Size());
 
     TextLayoutSettings wrapped_settings = {0};
     wrapped_settings.m_Width = 16.0f;
@@ -1994,6 +2007,7 @@ TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
     ASSERT_NE((HTextLayout)0, wrapped_layout);
 
     dmRender::DrawTextParams prepared_params = raw_params;
+    prepared_params.m_Text = 0;
     prepared_params.m_TextLayout = wrapped_layout;
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
@@ -2009,6 +2023,7 @@ TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
     ASSERT_EQ(raw_vertices.Size(), prepared_vertices.Size());
     ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_vertices.Size()));
     ASSERT_NE(raw_radius_sq, prepared_radius_sq);
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
 
     TextLayoutFree(wrapped_layout);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));

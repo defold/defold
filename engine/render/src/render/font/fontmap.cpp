@@ -333,13 +333,14 @@ namespace dmRender
 
     void GetTextMetrics(HFontMap font_map, HTextLayout layout, TextMetrics* metrics)
     {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-
         metrics->m_Width = 0.0f;
         metrics->m_Height = 0.0f;
-        metrics->m_MaxAscent = font_map->m_MaxAscent;
-        metrics->m_MaxDescent = font_map->m_MaxDescent;
         metrics->m_LineCount = 0;
+        {
+            DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+            metrics->m_MaxAscent = font_map->m_MaxAscent;
+            metrics->m_MaxDescent = font_map->m_MaxDescent;
+        }
 
         if (layout)
         {

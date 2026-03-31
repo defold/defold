@@ -450,11 +450,13 @@ namespace dmGameSystem
     static void CreateDrawTextParams(LabelComponent* component, dmRender::DrawTextParams& params)
     {
         dmGameSystemDDF::LabelDesc* ddf = component->m_Resource->m_DDF;
+        HTextLayout layout = GetOrCreateTextLayout(component);
 
         params.m_FaceColor = component->m_Color;
         params.m_OutlineColor = component->m_Outline;
         params.m_ShadowColor = component->m_Shadow;
-        params.m_Text = component->m_Text;
+        params.m_Text = layout ? 0 : component->m_Text;
+        params.m_TextLayout = layout;
         params.m_WorldTransform = component->m_World;
         params.m_RenderOrder = 0;
         params.m_LineBreak = component->m_LineBreak;
@@ -565,7 +567,6 @@ namespace dmGameSystem
 
             dmRender::DrawTextParams text_params;
             CreateDrawTextParams(component, text_params);
-            text_params.m_TextLayout = GetOrCreateTextLayout(component);
 
             if (component->m_RenderConstants)
             {
@@ -661,22 +662,7 @@ namespace dmGameSystem
         LabelComponent* mutable_component = const_cast<LabelComponent*>(component);
         dmRender::HFontMap font_map = GetFontMap(mutable_component, mutable_component->m_Resource);
         HTextLayout layout = GetOrCreateTextLayout(mutable_component);
-        if (layout)
-        {
-            dmRender::GetTextMetrics(font_map, layout, &metrics);
-            return;
-        }
-
-        TextLayoutSettings settings = {0};
-        settings.m_Width = component->m_Size.getX();
-        settings.m_LineBreak = component->m_LineBreak;
-        settings.m_Leading = component->m_Leading;
-        settings.m_Tracking = component->m_Tracking;
-        // legacy options for glyph bank fonts
-        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
-        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
-
-        dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
+        dmRender::GetTextMetrics(font_map, layout, &metrics);
     }
 
     const char* CompLabelGetText(const LabelComponent* component)

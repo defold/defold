@@ -1210,6 +1210,7 @@ static HTextLayout SubmitLabelAndGetTextLayout(dmRender::HRenderContext render_c
     dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)render_context;
     EXPECT_EQ(1u, render_context_ptr->m_TextContext.m_TextEntries.Size());
     HTextLayout layout = render_context_ptr->m_TextContext.m_TextEntries.Size() > 0 ? render_context_ptr->m_TextContext.m_TextEntries[0].m_TextLayout : 0;
+    EXPECT_EQ(0u, render_context_ptr->m_TextContext.m_TextBuffer.Size());
 
     dmRender::RenderListEnd(render_context);
     if (draw)
