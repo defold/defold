@@ -756,10 +756,10 @@
              filter-fn)))
 
 (defn set-camera!
-  ([camera-node start-camera end-camera animate?]
-   (set-camera! camera-node start-camera end-camera animate? nil))
-  ([camera-node start-camera end-camera animate? on-animation-end]
-   (if animate?
+  ([camera-node start-camera end-camera animate]
+   (set-camera! camera-node start-camera end-camera animate nil))
+  ([camera-node start-camera end-camera animate on-animation-end]
+   (if animate
      (let [duration 0.5]
        (g/set-property! camera-node :animating true)
        ;; NOTE: If the user was dollying during an animation, cancel the dolly
@@ -867,33 +867,28 @@
       (= (:type camera-a) :perspective)
       (camera-orthographic->perspective fov-y-35mm-full-frame))))
 
-(defmulti realign-camera
-  (fn [camera-node _animate?]
-    (g/with-auto-evaluation-context evaluation-context
-      (if (camera-2d? camera-node evaluation-context) :2d :3d))))
-
-(defmethod realign-camera :2d
-  [camera-node animate?]
-  (let [local-cam (g/node-value camera-node :local-camera)
-        viewport (g/node-value camera-node :viewport)
-        camera-3d (-> (or (g/node-value camera-node :cached-3d-camera)
-                          (tumble (g/node-value camera-node :local-camera) 200.0 -100.0))
-                      (sync-camera-position local-cam viewport))
-        local-cam (cond-> local-cam
-                    (= (:type camera-3d) :perspective)
-                    (camera-orthographic->perspective fov-y-35mm-full-frame))]
-    (set-camera! camera-node local-cam camera-3d animate?)))
-
-(defmethod realign-camera :3d
-  [camera-node animate?]
-  (let [local-cam (g/node-value camera-node :local-camera)
-        is-perspective (= (:type local-cam) :perspective)]
-    (g/set-property! camera-node :cached-3d-camera local-cam)
-    (let [end-camera (cond-> local-cam
-                       is-perspective camera-perspective->orthographic
-                       :always camera-orthographic-realign
-                       is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
-      (set-camera! camera-node local-cam end-camera animate? #(set-camera-type! camera-node :orthographic)))))
+(defn realign-camera
+  ([camera-node animate]
+   (g/with-auto-evaluation-context evaluation-context
+     (realign-camera camera-node animate evaluation-context)))
+  ([camera-node animate evaluation-context]
+   (let [local-cam (g/node-value camera-node :local-camera evaluation-context)]
+     (if (mode-2d? local-cam)
+       (let [viewport (g/node-value camera-node :viewport evaluation-context)
+             camera-3d (-> (or (g/node-value camera-node :cached-3d-camera evaluation-context)
+                               (tumble local-cam 200.0 -100.0))
+                           (sync-camera-position local-cam viewport))
+             local-cam (cond-> local-cam
+                         (= (:type camera-3d) :perspective)
+                         (camera-orthographic->perspective fov-y-35mm-full-frame))]
+         (set-camera! camera-node local-cam camera-3d animate))
+       (let [is-perspective (= (:type local-cam) :perspective)]
+         (g/set-property! camera-node :cached-3d-camera local-cam)
+         (let [end-camera (cond-> local-cam
+                            is-perspective camera-perspective->orthographic
+                            :always camera-orthographic-realign
+                            is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
+           (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic))))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
 
@@ -944,99 +939,100 @@
   (g/user-data-swap! camera-node ::camera-state assoc :free-cam-mode false))
 
 (defn handle-input [self input-state action _user-data]
-  (let [image-view (g/node-value self :image-view)
-        camera-state (or (g/user-data self ::camera-state) {:movement :idle})
-        movements-enabled (g/node-value self :movements-enabled)
-        free-cam-mode (:free-cam-mode camera-state)
-        {:keys [x y type key-code]} action
-        local-cam (g/node-value self :local-camera)
-        movement (if (= type :mouse-pressed)
-                   (camera-movement action movements-enabled)
-                   (:movement camera-state))]
-    (case type
-      :scroll (if (and (contains? movements-enabled :dolly)
-                       (not free-cam-mode))
-                (let [is-mode-2d (mode-2d? local-cam)
-                      alt (contains? (:modifiers input-state) :alt)
-                      pan (or (and is-mode-2d (not alt))
-                              (and (not is-mode-2d) alt))
-                      delta (* ^double dolly-delta-scale (double (:delta-y action)))]
-                  (if pan
-                    (set-dolly-target! self delta (g/node-value self :viewport) (:view-pos input-state))
-                    (set-dolly-target! self delta))
-                  nil)
-                action)
-      :mouse-pressed
-      (do
-        ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
-        (reset-dolly! self)
-        (g/user-data-swap! self ::camera-state assoc
-                           :last-x x
-                           :last-y y
-                           :initial-x x
-                           :initial-y y
-                           :movement movement)
-        (when (and (= movement :idle)
-                   (not free-cam-mode))
-          action))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [image-view (g/node-value self :image-view evaluation-context)
+          camera-state (or (g/user-data self ::camera-state) {:movement :idle})
+          movements-enabled (g/node-value self :movements-enabled evaluation-context)
+          free-cam-mode (:free-cam-mode camera-state)
+          {:keys [x y type key-code]} action
+          local-cam (g/node-value self :local-camera evaluation-context)
+          movement (if (= type :mouse-pressed)
+                     (camera-movement action movements-enabled)
+                     (:movement camera-state))]
+      (case type
+        :scroll (if (and (contains? movements-enabled :dolly)
+                         (not free-cam-mode))
+                  (let [is-mode-2d (mode-2d? local-cam)
+                        alt (contains? (:modifiers input-state) :alt)
+                        pan (or (and is-mode-2d (not alt))
+                                (and (not is-mode-2d) alt))
+                        delta (* ^double dolly-delta-scale (double (:delta-y action)))]
+                    (if pan
+                      (set-dolly-target! self delta (g/node-value self :viewport evaluation-context) (:view-pos input-state))
+                      (set-dolly-target! self delta))
+                    nil)
+                  action)
+        :mouse-pressed
+        (do
+          ;; NOTE: The user might be trying to track/tumble. In case we're still interpolating the dolly, just reset it
+          (reset-dolly! self)
+          (g/user-data-swap! self ::camera-state assoc
+                             :last-x x
+                             :last-y y
+                             :initial-x x
+                             :initial-y y
+                             :movement movement)
+          (when (and (= movement :idle)
+                     (not free-cam-mode))
+            action))
 
-      :drag-detected
-      (do
-        (g/user-data-swap! self ::camera-state assoc :is-dragging true)
-        (case movement
-          :look
-          (start-free-cam-mode! image-view self (:cursor-pos input-state))
-          :idle
-          action
+        :drag-detected
+        (do
+          (g/user-data-swap! self ::camera-state assoc :is-dragging true)
+          (case movement
+            :look
+            (start-free-cam-mode! image-view self (:cursor-pos input-state))
+            :idle
+            action
 
-          (do
-            (g/set-property! self :cursor-type :pan)
-            nil)))
+            (do
+              (g/set-property! self :cursor-type :pan)
+              nil)))
 
-      :mouse-moved
-      (when (and (not free-cam-mode)
-               (= movement :idle))
-        action)
+        :mouse-moved
+        (when (and (not free-cam-mode)
+                   (= movement :idle))
+          action)
 
-      :mouse-released
-      (let [dragging (:is-dragging (g/user-data self ::camera-state))]
-        (g/user-data-swap! self ::camera-state assoc
-                           :last-x nil
-                           :last-y nil
-                           :initial-x nil
-                           :initial-y nil
-                           :is-dragging false
-                           :movement :idle)
-        (g/set-property! self :cursor-type :default)
+        :mouse-released
+        (let [dragging (:is-dragging (g/user-data self ::camera-state))]
+          (g/user-data-swap! self ::camera-state assoc
+                             :last-x nil
+                             :last-y nil
+                             :initial-x nil
+                             :initial-y nil
+                             :is-dragging false
+                             :movement :idle)
+          (g/set-property! self :cursor-type :default)
+          (cond
+            free-cam-mode
+            (stop-free-cam-mode! image-view self)
+
+            ;; Allow right click for context menu
+            (or (= movement :idle)
+                (and (= (:button action) :secondary)
+                     (not dragging)))
+            action
+
+            :else
+            nil))
+
+        :key-pressed
         (cond
-          free-cam-mode
+          (and (= key-code KeyCode/ESCAPE)
+               free-cam-mode
+               (not (contains? (:mouse-buttons input-state) :secondary)))
           (stop-free-cam-mode! image-view self)
 
-          ;; Allow right click for context menu
-          (or (= movement :idle)
-              (and (= (:button action) :secondary)
-                   (not dragging)))
-          action
+          (and (= movement :look)
+               (not free-cam-mode)
+               (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts evaluation-context))))
+          (start-free-cam-mode! image-view self (:cursor-pos input-state)))
 
-          :else
-          nil))
-
-      :key-pressed
-      (cond
-        (and (= key-code KeyCode/ESCAPE)
-             free-cam-mode
-             (not (contains? (:mouse-buttons input-state) :secondary)))
-        (stop-free-cam-mode! image-view self)
-
-        (and (= movement :look)
-             (not free-cam-mode)
-             (contains-key-code? (:pressed-keys input-state) (:all (g/node-value self :free-cam-shortcuts))))
-        (start-free-cam-mode! image-view self (:cursor-pos input-state)))
-
-      ;; NOTE: Don't let other handlers receive input if we're in free camera mode
-      (if free-cam-mode
-        nil
-        action))))
+        ;; NOTE: Don't let other handlers receive input if we're in free camera mode
+        (if free-cam-mode
+          nil
+          action)))))
 
 (def ^:private camera-speed 5.0)
 (def ^:private camera-speed-boost 3.0)
@@ -1085,71 +1081,72 @@
     target-dir))
 
 (defn- handle-update-tick [self input-state dt]
-  (let [{:keys [free-cam-mode] :as camera-state} (g/user-data self ::camera-state)]
-    (if free-cam-mode
-      (let [current-camera (g/node-value self :local-camera)
-            prefs (g/node-value self :prefs)
-            {:keys [modifiers pressed-keys]} input-state
-            shift (contains? modifiers :shift)
-            alt (contains? modifiers :alt)
-            speed (* ^double camera-speed
-                     (double (cond shift camera-speed-boost
-                                   alt camera-speed-precision
-                                   :else 1.0))
-                     (double (prefs/get prefs [:scene :perspective-camera :speed])))
-            walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
-            camera-forward (camera-forward-vector current-camera)
-            camera-forward (if walking-mode
-                             (Vector3d. (.x camera-forward) 0.0 (.z camera-forward))
-                             camera-forward)
-            camera-right (camera-right-vector current-camera)
-            camera-up (if walking-mode
-                        vector3-up
-                        (camera-up-vector current-camera))
-            look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
-            mouse-delta (i/poll-mouse-delta)
-            dx (- (if mouse-delta (.dx mouse-delta) 0.0))
-            dy (if mouse-delta (.dy mouse-delta) 0.0)
-            dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))
-            [camera camera-state] (look-rotation camera-state current-camera dx dy look-sensitivity dt)
-            free-cam-shortcuts (g/node-value self :free-cam-shortcuts)
-            target-dir (compute-target-dir pressed-keys free-cam-shortcuts camera-forward camera-right camera-up)
-            final-camera (wasd-move (:free-cam-velocity camera-state) camera target-dir speed dt)]
-        (g/user-data-swap! self ::camera-state merge camera-state)
-        (when (not= final-camera current-camera)
-          (set-camera! self current-camera final-camera false)))
-      (let [viewport (g/node-value self :viewport)
-            {:keys [last-x last-y movement]} camera-state
-            camera (g/node-value self :camera)
-            filter-fn (:filter-fn camera)
-            [screen-x screen-y] (:cursor-pos input-state)
-            [mouse-x mouse-y] (:view-pos input-state)
-            has-mouse-moved (and mouse-x mouse-y last-x last-y
-                                 (not= :idle movement)
-                                 (or (not= mouse-x last-x)
-                                     (not= mouse-y last-y)))
-            image-view (g/node-value self :image-view)
-            [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
-            (warp-mouse-around-edges image-view screen-x screen-y mouse-x mouse-y last-x last-y)
-            camera (cond-> camera
-                     has-mouse-moved
-                     (cond->
-                       (= :track movement)
-                       (track viewport last-x last-y mouse-x mouse-y)
+  (g/with-auto-evaluation-context evaluation-context
+    (let [{:keys [free-cam-mode] :as camera-state} (g/user-data self ::camera-state)]
+      (if free-cam-mode
+        (let [current-camera (g/node-value self :local-camera evaluation-context)
+              prefs (g/node-value self :prefs evaluation-context)
+              {:keys [modifiers pressed-keys]} input-state
+              shift (contains? modifiers :shift)
+              alt (contains? modifiers :alt)
+              speed (* ^double camera-speed
+                       (double (cond shift camera-speed-boost
+                                     alt camera-speed-precision
+                                     :else 1.0))
+                       (double (prefs/get prefs [:scene :perspective-camera :speed])))
+              walking-mode (prefs/get prefs [:scene :perspective-camera :walking-mode])
+              camera-forward (camera-forward-vector current-camera)
+              camera-forward (if walking-mode
+                               (Vector3d. (.x camera-forward) 0.0 (.z camera-forward))
+                               camera-forward)
+              camera-right (camera-right-vector current-camera)
+              camera-up (if walking-mode
+                          vector3-up
+                          (camera-up-vector current-camera))
+              look-sensitivity (double (prefs/get prefs [:scene :perspective-camera :look-sensitivity]))
+              mouse-delta (i/poll-mouse-delta)
+              dx (- (if mouse-delta (.dx mouse-delta) 0.0))
+              dy (if mouse-delta (.dy mouse-delta) 0.0)
+              dy (if (prefs/get prefs [:scene :perspective-camera :invert-y]) dy (- dy))
+              [camera camera-state] (look-rotation camera-state current-camera dx dy look-sensitivity dt)
+              free-cam-shortcuts (g/node-value self :free-cam-shortcuts evaluation-context)
+              target-dir (compute-target-dir pressed-keys free-cam-shortcuts camera-forward camera-right camera-up)
+              final-camera (wasd-move (:free-cam-velocity camera-state) camera target-dir speed dt)]
+          (g/user-data-swap! self ::camera-state merge camera-state)
+          (when (not= final-camera current-camera)
+            (set-camera! self current-camera final-camera false)))
+        (let [viewport (g/node-value self :viewport evaluation-context)
+              {:keys [last-x last-y movement]} camera-state
+              camera (g/node-value self :camera evaluation-context)
+              filter-fn (:filter-fn camera)
+              [screen-x screen-y] (:cursor-pos input-state)
+              [mouse-x mouse-y] (:view-pos input-state)
+              has-mouse-moved (and mouse-x mouse-y last-x last-y
+                                   (not= :idle movement)
+                                   (or (not= mouse-x last-x)
+                                       (not= mouse-y last-y)))
+              image-view (g/node-value self :image-view evaluation-context)
+              [^double mouse-x ^double mouse-y ^double last-x ^double last-y]
+              (warp-mouse-around-edges image-view screen-x screen-y mouse-x mouse-y last-x last-y)
+              camera (cond-> camera
+                       has-mouse-moved
+                       (cond->
+                           (= :track movement)
+                         (track viewport last-x last-y mouse-x mouse-y)
 
-                       (= :tumble movement)
-                       (tumble (- last-x mouse-x) (- last-y mouse-y)))
+                         (= :tumble movement)
+                         (tumble (- last-x mouse-x) (- last-y mouse-y)))
 
-                     filter-fn
-                     filter-fn)
-            camera (apply-dolly-interpolation self camera dt)]
-        (g/set-property! self :local-camera camera)
-        (when has-mouse-moved
-          (when (= :dolly movement)
-            (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
-          (g/user-data-swap! self ::camera-state assoc
-                             :last-x mouse-x
-                             :last-y mouse-y))))))
+                       filter-fn
+                       filter-fn)
+              camera (apply-dolly-interpolation self camera dt)]
+          (g/set-property! self :local-camera camera)
+          (when has-mouse-moved
+            (when (= :dolly movement)
+              (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
+            (g/user-data-swap! self ::camera-state assoc
+                               :last-x mouse-x
+                               :last-y mouse-y)))))))
 
 (g/defnode CameraController
   (property prefs g/Any)

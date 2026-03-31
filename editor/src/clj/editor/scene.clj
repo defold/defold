@@ -1280,7 +1280,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (when-let [scene-view (active-scene-view app-view evaluation-context)]
         (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
-          (c/realign-camera camera true))))))
+          (c/realign-camera camera true evaluation-context))))))
 
 (handler/defhandler :scene.set-camera-type :global
   (label [user-data]
@@ -1317,7 +1317,7 @@
     (g/with-auto-evaluation-context evaluation-context
       (when-let [scene-view (active-scene-view app-view evaluation-context)]
         (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
-          (c/realign-camera camera true)))))
+          (c/realign-camera camera true evaluation-context)))))
   (state [app-view evaluation-context]
     (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context)) evaluation-context)))
 
