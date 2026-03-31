@@ -1400,18 +1400,33 @@ namespace dmParticle
 
             if (material_attribute_info_meta.m_HasAttributeTextureTransform2D)
             {
-                // Same basis as sprite ResolveAnimationData: mat3 cols [0]=∂p/∂s (BR-BL unrotated),
-                // [1]=∂p/∂t (TL-BL), [2]=BL. Atlas quds from Bob use BL,TL,TR,BR per unrotated quad.
+                // Same packing as sprite ResolveAnimationData; uv_rotated matches slice-9 / Bob layouts.
                 const float* tc = tex_coord;
-                texture_transform_packed[0] = tc[6] - tc[0];
-                texture_transform_packed[1] = tc[7] - tc[1];
-                texture_transform_packed[2] = 0.0f;
-                texture_transform_packed[3] = tc[2] - tc[0];
-                texture_transform_packed[4] = tc[3] - tc[1];
-                texture_transform_packed[5] = 0.0f;
-                texture_transform_packed[6] = tc[0];
-                texture_transform_packed[7] = tc[1];
-                texture_transform_packed[8] = 1.0f;
+                const bool uv_rotated = (tc[0] != tc[2]) && (tc[3] != tc[5]);
+                if (uv_rotated)
+                {
+                    texture_transform_packed[0] = tc[4] - tc[6];
+                    texture_transform_packed[1] = tc[5] - tc[7];
+                    texture_transform_packed[2] = 0.0f;
+                    texture_transform_packed[3] = tc[0] - tc[6];
+                    texture_transform_packed[4] = tc[1] - tc[7];
+                    texture_transform_packed[5] = 0.0f;
+                    texture_transform_packed[6] = tc[6];
+                    texture_transform_packed[7] = tc[7];
+                    texture_transform_packed[8] = 1.0f;
+                }
+                else
+                {
+                    texture_transform_packed[0] = tc[6] - tc[0];
+                    texture_transform_packed[1] = tc[7] - tc[1];
+                    texture_transform_packed[2] = 0.0f;
+                    texture_transform_packed[3] = tc[2] - tc[0];
+                    texture_transform_packed[4] = tc[3] - tc[1];
+                    texture_transform_packed[5] = 0.0f;
+                    texture_transform_packed[6] = tc[0];
+                    texture_transform_packed[7] = tc[1];
+                    texture_transform_packed[8] = 1.0f;
+                }
             }
 
             // world_matrix already set from particle_transform_no_scale (no size) above

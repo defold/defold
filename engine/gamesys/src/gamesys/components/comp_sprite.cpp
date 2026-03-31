@@ -1135,9 +1135,10 @@ namespace dmGameSystem
             // Full 2D affine from unit square (s,t) to atlas: p = mat * vec3(s,t,1). GLSL mat3 columns are
             // [0]=∂p/∂s, [1]=∂p/∂t, [2]=translation (BL). Corner order from TextureSetGenerator.putRect:
             // unrotated: BL, TL, TR, BR; rotated 90° CW in atlas: TL, TR, BR, BL.
-            const dmGameSystemDDF::SpriteGeometry* geometry = data->m_Geometries[i];
+            // Same uv_rotated test as slice-9 in this file (geometry->m_Rotated is not needed here — particles can match).
+            const bool uv_rotated = (tc[0] != tc[2]) && (tc[3] != tc[5]);
             float* tt_packed = data->m_TextureTransformsPacked[i];
-            if (geometry->m_Rotated)
+            if (uv_rotated)
             {
                 tt_packed[0] = tc[4] - tc[6];
                 tt_packed[1] = tc[5] - tc[7];

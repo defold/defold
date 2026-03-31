@@ -108,9 +108,10 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-static void ComputeTextureTransformFromTexCoords(const float* tc, bool rotated, float* out_tt)
+static void ComputeTextureTransformFromTexCoords(const float* tc, float* out_tt)
 {
-    if (rotated)
+    const bool uv_rotated = (tc[0] != tc[2]) && (tc[3] != tc[5]);
+    if (uv_rotated)
     {
         out_tt[0] = tc[4] - tc[6];
         out_tt[1] = tc[5] - tc[7];
@@ -152,17 +153,7 @@ static void ComputeTextureTransformFromTextureSet(dmResource::HFactory factory,
     const float* tc = (const float*) ts_ddf->m_TexCoords.m_Data;
     tc += frame_index * 8u;
 
-    uint32_t geom_index = frame_index;
-    if (frame_index < ts_ddf->m_FrameIndices.m_Count && ts_ddf->m_FrameIndices.m_Data != 0x0)
-    {
-        geom_index = ts_ddf->m_FrameIndices.m_Data[frame_index];
-    }
-    bool rotated = false;
-    if (geom_index < ts_ddf->m_Geometries.m_Count && ts_ddf->m_Geometries.m_Data != 0x0)
-    {
-        rotated = ts_ddf->m_Geometries.m_Data[geom_index].m_Rotated;
-    }
-    ComputeTextureTransformFromTexCoords(tc, rotated, out_tt);
+    ComputeTextureTransformFromTexCoords(tc, out_tt);
 
     dmResource::Release(factory, ts_res);
 }
