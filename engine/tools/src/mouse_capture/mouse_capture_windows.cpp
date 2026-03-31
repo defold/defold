@@ -112,10 +112,6 @@ namespace dmMouseCapture
         return registered;
     }
 
-    void DestroyContext(HContext context)
-    {
-    }
-
     void WarpCursor(int x, int y)
     {
         SetCursorPos(x, y);
