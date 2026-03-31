@@ -239,6 +239,7 @@ namespace dmRender
      * Each callback then represents a draw call, and will register a RenderObject
      * @name RenderListEntry
      * @param m_WorldPosition [type: dmVMath::Point3] the world position of the object
+     * @param m_FrustumHash [type: dmhash_t] The hash of the frustum matrix used for frustum culling
      * @param m_Order [type: uint32_t] the order to sort on (used if m_MajorOrder != RENDER_ORDER_WORLD)
      * @param m_BatchKey [type: uint32_t] the batch key to sort on (note: only 48 bits are currently used by renderer)
      * @param m_TagListKey [type: uint32_t] the key to the list of material tags
@@ -252,6 +253,7 @@ namespace dmRender
     struct RenderListEntry
     {
         dmVMath::Point3 m_WorldPosition;
+        dmhash_t m_FrustumHash;
         uint64_t m_UserData; // E.g. component type instance pointer
         uint32_t m_Order;
         uint32_t m_BatchKey;

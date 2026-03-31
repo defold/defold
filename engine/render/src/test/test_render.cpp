@@ -1155,6 +1155,11 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
 }
 
 
+static void NoopDrawDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    (void) params;
+}
+
 static void TestDrawVisibilityDispatch(dmRender::RenderListDispatchParams const & params)
 {
     TestDrawDispatchCtx *ctx = (TestDrawDispatchCtx*) params.m_UserData;
@@ -1307,6 +1312,101 @@ TEST_F(dmRenderTest, TestRenderListCulling)
         ASSERT_GT(ctx.m_BatchCalls, 2);
         ASSERT_EQ(ctx.m_EntriesRendered, num_rendered[c]);
         ASSERT_EQ(ctx.m_EndCalls, 2);
+    }
+}
+
+struct FrustumCullDedupTestCtx
+{
+    uint32_t m_VisibilityEntryProcessCount;
+};
+
+static void CountingTestDrawVisibility(dmRender::RenderListVisibilityParams const &params)
+{
+    FrustumCullDedupTestCtx* ctx = (FrustumCullDedupTestCtx*)params.m_UserData;
+    ASSERT_NE(ctx, (FrustumCullDedupTestCtx*)0);
+    ctx->m_VisibilityEntryProcessCount += params.m_NumEntries;
+    TestDrawVisibility(params);
+}
+
+TEST_F(dmRenderTest, TestRenderListFrustumCullDeduplication)
+{
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, -1.0f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmVMath::Matrix4 view_proj = proj * view;
+    dmRender::FrustumOptions frustum_options;
+    frustum_options.m_Matrix = view_proj;
+    frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+
+    FrustumCullDedupTestCtx test_ctx;
+    memset(&test_ctx, 0, sizeof(test_ctx));
+
+    const uint32_t n = 16;
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, NoopDrawDispatch, CountingTestDrawVisibility, &test_ctx);
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, n);
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        dmRender::RenderListEntry& entry = out[i];
+        entry.m_WorldPosition = Point3((float)i * 10.f, 0.f, (float)(i + 1));
+        entry.m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+        entry.m_MinorOrder = 0;
+        entry.m_TagListKey = 0;
+        entry.m_Order = i + 1;
+        entry.m_BatchKey = 1;
+        entry.m_Dispatch = dispatch;
+        entry.m_UserData = 0;
+    }
+
+    dmRender::RenderListSubmit(m_Context, out, out + n);
+    dmRender::RenderListEnd(m_Context);
+
+    // First frustum draw: every entry is uncached, visibility runs for all n entries.
+    dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
+    const uint32_t after_first = test_ctx.m_VisibilityEntryProcessCount;
+    ASSERT_EQ(after_first, n);
+
+    // Same frustum and list size: culling is skipped for existing entries (counter unchanged).
+    dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(test_ctx.m_VisibilityEntryProcessCount, after_first);
+
+    const uint32_t k = 4;
+    dmRender::RenderListEntry* extra = dmRender::RenderListAlloc(m_Context, k);
+    for (uint32_t i = 0; i < k; ++i)
+    {
+        dmRender::RenderListEntry& entry = extra[i];
+        entry.m_WorldPosition = Point3((float)(n + i) * 10.f, 100.f, (float)(n + i + 1));
+        entry.m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+        entry.m_MinorOrder = 0;
+        entry.m_TagListKey = 0;
+        entry.m_Order = n + i + 1;
+        entry.m_BatchKey = 1;
+        entry.m_Dispatch = dispatch;
+        entry.m_UserData = 0;
+    }
+    dmRender::RenderListSubmit(m_Context, extra, extra + k);
+
+    // List grew: only the k new entries run visibility; original n stay skipped (counter += k).
+    dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(test_ctx.m_VisibilityEntryProcessCount, after_first + k);
+
+    frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    // Different frustum key (plane count): all n+k entries must be culled again.
+    dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
+    const uint32_t total_after_plane_change = (n + k) * 2;
+    ASSERT_EQ(test_ctx.m_VisibilityEntryProcessCount, total_after_plane_change);
+
+    // No frustum: every render list entry is forced to VISIBILITY_FULL (asserted below).
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+
+    dmRender::RenderContext* rc = (dmRender::RenderContext*)m_Context;
+    const uint32_t total_entries = n + k;
+    ASSERT_EQ(rc->m_RenderList.Size(), total_entries);
+    for (uint32_t i = 0; i < total_entries; ++i)
+    {
+        ASSERT_EQ(rc->m_RenderList[i].m_Visibility, dmRender::VISIBILITY_FULL);
     }
 }
 
