@@ -55,7 +55,7 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
     const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
     const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
-    const dmhash_t FRUSTUM_HASH_UNINITIALIZED         = 0xFFFFFFFF;
+    const dmhash_t FRUSTUM_HASH_UNINITIALIZED         = 0;
 
     StencilTestParams::StencilTestParams() {
         Init();
@@ -234,15 +234,6 @@ namespace dmRender
         return RenderListMakeDispatch(render_context, dispatch_fn, 0, user_data);
     }
 
-    static void SetVisibility(uint32_t count, RenderListEntry* entries, Visibility visibility, uint64_t frustum_hash)
-    {
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            entries[i].m_Visibility = visibility;
-            entries[i].m_FrustumHash = frustum_hash;
-        }
-    }
-
     // Allocate a buffer (from the array) with room for 'entries' entries.
     //
     // NOTE: Pointer might go invalid after a consecutive call to RenderListAlloc if reallocation
@@ -263,7 +254,7 @@ namespace dmRender
 
         // If we push new items after the last frustum culling, we need to reevaluate them.
         RenderListEntry* start = render_list.Begin() + size;
-        SetVisibility(entries, start, dmRender::VISIBILITY_NONE, FRUSTUM_HASH_UNINITIALIZED);
+        memset(start, 0, entries * sizeof(RenderListEntry));
 
         return start;
     }
@@ -718,7 +709,16 @@ namespace dmRender
         return a->m_Dispatch == b->m_Dispatch;
     }
 
-    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum, dmhash_t frustum_hash)
+    static void SetVisibility(uint32_t count, RenderListEntry* entries, Visibility visibility, uint32_t frustum_hash)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            entries[i].m_Visibility = visibility;
+            entries[i].m_FrustumHash = frustum_hash;
+        }
+    }
+
+    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum, uint32_t frustum_hash)
     {
         DM_PROFILE("FrustumCulling");
 
@@ -948,15 +948,14 @@ namespace dmRender
             SortRenderList(context);
         }
 
-        dmhash_t frustum_hash = 0;
+        uint32_t frustum_hash = 0;
 
         if (frustum_matrix)
         {
-            HashState64 frustum_hash_state;
-            dmHashInit64(&frustum_hash_state, false);
-            dmHashUpdateBuffer64(&frustum_hash_state, frustum_matrix, sizeof(dmVMath::Matrix4));
-            dmHashUpdateBuffer64(&frustum_hash_state, &frustum_num_planes, sizeof(frustum_num_planes));
-            frustum_hash = dmHashFinal64(&frustum_hash_state);
+            uint8_t frustum_key_buffer[sizeof(Matrix4) + sizeof(FrustumPlanes)];
+            memcpy(frustum_key_buffer, frustum_matrix, sizeof(Matrix4));
+            memcpy(frustum_key_buffer + sizeof(Matrix4), &frustum_num_planes, sizeof(frustum_num_planes));
+            frustum_hash = dmHashBuffer32(frustum_key_buffer, (uint32_t)sizeof(frustum_key_buffer));
 
             dmIntersection::Frustum frustum;
             dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, (int) frustum_num_planes, frustum);
