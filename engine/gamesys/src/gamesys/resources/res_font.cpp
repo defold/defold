@@ -26,6 +26,7 @@
 #include <dlib/utf8.h>
 
 #include <font/fontcollection.h>
+#include <font/text_layout.h>
 #include <render/font/fontmap.h>
 #include <render/font/font_renderer.h>
 #include <render/render_ddf.h>
@@ -195,19 +196,6 @@ namespace dmGameSystem
         FontResource* font = (FontResource*)ctx;
         font->m_Prewarming = 0;
         font->m_PrewarmDone = 1;
-    }
-
-    static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
-    {
-        uint32_t len = dmUtf8::StrLen(text);
-        codepoints.SetCapacity(len);
-        codepoints.SetSize(0);
-        const char* cursor = text;
-        while (uint32_t c = dmUtf8::NextChar(&cursor))
-        {
-            codepoints.Push(c);
-        }
-        return len;
     }
 
     static void DestroyJobInfo(FontJobResourceInfo* job_info)

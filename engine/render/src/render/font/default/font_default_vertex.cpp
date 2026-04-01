@@ -307,20 +307,6 @@ static void OutputGlyph(FontGlyph* glyph,
     #undef SET_VERTEX_LAYER_MASK
 }
 
-static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
-{
-    uint32_t len = dmUtf8::StrLen(text);
-    codepoints.SetCapacity(len);
-    codepoints.SetSize(0);
-    const char* cursor = text;
-    while (uint32_t c = dmUtf8::NextChar(&cursor))
-    {
-        codepoints.Push(c);
-    }
-    return len;
-}
-
-
 void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text,
                     TextLayoutSettings* settings, TextMetrics* metrics)
 {

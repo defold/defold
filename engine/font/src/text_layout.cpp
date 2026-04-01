@@ -14,6 +14,7 @@
 
 #include "text_layout.h"
 #include "fontcollection.h"
+#include <dmsdk/dlib/utf8.h>
 
 uint32_t TextLayoutGetGlyphCount(HTextLayout layout)
 {
@@ -46,6 +47,24 @@ void TextLayoutFree(HTextLayout layout)
     layout->m_Free(layout);
 }
 
+uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
+{
+    const char* safe_text = text ? text : "";
+    uint32_t len = dmUtf8::StrLen(safe_text);
+    if (codepoints.Capacity() < len)
+    {
+        codepoints.SetCapacity(len);
+    }
+    codepoints.SetSize(0);
+
+    const char* cursor = safe_text;
+    while (uint32_t c = dmUtf8::NextChar(&cursor))
+    {
+        codepoints.Push(c);
+    }
+    return len;
+}
+
 TextResult TextLayoutCreate(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
@@ -57,4 +76,3 @@ TextResult TextLayoutCreate(HFontCollection collection,
 #endif
     return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout);
 }
-

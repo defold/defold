@@ -142,6 +142,7 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
         dmRender::ClearRenderObjects(render_context);
+        dmProfileRender::ClearTransientTextLayouts(gRenderProfile);
 
         // Restore blend state
         if (!ps_before.m_BlendEnabled)
