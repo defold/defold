@@ -170,6 +170,7 @@ namespace dmGui
         };
 
         const char*             m_Text;
+        TextLayoutCache         m_TextLayoutCache;
         void**                  m_NodeDescTable;
         TextureSetAnimDesc      m_TextureSetAnimDesc;
         float                   m_FlipbookAnimPosition;

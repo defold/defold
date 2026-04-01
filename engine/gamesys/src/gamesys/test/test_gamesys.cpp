@@ -1182,6 +1182,15 @@ static dmGameSystem::LabelComponent* GetLabelComponent(dmGameObject::HInstance i
     return (dmGameSystem::LabelComponent*) component;
 }
 
+static dmGameSystem::GuiComponent* GetGuiComponent(dmGameObject::HCollection collection)
+{
+    uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(collection, component_type_index);
+    EXPECT_NE((void*)0, gui_world);
+    EXPECT_GT(gui_world->m_Components.Size(), 0u);
+    return gui_world->m_Components.Size() > 0 ? gui_world->m_Components[0] : 0;
+}
+
 static void PostLabelSetText(dmGameObject::HCollection collection, dmhash_t go_id, dmhash_t component_id, const char* text, uintptr_t user_data)
 {
     dmMessage::URL url;
@@ -1229,6 +1238,39 @@ static HTextLayout RenderLabelAndGetTextLayout(dmRender::HRenderContext render_c
 static HTextLayout PrepareLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
 {
     return SubmitLabelAndGetTextLayout(render_context, collection, false);
+}
+
+struct GuiTextSubmitResult
+{
+    HTextLayout m_TextLayout;
+    uint32_t    m_TextEntryCount;
+    uint32_t    m_TextBufferSize;
+};
+
+static GuiTextSubmitResult SubmitGuiAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection, bool draw)
+{
+    GuiTextSubmitResult result = {};
+
+    dmRender::RenderListBegin(render_context);
+    dmGameObject::Render(collection);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*) render_context;
+    result.m_TextEntryCount = render_context_ptr->m_TextContext.m_TextEntries.Size();
+    result.m_TextBufferSize = render_context_ptr->m_TextContext.m_TextBuffer.Size();
+    result.m_TextLayout = result.m_TextEntryCount > 0 ? render_context_ptr->m_TextContext.m_TextEntries[0].m_TextLayout : 0;
+
+    dmRender::RenderListEnd(render_context);
+    if (draw)
+    {
+        dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    }
+    dmRender::ClearRenderObjects(render_context);
+    return result;
+}
+
+static GuiTextSubmitResult PrepareGuiAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    return SubmitGuiAndGetTextLayout(render_context, collection, false);
 }
 
 static dmhash_t GetTextLayoutGlyphFontPathHash(dmGameSystem::FontResource* font_resource, HTextLayout layout)
@@ -3100,6 +3142,143 @@ TEST_F(ComponentTest, GuiTextSingleFlushAndOrder)
     {
         ASSERT_LT(text_orders[i - 1], text_orders[i]);
     }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+
+    dmGui::HScene scene = gui_component->m_Scene;
+    dmGui::HNode node = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+
+    dmGameSystem::FontResource* dynamic_font_resource = (dmGameSystem::FontResource*) dmGui::GetNodeFont(scene, node);
+    ASSERT_NE((void*)0, dynamic_font_resource);
+
+    dmGui::TextLayoutCache cache = {};
+    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
+    ASSERT_EQ((HTextLayout)0, cache.m_TextLayout);
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, initial.m_TextEntryCount);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+    ASSERT_EQ(0u, initial.m_TextBufferSize);
+    ASSERT_EQ(dmHashString64("/font/valid.ttf"), GetTextLayoutGlyphFontPathHash(dynamic_font_resource, initial.m_TextLayout));
+
+    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
+    ASSERT_EQ(initial.m_TextLayout, cache.m_TextLayout);
+
+    GuiTextSubmitResult repeated = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(initial.m_TextLayout, repeated.m_TextLayout);
+
+    dmGui::SetNodeText(scene, node, "Cache me differently");
+    GuiTextSubmitResult text_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, text_changed.m_TextEntryCount);
+    ASSERT_NE(initial.m_TextLayout, text_changed.m_TextLayout);
+    ASSERT_EQ(0u, text_changed.m_TextBufferSize);
+
+    Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+    size.setX(size.getX() + 32.0f);
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, size);
+    GuiTextSubmitResult width_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(text_changed.m_TextLayout, width_changed.m_TextLayout);
+
+    dmGui::SetNodeLineBreak(scene, node, false);
+    GuiTextSubmitResult line_break_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(width_changed.m_TextLayout, line_break_changed.m_TextLayout);
+
+    dmGui::SetNodeTextLeading(scene, node, 1.5f);
+    GuiTextSubmitResult leading_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(line_break_changed.m_TextLayout, leading_changed.m_TextLayout);
+
+    dmGui::SetNodeTextTracking(scene, node, 0.5f);
+    GuiTextSubmitResult tracking_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(leading_changed.m_TextLayout, tracking_changed.m_TextLayout);
+
+    Vector4 position = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_POSITION);
+    position.setX(position.getX() + 10.0f);
+    position.setY(position.getY() - 5.0f);
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_POSITION, position);
+
+    Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+    color.setXYZ(Vector3(0.25f, 0.5f, 0.75f));
+    color.setW(0.8f);
+    dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_COLOR, color);
+
+    GuiTextSubmitResult transform_color_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(tracking_changed.m_TextLayout, transform_color_changed.m_TextLayout);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeFont(scene, node, "secondary_font"));
+    GuiTextSubmitResult font_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(transform_color_changed.m_TextLayout, font_changed.m_TextLayout);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeFont(scene, node, "dynamic_font"));
+    GuiTextSubmitResult dynamic_font_changed = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(font_changed.m_TextLayout, dynamic_font_changed.m_TextLayout);
+
+    uint32_t dynamic_font_version = dmGameSystem::ResFontGetVersion(dynamic_font_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/font/dyn_glyph_bank_test_1.fontc", 0));
+    ASSERT_EQ(dynamic_font_version + 1, dmGameSystem::ResFontGetVersion(dynamic_font_resource));
+
+    GuiTextSubmitResult reloaded_font = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE(dynamic_font_changed.m_TextLayout, reloaded_font.m_TextLayout);
+
+    dmGui::SetNodeText(scene, node, "");
+    GuiTextSubmitResult empty_text = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, empty_text.m_TextEntryCount);
+    ASSERT_EQ((HTextLayout)0, empty_text.m_TextLayout);
+    ASSERT_EQ(0u, empty_text.m_TextBufferSize);
+
+    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
+    ASSERT_EQ((HTextLayout)0, cache.m_TextLayout);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+
+    dmGui::Scene* scene = gui_component->m_Scene;
+    dmGui::HNode node = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+
+    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+
+    dmGui::TextLayoutCache cache = {};
+    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
+    ASSERT_EQ(initial.m_TextLayout, cache.m_TextLayout);
+
+    dmGui::HNode cloned_node = 0;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(scene, node, &cloned_node));
+    ASSERT_NE((dmGui::HNode)0, cloned_node);
+
+    dmGui::TextLayoutCache clone_cache = {};
+    dmGui::GetNodeTextLayoutCache(scene, cloned_node, &clone_cache);
+    ASSERT_EQ((HTextLayout)0, clone_cache.m_TextLayout);
+
+    dmGui::DeleteNode(scene, cloned_node);
+    dmGui::ClearNodes(scene);
+    ASSERT_EQ(0u, scene->m_Nodes.Size());
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

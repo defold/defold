@@ -86,6 +86,20 @@ namespace dmGui
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
     static void RemoveFromNodeList(HScene scene, InternalNode* n);
 
+    static void ResetTextLayoutCache(TextLayoutCache* cache)
+    {
+        memset(cache, 0, sizeof(*cache));
+    }
+
+    static void FreeTextLayoutCache(TextLayoutCache* cache)
+    {
+        if (cache->m_TextLayout)
+        {
+            TextLayoutFree(cache->m_TextLayout);
+        }
+        ResetTextLayoutCache(cache);
+    }
+
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
         "init",
@@ -651,6 +665,8 @@ namespace dmGui
             scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
             n->m_Node.m_RenderConstants = 0;
         }
+
+        FreeTextLayoutCache(&n->m_Node.m_TextLayoutCache);
 
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
@@ -2817,6 +2833,7 @@ namespace dmGui
         {
             scene->m_Nodes.SetSize(node_index);
         }
+        FreeTextLayoutCache(&n->m_Node.m_TextLayoutCache);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
@@ -3724,6 +3741,29 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void GetNodeTextLayoutCache(HScene scene, HNode node, TextLayoutCache* out_cache)
+    {
+        InternalNode* n = GetNode(scene, node);
+        *out_cache = n->m_Node.m_TextLayoutCache;
+    }
+
+    void SetNodeTextLayoutCache(HScene scene, HNode node, const TextLayoutCache& cache)
+    {
+        InternalNode* n = GetNode(scene, node);
+        TextLayoutCache& current_cache = n->m_Node.m_TextLayoutCache;
+        if (current_cache.m_TextLayout && current_cache.m_TextLayout != cache.m_TextLayout)
+        {
+            TextLayoutFree(current_cache.m_TextLayout);
+        }
+        current_cache = cache;
+    }
+
+    void ClearNodeTextLayoutCache(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        FreeTextLayoutCache(&n->m_Node.m_TextLayoutCache);
+    }
+
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -4555,6 +4595,7 @@ namespace dmGui
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        ResetTextLayoutCache(&out_n->m_Node.m_TextLayoutCache);
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
         

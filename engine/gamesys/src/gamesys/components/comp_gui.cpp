@@ -1271,6 +1271,82 @@ namespace dmGameSystem
         return 0;
     }
 
+    static float CanonicalizeCacheKeyFloat(float value)
+    {
+        return value == 0.0f ? 0.0f : value;
+    }
+
+    static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking)
+    {
+        HashState64 key_state;
+        dmHashInit64(&key_state, false);
+
+        float canonical_width = CanonicalizeCacheKeyFloat(width);
+        float canonical_leading = CanonicalizeCacheKeyFloat(leading);
+        float canonical_tracking = CanonicalizeCacheKeyFloat(tracking);
+        uint8_t line_break_flag = line_break ? 1 : 0;
+
+        dmHashUpdateBuffer64(&key_state, &font_resource, sizeof(font_resource));
+        dmHashUpdateBuffer64(&key_state, &font_version, sizeof(font_version));
+        dmHashUpdateBuffer64(&key_state, &text_hash, sizeof(text_hash));
+        dmHashUpdateBuffer64(&key_state, &canonical_width, sizeof(canonical_width));
+        dmHashUpdateBuffer64(&key_state, &canonical_leading, sizeof(canonical_leading));
+        dmHashUpdateBuffer64(&key_state, &canonical_tracking, sizeof(canonical_tracking));
+        dmHashUpdateBuffer64(&key_state, &line_break_flag, sizeof(line_break_flag));
+        return dmHashFinal64(&key_state);
+    }
+
+    static HTextLayout GetOrCreateNodeTextLayout(dmGui::HScene scene, dmGui::HNode node, FontResource* font_resource, dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmArray<uint32_t>& codepoints)
+    {
+        const char* safe_text = text ? text : "";
+        if (!font_resource || !font_map || safe_text[0] == '\0')
+        {
+            dmGui::ClearNodeTextLayoutCache(scene, node);
+            return 0;
+        }
+
+        const uint32_t font_version = ResFontGetVersion(font_resource);
+        const uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
+        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking);
+
+        dmGui::TextLayoutCache cache = {};
+        dmGui::GetNodeTextLayoutCache(scene, node, &cache);
+        if (cache.m_TextLayout && cache.m_Key == cache_key)
+        {
+            return cache.m_TextLayout;
+        }
+
+        TextLayoutSettings settings = {};
+        settings.m_Width = width;
+        settings.m_LineBreak = line_break;
+        settings.m_Leading = leading;
+        settings.m_Tracking = tracking;
+        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+
+        TextToCodePoints(safe_text, codepoints);
+        uint32_t* text_codepoints = codepoints.Empty() ? 0 : codepoints.Begin();
+
+        HTextLayout layout = 0;
+        TextResult result = TextLayoutCreate(dmRender::GetFontCollection(font_map), text_codepoints, codepoints.Size(), &settings, &layout);
+        if (result != TEXT_RESULT_OK)
+        {
+            if (layout)
+            {
+                TextLayoutFree(layout);
+            }
+            dmGui::ClearNodeTextLayoutCache(scene, node);
+            return 0;
+        }
+
+        dmGui::TextLayoutCache new_cache = {};
+        new_cache.m_TextLayout = layout;
+        new_cache.m_Key = cache_key;
+        dmGui::SetNodeTextLayoutCache(scene, node, new_cache);
+        return layout;
+    }
+
     static void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
@@ -1282,6 +1358,7 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = gui_context->m_GuiWorld;
         uint32_t batch_render_order = MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++);
+        dmArray<uint32_t> text_codepoints;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1296,7 +1373,10 @@ namespace dmGameSystem
             dmGameSystem::FontResource* font_resource = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
             dmRender::HFontMap font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             if (!font_map)
+            {
+                dmGui::ClearNodeTextLayoutCache(scene, node);
                 continue;
+            }
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
 
             dmRender::DrawTextParams params;
@@ -1304,9 +1384,7 @@ namespace dmGameSystem
             params.m_FaceColor = Vector4(color.getXYZ(), opacity);
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
-            params.m_Text = dmGui::GetNodeText(scene, node);
-            if (params.m_Text[0] == '\0')
-                continue;
+            const char* text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
             params.m_RenderOrder = batch_render_order;
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
@@ -1327,6 +1405,10 @@ namespace dmGameSystem
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
+            params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, text_codepoints);
+            params.m_Text = params.m_TextLayout ? 0 : (text ? text : "");
+            if (params.m_Text[0] == '\0' && !params.m_TextLayout)
+                continue;
             ApplyStencilClipping(gui_context, stencil_scopes[i], params);
             dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
             switch (pivot)

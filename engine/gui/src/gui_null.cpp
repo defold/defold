@@ -14,6 +14,8 @@
 
 #include "gui.h"
 
+#include <string.h>
+
 #include "gui_private.h"
 #include "gui_script.h"
 #include <rig/rig.h>
@@ -698,6 +700,19 @@ namespace dmGui
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         return RESULT_OK;
+    }
+
+    void GetNodeTextLayoutCache(HScene scene, HNode node, TextLayoutCache* out_cache)
+    {
+        memset(out_cache, 0, sizeof(*out_cache));
+    }
+
+    void SetNodeTextLayoutCache(HScene scene, HNode node, const TextLayoutCache& cache)
+    {
+    }
+
+    void ClearNodeTextLayoutCache(HScene scene, HNode node)
+    {
     }
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
