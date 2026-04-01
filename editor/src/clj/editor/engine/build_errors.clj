@@ -269,12 +269,12 @@
     acc))
 
 (defn- merge-compilation-message-into-previous-entry
-  "Merge current into the previous entry in acc. If there is no previous entry,
+  "Merge current into the previous entry in acc. Returns popped-acc+merged-entry
+  if there is a previous entry, otherwise nil. If there is no previous entry,
   current is orphaned context and should be discarded."
   [acc current]
-  (if (coll/empty? acc)
-    nil
-    (merge-compilation-messages (peek acc) current)))
+  (when-let [previous-entry (peek acc)]
+    (coll/pair (pop acc) (merge-compilation-messages previous-entry current))))
 
 (defn- next-compilation-line
   "Helper function for applying actions in the loop of `parse-compilation-log`."
@@ -286,9 +286,9 @@
       (fn [state action]
         (case action
           :conj-message (assoc state :current (merge-compilation-messages current line))
-          :conj-message-to-previous (if-let [merged-entry (merge-compilation-message-into-previous-entry acc (merge-compilation-messages current line))]
+          :conj-message-to-previous (if-let [[acc merged-entry] (merge-compilation-message-into-previous-entry acc (merge-compilation-messages current line))]
                                       (merge state {:current merged-entry
-                                                    :acc (pop acc)})
+                                                    :acc acc})
                                       state)
           :included-from (assoc state :included-from? true)
           :replace-file (assoc state :current (merge (:current state) (select-keys line [:file :line])))
@@ -339,8 +339,8 @@
               :ext-manifest-file original-ext-manifest-file}]
         (if-not lines
           (if (= :included-from (:type current))
-            (if-let [merged-entry (merge-compilation-message-into-previous-entry acc current)]
-              (conj (pop acc) merged-entry)
+            (if-let [[acc merged-entry] (merge-compilation-message-into-previous-entry acc current)]
+              (conj acc merged-entry)
               acc)
             (conj-compilation-entry acc current))
           (let [line (parse-compilation-line (first lines) ext-manifest-file)
