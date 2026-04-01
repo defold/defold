@@ -101,7 +101,6 @@ namespace dmProfileRender
     static const Vector4 TITLE_SHADOW_COLOR = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
     static const Vector4 SAMPLES_BG_COLOR   = Vector4(0.15f, 0.15f, 0.15f, 0.2f);
 
-    static ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame);
     static ProfilerThread* GetSelectedThread(HRenderProfile render_profile, ProfilerFrame* frame);
 
     ProfilerThread::ProfilerThread()
@@ -814,7 +813,7 @@ namespace dmProfileRender
         return cpy;
     }
 
-    static ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame)
+    ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame)
     {
         ProfilerFrame* cpy = new ProfilerFrame;
         cpy->m_Time = frame->m_Time;

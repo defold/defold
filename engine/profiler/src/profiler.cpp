@@ -151,15 +151,22 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
         dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_before.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_before.m_BlendDstFactor);
     }
 
+    dmProfileRender::ProfilerFrame* dump_frame = 0;
     if (g_ProfilerCurrentFrame)
     {
         DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
         if (g_ProfilerDumpNextFrame)
-            dmProfileRender::DumpFrame(g_ProfilerCurrentFrame);
+            dump_frame = dmProfileRender::DuplicateProfilerFrame(g_ProfilerCurrentFrame);
         g_ProfilerDumpNextFrame = false;
 
         g_ProfilerCurrentFrame->m_Properties.SetSize(0);
+    }
+
+    if (dump_frame)
+    {
+        dmProfileRender::DumpFrame(dump_frame);
+        dmProfileRender::DeleteProfilerFrame(dump_frame);
     }
 }
 
