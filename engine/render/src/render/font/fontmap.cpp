@@ -747,7 +747,7 @@ namespace dmRender
         return result;
     }
 
-    void AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y)
+    CacheGlyph* AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
 
@@ -768,13 +768,13 @@ namespace dmRender
                 {
                     font_map->m_IsCacheSizeDirty = 1;
                     font_map->m_IsCacheSizeTooSmall = 1;
-                    return;
+                    return 0;
                 }
 
                 // It means we've filled the entire cache with upload requests
                 // We might then just as well skip the next uploads until the next frame
                 dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u / %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, glyph->m_Codepoint < 255 ? glyph->m_Codepoint : ' ', glyph->m_Codepoint, glyph->m_GlyphIndex  , dmHashReverseSafe64(font_map->m_NameHash));
-                return;
+                return 0;
             }
         }
 
@@ -795,13 +795,13 @@ namespace dmRender
             {
                 font_map->m_IsCacheSizeDirty = 1;
                 font_map->m_IsCacheSizeTooSmall = 1;
-                return;
+                return 0;
             }
 
             // It means we've filled the entire cache with upload requests
             // We might then just as well skip the next uploads until the next frame
             dmLogWarning("The font glyph cache (%u x %u) needed resizing to fit glyph bitmap.", font_map->m_CacheWidth, font_map->m_CacheHeight);
-            return;
+            return 0;
         }
 
         cache_glyph->m_Glyph = glyph;
@@ -811,6 +811,7 @@ namespace dmRender
         font_map->m_GlyphCache.Put(glyph_key, cache_glyph);
 
         UpdateGlyphTexture(font_map, glyph, cache_glyph->m_X, cache_glyph->m_Y, g_offset_y);
+        return cache_glyph;
     }
 
 

@@ -455,14 +455,13 @@ static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t f
             if (glyph && glyph->m_Bitmap.m_Width > 0) // only add glyphs with a size (image) to the glyph cache
             {
                 uint64_t glyph_key = dmRender::MakeGlyphIndexKey(font, glyph_index);
-                if (!IsInCache(font_map, glyph_key))
+                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key, frame);
+                if (!cache_glyph)
                 {
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                     int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
-                    AddGlyphToCache(font_map, frame, glyph_key, glyph, px_cell_offset_y);
+                    cache_glyph = AddGlyphToCache(font_map, frame, glyph_key, glyph, px_cell_offset_y);
                 }
-
-                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key, frame);
                 if (cache_glyph)
                 {
                     cell_x = cache_glyph->m_X;
