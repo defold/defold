@@ -845,19 +845,46 @@
                                                               child-build-errors
                                                               own-build-errors))))
 
+(defn- find-existing-atlas-image
+  [atlas-node resource]
+  (when resource
+    (some (fn [node-id]
+            (when (and (g/node-instance? AtlasImage node-id)
+                       (= (resource/proj-path resource)
+                          (resource/proj-path (g/node-value node-id :image))))
+              node-id))
+          (g/node-value atlas-node :nodes))))
+
+
+(defn- get-atlas-node
+  [parent]
+  (when (g/node-by-id parent)
+    (cond
+      (g/node-instance? AtlasNode parent) parent
+      :else (let [scope (core/scope parent)]
+              (when (and scope (g/node-by-id scope) (g/node-instance? AtlasNode scope))
+                scope)))))
+
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
-  (let [graph-id (g/node-id->graph-id parent)]
+  (let [graph-id (g/node-id->graph-id parent)
+        atlas-node (get-atlas-node parent)
+        attaching-to-animation (not= atlas-node parent)]
     (for [image-msg image-msgs]
-      (g/make-nodes
-        graph-id
-        [atlas-image AtlasImage]
-        (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
-          image :image
-          sprite-trim-mode :sprite-trim-mode
-          pivot-x :pivot-x
-          pivot-y :pivot-y)
-        (attach-fn parent atlas-image)))))
+      (let [resource (:image image-msg)
+            existing-image-node (when attaching-to-animation
+                                  (find-existing-atlas-image atlas-node resource))]
+        (if existing-image-node
+          (attach-fn parent existing-image-node)
+          (g/make-nodes
+            graph-id
+            [atlas-image AtlasImage]
+            (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
+              image :image
+              sprite-trim-mode :sprite-trim-mode
+              pivot-x :pivot-x
+              pivot-y :pivot-y)
+            (attach-fn parent atlas-image)))))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
