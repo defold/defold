@@ -75,6 +75,9 @@ namespace dmGameSystem
 
         this->m_TTFResources.Swap(src->m_TTFResources);
         this->m_FontHashes.Swap(src->m_FontHashes);
+        // Keep pending jobs with the swapped-out font state so the temporary resource
+        // can cancel them during recreate teardown.
+        this->m_PendingJobs.Swap(src->m_PendingJobs);
 
         uint8_t dynamic = src->m_IsDynamic;
         src->m_IsDynamic = m_IsDynamic;
@@ -732,6 +735,7 @@ namespace dmGameSystem
 
         const char* path = params->m_Filename;
         FontResource* tmp_font_map = new FontResource;
+        tmp_font_map->m_Factory = params->m_Factory;
 
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, tmp_font_map, path);
         if(r != dmResource::RESULT_OK)

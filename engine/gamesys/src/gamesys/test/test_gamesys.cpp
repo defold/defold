@@ -26,6 +26,7 @@
 
 #include "gamesys/resources/res_compute.h"
 #include "gamesys/resources/res_font.h"
+#include "gamesys/resources/res_font_private.h"
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_ttf.h"
@@ -2249,6 +2250,24 @@ TEST_F(FontTest, DynamicGlyph)
         ASSERT_EQ(0U, (uint32_t)glyph->m_Bitmap.m_Flags);
         ASSERT_STREQ(data, (const char*)glyph->m_Bitmap.m_Data);
     }
+
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, ReloadCancelsPendingDynamicFontJobs)
+{
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
+    dmGameSystem::FontResource* font = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+    ASSERT_EQ(0u, font->m_PendingJobs.Size());
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Reload pending jobs", 0, 0));
+    ASSERT_GT(font->m_PendingJobs.Size(), 0u);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_font, 0));
+    ASSERT_EQ(0u, font->m_PendingJobs.Size());
 
     dmResource::Release(m_Factory, font);
 }
