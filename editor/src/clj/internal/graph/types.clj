@@ -16,7 +16,8 @@
   (:require [util.defonce :as defonce])
   (:import [clojure.lang IHashEq Keyword Murmur3 Util]
            [com.defold.util WeakInterner]
-           [java.io Writer]))
+           [java.io Writer]
+           [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -161,6 +162,11 @@
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
 
+;; A gid is a graph-id.
+;; A nid is a partial node-id - the part that uniquely identifies the node within a graph.
+;; An oid does the same for override layers within a graph.
+;; A node-id combines a graph-id with a nid to uniquely identify a node in the system.
+
 (def ^:const NID-BITS                                56)
 (def ^:const NID-MASK                  0xffffffffffffff)
 (def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
@@ -168,23 +174,40 @@
 (def ^:const GID-MASK                              0x7f)
 (def ^:const MAX-GROUP-ID                           254)
 
-(defn make-node-id ^long [^long gid ^long nid]
+(defn make-node-id
+  ^long [^long graph-id ^long nid]
   (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and nid 0xffffffffffffff)))
+    (bit-shift-left graph-id NID-BITS)
+    (bit-and nid 0xffffffffffffff)))
 
-(defn node-id->graph-id ^long [^long node-id]
+(defn next-node-id
+  ^long [nid-generators-by-graph-id graph-id]
+  (let [^AtomicLong nid-generator (get nid-generators-by-graph-id graph-id)
+        nid (.getAndIncrement nid-generator)]
+    (make-node-id graph-id nid)))
+
+(defn node-id->graph-id
+  ^long [^long node-id]
   (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
 
-(defn node-id->nid ^long [^long node-id]
+(defn node-id->nid
+  ^long [^long node-id]
   (bit-and node-id NID-MASK))
 
-(defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
+(defn node->graph-id
+  ^long [node]
+  (node-id->graph-id (node-id node)))
 
-(defn make-override-id ^long [^long gid ^long oid]
+(defn make-override-id
+  ^long [^long graph-id ^long oid]
   (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and oid 0xffffffffffffff)))
+    (bit-shift-left graph-id NID-BITS)
+    (bit-and oid 0xffffffffffffff)))
 
-(defn override-id->graph-id ^long [^long override-id]
+(defn next-override-id
+  ^long [^AtomicLong oid-generator ^long graph-id]
+  (make-override-id graph-id (.getAndIncrement oid-generator)))
+
+(defn override-id->graph-id
+  ^long [^long override-id]
   (bit-and (bit-shift-right override-id NID-BITS) GID-MASK))
