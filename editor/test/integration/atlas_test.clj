@@ -16,9 +16,11 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.atlas :as atlas]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.texture-util :as texture-util]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]))
@@ -127,3 +129,33 @@
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
           (is (not (g/error? (g/node-value atlas :save-data)))))))))
+
+(deftest modifying-existing-image-property-does-not-trigger-atlas-regeneration
+  (test-util/with-loaded-project "test/resources/test_project"
+    (let [atlas (test-util/resource-node project "/switcher/fish_animations.atlas")
+          sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))
+          asdf (test-util/outline atlas [0])]
+      (let [fish (:node-id (nth (:children (test-util/outline atlas [0])) 0))]
+        (g/set-property! fish :pivot-x (float 0.12345))
+        (g/set-property! fish :sprite-trim-mode :sprite-trim-mode-8)
+        (is (= sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))))))))
+
+(deftest duplicate-animation-image-with-different-properties-triggers-regeneration
+  (test-util/with-loaded-project "test/resources/test_project"
+    (let [atlas (test-util/resource-node project "/switcher/fish_animations.atlas")
+          sha1-before (:sha1 (g/node-value atlas :packed-page-images-generator))
+          get-anim (fn [] (test-util/outline atlas [0]))
+          get-sha (fn [] (:sha1 (g/node-value atlas :packed-page-images-generator)))
+          img-path "/switcher/images/red_fish.png"]
+      (is (= (count (:children (get-anim))) 2))
+      (g/transact
+        (atlas/add-images-to-animation (:node-id (get-anim)) [(workspace/resolve-resource (g/node-value atlas :resource) img-path)]))
+      (is (= (count (:children (get-anim))) 3))
+      (let [new-fish (:node-id (nth (:children (get-anim)) 2))]
+        (is (= sha1-before (get-sha)))
+        (g/set-property! new-fish :sprite-trim-mode :sprite-trim-mode-8)
+        (is (not= sha1-before (get-sha)))
+        (g/set-property! new-fish :sprite-trim-mode :sprite-trim-mode-off)
+        (is (= sha1-before (get-sha)))
+        (g/set-property! new-fish :pivot-x (float 0.12345))
+        (not= (is sha1-before (get-sha)))))))
