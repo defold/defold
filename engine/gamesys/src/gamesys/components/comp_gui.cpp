@@ -1385,6 +1385,7 @@ namespace dmGameSystem
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
             const char* text = dmGui::GetNodeText(scene, node);
+            const char* safe_text = text ? text : "";
             params.m_WorldTransform = node_transforms[i];
             params.m_RenderOrder = batch_render_order;
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
@@ -1405,9 +1406,9 @@ namespace dmGameSystem
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
-            params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, text_codepoints);
-            params.m_Text = params.m_TextLayout ? 0 : (text ? text : "");
-            if (params.m_Text[0] == '\0' && !params.m_TextLayout)
+            params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, text_codepoints);
+            params.m_Text = params.m_TextLayout ? 0 : safe_text;
+            if (!params.m_TextLayout && safe_text[0] == '\0')
                 continue;
             ApplyStencilClipping(gui_context, stencil_scopes[i], params);
             dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
