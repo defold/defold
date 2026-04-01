@@ -1109,6 +1109,7 @@ namespace dmGameSystem
             if (gui_world->m_Components[i] == gui_component)
             {
                 dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+                dmGui::DeleteScene(gui_component->m_Scene);
                 if (gui_component->m_Material) {
                     dmResource::Release(factory, gui_component->m_Material);
                 }
@@ -1118,7 +1119,6 @@ namespace dmGameSystem
                     }
                 }
                 gui_component->m_ResourcePropertyPointers.SetSize(0);
-                dmGui::DeleteScene(gui_component->m_Scene);
                 delete gui_component;
                 gui_world->m_Components.EraseSwap(i);
                 break;
