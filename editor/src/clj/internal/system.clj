@@ -203,13 +203,9 @@
   (let [used (into #{} (keys (graphs system)))]
     (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
 
-(defn next-node-id*
-  ^long [id-generators ^long graph-id]
-  (gt/make-node-id graph-id (.getAndIncrement ^AtomicLong (get id-generators graph-id))))
-
 (defn next-node-id
   ^long [system ^long graph-id]
-  (next-node-id* (id-generators system) graph-id))
+  (gt/next-node-id (id-generators system) graph-id))
 
 (defn take-node-ids*
   [id-generators ^long graph-id ^long node-id-count]
@@ -225,14 +221,6 @@
 (defn take-node-ids
   [system ^long graph-id ^long node-id-count]
   (take-node-ids* (id-generators system) graph-id node-id-count))
-
-(defn next-override-id*
-  ^long [^AtomicLong override-id-generator ^long graph-id]
-  (gt/make-override-id graph-id (.getAndIncrement override-id-generator)))
-
-(defn next-override-id
-  ^long [system ^long graph-id]
-  (next-override-id* (override-id-generator system) graph-id))
 
 (defn- attach-graph*
   [system graph-id graph]

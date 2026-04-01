@@ -18,8 +18,6 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.system :as is]
-            [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
@@ -106,10 +104,10 @@
               output-labels)))))
 
 (defn- next-node-id [ctx graph-id]
-  (is/next-node-id* (:node-id-generators ctx) graph-id))
+  (gt/next-node-id (:node-id-generators ctx) graph-id))
 
 (defn- next-override-id [ctx graph-id]
-  (is/next-override-id* (:override-id-generator ctx) graph-id))
+  (gt/next-override-id (:override-id-generator ctx) graph-id))
 
 (declare ^:private ctx-disconnect)
 
@@ -1068,16 +1066,12 @@
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (into #{} (map gt/endpoint-node-id) nodes-affected)))
 
-(defn- map-vals-bargs
-  [m f]
-  (util/map-vals f m))
-
 (defn apply-tx-label
-  [{:keys [basis label sequence-label] :as ctx}]
-  (cond-> (update-in ctx [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))
+  [{:keys [label sequence-label] :as ctx}]
+  (cond-> (update-in ctx [:basis :graphs] update-vals #(assoc % :tx-sequence-label sequence-label))
 
     label
-    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
+    (update-in [:basis :graphs] update-vals #(assoc % :tx-label label))))
 
 (def tx-report-keys
   (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]
