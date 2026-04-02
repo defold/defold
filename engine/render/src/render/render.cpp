@@ -761,10 +761,13 @@ namespace dmRender
                         i++;
                     }
 
-                    // Execute culling for this sub-batch
+                    // Execute culling for this sub-batch if > 0
                     params.m_Entries = batch_start + sub_batch_start;
                     params.m_NumEntries = i - sub_batch_start;
-                    d->m_VisibilityFn(params);
+                    if (params.m_NumEntries > 0)
+                    {
+                        d->m_VisibilityFn(params);
+                    }
                 }
             }
         }
