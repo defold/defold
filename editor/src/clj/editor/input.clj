@@ -173,8 +173,7 @@
         cursor-pos (when (and (:screen-x action) (:screen-y action))
                      [(:screen-x action) (:screen-y action)])
         view-pos (when (and (:x action) (:y action))
-                   [(:x action) (:y action)])
-        state (assoc state :view-pos view-pos)]
+                   [(:x action) (:y action)])]
     (cond-> state
       cursor-pos
       (assoc :cursor-pos cursor-pos)

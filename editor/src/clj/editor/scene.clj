@@ -1319,15 +1319,18 @@
         (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
           (c/realign-camera camera true evaluation-context)))))
   (state [app-view evaluation-context]
-    (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context)) evaluation-context)))
+    (let [basis (:basis evaluation-context)
+          scene-view (active-scene-view app-view evaluation-context)]
+      (c/camera-2d? (view->camera basis scene-view) evaluation-context))))
 
 ;; Used in the scene view tool bar.
 (handler/defhandler :scene.toggle-camera-type :workbench
   (active? [app-view evaluation-context]
     (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
-    (and (not (c/camera-2d? (view->camera (active-scene-view app-view evaluation-context))
-                            evaluation-context))
+    (and (not (let [basis (:basis evaluation-context)
+                    scene-view (active-scene-view app-view evaluation-context)]
+                (c/camera-2d? (view->camera basis scene-view) evaluation-context)))
          (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
     (g/with-auto-evaluation-context evaluation-context

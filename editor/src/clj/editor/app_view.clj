@@ -542,7 +542,7 @@
           .getContent
           (.lookup button-id)))
 
-(defn- show-settings-state [app-view scene-visibility button-id evaluation-context]
+(defn- show-settings-state [app-view button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)
           (get-settings-button button-id)
           (scene-visibility/settings-visible?)))
@@ -553,7 +553,7 @@
                             (get-settings-button "#show-grid-settings"))]
       (grid/show-settings! btn app-view prefs localization)))
   (state [app-view scene-visibility evaluation-context]
-    (show-settings-state app-view scene-visibility "#show-grid-settings" evaluation-context)))
+    (show-settings-state app-view "#show-grid-settings" evaluation-context)))
 
 (handler/defhandler :scene.perspective-camera.show-settings :workbench
   (run [app-view scene-visibility prefs localization]
@@ -561,7 +561,7 @@
                             (get-settings-button "#show-perspective-camera-settings"))]
       (camera/show-settings! btn prefs localization)))
   (state [app-view scene-visibility evaluation-context]
-    (show-settings-state app-view scene-visibility "#show-perspective-camera-settings" evaluation-context)))
+    (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))

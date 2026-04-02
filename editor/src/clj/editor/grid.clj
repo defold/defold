@@ -279,7 +279,7 @@
     (popup/show-settings! owner prefs localization 220 [:scene :grid]
                           [{:key :size :type :vec3-floats}
                            {:key :active-plane :type :vec3-toggle :label "scene-popup.grid-plane"}
-                           {:key :color :type :color :label "scene-popup.opacity"}
+                           {:key :color :type :color :label "scene-popup.color"}
                            {:key :opacity :type :slider :label "scene-popup.opacity" :min 0.0 :max 1.0}]
                           ignore-options
                           #(invalidate-grids! app-view))))
