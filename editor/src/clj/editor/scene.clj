@@ -67,13 +67,15 @@
            [java.awt.image BufferedImage]
            [java.lang Math Runnable]
            [java.nio IntBuffer]
+           [javafx.beans.value ChangeListener]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent]
            [javafx.geometry HPos VPos]
-           [javafx.scene Cursor Node Parent]
+           [javafx.scene Cursor Node Parent Scene]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
+           [javafx.stage Window]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [sun.awt.image IntegerComponentRaster]))
 
@@ -1628,13 +1630,21 @@
                         (g/set-property view-id :tool-picking-rect picking-rect))))))
               (catch Throwable error
                 (reset! process-events? false)
-                (error-reporting/report-exception! error)))))]
-    (ui/observe (.focusedProperty (ui/main-stage))
-      (fn [_ _ focused]
-        (when (and (not focused)
-                   (c/free-cam-mode-active? camera-id))
-          (c/stop-free-cam-mode! image-view camera-id)
-          (g/user-data! view-id ::input-state (i/make-input-state)))))
+                (error-reporting/report-exception! error)))))
+        window-focused-property (-> parent
+                                    (.sceneProperty)
+                                    (.flatMap Scene/.windowProperty)
+                                    (.flatMap Window/.focusedProperty)
+                                    (.orElse false))
+        ^ChangeListener on-window-focus-changed
+        (fn [_ _ focused]
+          (when (and (not focused)
+                     (c/free-cam-mode-active? camera-id))
+            (c/stop-free-cam-mode! image-view camera-id)
+            (g/user-data! view-id ::input-state (i/make-input-state))))]
+    (.addListener window-focused-property on-window-focus-changed)
+    ;; NOTE: Preserve a strong ref to prevent GC from collecting the weakly referenced ChangeLIstener
+    (.put (.getProperties parent) ::window-focused-property window-focused-property)
     (doto parent
       (ui/on-mouse! (fn [type _]
                       (cond (= type :exit)
