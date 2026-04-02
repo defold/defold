@@ -403,11 +403,13 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
-      { name: 'Install Vulkan Runtime (for rive plugin)',
+      {
+        name: 'Install Vulkan Runtime (for rive plugin)',
         uses: jakoch/install-vulkan-sdk-action@v1,
         with: {
           install_runtime: true,
           cache: true
+        }
       },
       {
         name: 'Build editor',
