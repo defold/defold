@@ -916,6 +916,23 @@
     (MDNS$TestHooks/sendQuery mdns now)
     (is (not (MDNS$TestHooks/shouldQuery mdns (inc now))))))
 
+;; Verifies shouldQuery() uses the earlier browse deadline when the backoff
+;; timer is due before the next half-TTL refresh.
+(deftest mdns-should-query-uses-earlier-query-deadline
+  (let [mdns (MDNS. (dummy-logger))
+        service-type MDNS/MDNS_SERVICE_TYPE
+        full-name (str "TargetShouldQuery." service-type)
+        host-name "target-should-query.local"
+        packet (make-response-packet (service-records service-type full-name host-name 9043 120))
+        now 10000
+        next-query-at (+ now 1000)
+        refresh-at (+ now 2000)]
+    (parse-and-rebuild! mdns packet)
+    (MDNS$TestHooks/setQuerySchedule mdns next-query-at 1000)
+    (MDNS$TestHooks/setRefreshAt mdns refresh-at)
+    (is (not (MDNS$TestHooks/shouldQuery mdns (dec next-query-at))))
+    (is (MDNS$TestHooks/shouldQuery mdns next-query-at))))
+
 ;; Verifies equality includes host and local address so endpoint moves are visible to change detection.
 (deftest mdns-service-info-equality-includes-host-and-local-address
   (let [base (MDNSServiceInfo. 120

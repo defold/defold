@@ -721,12 +721,10 @@ public class MDNS {
     private boolean shouldQuery(long now) {
         // Query either when the exponential backoff fires or when a cached
         // record reaches its half-TTL refresh point, whichever comes first.
-        long due = nextRefreshAt();
-        if (nextQueryAt == 0 || (due != 0 && due < nextQueryAt)) {
-            due = nextQueryAt == 0 ? due : Math.min(nextQueryAt, due);
-        } else if (due == 0) {
-            due = nextQueryAt;
-        }
+        long refreshAt = nextRefreshAt();
+        long due = nextQueryAt == 0 ? refreshAt
+                : refreshAt == 0 ? nextQueryAt
+                : Math.min(nextQueryAt, refreshAt);
         return due == 0 || now >= due;
     }
 
