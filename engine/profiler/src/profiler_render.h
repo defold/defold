@@ -94,6 +94,7 @@ namespace dmProfileRender
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
 
+    ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame);
     void DumpFrame(ProfilerFrame* frame);
 
     //

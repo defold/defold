@@ -22,6 +22,7 @@
 // when locale LC_NUMERIC use commas instead of periods for decimal points
 #if defined(__APPLE__) || defined(__linux__)
 #ifdef __APPLE__
+#include <stdlib.h>
 #include <xlocale.h>
 #else
 #include <locale.h>
