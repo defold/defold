@@ -59,6 +59,21 @@ def build(bld):
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt']
 
     bld.add_group()
+    profiler_exported_symbols = ['ProfilerExt', 'ProfilerBasic', 'GraphicsAdapterNull']
+    profiler_test = bld(
+        features = 'c cxx cprogram test',
+        use = 'TESTMAIN APP RESOURCE DDF FONT GRAPHICS_NULL PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION DLIB'.split() + additional_libs + ['PROFILE', 'PROFILEREXT'],
+        exported_symbols = profiler_exported_symbols,
+        web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+        includes = '../../proto .',
+        defines = defines,
+        source = ['test_profilerext_lua.cpp'],
+        target = 'test_profilerext_lua')
+
+    if 'win32' in bld.env.PLATFORM:
+        profiler_test.env.append_value('LINKFLAGS', ['Psapi.lib'])
+
+    bld.add_group()
     obj = bld(
         features = 'c cxx cprogram test',
         use = 'TESTMAIN APP RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE FONT GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB APP engine engine_service'.split() + additional_libs + profile_lib,
