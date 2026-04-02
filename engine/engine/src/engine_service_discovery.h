@@ -12,26 +12,24 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.upnp;
+#ifndef DM_ENGINE_SERVICE_DISCOVERY
+#define DM_ENGINE_SERVICE_DISCOVERY
 
+#include <stdint.h>
 
-import java.io.IOException;
+namespace dmEngineService
+{
+    struct DiscoveryTxtEntry
+    {
+        const char* m_Key;
+        const char* m_Value;
+    };
 
-public interface ISSDP {
+    typedef struct DiscoveryService* HDiscoveryService;
 
-    public void enableLogTracing(boolean logTracing);
-
-    public boolean setup() throws IOException;
-
-    public boolean update(boolean search) throws IOException;
-
-    public DeviceInfo getDeviceInfo(String usn);
-
-    public void dispose();
-
-    public void clearDiscovered();
-
-    public DeviceInfo[] getDevices();
-
-    public boolean isConnected();
+    HDiscoveryService DiscoveryServiceNew(const char* service_id, const char* instance_name, uint16_t port, const DiscoveryTxtEntry* txt_entries, uint32_t txt_count);
+    void DiscoveryServiceDelete(HDiscoveryService discovery_service);
+    void DiscoveryServiceUpdate(HDiscoveryService discovery_service);
 }
+
+#endif // DM_ENGINE_SERVICE_DISCOVERY

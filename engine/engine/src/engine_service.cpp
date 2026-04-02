@@ -21,15 +21,17 @@
 #include <dlib/math.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
-#include <dlib/ssdp.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
+#include <dlib/time.h>
 #include <dlib/template.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
 #include <gamesys/components/comp_gui.h> 
 #include "engine_service.h"
+#include "engine_service_private.h"
+#include "engine_service_discovery.h"
 #include "engine_version.h"
 
 extern unsigned char PROFILER_HTML[];
@@ -37,29 +39,11 @@ extern uint32_t PROFILER_HTML_SIZE;
 
 namespace dmEngineService
 {
-    static const char DEVICE_DESC_TEMPLATE[] =
-    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-    "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
-    "    <specVersion>\n"
-    "        <major>1</major>\n"
-    "        <minor>0</minor>\n"
-    "    </specVersion>\n"
-    "    <device>\n"
-    "        <deviceType>upnp:rootdevice</deviceType>\n"
-    "        <friendlyName>${NAME}</friendlyName>\n"
-    "        <manufacturer>Defold</manufacturer>\n"
-    "        <modelName>Defold Engine 1.0</modelName>\n"
-    "        <UDN>${UDN}</UDN>\n"
-    "        <defold:url>http://${HOSTNAME}:${DEFOLD_PORT}</defold:url>\n"
-    "        <defold:logPort>${DEFOLD_LOG_PORT}</defold:logPort>\n"
-    "    </device>\n"
-    "</root>\n";
-
     static const char INFO_TEMPLATE[] =
-    "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\"}";
+    "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\", \"log_port\": \"${DEFOLD_LOG_PORT}\"}";
     static const char STATE_TEMPLATE[] =
     "{\"connection_mode\": ${CONNECTION_MODE}}";
-
+    static const char MDNS_SCHEMA_VERSION[] = "1";
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
     const char* const FOURCC_RESOURCES = "RESS";
 
@@ -219,64 +203,10 @@ namespace dmEngineService
         }
         
 
-        // This is equivalent to what SSDP is doing when serving the UPNP descriptor through its own http server
-        // See ssdp.cpp#ReplaceHttpHostVar
-        static const char* ReplaceHttpHostVar(void *user_data, const char *key)
-        {
-            if (strcmp(key, "HTTP-HOST") == 0)
-            {
-                return (char*) user_data;
-            }
-            return 0;
-        }
-
-        // See comment below where this handler is registered
-        static void UpnpHandler(void* user_data, dmWebServer::Request* request)
-        {
-            EngineService* service = (EngineService*) user_data;
-            char host_buffer[64];
-            const char* host_header = dmWebServer::GetHeader(request, "Host");
-            if (host_header == 0)
-            {
-                host_header = dmWebServer::GetHeader(request, "host");
-            }
-            if (host_header == 0)
-            {
-                *host_buffer = 0;
-            }
-            else
-            {
-                dmStrlCpy(host_buffer, host_header, sizeof(host_buffer));
-            }
-            // Strip possible port number included here
-            char *delim = strchr(host_buffer, ':');
-            if (delim)
-            {
-                *delim = 0;
-            }
-            char buffer[1024];
-            dmTemplate::Result tr = dmTemplate::Format(host_buffer, buffer, sizeof(buffer), service->m_DeviceDesc.m_DeviceDescription, ReplaceHttpHostVar);
-            if (tr != dmTemplate::RESULT_OK)
-            {
-                dmLogError("Error formating http response (%d)", tr);
-                dmWebServer::SetStatusCode(request, 500);
-                dmWebServer::Send(request, INTERNAL_SERVER_ERROR, sizeof(INTERNAL_SERVER_ERROR));
-            }
-            else
-            {
-                dmWebServer::SetStatusCode(request, 200);
-                dmWebServer::Send(request, buffer, strlen(buffer));
-            }
-        }
-
         static const char* ReplaceCallback(void* user_data, const char* key)
         {
             EngineService* self = (EngineService*) user_data;
-            if (strcmp(key, "UDN") == 0)
-            {
-                return self->m_DeviceDesc.m_UDN;
-            }
-            else if (strcmp(key, "DEFOLD_PORT") == 0)
+            if (strcmp(key, "DEFOLD_PORT") == 0)
             {
                 return self->m_PortText;
             }
@@ -287,11 +217,6 @@ namespace dmEngineService
             else if (strcmp(key, "NAME") == 0)
             {
                 return self->m_Name;
-            }
-            else if (strcmp(key, "HOSTNAME") == 0)
-            {
-                // this will be filled in by the SSDP response
-                return "${HTTP-HOST}";
             }
             else if (strcmp(key, "ENGINE_VERSION") == 0)
             {
@@ -327,10 +252,10 @@ namespace dmEngineService
 
         bool Init(uint16_t port)
         {
-            dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
-
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
+            char host_name[128] = {0};
+            dmSocket::GetHostname(host_name, sizeof(host_name));
 
             dmSocket::Address local_address;
             dmSocket::Result sockr = dmSocket::GetLocalAddress(&local_address);
@@ -347,20 +272,18 @@ namespace dmEngineService
              *
              */
             if (strcmp(info.m_SystemName, "Android") == 0) {
-                dmStrlCpy(m_Name, info.m_Manufacturer, sizeof(m_Name));
-                dmStrlCat(m_Name, "-", sizeof(m_Name));
-                dmStrlCat(m_Name, info.m_DeviceModel, sizeof(m_Name));
+                BuildManufacturerModelName(info.m_Manufacturer, info.m_DeviceModel, m_Name, sizeof(m_Name));
             } else {
-                dmSocket::GetHostname(m_Name, sizeof(m_Name));
+                dmStrlCpy(m_Name, host_name, sizeof(m_Name));
             }
 
-            const char* addr = dmSocket::AddressToIPString(local_address);
-            if (strstr(m_Name, addr) == 0)
+            char* local_address_str = dmSocket::AddressToIPString(local_address);
+            const char* addr = local_address_str ? local_address_str : "";
+            if (addr[0] && strstr(m_Name, addr) == 0)
             {
                 dmStrlCat(m_Name, " - ", sizeof(m_Name));
                 dmStrlCat(m_Name, addr, sizeof(m_Name));
             }
-            free((void*)addr);
 
             dmStrlCat(m_Name, " - ", sizeof(m_Name));
             dmStrlCat(m_Name, info.m_SystemName, sizeof(m_Name));
@@ -372,6 +295,7 @@ namespace dmEngineService
             if (r != dmWebServer::RESULT_OK)
             {
                 dmLogError("Unable to create engine web-server (%d)", r);
+                free(local_address_str);
                 return false;
             }
 
@@ -392,58 +316,51 @@ namespace dmEngineService
             // Our profiler doesn't support Ipv6 addresses, so let's assume localhost if it is Ipv6
             if (local_address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                char* local_address_str = dmSocket::AddressToIPString(local_address);
-                dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
-                free(local_address_str);
+                dmStrlCpy(m_LocalAddress, addr, sizeof(m_LocalAddress));
             }
             else
             {
                 dmStrlCpy(m_LocalAddress, "localhost", sizeof(m_LocalAddress));
             }
 
-            // UDN must be unique and this scheme is probably unique enough
-            dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
-            dmStrlCat(m_DeviceDesc.m_UDN, m_LocalAddress, sizeof(m_DeviceDesc.m_UDN));
-            dmStrlCat(m_DeviceDesc.m_UDN, ":", sizeof(m_DeviceDesc.m_UDN));
+            char discovery_identity[128];
+            BuildDiscoveryIdentity(addr, host_name, info.m_Manufacturer, info.m_DeviceModel, info.m_SystemName, discovery_identity, sizeof(discovery_identity));
+
+            char service_instance_suffix[9];
+            dmSnPrintf(service_instance_suffix, sizeof(service_instance_suffix), "%08x", (uint32_t) (dmTime::GetMonotonicTime() & 0xffffffffULL));
+
+            // DNS-SD instance labels are protocol identifiers, while the
+            // human-readable target name and stable editor identity are
+            // published separately in TXT.
+            BuildServiceInstanceName(discovery_identity, m_PortText, service_instance_suffix, m_ServiceInstanceName, sizeof(m_ServiceInstanceName));
+
+            // Service id must be unique and this scheme is probably unique enough.
             /*
              * Note that we use the engine service port for
              * distinguishing the dmengine instances rather than the
-             * ssdp http server port. Several dmengine's all running
+             * discovery endpoint port. Several dmengine's all running
              * on the standard port (8001) will thus be
              * indistinguishable. Having them show up as separate
              * devices is pointless since we can't determine which one
              * we're connecting to anyhow (port reuse).
              */
-            dmStrlCat(m_DeviceDesc.m_UDN, m_PortText, sizeof(m_DeviceDesc.m_UDN));
-            dmStrlCat(m_DeviceDesc.m_UDN, "-", sizeof(m_DeviceDesc.m_UDN));
-            dmStrlCat(m_DeviceDesc.m_UDN, info.m_DeviceModel, sizeof(m_DeviceDesc.m_UDN));
+            dmSnPrintf(m_ServiceId, sizeof(m_ServiceId), "defold-%s:%s-%s", discovery_identity, m_PortText, info.m_DeviceModel);
 
-            dmTemplate::Format(this, m_DeviceDescXml, sizeof(m_DeviceDescXml), DEVICE_DESC_TEMPLATE, ReplaceCallback);
+            free(local_address_str);
 
-            m_DeviceDesc.m_Id = "defold";
-            m_DeviceDesc.m_DeviceType = "upnp:rootdevice";
-            m_DeviceDesc.m_DeviceDescription = m_DeviceDescXml;
+            dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 
-            dmSSDP::NewParams ssdp_params;
-            ssdp_params.m_MaxAge = 60;
-            ssdp_params.m_AnnounceInterval = 30;
-            dmSSDP::HSSDP ssdp;
-            dmSSDP::Result sr = dmSSDP::New(&ssdp_params, &ssdp);
-            if (sr == dmSSDP::RESULT_OK)
+            DiscoveryTxtEntry txt_entries[] =
             {
-                sr = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
-                if (sr != dmSSDP::RESULT_OK)
-                {
-                    dmSSDP::Delete(ssdp);
-                    ssdp = 0;
-                    dmLogWarning("Unable to register ssdp device (%d)", sr);
-                }
-            }
-            else
-            {
-                ssdp = 0;
-                dmLogWarning("Unable to create ssdp service (%d)", sr);
-            }
+                {"id", m_ServiceId},
+                {"name", m_Name},
+                {"log_port", m_LogPortText},
+                {"version", dmEngineVersion::VERSION},
+                {"platform", dmEngineVersion::PLATFORM},
+                {"sha1", dmEngineVersion::VERSION_SHA1},
+                {"schema", MDNS_SCHEMA_VERSION},
+            };
+            HDiscoveryService discovery_service = DiscoveryServiceNew(m_ServiceId, m_ServiceInstanceName, m_Port, txt_entries, sizeof(txt_entries) / sizeof(txt_entries[0]));
 
             dmWebServer::HandlerParams post_params;
             post_params.m_Handler = PostHandler;
@@ -459,14 +376,6 @@ namespace dmEngineService
             info_params.m_Handler = InfoHandler;
             info_params.m_Userdata = this;
             dmWebServer::AddHandler(web_server, "/info", &info_params);
-
-            // The purpose of this handler is both for debugging but also for Editor2,
-            // where the user can manually specify an IP (and optionally port) to connect to.
-            // The port is known (8001) or set via environment variable DM_SERVICE_PORT and logged on startup.
-            dmWebServer::HandlerParams upnp_params;
-            upnp_params.m_Handler = UpnpHandler;
-            upnp_params.m_Userdata = this;
-            dmWebServer::AddHandler(web_server, "/upnp", &upnp_params);
 
             dmWebServer::HandlerParams state_params;
             state_params.m_Handler = StateHandler;
@@ -484,7 +393,7 @@ namespace dmEngineService
 
             m_WebServer = web_server;
             m_WebServerRedirect = web_server_redirect;
-            m_SSDP = ssdp;
+            m_DiscoveryService = discovery_service;
             m_Profile = 0; // Set during the update
 
             dmLogInfo("Target listening with name: %s", m_Name);
@@ -501,11 +410,7 @@ namespace dmEngineService
                 dmWebServer::Delete(m_WebServerRedirect);
             }
 
-            if (m_SSDP)
-            {
-                dmSSDP::DeregisterDevice(m_SSDP, "defold");
-                dmSSDP::Delete(m_SSDP);
-            }
+            DiscoveryServiceDelete(m_DiscoveryService);
         }
 
         void FillState(EngineState* state)
@@ -519,11 +424,11 @@ namespace dmEngineService
         char                 m_PortText[16];
         char                 m_LogPortText[16];
         char                 m_Name[128];
+        char                 m_ServiceInstanceName[128];
         char                 m_LocalAddress[128];
 
-        dmSSDP::DeviceDesc   m_DeviceDesc;
-        char                 m_DeviceDescXml[sizeof(DEVICE_DESC_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
-        dmSSDP::HSSDP        m_SSDP;
+        char                 m_ServiceId[128];
+        HDiscoveryService    m_DiscoveryService;
 
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
         char                 m_StateJson[sizeof(STATE_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
@@ -569,10 +474,7 @@ namespace dmEngineService
 
         engine_service->m_Profile = 0; // Don't leave a dangling pointer
 
-        if (engine_service->m_SSDP)
-        {
-            dmSSDP::Update(engine_service->m_SSDP, false);
-        }
+        DiscoveryServiceUpdate(engine_service->m_DiscoveryService);
     }
 
     uint16_t GetPort(HEngineService engine_service)

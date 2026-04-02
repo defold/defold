@@ -988,8 +988,7 @@
 
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
-          (when log-stream
-            (console/set-log-service-stream log-stream))
+          (console/set-log-service-stream log-stream)
           (reboot-engine! selected-target web-server debug?))
 
         :else
