@@ -585,7 +585,6 @@ namespace dmRig
             {
                 dmArray<BonePose>& pose = instance->m_Pose;
                 const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-                ResetPose(skeleton, pose);
                 UpdatePoseTransforms(skeleton, pose);
                 CommitPoseMatrixToCache(context, instance);
             }

@@ -1379,6 +1379,43 @@ TEST_F(RigInstanceTest, PoseAnim)
     ASSERT_EQ(Quat::identity(), pose[1].m_World.GetRotation());
 }
 
+TEST_F(RigInstanceTest, PoseAnimOnceHoldsLastFrame)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(m_Instance);
+
+    // sample 0 ( the initial skeleton pose ))
+    ASSERT_EQ(Vector3(0.0f, 0.0f, 0.0f), pose[0].m_World.GetTranslation());
+    ASSERT_EQ(Quat::identity(), pose[0].m_World.GetRotation());
+    ASSERT_EQ(Vector3(1.0f, 0.0f, 0.0f), pose[1].m_World.GetTranslation());
+    ASSERT_EQ(Quat::identity(), pose[1].m_World.GetRotation());
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    // sample 1
+    ASSERT_EQ(Vector3(0.0f, 0.0f, 0.0f), pose[0].m_World.GetTranslation());
+    ASSERT_EQ(Quat::identity(), pose[0].m_World.GetRotation());
+    ASSERT_EQ(Vector3(1.0f, 0.0f, 0.0f), pose[1].m_World.GetTranslation());
+    ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[1].m_World.GetRotation());
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    // sample 2
+    ASSERT_EQ(Vector3(0.0f, 0.0f, 0.0f), pose[0].m_World.GetTranslation());
+    ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[0].m_World.GetRotation());
+    ASSERT_EQ(Vector3(0.0f, 1.0f, 0.0f), pose[1].m_World.GetTranslation());
+    ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[1].m_World.GetRotation());
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    // sample 3 (same as sample 2, ie end of animation)
+    ASSERT_EQ(Vector3(0.0f, 0.0f, 0.0f), pose[0].m_World.GetTranslation());
+    ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[0].m_World.GetRotation());
+    ASSERT_EQ(Vector3(0.0f, 1.0f, 0.0f), pose[1].m_World.GetTranslation());
+    ASSERT_EQ(Quat::rotationZ((float)M_PI / 2.0f), pose[1].m_World.GetRotation());
+}
+
 TEST_F(RigInstanceTest, PoseAnimCancel)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
@@ -1395,7 +1432,7 @@ TEST_F(RigInstanceTest, PoseAnimCancel)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
-    // sample 1
+    // sample 1 (cancelled, back to start of animation again)
     ASSERT_EQ(Vector3(0.0f), pose[0].m_World.GetTranslation());
     ASSERT_EQ(Vector3(1.0f, 0.0f, 0.0f), pose[1].m_World.GetTranslation());
     ASSERT_EQ(Quat::identity(), pose[0].m_World.GetRotation());
