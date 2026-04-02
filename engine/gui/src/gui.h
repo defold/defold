@@ -261,9 +261,9 @@ namespace dmGui
         float m_MaxDescent;
     };
 
-    struct TextLayoutCache
+    struct TextLayout
     {
-        HTextLayout m_TextLayout;
+        HTextLayout m_Handle;
         uint64_t    m_Key;
     };
     /** callback for retrieving text metrics
@@ -1073,9 +1073,8 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
-    void GetNodeTextLayoutCache(HScene scene, HNode node, TextLayoutCache* out_cache);
-    void SetNodeTextLayoutCache(HScene scene, HNode node, const TextLayoutCache& cache);
-    void ClearNodeTextLayoutCache(HScene scene, HNode node);
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);

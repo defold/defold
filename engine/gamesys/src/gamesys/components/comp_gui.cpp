@@ -1271,27 +1271,19 @@ namespace dmGameSystem
         return 0;
     }
 
-    static float CanonicalizeCacheKeyFloat(float value)
-    {
-        return value == 0.0f ? 0.0f : value;
-    }
-
     static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking)
     {
         HashState64 key_state;
         dmHashInit64(&key_state, false);
 
-        float canonical_width = CanonicalizeCacheKeyFloat(width);
-        float canonical_leading = CanonicalizeCacheKeyFloat(leading);
-        float canonical_tracking = CanonicalizeCacheKeyFloat(tracking);
         uint8_t line_break_flag = line_break ? 1 : 0;
 
         dmHashUpdateBuffer64(&key_state, &font_resource, sizeof(font_resource));
         dmHashUpdateBuffer64(&key_state, &font_version, sizeof(font_version));
         dmHashUpdateBuffer64(&key_state, &text_hash, sizeof(text_hash));
-        dmHashUpdateBuffer64(&key_state, &canonical_width, sizeof(canonical_width));
-        dmHashUpdateBuffer64(&key_state, &canonical_leading, sizeof(canonical_leading));
-        dmHashUpdateBuffer64(&key_state, &canonical_tracking, sizeof(canonical_tracking));
+        dmHashUpdateBuffer64(&key_state, &width, sizeof(width));
+        dmHashUpdateBuffer64(&key_state, &leading, sizeof(leading));
+        dmHashUpdateBuffer64(&key_state, &tracking, sizeof(tracking));
         dmHashUpdateBuffer64(&key_state, &line_break_flag, sizeof(line_break_flag));
         return dmHashFinal64(&key_state);
     }
@@ -1301,7 +1293,8 @@ namespace dmGameSystem
         const char* safe_text = text ? text : "";
         if (!font_resource || !font_map || safe_text[0] == '\0')
         {
-            dmGui::ClearNodeTextLayoutCache(scene, node);
+            dmGui::TextLayout empty_text_layout = {};
+            dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
             return 0;
         }
 
@@ -1309,11 +1302,11 @@ namespace dmGameSystem
         const uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
         const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking);
 
-        dmGui::TextLayoutCache cache = {};
-        dmGui::GetNodeTextLayoutCache(scene, node, &cache);
-        if (cache.m_TextLayout && cache.m_Key == cache_key)
+        dmGui::TextLayout text_layout = {};
+        dmGui::GetNodeTextLayout(scene, node, &text_layout);
+        if (text_layout.m_Handle && text_layout.m_Key == cache_key)
         {
-            return cache.m_TextLayout;
+            return text_layout.m_Handle;
         }
 
         TextLayoutSettings settings = {};
@@ -1336,14 +1329,15 @@ namespace dmGameSystem
             {
                 TextLayoutFree(layout);
             }
-            dmGui::ClearNodeTextLayoutCache(scene, node);
+            dmGui::TextLayout empty_text_layout = {};
+            dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
             return 0;
         }
 
-        dmGui::TextLayoutCache new_cache = {};
-        new_cache.m_TextLayout = layout;
-        new_cache.m_Key = cache_key;
-        dmGui::SetNodeTextLayoutCache(scene, node, new_cache);
+        dmGui::TextLayout new_text_layout = {};
+        new_text_layout.m_Handle = layout;
+        new_text_layout.m_Key = cache_key;
+        dmGui::SetNodeTextLayout(scene, node, new_text_layout);
         return layout;
     }
 
@@ -1374,7 +1368,8 @@ namespace dmGameSystem
             dmRender::HFontMap font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             if (!font_map)
             {
-                dmGui::ClearNodeTextLayoutCache(scene, node);
+                dmGui::TextLayout empty_text_layout = {};
+                dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
                 continue;
             }
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);

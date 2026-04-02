@@ -45,19 +45,6 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static inline void AssertTextLayoutMatchesFontMap(HFontMap font_map, HTextLayout layout)
-    {
-#ifndef NDEBUG
-        if (layout)
-        {
-            assert(layout->m_FontCollection == GetFontCollection(font_map));
-        }
-#else
-        (void)font_map;
-        (void)layout;
-#endif
-    }
-
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
         // TODO: Why does the vertex need to be 16-byte aligned?
@@ -305,7 +292,7 @@ namespace dmRender
 
         if (text_layout)
         {
-            AssertTextLayoutMatchesFontMap(font_map, text_layout);
+            assert(text_layout->m_FontCollection == GetFontCollection(font_map));
             GetTextMetrics(font_map, text_layout, &metrics);
         }
         else

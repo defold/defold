@@ -35,19 +35,6 @@ namespace dmRender
 
 static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
 
-static inline void AssertTextLayoutMatchesFontMap(HFontMap font_map, HTextLayout layout)
-{
-#ifndef NDEBUG
-    if (layout)
-    {
-        assert(layout->m_FontCollection == GetFontCollection(font_map));
-    }
-#else
-    (void)font_map;
-    (void)layout;
-#endif
-}
-
 struct DM_ALIGNED(16) GlyphVertex
 {
     // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
@@ -334,7 +321,7 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
 
 static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
 {
-    AssertTextLayoutMatchesFontMap(font_map, layout);
+    assert(layout->m_FontCollection == GetFontCollection(font_map));
 
     GlyphVertex* vertices = (GlyphVertex*)_vertices;
 

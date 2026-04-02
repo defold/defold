@@ -702,16 +702,12 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    void GetNodeTextLayoutCache(HScene scene, HNode node, TextLayoutCache* out_cache)
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
     {
-        memset(out_cache, 0, sizeof(*out_cache));
+        memset(out_text_layout, 0, sizeof(*out_text_layout));
     }
 
-    void SetNodeTextLayoutCache(HScene scene, HNode node, const TextLayoutCache& cache)
-    {
-    }
-
-    void ClearNodeTextLayoutCache(HScene scene, HNode node)
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout)
     {
     }
 

@@ -3184,9 +3184,9 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     dmGameSystem::FontResource* dynamic_font_resource = (dmGameSystem::FontResource*) dmGui::GetNodeFont(scene, node);
     ASSERT_NE((void*)0, dynamic_font_resource);
 
-    dmGui::TextLayoutCache cache = {};
-    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
-    ASSERT_EQ((HTextLayout)0, cache.m_TextLayout);
+    dmGui::TextLayout text_layout = {};
+    dmGui::GetNodeTextLayout(scene, node, &text_layout);
+    ASSERT_EQ((HTextLayout)0, text_layout.m_Handle);
 
     GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(1u, initial.m_TextEntryCount);
@@ -3194,8 +3194,8 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     ASSERT_EQ(0u, initial.m_TextBufferSize);
     ASSERT_EQ(dmHashString64("/font/valid.ttf"), GetTextLayoutGlyphFontPathHash(dynamic_font_resource, initial.m_TextLayout));
 
-    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
-    ASSERT_EQ(initial.m_TextLayout, cache.m_TextLayout);
+    dmGui::GetNodeTextLayout(scene, node, &text_layout);
+    ASSERT_EQ(initial.m_TextLayout, text_layout.m_Handle);
 
     GuiTextSubmitResult repeated = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(initial.m_TextLayout, repeated.m_TextLayout);
@@ -3258,8 +3258,8 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     ASSERT_EQ((HTextLayout)0, empty_text.m_TextLayout);
     ASSERT_EQ(0u, empty_text.m_TextBufferSize);
 
-    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
-    ASSERT_EQ((HTextLayout)0, cache.m_TextLayout);
+    dmGui::GetNodeTextLayout(scene, node, &text_layout);
+    ASSERT_EQ((HTextLayout)0, text_layout.m_Handle);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -3283,17 +3283,17 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
 
-    dmGui::TextLayoutCache cache = {};
-    dmGui::GetNodeTextLayoutCache(scene, node, &cache);
-    ASSERT_EQ(initial.m_TextLayout, cache.m_TextLayout);
+    dmGui::TextLayout text_layout = {};
+    dmGui::GetNodeTextLayout(scene, node, &text_layout);
+    ASSERT_EQ(initial.m_TextLayout, text_layout.m_Handle);
 
     dmGui::HNode cloned_node = 0;
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(scene, node, &cloned_node));
     ASSERT_NE((dmGui::HNode)0, cloned_node);
 
-    dmGui::TextLayoutCache clone_cache = {};
-    dmGui::GetNodeTextLayoutCache(scene, cloned_node, &clone_cache);
-    ASSERT_EQ((HTextLayout)0, clone_cache.m_TextLayout);
+    dmGui::TextLayout cloned_text_layout = {};
+    dmGui::GetNodeTextLayout(scene, cloned_node, &cloned_text_layout);
+    ASSERT_EQ((HTextLayout)0, cloned_text_layout.m_Handle);
 
     dmGui::DeleteNode(scene, cloned_node);
     dmGui::ClearNodes(scene);
