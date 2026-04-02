@@ -82,6 +82,7 @@
             [editor.targets :as targets]
             [editor.types :as types]
             [editor.ui :as ui]
+            [editor.ui.popup :as popup]
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -523,7 +524,7 @@
                            .getContent
                            (.lookup "#visibility-settings-graphic")
                            .getParent)]
-      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
+      (scene-visibility/show-settings! app-view btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
     (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
                            .getContent
@@ -535,7 +536,7 @@
       (if (scene-visibility/filters-appear-active? scene-visibility evaluation-context)
         (ui/add-style! btn "filters-active")
         (ui/remove-style! btn "filters-active"))
-      (scene-visibility/settings-visible? btn))))
+      (popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
   (some-> tab
@@ -545,7 +546,7 @@
 (defn- show-settings-state [app-view button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)
           (get-settings-button button-id)
-          (scene-visibility/settings-visible?)))
+          (popup/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs localization]

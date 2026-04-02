@@ -362,18 +362,12 @@
     (ui/add-style! filters-enabled-control "first-entry")
     [container update-fn]))
 
-(defn- pref-popup-position
-  ^Point2D [^Parent container width y-gap]
-  (let [container-screen-bounds (.localToScreen container (.getBoundsInLocal container))]
-    (Point2D. (- (.getMaxX container-screen-bounds) width)
-              (+ (.getMaxY container-screen-bounds) y-gap))))
-
-(defn show-visibility-settings! [app-view ^Parent owner scene-visibility]
+(defn show-settings! [app-view ^Parent owner scene-visibility]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
     (let [[^Region toggles update-fn] (make-visibility-toggles-list app-view scene-visibility)
-          popup (popup/make-popup owner toggles)
-          anchor (pref-popup-position owner (.getMinWidth toggles) 10)
+          popup (popup/make-popup owner toggles) ;; TODO JOE: This should go
+          anchor (popup/pref-popup-position owner (.getMinWidth toggles))
           refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
       (update-fn)
       (ui/user-data! owner ::popup popup)
@@ -382,9 +376,6 @@
       (ui/timer-start! refresh-timer)
       (.show popup owner (.getX anchor) (.getY anchor)))))
   
-(defn settings-visible? [^Parent owner]
-  (some? (ui/user-data owner ::popup)))
-
 (handler/defhandler :scene.visibility.toggle-filters :workbench
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))

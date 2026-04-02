@@ -14,9 +14,11 @@
 
 (ns editor.ui.popup
   (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.colors :as colors]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.ui :as ui])
   (:import [antlr.collections List]
@@ -33,6 +35,33 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^List axes [:x :y :z])
+
+(defprotocol SettingsBinding
+  (get-value [this key])
+  (set-value! [this key v])
+  (reset-all! [this])
+  (on-change! [this]))
+
+(defrecord PrefsBinding [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
+  SettingsBinding
+  (get-value [_ key-path] (prefs/get prefs (into prefs-prefix key-path)))
+  (set-value! [_ key-path v] (prefs/set! prefs (into prefs-prefix key-path) v))
+  (reset-all! [_]
+    (doseq [{:keys [key type]} setting-descriptors
+            :when (not (contains? hidden-settings key))
+            key-path (if (= type :vec3-floats)
+                       (mapv #(vector key %) axes)
+                       [[key]])
+            :let [prefs-path (into prefs-prefix key-path)]]
+      (prefs/set! prefs prefs-path (:default (prefs/schema prefs prefs-path)))))
+  (on-change! [_] (when on-change-fn (on-change-fn))))
+
+(defrecord NodePropertyBinding [node-id defaults on-change-fn]
+  SettingsBinding
+  (get-value [_ key] (g/node-value node-id key))
+  (set-value! [_ key v] (g/set-property! node-id key v))
+  (reset-all! [_] nil) ;; TODO JOE: Do we need to do something here?
+  (on-change! [_] (when on-change-fn (on-change-fn))))
 
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -55,61 +84,53 @@
     (fn [_ _ _]
       (.setFocusTraversable node true))))
 
-(defn slider-setting
-  ([prefs ^PopupControl popup prefs-path label-text range-min range-max]
-   (slider-setting prefs ^PopupControl popup prefs-path label-text range-min range-max nil))
-  ([prefs ^PopupControl popup prefs-path label-text range-min range-max on-change-fn]
-   (let [value (prefs/get prefs prefs-path)
-         slider (Slider. range-min range-max value)
-         label (Label. label-text)]
-     (doto slider
-       (ensure-focus-traversable!)
-       (.setBlockIncrement 0.1)
-       ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
-       ;; when autoHide is set to true.
-       (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
-       (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+(defn- slider-setting
+  [settings-binding ^PopupControl popup key label-text range-min range-max]
+  (let [value (get-value settings-binding [key])
+        slider (Slider. range-min range-max value)
+        label (Label. label-text)]
+    (doto slider
+      (ensure-focus-traversable!)
+      (.setBlockIncrement 0.1)
+      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
+      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
 
-     (ui/observe
-       (.valueProperty slider)
-       (fn [_observable _old-val new-val]
-         (let [val (math/round-with-precision new-val 0.01)]
-           (prefs/set! prefs prefs-path val)
-           ;; TODO: Maybe pass some extra arguments
-           (when on-change-fn (on-change-fn)))))
-     [label slider])))
+    (ui/observe
+      (.valueProperty slider)
+      (fn [_observable _old-val new-val]
+        (let [val (math/round-with-precision new-val 0.01)]
+          (set-value! settings-binding [key] val)
+          (on-change! settings-binding))))
+    [label slider]))
 
-(defn toggle-setting
-  ([prefs popup prefs-path label-text]
-   (toggle-setting prefs popup prefs-path label-text nil))
-  ([prefs _popup prefs-path label-text on-change-fn]
-   (let [value (prefs/get prefs prefs-path)
-         check-box (CheckBox.)
-         label (Label. label-text)]
-     (doto check-box
-       (ui/value! value)
-       (ui/remove-style! "check-box")
-       (ui/add-style! "slide-switch")
-       (ensure-focus-traversable!)
-       (ui/on-action! (fn [_]
-                        (prefs/set! prefs prefs-path (ui/value check-box))
-                        (when on-change-fn (on-change-fn)))))
-     (HBox/setHgrow label Priority/ALWAYS)
-     (ui/add-style! label "slide-switch-label")
-     [label check-box])))
+(defn- toggle-setting [settings-binding key label-text]
+  (let [value (get-value settings-binding [key])
+        check-box (CheckBox.)
+        label (Label. label-text)]
+    (doto check-box
+      (ui/value! value)
+      (ui/remove-style! "check-box")
+      (ui/add-style! "slide-switch")
+      (ensure-focus-traversable!)
+      (ui/on-action! (fn [_]
+                       (set-value! settings-binding [key] (ui/value check-box))
+                       (on-change! settings-binding))))
+    (HBox/setHgrow label Priority/ALWAYS)
+    (ui/add-style! label "slide-switch-label")
+    [label check-box]))
 
 (defn- vec3-group
-  [prefs prefs-path on-change-fn axis]
+  [settings-binding key axis]
   (let [text-field (TextField.)
         label (Label. (string/upper-case (name axis)))
-        size-val (str (get (prefs/get prefs prefs-path) axis))
+        size-val (str (get (get-value settings-binding [key]) axis))
         cancel-fn (fn [_] (ui/text! text-field size-val))
         update-fn (fn [_] (try
                             (let [value (Float/parseFloat (.getText text-field))]
                               (if (pos? value)
-                                (do (prefs/set! prefs (conj prefs-path axis) value)
+                                (do (set-value! settings-binding [key axis] value)
                                     (ui/text! text-field (str value))
-                                    (when on-change-fn (on-change-fn)))
+                                    (on-change! settings-binding))
                                 (cancel-fn nil)))
                             (catch Exception _e
                               (cancel-fn nil))))]
@@ -119,25 +140,24 @@
       (ensure-focus-traversable!))
     [label text-field]))
 
-(defn vec3-floats-setting [prefs prefs-path _popup on-change-fn]
+(defn- vec3-floats-setting [settings-binding key]
   (into []
-    (comp (map (partial vec3-group prefs prefs-path on-change-fn))
+    (comp (map (partial vec3-group settings-binding key))
           (mapcat identity))
     axes))
 
 ;; TODO: Rename this cause plane is too specific
-(defn- plane-toggle-button
-  [prefs plane-group prefs-path plane]
-  (let [active-plane (prefs/get prefs prefs-path)]
+(defn- plane-toggle-button [settings-binding plane-group key plane]
+  (let [active-plane (get-value settings-binding [key])]
     (doto (ToggleButton. (string/upper-case (name plane)))
       (ensure-focus-traversable!)
       (.setToggleGroup plane-group)
       (.setSelected (= plane active-plane))
       (ui/add-style! "plane-toggle"))))
 
-(defn vec3-toggle-setting [prefs prefs-path _popup label-text on-change-fn]
+(defn- vec3-toggle-setting [settings-binding key label-text]
   (let [plane-group (ToggleGroup.)
-        buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
+        buttons (mapv (partial plane-toggle-button settings-binding plane-group key) axes)
         label (Label. label-text)]
     (ui/observe (.selectedToggleProperty plane-group)
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
@@ -145,21 +165,21 @@
                     (do (let [active-plane (-> (.getText new-value)
                                                string/lower-case
                                                keyword)]
-                          (prefs/set! prefs prefs-path active-plane))
-                        (when on-change-fn (on-change-fn)))
+                          (set-value! settings-binding [key] active-plane))
+                        (on-change! settings-binding))
                     (.setSelected old-value true))))
     (concat [label] buttons)))
 
-(defn color-setting [prefs prefs-path _popup label-text on-change-fn]
+(defn- color-setting [settings-binding key label-text]
   (let [text-field (TextField.)
-        [r g b a] (prefs/get prefs prefs-path)
+        [r g b a] (get-value settings-binding [key])
         color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
         label (Label. label-text)
         cancel-fn (fn [_] (ui/text! text-field color))
         update-fn (fn [_] (try
                             (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
-                              (do (prefs/set! prefs prefs-path value)
-                                  (when on-change-fn (on-change-fn)))
+                              (do (set-value! settings-binding [key] value)
+                                  (on-change! settings-binding))
                               (cancel-fn nil))
                             (catch Exception _e
                               (cancel-fn nil))))]
@@ -171,75 +191,67 @@
 
 (declare settings)
 
-(defn- reset-paths [setting-descriptors]
-  (into []
-        (mapcat (fn [{:keys [key type]}]
-                  (if (= type :vec3-floats)
-                    (map #(vector key %) axes)
-                    [[key]])))
-        setting-descriptors))
-
-(defn- reset-button [prefs localization ^PopupControl popup prefs-path setting-descriptors hidden-settings reset-callback button-text]
+(defn- reset-button [localization settings-binding ^PopupControl popup setting-descriptors hidden-settings button-text]
   (let [button (doto (Button. button-text)
                  (.setPrefWidth Double/MAX_VALUE))
         reset-fn
         (fn [^ActionEvent event]
           (let [target ^Node (.getTarget event)
                 parent (.getParent target)]
-            (doseq [path (reset-paths setting-descriptors)]
-              (let [path (into prefs-path path)]
-                (prefs/set! prefs path (:default (prefs/schema prefs path)))))
-            (when reset-callback (reset-callback))
+            (reset-all! settings-binding)
+            (on-change! settings-binding)
             (doto parent
-              (ui/children! (ui/node-array (settings prefs localization popup prefs-path setting-descriptors hidden-settings reset-callback)))
+              (ui/children! (ui/node-array (settings localization settings-binding popup setting-descriptors hidden-settings)))
               (.requestFocus))))]
     (doto button
       (ui/on-action! reset-fn)
       (ensure-focus-traversable!))
     button))
 
-(defn- setting-row [prefs localization prefs-path popup on-change {:keys [type key label min max]}]
-  (let [prefs-path (conj prefs-path key)
-        label-text (when label (localization (localization/message label)))]
+(defn- setting-row [localization settings-binding popup {:keys [type key label min max]}]
+  (let [label-text (when label (localization (localization/message label)))]
     (case type
-      :slider      (slider-setting prefs popup prefs-path label-text min max on-change)
-      :toggle      (toggle-setting prefs popup prefs-path label-text on-change)
-      :vec3-floats (vec3-floats-setting prefs prefs-path popup on-change)
-      :vec3-toggle (vec3-toggle-setting prefs prefs-path popup label-text on-change)
-      :color       (color-setting prefs prefs-path popup label-text on-change))))
+      :slider      (slider-setting settings-binding popup key label-text min max)
+      :toggle      (toggle-setting settings-binding key label-text)
+      :vec3-floats (vec3-floats-setting settings-binding key)
+      :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
+      :color       (color-setting settings-binding key label-text))))
 
-(defn- settings [prefs localization popup prefs-path setting-descriptors hidden-settings on-change]
+(defn- settings [localization settings-binding popup setting-descriptors hidden-settings]
   (let [button-text (localization (localization/message "scene-popup.reset-defaults-button"))
-        reset-btn (reset-button prefs localization popup prefs-path setting-descriptors hidden-settings on-change button-text)]
+        reset-btn (reset-button localization settings-binding popup setting-descriptors hidden-settings button-text)]
     (->> setting-descriptors
          (remove (fn [{:keys [key]}] (contains? hidden-settings key)))
          (reduce (fn [rows descriptor]
-                   (conj rows (doto (HBox. 5 (ui/node-array (setting-row prefs localization prefs-path popup on-change descriptor)))
+                   (conj rows (doto (HBox. 5 (ui/node-array (setting-row localization settings-binding popup descriptor)))
                                 (.setAlignment Pos/CENTER))))
                  [reset-btn]))))
 
-(defn- pref-popup-position
-  ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
+(defn pref-popup-position
+  ^Point2D [^Parent container width]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn show-settings!
-  ([^Parent owner prefs localization width prefs-path setting-descriptors]
-   (show-settings! owner prefs localization width prefs-path setting-descriptors nil nil))
-  ([^Parent owner prefs localization width prefs-path setting-descriptors hidden-settings on-change]
+  ([^Parent owner localization settings-binding width setting-descriptors]
+   (show-settings! owner localization settings-binding width setting-descriptors nil))
+  ([^Parent owner localization settings-binding width setting-descriptors hidden-settings]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (.hide popup)
      (let [region (StackPane.)
            popup (make-popup owner region)
-           anchor ^Point2D (pref-popup-position (.getParent owner))]
+           anchor ^Point2D (pref-popup-position (.getParent owner) width)]
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
-                             (doto (VBox. 10 (ui/node-array (settings prefs localization popup prefs-path setting-descriptors hidden-settings on-change)))
+                             (doto (VBox. 10 (ui/node-array (settings localization settings-binding popup setting-descriptors hidden-settings)))
                                (.setFocusTraversable true)
                                (ensure-focus-traversable!)
-                               (ui/add-style! "grid-settings"))])
+                               (ui/add-style! "popup-settings"))])
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
          (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))))))
+
+(defn settings-visible? [^Parent owner]
+  (some? (ui/user-data owner ::popup)))
