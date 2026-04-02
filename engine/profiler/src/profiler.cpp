@@ -64,8 +64,8 @@ static bool                             g_ProfilerDumpNextFrame = false;
 
 struct LuaProfilerScope
 {
-    uint32_t    m_NameOffset;
     uint64_t    m_NameHash;
+    uint32_t    m_NameOffset;
 };
 
 struct LuaProfilerScopeState
