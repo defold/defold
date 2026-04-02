@@ -1067,7 +1067,8 @@
      (if-not include-non-editable-directories
        upgraded-editable-save-data
        (let [live-run-evaluation-context (dissoc evaluation-context :dry-run)
-             resources-by-proj-path (g/valid-node-value project :resource-map live-run-evaluation-context)
+             workspace (g/valid-node-value project :workspace live-run-evaluation-context)
+             resources-by-proj-path (g/valid-node-value workspace :resource-map live-run-evaluation-context)
              resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path live-run-evaluation-context)]
          (into upgraded-editable-save-data
                (keep (fn [[proj-path node-id]]
@@ -1585,7 +1586,6 @@
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
-  (input resource-map g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array :cascade-delete)
   (input settings g/Any :substitute nil)
@@ -1614,7 +1614,6 @@
                                                                  (->> all-sub-selections
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
-  (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1805,7 +1804,6 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
-                (g/connect workspace-id :resource-map project :resource-map)
                 (g/set-graph-value graph :project-id project)
                 (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
                 (g/set-graph-value graph :code-transpilers transpilers-id)))))]
