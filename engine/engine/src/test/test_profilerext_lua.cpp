@@ -162,13 +162,13 @@ TEST_F(ProfilerExtLuaTest, ScopeEndWithoutBeginRaisesLuaError)
         "assert(string.find(err, \"profiler.scope_end() called without a matching profiler.scope_begin()\", 1, true))\n"));
 }
 
-TEST_F(ProfilerExtLuaTest, UnclosedScopesAreAutoClosedOnUpdate)
+TEST_F(ProfilerExtLuaTest, UnclosedScopesAreAutoClosedOnPreRender)
 {
     ASSERT_TRUE(RunString(
         "profiler.scope_begin(\"outer\")\n"
         "profiler.scope_begin(\"inner\")\n"));
 
-    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&m_Params));
+    dmExtension::PreRender(&m_Params);
 
     ASSERT_TRUE(RunString(
         "local ok, err = pcall(function() profiler.scope_end() end)\n"
@@ -180,7 +180,7 @@ TEST_F(ProfilerExtLuaTest, UnclosedScopesAreAutoClosedOnUpdate)
     ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'outer' was not closed before the end of the frame. Auto-closing it."));
 }
 
-TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnUpdate)
+TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnPreRender)
 {
     ASSERT_TRUE(RunString(
         "co = coroutine.create(function()\n"
@@ -198,7 +198,7 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnUpdate)
     ASSERT_EQ(m_L, dmScript::GetMainThread(coroutine_state));
     lua_pop(m_L, 1);
 
-    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&m_Params));
+    dmExtension::PreRender(&m_Params);
 
     ASSERT_TRUE(RunString(
         "local ok, err = coroutine.resume(co)\n"

@@ -80,6 +80,7 @@ static LuaProfilerScopeState*            g_LuaProfilerScopeStates = 0;
 
 static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::HSample root);
 static void PropertyTreeCallback(void* _ctx, dmProfiler::HProperty root);
+static ExtensionResult PreRenderProfiler(dmExtension::Params* params);
 
 static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
 {
@@ -993,9 +994,15 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
     }
 
     dmProfilerExt::UpdatePlatformProfiler();
-    AutoCloseLuaProfilerScopes();
 
     return dmExtension::RESULT_OK;
+}
+
+static ExtensionResult PreRenderProfiler(dmExtension::Params* params)
+{
+    (void) params;
+    AutoCloseLuaProfilerScopes();
+    return EXTENSION_RESULT_OK;
 }
 
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
@@ -1039,6 +1046,8 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
     g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
     g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
+
+    dmExtension::RegisterCallback(dmExtension::CALLBACK_PRE_RENDER, PreRenderProfiler);
 
     return dmExtension::RESULT_OK;
 }
