@@ -58,7 +58,7 @@ protected:
     {
         char buffer[512];
         const char* host_path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), path);
-        
+
         HFont font = FontLoadFromPath(host_path);
         ASSERT_NE((HFont)0, font);
 
@@ -75,20 +75,6 @@ protected:
 TEST_F(FontTest, LoadTTF)
 {
     // Empty. Just loading/unloading a font
-}
-
-
-static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
-{
-    uint32_t len = dmUtf8::StrLen(text);
-    codepoints.SetCapacity(len);
-    codepoints.SetSize(0);
-    const char* cursor = text;
-    while (uint32_t c = dmUtf8::NextChar(&cursor))
-    {
-        codepoints.Push(c);
-    }
-    return len;
 }
 
 static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,
@@ -194,7 +180,7 @@ TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
 {
     HFont font;
     LoadFont("src/test/vera_mo_bd_atoz.ttf", &font);
-    
+
     HFontCollection fontCollection = FontCollectionCreate();
     FontResult fr = FontCollectionAddFont(fontCollection, font);
     ASSERT_EQ(FONT_RESULT_OK, fr);

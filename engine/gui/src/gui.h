@@ -27,6 +27,8 @@
 
 #include <script/script.h>
 
+#include <font/text_layout.h>
+
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/render/render.h>
@@ -257,6 +259,12 @@ namespace dmGui
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+    };
+
+    struct TextLayout
+    {
+        HTextLayout m_Handle;
+        uint64_t    m_Key;
     };
     /** callback for retrieving text metrics
      * The function is expected to fill out the supplied metrics struct with metrics of the supplied font and text.
@@ -1065,6 +1073,8 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);

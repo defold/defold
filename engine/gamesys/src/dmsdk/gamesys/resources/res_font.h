@@ -86,6 +86,13 @@ namespace dmGameSystem
     dmRender::HFontMap ResFontGetHandle(FontResource* font);
 
     /*#
+     * @name ResFontGetVersion
+     * @param font [type: FontResource*] The font resource
+     * @return version [type: uint32_t] Monotonic layout version for the font resource.
+     */
+    uint32_t ResFontGetVersion(FontResource* font);
+
+    /*#
      * @name FPrewarmTextCallback
      * @typedef
      * @param ctx [type: void*] The callback context

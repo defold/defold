@@ -12,12 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <assert.h>                        // for assert
 #include <stdint.h>                         // for uint32_t, int16_t
 #include <dlib/align.h>                     // for DM_ALIGNED
 #include <dlib/log.h>                       // for dmLog*
 #include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/vmath.h>                     // for Vector4
-#include <dlib/time.h>                      // for dmTime::GetMonotonicTime()
 
 #include <graphics/graphics.h>              // for AddVertexStream etc
 #include <graphics/graphics_util.h>         // for UnpackRGBA
@@ -28,6 +28,7 @@
 #include "render/font/font_renderer_private.h"
 
 #include <dmsdk/font/text_layout.h>
+#include <font/text_layout.h>
 
 namespace dmRender
 {
@@ -293,20 +294,6 @@ static void OutputGlyph(FontGlyph* glyph,
     #undef SET_VERTEX_LAYER_MASK
 }
 
-static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)
-{
-    uint32_t len = dmUtf8::StrLen(text);
-    codepoints.SetCapacity(len);
-    codepoints.SetSize(0);
-    const char* cursor = text;
-    while (uint32_t c = dmUtf8::NextChar(&cursor))
-    {
-        codepoints.Push(c);
-    }
-    return len;
-}
-
-
 void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text,
                     TextLayoutSettings* settings, TextMetrics* metrics)
 {
@@ -332,16 +319,14 @@ void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* t
 }
 
 
-uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
+static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
 {
-    DM_PROFILE(__FUNCTION__);
-    (void)backend;
+    assert(layout->m_FontCollection == GetFontCollection(font_map));
 
     GlyphVertex* vertices = (GlyphVertex*)_vertices;
 
     float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
     float leading = line_height * te.m_Leading;
-    float tracking = te.m_Tracking;
 
     const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
     const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
@@ -355,38 +340,6 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     // if it's generated at runtime, the glyph width is measured using the metrics from the glyphs in the font
     // and not generated from the visual bounds (see Fontc.java)
     bool is_metrics_ttf = font_map->m_IsDynamic;
-
-    HFontCollection font_collection = font_map->m_FontCollection;
-
-    // TODO: Create a backend scratch buffer
-
-    uint64_t tstart_seg = dmTime::GetMonotonicTime();
-
-    dmArray<uint32_t> codepoints;
-    TextToCodePoints(text, codepoints);
-
-    uint64_t tend_seg_alloc = dmTime::GetMonotonicTime();
-
-    TextLayoutSettings layoutsettings = {0};
-    layoutsettings.m_Size = dmRender::GetFontMapSize(font_map);
-    layoutsettings.m_LineBreak = te.m_LineBreak;
-    layoutsettings.m_Width = te.m_Width;
-    layoutsettings.m_Tracking = te.m_Tracking;
-    layoutsettings.m_Leading = te.m_Leading;
-    // legacy options for glyph bank fonts
-    layoutsettings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
-    layoutsettings.m_Padding = dmRender::GetFontMapPadding(font_map);
-
-    TextLayout* layout = 0;
-    TextResult r = TextLayoutCreate(font_collection, codepoints.Begin(), codepoints.Size(), &layoutsettings, &layout);
-    if (TEXT_RESULT_OK != r)
-    {
-        if (layout)
-            TextLayoutFree(layout);
-        return 0;
-    }
-
-    uint64_t tend_seg = dmTime::GetMonotonicTime();
 
     uint32_t    glyph_count         = TextLayoutGetGlyphCount(layout);
     TextGlyph*  glyphs              = TextLayoutGetGlyphs(layout);
@@ -426,6 +379,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     }
 
     int32_t dir = 1;//layout->m_Direction == TEXT_DIRECTION_RTL ? -1 : 1;
+    (void)dir;
     uint32_t align = te.m_Align;
     float x_offset = OffsetX(align, te.m_Width); // the box alignment is LTR direction (in pixels)
     if (font_map->m_IsMonospaced)
@@ -437,6 +391,8 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     for (uint32_t i = 0; i < line_count; ++i)
     {
         TextLine& line = lines[i];
+        if (line.m_Length == 0)
+            continue;
 
         // all glyphs are positions on an infinite line, so we want the position of the first glyph on the line
         int32_t first_x = glyphs[line.m_Index].m_X;
@@ -486,14 +442,13 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
             if (glyph && glyph->m_Bitmap.m_Width > 0) // only add glyphs with a size (image) to the glyph cache
             {
                 uint64_t glyph_key = dmRender::MakeGlyphIndexKey(font, glyph_index);
-                if (!IsInCache(font_map, glyph_key))
+                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key, frame);
+                if (!cache_glyph)
                 {
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                     int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
-                    AddGlyphToCache(font_map, frame, glyph_key, glyph, px_cell_offset_y);
+                    cache_glyph = AddGlyphToCache(font_map, frame, glyph_key, glyph, px_cell_offset_y);
                 }
-
-                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key, frame);
                 if (cache_glyph)
                 {
                     cell_x = cache_glyph->m_X;
@@ -530,11 +485,48 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
         }
     }
 
-    TextLayoutFree(layout);
-
     #undef HAS_LAYER
 
     return vertexindex * layer_count;
+}
+
+uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
+{
+    DM_PROFILE(__FUNCTION__);
+    (void)backend;
+
+    if (te.m_TextLayout)
+    {
+        return CreateFontVertexDataFromTextLayout(font_map, frame, te.m_TextLayout, te, sdf_scale, recip_w, recip_h, _vertices, num_vertices);
+    }
+
+    // TODO: Create a backend scratch buffer
+
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints(text, codepoints);
+
+    TextLayoutSettings layoutsettings = {0};
+    layoutsettings.m_Size = dmRender::GetFontMapSize(font_map);
+    layoutsettings.m_LineBreak = te.m_LineBreak;
+    layoutsettings.m_Width = te.m_Width;
+    layoutsettings.m_Tracking = te.m_Tracking;
+    layoutsettings.m_Leading = te.m_Leading;
+    // legacy options for glyph bank fonts
+    layoutsettings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+    layoutsettings.m_Padding = dmRender::GetFontMapPadding(font_map);
+
+    HTextLayout layout = 0;
+    TextResult r = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layoutsettings, &layout);
+    if (TEXT_RESULT_OK != r)
+    {
+        if (layout)
+            TextLayoutFree(layout);
+        return 0;
+    }
+
+    uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, _vertices, num_vertices);
+    TextLayoutFree(layout);
+    return vertex_count;
 }
 
 } // namespace

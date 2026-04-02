@@ -93,6 +93,7 @@ namespace dmProfileRender
     void DeleteRenderProfile(HRenderProfile render_profile);
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
+    void ClearTransientTextLayouts(HRenderProfile render_profile);
 
     ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame);
     void DumpFrame(ProfilerFrame* frame);

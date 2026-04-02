@@ -35,6 +35,7 @@
 #include "font_renderer_api.h"   // for the font renderer backend api
 
 #include <dmsdk/font/text_layout.h>
+#include <font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
@@ -116,6 +117,7 @@ namespace dmRender
     , m_OutlineColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
+    , m_TextLayout(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
@@ -211,6 +213,8 @@ namespace dmRender
         DM_PROFILE("DrawText");
 
         TextContext* text_context = &render_context->m_TextContext;
+        HTextLayout text_layout = params.m_TextLayout;
+        const char* text = params.m_Text ? params.m_Text : "";
 
         if (text_context->m_TextEntries.Full()) {
             dmLogWarning("Out of text-render entries: %u", text_context->m_TextEntries.Capacity());
@@ -234,15 +238,19 @@ namespace dmRender
             batch_key = dmHashFinal64(&key_state);
         }
 
-        uint32_t text_len = strlen(params.m_Text);
-        uint32_t offset = text_context->m_TextBuffer.Size();
-        if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
-            dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
-            return;
-        }
+        uint32_t offset = 0;
+        if (text_layout == 0x0)
+        {
+            uint32_t text_len = strlen(text);
+            offset = text_context->m_TextBuffer.Size();
+            if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
+                dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
+                return;
+            }
 
-        text_context->m_TextBuffer.PushArray(params.m_Text, text_len);
-        text_context->m_TextBuffer.Push('\0');
+            text_context->m_TextBuffer.PushArray(text, text_len);
+            text_context->m_TextBuffer.Push('\0');
+        }
 
         material = material ? material : GetFontMapMaterial(font_map);
         TextEntry te;
@@ -250,6 +258,7 @@ namespace dmRender
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
         te.m_Material = material;
+        te.m_TextLayout = text_layout;
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -279,11 +288,17 @@ namespace dmRender
         // legacy options for glyph bank fonts
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
-        TextMetrics metrics;
+        TextMetrics metrics = {};
 
-        // TODO: Allow for callers to have their prepared HTextLayout
-
-        GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
+        if (text_layout)
+        {
+            assert(text_layout->m_FontCollection == GetFontCollection(font_map));
+            GetTextMetrics(font_map, text_layout, &metrics);
+        }
+        else
+        {
+            GetTextMetrics(text_context->m_FontRenderBackend, font_map, text, &settings, &metrics);
+        }
 
         // find center and radius for frustum culling
         // TODO: Calculate proper AABB
@@ -391,7 +406,7 @@ namespace dmRender
         for (uint32_t *i = begin;i != end; ++i)
         {
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
-            const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
+            const char* text = te.m_TextLayout ? "" : &text_context.m_TextBuffer[te.m_StringOffset];
 
             float sdf_scale = 0.0f;
             if (calc_sdf_scale)

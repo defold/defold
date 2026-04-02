@@ -23,7 +23,9 @@
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
+#include <font/text_layout.h>
 #include <render/font/font_renderer.h>
 #include <render/font_ddf.h>
 
@@ -137,11 +139,140 @@ namespace dmProfileRender
 
         uint64_t m_MaxFrameTime;
         int32_t m_PlaybackFrame;
+        dmArray<HTextLayout> m_TransientTextLayouts;
+        dmArray<uint32_t> m_TextCodePoints;
+        dmHashTable64<HTextLayout> m_LabelTextLayouts;
+        dmRender::HFontMap m_TextLayoutFontMap;
 
         uint32_t m_IncludeFrameWait : 1;
 
         RenderProfile(float fps, uint64_t ticks_per_second, uint64_t lifetime_in_milliseconds);
     };
+
+    void ClearTransientTextLayouts(HRenderProfile render_profile)
+    {
+        if (!render_profile)
+            return;
+
+        uint32_t count = render_profile->m_TransientTextLayouts.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            TextLayoutFree(render_profile->m_TransientTextLayouts[i]);
+        }
+        render_profile->m_TransientTextLayouts.SetSize(0);
+        render_profile->m_TextCodePoints.SetSize(0);
+    }
+
+    static void ClearCachedTextLayouts(HRenderProfile render_profile)
+    {
+        if (!render_profile)
+            return;
+
+        dmHashTable64<HTextLayout>::Iterator iter = render_profile->m_LabelTextLayouts.GetIterator();
+        while (iter.Next())
+        {
+            TextLayoutFree(iter.GetValue());
+        }
+        render_profile->m_LabelTextLayouts.Clear();
+        render_profile->m_TextLayoutFontMap = 0;
+    }
+
+    static bool CreateProfilerTextLayout(HRenderProfile render_profile, dmRender::HFontMap font_map, const char* text, const dmRender::DrawTextParams& params, HTextLayout* out_layout)
+    {
+        TextLayoutSettings settings = {};
+        settings.m_Width = params.m_Width;
+        settings.m_LineBreak = params.m_LineBreak;
+        settings.m_Leading = params.m_Leading;
+        settings.m_Tracking = params.m_Tracking;
+        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+
+        TextToCodePoints(text, render_profile->m_TextCodePoints);
+        uint32_t* codepoints = render_profile->m_TextCodePoints.Empty() ? 0 : render_profile->m_TextCodePoints.Begin();
+
+        HTextLayout layout = 0;
+        TextResult r = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints, render_profile->m_TextCodePoints.Size(), &settings, &layout);
+        if (r != TEXT_RESULT_OK)
+        {
+            if (layout)
+                TextLayoutFree(layout);
+            return false;
+        }
+
+        *out_layout = layout;
+        return true;
+    }
+
+    static void DrawProfilerTextLayout(dmRender::HRenderContext render_context, dmRender::HFontMap font_map, uint64_t batch_key, const dmRender::DrawTextParams& params, HTextLayout layout)
+    {
+        dmRender::DrawTextParams prepared_params = params;
+        prepared_params.m_Text = 0;
+        prepared_params.m_TextLayout = layout;
+        dmRender::DrawText(render_context, font_map, 0, batch_key, prepared_params);
+    }
+
+    static bool CreateTransientTextLayout(HRenderProfile render_profile, dmRender::HFontMap font_map, const char* text, const dmRender::DrawTextParams& params, HTextLayout* out_layout)
+    {
+        HTextLayout layout = 0;
+        if (!CreateProfilerTextLayout(render_profile, font_map, text, params, &layout))
+            return false;
+
+        if (render_profile->m_TransientTextLayouts.Full())
+            render_profile->m_TransientTextLayouts.OffsetCapacity(32);
+        render_profile->m_TransientTextLayouts.Push(layout);
+        *out_layout = layout;
+        return true;
+    }
+
+    static HTextLayout GetOrCreateCachedTextLayout(HRenderProfile render_profile, dmRender::HFontMap font_map, const char* text, const dmRender::DrawTextParams& params)
+    {
+        const char* safe_text = text ? text : "";
+        uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
+
+        HTextLayout* cached_layout = render_profile->m_LabelTextLayouts.Get(text_hash);
+        if (cached_layout)
+            return *cached_layout;
+
+        HTextLayout layout = 0;
+        if (!CreateProfilerTextLayout(render_profile, font_map, safe_text, params, &layout))
+            return 0;
+
+        if (render_profile->m_LabelTextLayouts.Full())
+            render_profile->m_LabelTextLayouts.OffsetCapacity(64);
+        render_profile->m_LabelTextLayouts.Put(text_hash, layout);
+        return layout;
+    }
+
+    static void DrawProfilerTextCached(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, uint64_t batch_key, const dmRender::DrawTextParams& params, const char* text)
+    {
+        HTextLayout layout = GetOrCreateCachedTextLayout(render_profile, font_map, text, params);
+        if (layout)
+        {
+            DrawProfilerTextLayout(render_context, font_map, batch_key, params, layout);
+            return;
+        }
+
+        dmRender::DrawTextParams raw_params = params;
+        raw_params.m_Text = text ? text : "";
+        raw_params.m_TextLayout = 0;
+        dmRender::DrawText(render_context, font_map, 0, batch_key, raw_params);
+    }
+
+    static void DrawProfilerTextTransient(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, uint64_t batch_key, const dmRender::DrawTextParams& params, const char* text)
+    {
+        HTextLayout layout = 0;
+        if (CreateTransientTextLayout(render_profile, font_map, text, params, &layout))
+        {
+            DrawProfilerTextLayout(render_context, font_map, batch_key, params, layout);
+            return;
+        }
+
+        dmRender::DrawTextParams raw_params = params;
+        raw_params.m_Text = text ? text : "";
+        raw_params.m_TextLayout = 0;
+        dmRender::DrawText(render_context, font_map, 0, batch_key, raw_params);
+    }
 
     static void FlushRecording(RenderProfile* render_profile, uint32_t capacity)
     {
@@ -392,10 +523,9 @@ namespace dmProfileRender
             int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
 
             params.m_FaceColor = TITLE_FACE_COLOR;
-            params.m_Text      = "Properties:";
             params.m_WorldTransform.setElem(3, 0, name_x);
             params.m_WorldTransform.setElem(3, 1, y);
-            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+            DrawProfilerTextCached(render_profile, render_context, font_map, batch_key, params, "Properties:");
 
             for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
             {
@@ -426,14 +556,13 @@ namespace dmProfileRender
                 {
                     name = name + 5;
                 }
-                params.m_Text = name;
 
                 if (strstr(name, "DrawCalls") == name)
                 {
                     drawcalls = property.m_Value.m_U32;
                 }
 
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+                DrawProfilerTextCached(render_profile, render_context, font_map, batch_key, params, name);
 
                 switch(property.m_Type)
                 {
@@ -448,9 +577,8 @@ namespace dmProfileRender
                 default: break;
                 }
 
-                params.m_Text = buffer;
                 params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+                DrawProfilerTextTransient(render_profile, render_context, font_map, batch_key, params, buffer);
             }
         }
 
@@ -478,10 +606,9 @@ namespace dmProfileRender
                 break;
         }
 
-        params.m_Text = buffer;
         params.m_WorldTransform.setElem(3, 0, header_area.p.x);
         params.m_WorldTransform.setElem(3, 1, header_area.p.y + CHARACTER_HEIGHT);
-        dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+        DrawProfilerTextTransient(render_profile, render_context, font_map, batch_key, params, buffer);
 
         if (render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED)
         {
@@ -498,26 +625,18 @@ namespace dmProfileRender
 
             int name_x   = samples_area.p.x;
             int time_x   = name_x + SAMPLE_FRAMES_NAME_WIDTH + CHARACTER_WIDTH;
-            // tODO: Self time
-            int count_x  = time_x + SAMPLE_FRAMES_TIME_WIDTH + CHARACTER_WIDTH;
             int frames_x = sample_frames_area.p.x;
 
             params.m_FaceColor = TITLE_FACE_COLOR;
 
             const char* name = dmHashReverseSafe32(thread->m_NameHash);
             dmSnPrintf(buffer, sizeof(buffer), "Thread: %s", name);
-            params.m_Text = buffer;
             params.m_WorldTransform.setElem(3, 0, name_x);
-            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-            params.m_Text = "    ms";
+            DrawProfilerTextCached(render_profile, render_context, font_map, batch_key, params, buffer);
             params.m_WorldTransform.setElem(3, 0, time_x);
-            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-            params.m_Text = "  #";
-            params.m_WorldTransform.setElem(3, 0, count_x);
-            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-            params.m_Text = "Frame:";
+            DrawProfilerTextCached(render_profile, render_context, font_map, batch_key, params, "    ms   #");
             params.m_WorldTransform.setElem(3, 0, frames_x);
-            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+            DrawProfilerTextCached(render_profile, render_context, font_map, batch_key, params, "Frame:");
 
             uint32_t sample_frame_width         = sample_frames_area.s.w;
 
@@ -560,17 +679,11 @@ namespace dmProfileRender
                 params.m_FaceColor = Vector4(r, g, b, 1.0f);
 
                 const char* name = dmHashReverseSafe32(sample.m_NameHash);
-                dmSnPrintf(buffer, sizeof(buffer), "%s", name);
-                params.m_Text = buffer;
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+                DrawProfilerTextCached(render_profile, render_context, font_map, batch_key, params, name);
 
-                dmSnPrintf(buffer, sizeof(buffer), "%6.3f", t);
+                dmSnPrintf(buffer, sizeof(buffer), "%6.3f %3u", t, sample.m_Count);
                 params.m_WorldTransform.setElem(3, 0, time_x);
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-                dmSnPrintf(buffer, sizeof(buffer), "%3u", sample.m_Count);
-                params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+                DrawProfilerTextTransient(render_profile, render_context, font_map, batch_key, params, buffer);
 
                 float unit_start = sample.m_StartTime / (float)frame_length;
                 float unit_length = sample.m_Time / (float)frame_length;
@@ -602,12 +715,18 @@ namespace dmProfileRender
         , m_ViewMode(PROFILER_VIEW_MODE_FULL)
         , m_MaxFrameTime(0)
         , m_PlaybackFrame(0)
+        , m_TextLayoutFontMap(0)
         , m_IncludeFrameWait(0)
     {
+        m_TransientTextLayouts.SetCapacity(128);
+        m_TextCodePoints.SetCapacity(128);
+        m_LabelTextLayouts.SetCapacity(256);
     }
 
     void RenderProfile::Delete(RenderProfile* render_profile)
     {
+        ClearTransientTextLayouts(render_profile);
+        ClearCachedTextLayouts(render_profile);
         FlushRecording(render_profile, 0);
         DeleteProfilerFrame(render_profile->m_CurrentFrame);
         DeleteProfilerFrame(render_profile->m_LastPeakFrame);
@@ -737,6 +856,13 @@ namespace dmProfileRender
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map)
     {
+        if (render_profile->m_TextLayoutFontMap != font_map)
+        {
+            ClearCachedTextLayouts(render_profile);
+            render_profile->m_TextLayoutFontMap = font_map;
+        }
+        ClearTransientTextLayouts(render_profile);
+
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         const Size display_size(dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
 

@@ -52,8 +52,10 @@ namespace dmRender
         dmVMath::Vector4 m_OutlineColor;
         /// Color of the shadow
         dmVMath::Vector4 m_ShadowColor;
-        /// Text to draw in utf8-format
+        /// Text to draw in utf8-format. Optional when m_TextLayout is set.
         const char* m_Text;
+        /// Optional prepared text layout. Borrowed only; must match the font map and remain valid until text entries are cleared for the frame.
+        HTextLayout m_TextLayout;
         /// Render constants
         dmRender::HConstant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
         /// The source blend factor
