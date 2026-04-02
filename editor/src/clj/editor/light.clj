@@ -15,18 +15,44 @@
 (ns editor.light
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.camera :as c]
+            [editor.colors :as colors]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.pass :as pass]
+            [editor.gl.vertex :as vtx]
             [editor.localization :as localization]
+            [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
+            [editor.scene-shapes :as scene-shapes]
+            [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto DataProto$Data]))
+  (:import [com.dynamo.gamesys.proto DataProto$Data]
+           [com.jogamp.opengl GL GL2]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(vtx/defvertex color-vtx
+  (vec3 position)
+  (vec4 color))
+
+(def ^:private outline-shader shaders/basic-color-world-space)
+
+(def ^:private ^:const billboard-circle-segments 32)
+(def ^:private ^:const gizmo-target-pixels 44.0)
+;; Screen-space radius (pixels) for the origin marker; world radius = scale-factor * this (see camera preview mesh).
+(def ^:private ^:const origin-marker-pixels 5.0)
+
+;; Distinct fill for origin markers (not tied to light color or default outline gray).
+(def ^:private ^:const origin-marker-rgb [0.98 0.94 0.72])
 
 (def ^:private light-icon "icons/32/Icons_21-Light.png")
 
@@ -134,6 +160,260 @@
    :label (localization/message "resource.type.light")
    :icon light-icon})
 
+(defn- unify-scale [renderable]
+  (let [{:keys [^Quat4d world-rotation
+                ^Vector3d world-scale
+                ^Vector3d world-translation]} renderable
+        min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
+        physics-world-transform (doto (Matrix4d.)
+                                (.setIdentity)
+                                (.setScale min-scale)
+                                (.setTranslation world-translation)
+                                (.setRotation world-rotation))]
+    (assoc renderable :world-transform physics-world-transform)))
+
+(defn- wrap-uniform-scale [render-fn]
+  (fn [gl render-args renderables n]
+    (render-fn gl render-args (map unify-scale renderables) n)))
+
+(def ^:private render-light-lines (wrap-uniform-scale scene-shapes/render-lines))
+
+(defn- renderable-min-scale [renderable]
+  (if-some [^Vector3d ws (:world-scale renderable)]
+    (min (.-x ws) (.-y ws) (.-z ws))
+    1.0))
+
+(defn- v3-normalize! [^Vector3d v ^Vector3d fallback]
+  (let [len (Math/sqrt (+ (* (.x v) (.x v)) (* (.y v) (.y v)) (* (.z v) (.z v))))]
+    (if (> len 1e-10)
+      (doto v (.scale (/ 1.0 len)))
+      (.set v fallback))))
+
+(defn- world-dir-from-light [renderable local-dir]
+  (let [d (Vector3d. (double (local-dir 0)) (double (local-dir 1)) (double (local-dir 2)))
+        v (math/transform-vector (:world-transform renderable) d)]
+    (v3-normalize! v (Vector3d. 0.0 0.0 -1.0))))
+
+(defn- billboard-axes [^Vector3d world-center camera]
+  (let [cam-pos (Vector3d. (types/position camera))
+        to-cam (doto (Vector3d.) (.sub cam-pos world-center))
+        nlen (Math/sqrt (+ (* (.x to-cam) (.x to-cam)) (* (.y to-cam) (.y to-cam)) (* (.z to-cam) (.z to-cam))))
+        to-cam (if (< nlen 1e-8)
+                 (Vector3d. 0.0 0.0 1.0)
+                 (doto (Vector3d. (.x to-cam) (.y to-cam) (.z to-cam)) (.scale (/ 1.0 nlen))))
+        world-up (Vector3d. 0.0 1.0 0.0)
+        right (doto (Vector3d.) (.cross world-up to-cam))
+        rlen (Math/sqrt (+ (* (.x right) (.x right)) (* (.y right) (.y right)) (* (.z right) (.z right))))]
+    (if (< rlen 1e-6)
+      (let [alt (Vector3d. 1.0 0.0 0.0)
+            right (doto (Vector3d.) (.cross alt to-cam))]
+        (.normalize right)
+        (let [up (doto (Vector3d.) (.cross to-cam right) (.normalize))]
+          [right up to-cam]))
+      (let [right (doto right (.scale (/ 1.0 rlen)))
+            up (doto (Vector3d.) (.cross to-cam right) (.normalize))]
+        [right up to-cam]))))
+
+(defn- conj-line-vertex! [vbuf x y z cr cg cb]
+  (conj! vbuf [(double x) (double y) (double z) (double cr) (double cg) (double cb) 1.0]))
+
+(defn- fill-point-billboard-circle! [vbuf ^Vector3d center ^Vector3d right ^Vector3d up radius cr cg cb]
+  (let [segments (long billboard-circle-segments)
+        radius (double radius)
+        cr (double cr)
+        cg (double cg)
+        cb (double cb)]
+    (reduce (fn [vbuf i]
+              (let [t0 (* 2.0 Math/PI (/ (double i) segments))
+                    t1 (* 2.0 Math/PI (/ (double (inc i)) segments))
+                    cos0 (Math/cos t0) sin0 (Math/sin t0)
+                    cos1 (Math/cos t1) sin1 (Math/sin t1)
+                    x0 (+ (.x center) (* radius (+ (* (.x right) cos0) (* (.x up) sin0))))
+                    y0 (+ (.y center) (* radius (+ (* (.y right) cos0) (* (.y up) sin0))))
+                    z0 (+ (.z center) (* radius (+ (* (.z right) cos0) (* (.z up) sin0))))
+                    x1 (+ (.x center) (* radius (+ (* (.x right) cos1) (* (.x up) sin1))))
+                    y1 (+ (.y center) (* radius (+ (* (.y right) cos1) (* (.y up) sin1))))
+                    z1 (+ (.z center) (* radius (+ (* (.z right) cos1) (* (.z up) sin1))))]
+                (-> vbuf
+                    (conj-line-vertex! x0 y0 z0 cr cg cb)
+                    (conj-line-vertex! x1 y1 z1 cr cg cb))))
+            vbuf
+            (range segments))))
+
+(defn- fill-directional-arrow! [vbuf ^Vector3d p ^Vector3d d-world camera cr cg cb total-len]
+  (let [head-depth-frac 0.26
+        head-width-frac 0.16
+        L (double total-len)
+        cr (double cr)
+        cg (double cg)
+        cb (double cb)
+        tip (doto (Vector3d. (.x p) (.y p) (.z p))
+              (.add (doto (Vector3d. (.x d-world) (.y d-world) (.z d-world)) (.scale L))))
+        [right up n] (billboard-axes tip camera)
+        d-flat (Vector3d. (.x d-world) (.y d-world) (.z d-world))
+        dn (.dot d-flat n)
+        _ (.sub d-flat (doto (Vector3d. (.x n) (.y n) (.z n)) (.scale dn)))
+        dflen (Math/sqrt (+ (* (.x d-flat) (.x d-flat)) (* (.y d-flat) (.y d-flat)) (* (.z d-flat) (.z d-flat))))
+        forward (if (> dflen 1e-6)
+                  (doto (Vector3d. (.x d-flat) (.y d-flat) (.z d-flat)) (.scale (/ 1.0 dflen)))
+                  (Vector3d. (.x right) (.y right) (.z right)))
+        perp (doto (Vector3d.) (.cross n forward))
+        plen (Math/sqrt (+ (* (.x perp) (.x perp)) (* (.y perp) (.y perp)) (* (.z perp) (.z perp))))
+        perp (if (> plen 1e-6)
+               (doto perp (.scale (/ 1.0 plen)))
+               (Vector3d. (.x up) (.y up) (.z up)))
+        hd (* L head-depth-frac)
+        hw (* L head-width-frac)
+        back (doto (Vector3d. (.x tip) (.y tip) (.z tip))
+               (.add (doto (Vector3d. (.x forward) (.y forward) (.z forward)) (.scale (- hd)))))
+        b0 (doto (Vector3d. (.x back) (.y back) (.z back))
+             (.add (doto (Vector3d. (.x perp) (.y perp) (.z perp)) (.scale hw))))
+        b1 (doto (Vector3d. (.x back) (.y back) (.z back))
+             (.add (doto (Vector3d. (.x perp) (.y perp) (.z perp)) (.scale (- hw)))))]
+    ;; Shaft meets the arrowhead at `back` (midpoint of base b0–b1). Triangle: tip–b0, tip–b1, b0–b1.
+    (-> vbuf
+        (conj-line-vertex! (.x p) (.y p) (.z p) cr cg cb)
+        (conj-line-vertex! (.x back) (.y back) (.z back) cr cg cb)
+        (conj-line-vertex! (.x tip) (.y tip) (.z tip) cr cg cb)
+        (conj-line-vertex! (.x b0) (.y b0) (.z b0) cr cg cb)
+        (conj-line-vertex! (.x tip) (.y tip) (.z tip) cr cg cb)
+        (conj-line-vertex! (.x b1) (.y b1) (.z b1) cr cg cb)
+        (conj-line-vertex! (.x b0) (.y b0) (.z b0) cr cg cb)
+        (conj-line-vertex! (.x b1) (.y b1) (.z b1) cr cg cb))))
+
+(defn- outline-rgb-for-light [renderable _base-color]
+  (if-let [sel (:selected renderable)]
+    (let [c (colors/selection-color sel)]
+      [(nth c 0) (nth c 1) (nth c 2)])
+    ;; Same default as camera frustum / scene outlines (colors/outline-color).
+    [(nth colors/outline-color 0) (nth colors/outline-color 1) (nth colors/outline-color 2)]))
+
+(defn- render-origin-markers-billboard [^GL2 gl render-args renderables n]
+  (assert (= pass/outline (:pass render-args)))
+  (let [n (long n)
+        renderables (mapv unify-scale renderables)
+        camera (:camera render-args)
+        vbuf (persistent!
+               (reduce (fn [vbuf ri]
+                         (let [renderable (nth renderables ri)
+                               [ocr ocg ocb] origin-marker-rgb
+                               ^Vector3d world-translation (:world-translation renderable)
+                               sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
+                               r (* (double sf) origin-marker-pixels)]
+                           (if-some [axes (billboard-axes world-translation camera)]
+                             (let [[right up _] axes]
+                               (fill-point-billboard-circle! vbuf world-translation right up r ocr ocg ocb))
+                             vbuf)))
+                       (->color-vtx (* n billboard-circle-segments 2))
+                       (range n)))]
+    (when (pos? (count vbuf))
+      (let [vb (vtx/use-with ::light-origin-marker vbuf outline-shader)]
+        (gl/with-gl-bindings gl render-args [outline-shader vb]
+          (.glDrawArrays gl GL/GL_LINES 0 (count vbuf)))))))
+
+(defn- render-point-billboard [^GL2 gl render-args renderables n]
+  (assert (= pass/outline (:pass render-args)))
+  (let [n (long n)
+        renderables (mapv unify-scale renderables)
+        camera (:camera render-args)
+        vbuf (persistent!
+               (reduce (fn [vbuf ri]
+                         (let [renderable (nth renderables ri)
+                               {:keys [color range]} (:user-data renderable)
+                               [cr cg cb] (outline-rgb-for-light renderable color)
+                               ^Vector3d world-translation (:world-translation renderable)
+                               r (* (double (or range 1.0)) (double (renderable-min-scale renderable)))
+                               r (max r 0.01)]
+                           (if-some [axes (billboard-axes world-translation camera)]
+                             (let [[right up _] axes]
+                               (fill-point-billboard-circle! vbuf world-translation right up r cr cg cb))
+                             vbuf)))
+                       (->color-vtx (* n billboard-circle-segments 2))
+                       (range n)))]
+    (when (pos? (count vbuf))
+      (let [vb (vtx/use-with ::light-point-gizmo vbuf outline-shader)]
+        (gl/with-gl-bindings gl render-args [outline-shader vb]
+          (.glDrawArrays gl GL/GL_LINES 0 (count vbuf)))))
+    (render-origin-markers-billboard gl render-args renderables n)))
+
+(defn- render-directional-arrow [^GL2 gl render-args renderables n]
+  (assert (= pass/outline (:pass render-args)))
+  (let [n (long n)
+        renderables (mapv unify-scale renderables)
+        camera (:camera render-args)
+        vbuf (persistent!
+               (reduce (fn [vbuf ri]
+                         (let [renderable (nth renderables ri)
+                               {:keys [color direction]} (:user-data renderable)
+                               [cr cg cb] (outline-rgb-for-light renderable color)
+                               ^Vector3d p (:world-translation renderable)
+                               d (world-dir-from-light renderable direction)
+                               sf (scene-tools/scale-factor camera (:viewport render-args) p)
+                               total-len (* (double sf) gizmo-target-pixels)]
+                           (fill-directional-arrow! vbuf p d camera cr cg cb total-len)))
+                       (->color-vtx (* n 8))
+                       (range n)))]
+    (when (pos? (count vbuf))
+      (let [vb (vtx/use-with ::light-directional-gizmo vbuf outline-shader)]
+        (gl/with-gl-bindings gl render-args [outline-shader vb]
+          (.glDrawArrays gl GL/GL_LINES 0 (count vbuf)))))
+    (render-origin-markers-billboard gl render-args renderables n)))
+
+(defn- render-spot-light [gl render-args renderables n]
+  (render-light-lines gl render-args renderables n)
+  (render-origin-markers-billboard gl render-args renderables n))
+
+(g/defnk produce-light-scene
+  [_node-id light-type color direction range outer-cone-angle inner-cone-angle]
+  (case light-type
+      :point
+      (let [r (max (double range) 0.01)
+            aabb (geom/mirrored-point->aabb (Point3d. r r r))]
+        {:node-id _node-id
+         :aabb aabb
+         :renderable {:render-fn render-point-billboard
+                      :batch-key [outline-shader]
+                      :tags #{:outline}
+                      :passes [pass/outline]
+                      :user-data {:color colors/outline-color
+                                  :range range}}})
+
+      :directional
+      (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))]
+        {:node-id _node-id
+         :aabb aabb
+         :renderable {:render-fn render-directional-arrow
+                      :batch-key [outline-shader]
+                      :tags #{:outline}
+                      :passes [pass/outline]
+                      :user-data {:color colors/outline-color
+                                  :direction direction}}})
+
+      :spot
+      (let [h (max (double range) 0.01)
+            half-outer (* 0.5 (Math/toRadians (double outer-cone-angle)))
+            half-inner (* 0.5 (Math/toRadians (double inner-cone-angle)))
+            inner-radius-ratio (if (> half-outer 1e-8)
+                                 (min 1.0 (max 0.0 (/ (Math/tan half-inner) (Math/tan half-outer))))
+                                 0.0)
+            base-r (max (* h (Math/tan half-outer)) 0.02)
+            ps (float-array [(float base-r) (float base-r) (float h) 1.0])
+            max-ext (max base-r h)
+            aabb (geom/mirrored-point->aabb (Point3d. max-ext max-ext max-ext))]
+        {:node-id _node-id
+         :aabb aabb
+         :renderable {:render-fn render-spot-light
+                      :batch-key [outline-shader]
+                      :tags #{:outline}
+                      :passes [pass/outline]
+                      ;; Cone lines use default outline gray when unselected (same as camera frustum); selection overrides in scene-shapes/render-lines.
+                      :user-data {:color colors/outline-color
+                                  :geometry (scene-shapes/light-cone-lines inner-radius-ratio)
+                                  :point-scale ps}}})
+
+    {:node-id _node-id
+     :aabb geom/empty-bounding-box}))
+
 (defn- light-set-form-op [{:keys [node-id]} [prop] value]
   (case prop
     :direction (g/set-property node-id :direction (vec (take 3 value)))
@@ -231,6 +511,7 @@
   (output form-data g/Any :cached produce-form-data)
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
+  (output scene g/Any :cached produce-light-scene)
   (output node-outline outline/OutlineData :cached produce-outline-data))
 
 (defn register-resource-types [workspace]

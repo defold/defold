@@ -242,6 +242,47 @@
              (->pos-vtx (* 6 (count capsule-quads)) :static)
              capsule-quads))})
 
+(def ^:private light-cone-segments 24)
+
+(defn light-cone-lines
+  "Spot light wireframe in unit cone space (apex at origin, base at z=-1, outer radius 1).
+  `inner-radius-ratio` is inner_base_radius / outer_base_radius on that plane
+  (= tan(inner_half) / tan(outer_half)). Omit inner circle when out of (0,1) or ~equal to outer."
+  [^double inner-radius-ratio]
+  (let [n light-cone-segments
+        ring (fn [^double rscale]
+               (vec (for [k (range n)]
+                      (let [phi (* 2.0 Math/PI (/ (double k) n))]
+                        [(* rscale (Math/cos phi)) (* rscale (Math/sin phi)) -1.0]))))
+        outer-ring (ring 1.0)
+        outer-circle (for [k (range n)] [(outer-ring k) (outer-ring (mod (inc k) n))])
+        inner-circle (when (and (> inner-radius-ratio 1e-4)
+                                (< inner-radius-ratio 0.999))
+                       (let [ir (ring inner-radius-ratio)]
+                         (for [k (range n)] [(ir k) (ir (mod (inc k) n))])))
+        ;; Silhouette: apex to outer base along ±X and ±Y (perpendicular pairs)
+        silhouette [[0.0 0.0 0.0] [1.0 0.0 -1.0]
+                    [0.0 0.0 0.0] [-1.0 0.0 -1.0]
+                    [0.0 0.0 0.0] [0.0 1.0 -1.0]
+                    [0.0 0.0 0.0] [0.0 -1.0 -1.0]]
+        ;; Axis through the cone, slightly past the base
+        axis [[0.0 0.0 0.0] [0.0 0.0 -1.08]]
+        pair-pairs (vec (concat outer-circle
+                                (or inner-circle [])
+                                (partition 2 silhouette)
+                                (partition 2 axis)))]
+    {:primitive-type GL2/GL_LINES
+     :vbuf (vtx/flip!
+             (reduce
+               (fn [vbuf [a b]]
+                 (let [[ax ay az] a
+                       [bx by bz] b]
+                   (-> vbuf
+                       (pos-vtx-put! ax ay az 0.0)
+                       (pos-vtx-put! bx by bz 0.0))))
+               (->pos-vtx (* 2 (count pair-pairs)) :static)
+               pair-pairs))}))
+
 (def ^:private shape-alpha 0.1)
 
 (def ^:private selected-shape-alpha 0.3)
