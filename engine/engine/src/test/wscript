@@ -81,7 +81,7 @@ def build(bld):
         web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
         includes = '../../proto .',
         defines = defines,
-        source = bld.path.ant_glob('**/*.cpp'),
+        source = bld.path.ant_glob('**/*.cpp', excl=['test_profilerext_lua.cpp']),
         target = 'test_engine')
 
     # Psapi.lib is needed by ProfilerExt

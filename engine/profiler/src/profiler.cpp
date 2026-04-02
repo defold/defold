@@ -135,6 +135,29 @@ static void DeleteLuaProfilerScopeStates()
     }
 }
 
+static bool ShouldRetainLuaProfilerScopeState(LuaProfilerScopeState* state)
+{
+    return !state->m_Scopes.Empty() || state->m_L == dmScript::GetMainThread(state->m_L);
+}
+
+static void DeleteEmptyLuaProfilerScopeStates()
+{
+    LuaProfilerScopeState** state_ptr = &g_LuaProfilerScopeStates;
+    while (*state_ptr != 0)
+    {
+        LuaProfilerScopeState* state = *state_ptr;
+        if (!ShouldRetainLuaProfilerScopeState(state))
+        {
+            *state_ptr = state->m_Next;
+            delete state;
+        }
+        else
+        {
+            state_ptr = &state->m_Next;
+        }
+    }
+}
+
 template <typename T>
 static void EnsureLuaProfilerCapacity(dmArray<T>* array, uint32_t additional_count, uint32_t min_capacity)
 {
@@ -206,6 +229,8 @@ static void AutoCloseLuaProfilerScopes()
             state->m_Names.SetSize(scope.m_NameOffset);
         }
     }
+
+    DeleteEmptyLuaProfilerScopeStates();
 }
 
 void SetUpdateFrequency(uint32_t update_frequency)
