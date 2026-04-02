@@ -1261,6 +1261,10 @@ property.label.tracking = Tracking
 
 # Properties: light
 
+property.light.type = Type
+property.light.type.point = Point
+property.light.type.directional = Directional
+property.light.type.spot = Spot
 property.light.color = Color
 property.light.intensity = Intensity
 property.light.range = Range
@@ -2146,6 +2150,15 @@ form.label.sound.group = Group
 form.label.sound.gain = Gain
 form.label.sound.pan = Pan
 form.label.sound.speed = Speed
+
+form.label.light = Light
+form.label.light.type = Type
+form.label.light.color = Color
+form.label.light.intensity = Intensity
+form.label.light.range = Range
+form.label.light.direction = Direction
+form.label.light.inner-cone-angle = Inner Cone Angle
+form.label.light.outer-cone-angle = Outer Cone Angle
 
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Mode

@@ -15,39 +15,35 @@
 (ns editor.light
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.code.data :as data]
-            [editor.code.resource :as r]
-            [editor.code.util :as code.util]
             [editor.localization :as localization]
+            [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.types :as t]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
+            [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto DataProto$Data]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- build-light [build-resource _dep-resources user-data]
-  (let [{:keys [lines]} user-data
-        text (data/lines->string lines)]
-    (try
-      (let [pb (protobuf/str->pb DataProto$Data text)
-            content (protobuf/pb->bytes pb)]
-        {:resource build-resource
-         :content content})
-      (catch Throwable e
-        (throw (ex-info (str "Failed to compile .light file: " (.getMessage e))
-                        {:build-resource build-resource}
-                        e))))))
+(def ^:private light-icon "icons/32/Icons_21-Light.png")
 
-(g/defnk produce-build-targets [_node-id resource lines]
-  (let [build-resource (workspace/make-build-resource resource)]
-    [(bt/with-content-hash
-       {:node-id _node-id
-        :resource build-resource
-        :build-fn build-light
-        :user-data {:lines lines}})]))
+;; Property inspector and form choicebox: [value label] pairs (see editor.properties-view/make-control-view :choicebox).
+(def ^:private light-type-options
+  [[:point "Point"]
+   [:directional "Directional"]
+   [:spot "Spot"]])
+
+(defn- list-field-vec4 [v]
+  {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
+
+(defn- list-field-vec3 [v]
+  {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
+
+(defn- field-num [n]
+  {:number (double n)})
 
 (defn- struct-fields [data-map]
   (let [raw (get-in data-map [:data :struct :fields])]
@@ -56,38 +52,17 @@
                  [(if (keyword? k) (name k) k) v]))
           raw)))
 
-(defn- ensure-data-struct [data-map]
-  (update data-map :data (fn [d]
-                           (let [d (or d {})]
-                             (update d :struct (fn [s]
-                                                 (let [s (or s {})]
-                                                   (update s :fields (fn [f] (or f {}))))))))))
+(defn- tags->light-type [tags]
+  (cond
+    (some #{"directional_light"} tags) :directional
+    (some #{"spot_light"} tags) :spot
+    :else :point))
 
-(defn- list-field-vec4 [v]
-  {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
-
-(defn- list-field-vec3 [v]
-  {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
-
-(defn- field-key-str [field-key]
-  (if (string? field-key) field-key (name field-key)))
-
-(defn- assoc-field-number [data-map field-key n]
-  (let [k (field-key-str field-key)]
-    (-> (ensure-data-struct data-map)
-        (assoc-in [:data :struct :fields k] {:number (double n)}))))
-
-(defn- assoc-field-vec4 [data-map field-key v]
-  (let [k (field-key-str field-key)
-        v4 (vec (take 4 (concat v (repeat 1.0))))]
-    (-> (ensure-data-struct data-map)
-        (assoc-in [:data :struct :fields k] (list-field-vec4 v4)))))
-
-(defn- assoc-field-vec3 [data-map field-key v]
-  (let [k (field-key-str field-key)
-        v3 (vec (take 3 (concat v [0.0 0.0 -1.0])))]
-    (-> (ensure-data-struct data-map)
-        (assoc-in [:data :struct :fields k] (list-field-vec3 v3)))))
+(defn- light-type->tags [light-type]
+  (case light-type
+    :directional ["light" "directional_light"]
+    :spot ["light" "spot_light"]
+    ["light" "point_light"]))
 
 (defn- get-number [fields key default]
   (double (or (get-in fields [key :number]) default)))
@@ -104,122 +79,172 @@
       (mapv #(double (or (:number %) 0.0)) vals)
       [0.0 0.0 -1.0])))
 
-(defn- data-map->lines [data-map]
-  (code.util/split-lines (protobuf/pb->str (protobuf/map->pb DataProto$Data data-map) true)))
+(defn- parse-data-desc [light-desc]
+  ;; GameObject$Data in map format.
+  (let [tags (vec (:tags light-desc))
+        light-type (tags->light-type tags)
+        fields (struct-fields light-desc)]
+    {:light-type light-type
+     :color (get-vec4 fields "color")
+     :intensity (get-number fields "intensity" 1.0)
+     :range (get-number fields "range" 10.0)
+     :direction (get-vec3 fields "direction")
+     :inner-cone-angle (get-number fields "inner_cone_angle" 0.0)
+     :outer-cone-angle (get-number fields "outer_cone_angle" 45.0)}))
 
-(defn- lines->data-map [lines]
-  (let [text (data/lines->string lines)]
-    (protobuf/str->map-with-defaults DataProto$Data text)))
+(defn- build-data-desc
+  [light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  (let [tags (light-type->tags light-type)
+        c4 (vec (take 4 (concat color (repeat 1.0))))
+        fields (case light-type
+                 :point {"color" (list-field-vec4 c4)
+                         "intensity" (field-num intensity)
+                         "range" (field-num range)}
+                 :directional {"color" (list-field-vec4 c4)
+                               "intensity" (field-num intensity)
+                               "direction" (list-field-vec3 (vec (take 3 (concat direction [0.0 0.0 -1.0]))))}
+                 :spot {"color" (list-field-vec4 c4)
+                        "intensity" (field-num intensity)
+                        "range" (field-num range)
+                        "inner_cone_angle" (field-num inner-cone-angle)
+                        "outer_cone_angle" (field-num outer-cone-angle)})]
+    (protobuf/make-map-without-defaults DataProto$Data
+      :tags tags
+      :data {:struct {:fields fields}})))
 
-(defn- set-lines-tx [update-data-map-fn]
-  (fn [_evaluation-context node-id _old new-value]
-    (let [lines (g/node-value node-id :lines _evaluation-context)]
-      (if (g/error-value? lines)
-        (throw (ex-info "Cannot edit properties while the light source has errors." {:node-id node-id}))
-        (let [data-map (lines->data-map lines)
-              new-map (update-data-map-fn data-map new-value)]
-          [(g/set-property node-id :modified-lines (data-map->lines new-map))])))))
+(defn- build-light [build-resource _dep-resources user-data]
+  (let [{:keys [pb-map]} user-data]
+    {:resource build-resource
+     :content (protobuf/map->bytes DataProto$Data pb-map)}))
 
-(def ^:private light-display-order
-  [:light/color
-   :light/intensity
-   :light/range
-   :light/direction
-   :light/inner-cone-angle
-   :light/outer-cone-angle])
+(g/defnk produce-build-targets [_node-id resource save-value]
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-light
+      :user-data {:pb-map save-value}})])
 
-(g/defnk produce-light-properties [_node-id _declared-properties lines]
-  (cond
-    (g/error-value? _declared-properties)
-    _declared-properties
+(g/defnk produce-save-value
+  [light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  (build-data-desc light-type color intensity range direction inner-cone-angle outer-cone-angle))
 
-    (g/error-value? lines)
-    (g/->error _node-id :lines :fatal nil (localization/message "error.light.invalid-source"))
+(g/defnk produce-outline-data [_node-id]
+  {:node-id _node-id
+   :node-outline-key "Light"
+   :label (localization/message "resource.type.light")
+   :icon light-icon})
 
-    :else
-    (try
-      (let [declared (or _declared-properties {:properties {} :display-order []})
-            data-map (lines->data-map lines)
-            fields (struct-fields data-map)]
-        (-> declared
-            (update :properties merge
-                    {:light/color
-                     {:node-id _node-id
-                      :prop-kw :light/color
-                      :label (properties/label-message :light :color)
-                      :type t/Vec4
-                      :value (get-vec4 fields "color")
-                      :edit-type {:type t/Vec4
-                                  :labels ["R" "G" "B" "A"]
-                                  :set-fn (set-lines-tx (fn [m v] (assoc-field-vec4 m "color" v)))}}
+(defn- light-set-form-op [{:keys [node-id]} [prop] value]
+  (case prop
+    :direction (g/set-property node-id :direction (vec (take 3 value)))
+    (protobuf-forms-util/set-form-op {:node-id node-id} [prop] value)))
 
-                     :light/intensity
-                     {:node-id _node-id
-                      :prop-kw :light/intensity
-                      :label (properties/label-message :light :intensity)
-                      :type g/Num
-                      :value (get-number fields "intensity" 1.0)
-                      :edit-type {:type g/Num
-                                  :set-fn (set-lines-tx (fn [m v] (assoc-field-number m "intensity" v)))}}
+(g/defnk produce-form-data
+  [_node-id light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  (let [direction-vec4 (vec (take 4 (concat direction [0.0 0.0 -1.0 0.0])))
+        hidden-range (= :directional light-type)
+        hidden-direction (not= :directional light-type)
+        hidden-cones (not= :spot light-type)]
+    {:navigation false
+     :form-ops {:user-data {:node-id _node-id}
+                :set light-set-form-op
+                :clear protobuf-forms-util/clear-form-op}
+     :sections [{:localization-key "light"
+                 :fields [{:path [:light-type]
+                           :localization-key "light.type"
+                           :type :choicebox
+                           :options light-type-options
+                           :default :point}
+                          {:path [:color]
+                           :localization-key "light.color"
+                           :type :vec4
+                           :default [1.0 1.0 1.0 1.0]}
+                          {:path [:intensity]
+                           :localization-key "light.intensity"
+                           :type :number
+                           :default 1.0}
+                          {:path [:range]
+                           :localization-key "light.range"
+                           :type :number
+                           :default 10.0
+                           :hidden hidden-range}
+                          {:path [:direction]
+                           :localization-key "light.direction"
+                           :type :vec4
+                           :default [0.0 0.0 -1.0 0.0]
+                           :hidden hidden-direction}
+                          {:path [:inner-cone-angle]
+                           :localization-key "light.inner-cone-angle"
+                           :type :number
+                           :default 0.0
+                           :hidden hidden-cones}
+                          {:path [:outer-cone-angle]
+                           :localization-key "light.outer-cone-angle"
+                           :type :number
+                           :default 45.0
+                           :hidden hidden-cones}]}]
+     :values {[:light-type] light-type
+              [:color] color
+              [:intensity] intensity
+              [:range] range
+              [:direction] direction-vec4
+              [:inner-cone-angle] inner-cone-angle
+              [:outer-cone-angle] outer-cone-angle}}))
 
-                     :light/range
-                     {:node-id _node-id
-                      :prop-kw :light/range
-                      :label (properties/label-message :light :range)
-                      :type g/Num
-                      :value (get-number fields "range" 10.0)
-                      :edit-type {:type g/Num
-                                  :set-fn (set-lines-tx (fn [m v] (assoc-field-number m "range" v)))}}
+(defn- sanitize-light [light-desc]
+  {:pre [(map? light-desc)]}
+  ;; Keep tags and data; strip empty optional protobuf cruft if needed later.
+  light-desc)
 
-                     :light/direction
-                     {:node-id _node-id
-                      :prop-kw :light/direction
-                      :label (properties/label-message :light :direction)
-                      :type t/Vec3
-                      :value (get-vec3 fields "direction")
-                      :edit-type {:type t/Vec3
-                                  :labels ["X" "Y" "Z"]
-                                  :set-fn (set-lines-tx (fn [m v] (assoc-field-vec3 m "direction" v)))}}
+(defn load-light [_project self _resource light-desc]
+  {:pre [(map? light-desc)]} ; DataProto$Data in map format.
+  (let [m (parse-data-desc light-desc)]
+    (apply g/set-properties self (apply concat m))))
 
-                     :light/inner-cone-angle
-                     {:node-id _node-id
-                      :prop-kw :light/inner-cone-angle
-                      :label (properties/label-message :light :inner-cone-angle)
-                      :type g/Num
-                      :value (get-number fields "inner_cone_angle" 0.0)
-                      :edit-type {:type g/Num
-                                  :set-fn (set-lines-tx (fn [m v] (assoc-field-number m "inner_cone_angle" v)))}}
+(g/defnode LightNode
+  (inherits resource-node/ResourceNode)
 
-                     :light/outer-cone-angle
-                     {:node-id _node-id
-                      :prop-kw :light/outer-cone-angle
-                      :label (properties/label-message :light :outer-cone-angle)
-                      :type g/Num
-                      :value (get-number fields "outer_cone_angle" 45.0)
-                      :edit-type {:type g/Num
-                                  :set-fn (set-lines-tx (fn [m v] (assoc-field-number m "outer_cone_angle" v)))}}})
-            (update :display-order (fn [d]
-                                     (vec (distinct (concat (or d []) light-display-order)))))))
-      (catch Throwable _e
-        (g/->error _node-id :lines :fatal nil (localization/message "error.light.invalid-source"))))))
+  (property light-type g/Keyword (default :point)
+            (dynamic label (properties/label-dynamic :light :type))
+            (dynamic edit-type (g/constantly {:type :choicebox :options light-type-options})))
+  (property color types/Vec4 (default [1.0 1.0 1.0 1.0])
+            (dynamic label (properties/label-dynamic :light :color))
+            (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["R" "G" "B" "A"]})))
+  (property intensity g/Num (default 1.0)
+            (dynamic label (properties/label-dynamic :light :intensity)))
+  (property range g/Num (default 10.0)
+            (dynamic label (properties/label-dynamic :light :range))
+            (dynamic visible (g/fnk [light-type] (contains? #{:point :spot} light-type))))
+  (property direction types/Vec3 (default [0.0 0.0 -1.0])
+            (dynamic label (properties/label-dynamic :light :direction))
+            (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["X" "Y" "Z"]}))
+            (dynamic visible (g/fnk [light-type] (= :directional light-type))))
+  (property inner-cone-angle g/Num (default 0.0)
+            (dynamic label (properties/label-dynamic :light :inner-cone-angle))
+            (dynamic visible (g/fnk [light-type] (= :spot light-type))))
+  (property outer-cone-angle g/Num (default 45.0)
+            (dynamic label (properties/label-dynamic :light :outer-cone-angle))
+            (dynamic visible (g/fnk [light-type] (= :spot light-type))))
 
-(g/defnode LightFileNode
-  (inherits r/CodeEditorResourceNode)
+  (display-order [:light-type :color :intensity :range :direction :inner-cone-angle :outer-cone-angle])
 
+  (output form-data g/Any :cached produce-form-data)
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
-  (output _properties g/Properties :cached produce-light-properties))
+  (output node-outline outline/OutlineData :cached produce-outline-data))
 
 (defn register-resource-types [workspace]
-  (r/register-code-resource-type workspace
+  (resource-node/register-ddf-resource-type workspace
     :ext "light"
-    :node-type LightFileNode
-    :label (localization/message "resource.type.light")
-    :icon "icons/32/Icons_11-Script-general.png"
+    :node-type LightNode
+    :ddf-type DataProto$Data
+    :load-fn load-light
+    :sanitize-fn sanitize-light
+    :icon light-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
-    :view-types [:code :default]
+    :view-types [:cljfx-form-view :text]
     :view-opts {}
-    :lazy-loaded true
-    :built-pb-class DataProto$Data
     :tags #{:component}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}))
+    :tag-opts {:component {:transform-properties #{}}}
+    :label (localization/message "resource.type.light")))

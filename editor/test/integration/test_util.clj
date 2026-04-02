@@ -1724,7 +1724,7 @@
   (g/update-property resource-node-id :tracking type-preserving-add 0.1))
 
 (defmethod edit-resource-node "light" [resource-node-id]
-  (g/update-property resource-node-id :pb update :range type-preserving-add 1))
+  (g/update-property resource-node-id :range type-preserving-add 1))
 
 (defmethod edit-resource-node "material" [resource-node-id]
   (g/update-property resource-node-id :tags conj "new_tag"))
