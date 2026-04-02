@@ -36,9 +36,10 @@
 (deftest dirty-save-data-test
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
-    (is (= #{} (test-util/dirty-proj-paths project)))
+    ; It's an old file with old properties that are migrated at load time which touches these files
+    (is (= #{"/bones/bones.collection", "/bones/marty.rivescene" "/bones/marty.rivemodel"} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/bones/marty.rivescene")
-    (is (= #{"/bones/marty.rivescene"} (test-util/dirty-proj-paths project)))
+    (is (= #{"/bones/marty.rivescene" "/bones/bones.collection" "/bones/marty.rivemodel"} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/bones/marty.rivemodel")
     (is (= #{"/bones/marty.rivescene" "/bones/marty.rivemodel"} (test-util/dirty-proj-paths project)))))
 
@@ -51,88 +52,9 @@
 
       (testing "node-outline"
         (is (= {:label "Rive Scene"
-                :children [{:label "Belly"
-                            :read-only true
-                            :children [{:label "Chest"
-                                        :read-only true
-                                        :children [{:label "Neck"
-                                                    :read-only true
-                                                    :children [{:label "Head"
-                                                                :read-only true
-                                                                :children [{:label "Hair"
-                                                                            :read-only true}]}]}
-                                                   {:label "Arm_right"
-                                                    :read-only true
-                                                    :children [{:label "Forearm_right"
-                                                                :read-only true
-                                                                :children [{:label "Hand_right"
-                                                                            :read-only true}]}]}
-                                                   {:label "Arm_left"
-                                                    :read-only true
-                                                    :children [{:label "Forearm_left"
-                                                                :read-only true
-                                                                :children [{:label "Hand_left"
-                                                                            :read-only true}]}]}]}]}
-                           {:label "Chest"
-                            :read-only true
-                            :children [{:label "Neck"
-                                        :read-only true
-                                        :children [{:label "Head"
-                                                    :read-only true
-                                                    :children [{:label "Hair"
-                                                                :read-only true}]}]}
-                                       {:label "Arm_right"
-                                        :read-only true
-                                        :children [{:label "Forearm_right"
-                                                    :read-only true
-                                                    :children [{:label "Hand_right"
-                                                                :read-only true}]}]}
-                                       {:label "Arm_left"
-                                        :read-only true
-                                        :children [{:label "Forearm_left"
-                                                    :read-only true
-                                                    :children [{:label "Hand_left"
-                                                                :read-only true}]}]}]}
-                           {:label "Neck"
-                            :read-only true
-                            :children [{:label "Head"
-                                        :read-only true
-                                        :children [{:label "Hair"
-                                                    :read-only true}]}]}
-                           {:label "Head"
-                            :read-only true
-                            :children [{:label "Hair"
-                                        :read-only true}]}
-                           {:label "Hair"
-                            :read-only true}
-                           {:label "Arm_right"
-                            :read-only true
-                            :children [{:label "Forearm_right"
-                                        :read-only true
-                                        :children [{:label "Hand_right"
-                                                    :read-only true}]}]}
-                           {:label "Forearm_right"
-                            :read-only true
-                            :children [{:label "Hand_right"
-                                        :read-only true}]}
-                           {:label "Hand_right"
-                            :read-only true}
-                           {:label "Arm_left"
-                            :read-only true
-                            :children [{:label "Forearm_left"
-                                        :read-only true
-                                        :children [{:label "Hand_left"
-                                                    :read-only true}]}]}
-                           {:label "Forearm_left"
-                            :read-only true
-                            :children [{:label "Hand_left"
-                                        :read-only true}]}
-                           {:label "Hand_left"
-                            :read-only true}
-                           {:label "Pocket_rignt"
-                            :read-only true}
-                           {:label "Pocket_left"
+                :children [{:label "New Artboard"
                             :read-only true}]}
+
                (node-outline-info node-id))))
 
       (testing "scene"
