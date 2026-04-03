@@ -86,6 +86,20 @@ namespace dmGui
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
     static void RemoveFromNodeList(HScene scene, InternalNode* n);
 
+    static void ResetTextLayout(TextLayout* text_layout)
+    {
+        memset(text_layout, 0, sizeof(*text_layout));
+    }
+
+    static void FreeTextLayout(TextLayout* text_layout)
+    {
+        if (text_layout->m_Handle)
+        {
+            TextLayoutFree(text_layout->m_Handle);
+        }
+        ResetTextLayout(text_layout);
+    }
+
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
         "init",
@@ -651,6 +665,8 @@ namespace dmGui
             scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
             n->m_Node.m_RenderConstants = 0;
         }
+
+        FreeTextLayout(&n->m_Node.m_TextLayout);
 
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
@@ -2817,6 +2833,7 @@ namespace dmGui
         {
             scene->m_Nodes.SetSize(node_index);
         }
+        FreeTextLayout(&n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
@@ -3724,6 +3741,23 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
+    {
+        InternalNode* n = GetNode(scene, node);
+        *out_text_layout = n->m_Node.m_TextLayout;
+    }
+
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout)
+    {
+        InternalNode* n = GetNode(scene, node);
+        TextLayout& current_text_layout = n->m_Node.m_TextLayout;
+        if (current_text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
+        {
+            TextLayoutFree(current_text_layout.m_Handle);
+        }
+        current_text_layout = text_layout;
+    }
+
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -4555,6 +4589,7 @@ namespace dmGui
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        ResetTextLayout(&out_n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
         

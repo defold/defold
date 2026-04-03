@@ -198,6 +198,14 @@ namespace dmRender
     void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics);
 
     /**
+     * Get text metrics from a prepared layout
+     * @param font_map Font map handle
+     * @param layout prepared text layout
+     * @param metrics Metrics, out-value
+     */
+    void GetTextMetrics(HFontMap font_map, HTextLayout layout, TextMetrics* metrics);
+
+    /**
      * Get the resource size for fontmap
      * @param font_map Font map handle
      * @return size
@@ -243,8 +251,9 @@ namespace dmRender
      * @param glyph_key [type: uint64_t] A key created by #MakeGlyphIndexKey()
      * @param glyph [type: dmRender::FontGlyph*] The current frame number. Used to for evicting old cache entries.
      * @param g_offset_y [type: int32_t] The offset from the top of the cache cell. Used to align the glyph with the baseline.
+     * @return cache_glyph [type: CacheGlyph*] the inserted cache slot, or 0 if the glyph could not be cached this frame
      */
-    void AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y);
+    CacheGlyph* AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y);
 
     /** Checks if the glyph cache texture needs to be updated
      */
