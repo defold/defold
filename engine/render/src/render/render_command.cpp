@@ -134,15 +134,20 @@ namespace dmRender
                     dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
                     break;
                 }
-                case COMMAND_TYPE_SET_BLEND_STATE:
+                case COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE:
                 {
-                    dmGraphics::SetBlendState(context,
-                        (dmGraphics::BlendFactor)  c->m_Operands[0],
-                        (dmGraphics::BlendFactor)  c->m_Operands[1],
-                        (dmGraphics::BlendFactor)  (c->m_Operands[2] & 0xFFFFFFFF),
-                        (dmGraphics::BlendFactor)  (c->m_Operands[2] >> 32),
-                        (dmGraphics::BlendEquation)(c->m_Operands[3] & 0xFFFFFFFF),
-                        (dmGraphics::BlendEquation)(c->m_Operands[3] >> 32));
+                    dmGraphics::SetBlendFuncSeparate(context,
+                        (dmGraphics::BlendFactor) c->m_Operands[0],
+                        (dmGraphics::BlendFactor) c->m_Operands[1],
+                        (dmGraphics::BlendFactor) c->m_Operands[2],
+                        (dmGraphics::BlendFactor) c->m_Operands[3]);
+                    break;
+                }
+                case COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE:
+                {
+                    dmGraphics::SetBlendEquationSeparate(context,
+                        (dmGraphics::BlendEquation) c->m_Operands[0],
+                        (dmGraphics::BlendEquation) c->m_Operands[1]);
                     break;
                 }
                 case COMMAND_TYPE_SET_COLOR_MASK:

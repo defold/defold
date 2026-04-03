@@ -1464,17 +1464,24 @@ namespace dmGraphics
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
 
     /*#
-     * Set blend state with separate color and alpha blend factors and equations.
-     * @name SetBlendState
+     * Set separate blend factors for color and alpha channels.
+     * @name SetBlendFuncSeparate
      * @param context [type:dmGraphics::HContext]
      * @param src_factor_color [type:dmGraphics::BlendFactor]
      * @param dst_factor_color [type:dmGraphics::BlendFactor]
      * @param src_factor_alpha [type:dmGraphics::BlendFactor]
      * @param dst_factor_alpha [type:dmGraphics::BlendFactor]
+     */
+    void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha);
+
+    /*#
+     * Set separate blend equations for color and alpha channels.
+     * @name SetBlendEquationSeparate
+     * @param context [type:dmGraphics::HContext]
      * @param equation_color [type:dmGraphics::BlendEquation]
      * @param equation_alpha [type:dmGraphics::BlendEquation]
      */
-    void SetBlendState(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha);
+    void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha);
 
     /*#
      * @name SetColorMask

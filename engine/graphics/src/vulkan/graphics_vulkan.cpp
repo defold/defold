@@ -3427,7 +3427,7 @@ bail:
         context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
     }
 
-    static void VulkanSetBlendState(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha)
+    static void VulkanSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
     {
         VulkanContext* context = (VulkanContext*)_context;
         assert(context);
@@ -3435,6 +3435,12 @@ bail:
         context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
         context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
         context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void VulkanSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context);
         context->m_PipelineState.m_BlendEquationColor  = equation_color;
         context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }

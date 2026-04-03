@@ -5293,7 +5293,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_PipelineStateDirty.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
     }
 
-    static void OpenGLSetBlendState(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha)
+    static void OpenGLSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -5302,6 +5302,13 @@ static void LogFrameBufferError(GLenum status)
         context->m_PipelineStateDirty.m_BlendDstFactor      = dst_factor_color;
         context->m_PipelineStateDirty.m_BlendSrcFactorAlpha = src_factor_alpha;
         context->m_PipelineStateDirty.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void OpenGLSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+
         context->m_PipelineStateDirty.m_BlendEquationColor  = equation_color;
         context->m_PipelineStateDirty.m_BlendEquationAlpha  = equation_alpha;
     }

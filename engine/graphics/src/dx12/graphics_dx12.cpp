@@ -3421,12 +3421,16 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
     }
 
-    static void DX12SetBlendState(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha)
+    static void DX12SetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
     {
         g_DX12Context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
         g_DX12Context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
         g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
         g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void DX12SetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
         g_DX12Context->m_PipelineState.m_BlendEquationColor  = equation_color;
         g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }

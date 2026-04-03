@@ -458,22 +458,14 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestSetBlendState)
+TEST_F(dmRenderScriptTest, TestSetBlendFuncSeparate)
 {
     const char* script =
     "function update(self)\n"
-    "    render.set_blend_state({\n"
-    "        equation = {\n"
-    "            color = graphics.BLEND_EQUATION_ADD,\n"
-    "            alpha = graphics.BLEND_EQUATION_REVERSE_SUBTRACT\n"
-    "        },\n"
-    "        func = {\n"
-    "            color_src = graphics.BLEND_FACTOR_SRC_ALPHA,\n"
-    "            color_dst = graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,\n"
-    "            alpha_src = graphics.BLEND_FACTOR_ONE,\n"
-    "            alpha_dst = graphics.BLEND_FACTOR_ZERO\n"
-    "        }\n"
-    "    })\n"
+    "    render.set_blend_func_separate(graphics.BLEND_FACTOR_SRC_ALPHA,\n"
+    "                                   graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ZERO)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -485,13 +477,11 @@ TEST_F(dmRenderScriptTest, TestSetBlendState)
     ASSERT_EQ(1u, commands.Size());
 
     dmRender::Command* command = &commands[0];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_STATE, command->m_Type);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_ALPHA, (int32_t)command->m_Operands[0]);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, (int32_t)command->m_Operands[1]);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)(command->m_Operands[2] & 0xFFFFFFFF));
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO, (int32_t)(command->m_Operands[2] >> 32));
-    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD, (int32_t)(command->m_Operands[3] & 0xFFFFFFFF));
-    ASSERT_EQ(dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT, (int32_t)(command->m_Operands[3] >> 32));
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_ALPHA,              (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,    (int32_t)command->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,                    (int32_t)command->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO,                   (int32_t)command->m_Operands[3]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -499,11 +489,12 @@ TEST_F(dmRenderScriptTest, TestSetBlendState)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestSetBlendStateDefaults)
+TEST_F(dmRenderScriptTest, TestSetBlendEquationSeparate)
 {
     const char* script =
     "function update(self)\n"
-    "    render.set_blend_state({})\n"
+    "    render.set_blend_equation_separate(graphics.BLEND_EQUATION_ADD,\n"
+    "                                       graphics.BLEND_EQUATION_REVERSE_SUBTRACT)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -515,14 +506,9 @@ TEST_F(dmRenderScriptTest, TestSetBlendStateDefaults)
     ASSERT_EQ(1u, commands.Size());
 
     dmRender::Command* command = &commands[0];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_STATE, command->m_Type);
-    // Defaults: BLEND_FACTOR_ONE for all factors, BLEND_EQUATION_ADD for equations
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)command->m_Operands[0]);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)command->m_Operands[1]);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)(command->m_Operands[2] & 0xFFFFFFFF));
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)(command->m_Operands[2] >> 32));
-    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD, (int32_t)(command->m_Operands[3] & 0xFFFFFFFF));
-    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD, (int32_t)(command->m_Operands[3] >> 32));
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,              (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT, (int32_t)command->m_Operands[1]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -530,18 +516,16 @@ TEST_F(dmRenderScriptTest, TestSetBlendStateDefaults)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestSetBlendStatePartial)
+TEST_F(dmRenderScriptTest, TestSetBlendFuncAndEquationSeparate)
 {
     const char* script =
     "function update(self)\n"
-    "    render.set_blend_state({\n"
-    "        equation = {\n"
-    "            color = graphics.BLEND_EQUATION_SUBTRACT\n"
-    "        },\n"
-    "        func = {\n"
-    "            color_src = graphics.BLEND_FACTOR_ZERO\n"
-    "        }\n"
-    "    })\n"
+    "    render.set_blend_func_separate(graphics.BLEND_FACTOR_ZERO,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ONE)\n"
+    "    render.set_blend_equation_separate(graphics.BLEND_EQUATION_SUBTRACT,\n"
+    "                                       graphics.BLEND_EQUATION_ADD)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -550,18 +534,19 @@ TEST_F(dmRenderScriptTest, TestSetBlendStatePartial)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(1u, commands.Size());
+    ASSERT_EQ(2u, commands.Size());
 
-    dmRender::Command* command = &commands[0];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_STATE, command->m_Type);
-    // color_src = ZERO, rest default to ONE
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO, (int32_t)command->m_Operands[0]);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)command->m_Operands[1]);
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)(command->m_Operands[2] & 0xFFFFFFFF));
-    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)(command->m_Operands[2] >> 32));
-    // color equation = SUBTRACT, alpha equation = ADD (default)
-    ASSERT_EQ(dmGraphics::BLEND_EQUATION_SUBTRACT, (int32_t)(command->m_Operands[3] & 0xFFFFFFFF));
-    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD, (int32_t)(command->m_Operands[3] >> 32));
+    dmRender::Command* cmd_func = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, cmd_func->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO, (int32_t)cmd_func->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[3]);
+
+    dmRender::Command* cmd_eq = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, cmd_eq->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_SUBTRACT, (int32_t)cmd_eq->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,      (int32_t)cmd_eq->m_Operands[1]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 

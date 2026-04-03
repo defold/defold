@@ -2031,9 +2031,13 @@ namespace dmGraphics
     {
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);
     }
-    void SetBlendState(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha)
+    void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
     {
-        g_functions.m_SetBlendState(context, src_factor_color, dst_factor_color, src_factor_alpha, dst_factor_alpha, equation_color, equation_alpha);
+        g_functions.m_SetBlendFuncSeparate(context, src_factor_color, dst_factor_color, src_factor_alpha, dst_factor_alpha);
+    }
+    void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        g_functions.m_SetBlendEquationSeparate(context, equation_color, equation_alpha);
     }
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {

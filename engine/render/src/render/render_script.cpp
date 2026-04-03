@@ -2162,141 +2162,79 @@ namespace dmRender
                equation == dmGraphics::BLEND_EQUATION_MAX;
     }
 
-    /*# sets the blend state
+    /*# sets the blend function with separate factors for color and alpha
      *
-     * Sets the blend state with separate blend factors and blend equations
-     * for color and alpha channels. This provides fine-grained control over
-     * how source and destination pixel values are combined during blending.
+     * Sets the blend function with separate blend factors for the color and alpha channels.
      *
-     * All fields are optional. If not specified, they default to:
-     *
-     * - Blend factors: `graphics.BLEND_FACTOR_ONE`
-     * - Blend equations: `graphics.BLEND_EQUATION_ADD`
-     *
-     * @name render.set_blend_state
-     * @param blend_state [type:table] a table with the following optional fields:
-     *
-     * - `equation` (table)
-     *     - `color` (number) - color blend equation (default: `graphics.BLEND_EQUATION_ADD`)
-     *     - `alpha` (number) - alpha blend equation (default: `graphics.BLEND_EQUATION_ADD`)
-     * - `func` (table)
-     *     - `color_src` (number) - source color blend factor (default: `graphics.BLEND_FACTOR_ONE`)
-     *     - `color_dst` (number) - destination color blend factor (default: `graphics.BLEND_FACTOR_ONE`)
-     *     - `alpha_src` (number) - source alpha blend factor (default: `graphics.BLEND_FACTOR_ONE`)
-     *     - `alpha_dst` (number) - destination alpha blend factor (default: `graphics.BLEND_FACTOR_ONE`)
-     *
+     * @name render.set_blend_func_separate
+     * @param source_factor_color [type:number] source color blend factor
+     * @param destination_factor_color [type:number] destination color blend factor
+     * @param source_factor_alpha [type:number] source alpha blend factor
+     * @param destination_factor_alpha [type:number] destination alpha blend factor
      * @examples
      *
-     * Standard alpha blending with separate alpha:
+     * Set standard alpha blending with separate alpha:
      *
      * ```lua
-     * render.set_blend_state({
-     *     equation = {
-     *         color = graphics.BLEND_EQUATION_ADD,
-     *         alpha = graphics.BLEND_EQUATION_ADD
-     *     },
-     *     func = {
-     *         color_src = graphics.BLEND_FACTOR_SRC_ALPHA,
-     *         color_dst = graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-     *         alpha_src = graphics.BLEND_FACTOR_ONE,
-     *         alpha_dst = graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
-     *     }
-     * })
-     * ```
-     *
-     * Soft shadow technique using reverse subtract for alpha:
-     *
-     * ```lua
-     * render.set_blend_state({
-     *     equation = {
-     *         color = graphics.BLEND_EQUATION_ADD,
-     *         alpha = graphics.BLEND_EQUATION_REVERSE_SUBTRACT
-     *     },
-     *     func = {
-     *         color_src = graphics.BLEND_FACTOR_ZERO,
-     *         color_dst = graphics.BLEND_FACTOR_ONE,
-     *         alpha_src = graphics.BLEND_FACTOR_ONE,
-     *         alpha_dst = graphics.BLEND_FACTOR_ONE
-     *     }
-     * })
+     * render.set_blend_func_separate(graphics.BLEND_FACTOR_SRC_ALPHA,
+     *                                graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+     *                                graphics.BLEND_FACTOR_ONE,
+     *                                graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
      * ```
      */
-    int RenderScript_SetBlendState(lua_State* L)
+    int RenderScript_SetBlendFuncSeparate(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-
-        luaL_checktype(L, 1, LUA_TTABLE);
-
-        // Defaults
-        uint32_t color_src_factor = dmGraphics::BLEND_FACTOR_ONE;
-        uint32_t color_dst_factor = dmGraphics::BLEND_FACTOR_ONE;
-        uint32_t alpha_src_factor = dmGraphics::BLEND_FACTOR_ONE;
-        uint32_t alpha_dst_factor = dmGraphics::BLEND_FACTOR_ONE;
-        uint32_t color_equation   = dmGraphics::BLEND_EQUATION_ADD;
-        uint32_t alpha_equation   = dmGraphics::BLEND_EQUATION_ADD;
-
-        // Parse "func" table
-        lua_getfield(L, 1, "func");
-        if (lua_istable(L, -1))
+        uint32_t factors[4];
+        for (uint32_t f = 0; f < 4; ++f)
         {
-            lua_getfield(L, -1, "color_src");
-            if (!lua_isnil(L, -1))
-                color_src_factor = luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "color_dst");
-            if (!lua_isnil(L, -1))
-                color_dst_factor = luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "alpha_src");
-            if (!lua_isnil(L, -1))
-                alpha_src_factor = luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "alpha_dst");
-            if (!lua_isnil(L, -1))
-                alpha_dst_factor = luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            factors[f] = luaL_checknumber(L, 1 + f);
         }
-        lua_pop(L, 1); // pop "func"
-
-        // Parse "equation" table
-        lua_getfield(L, 1, "equation");
-        if (lua_istable(L, -1))
+        for (uint32_t f = 0; f < 4; ++f)
         {
-            lua_getfield(L, -1, "color");
-            if (!lua_isnil(L, -1))
-                color_equation = luaL_checknumber(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "alpha");
-            if (!lua_isnil(L, -1))
-                alpha_equation = luaL_checknumber(L, -1);
-            lua_pop(L, 1);
+            if (!CheckBlendFactor(factors[f]))
+            {
+                return luaL_error(L, "Invalid blend factor in %s.set_blend_func_separate", RENDER_SCRIPT_LIB_NAME);
+            }
         }
-        lua_pop(L, 1); // pop "equation"
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, factors[0], factors[1], factors[2], factors[3])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
 
-        // Validate blend factors
-        if (!CheckBlendFactor(color_src_factor) || !CheckBlendFactor(color_dst_factor) ||
-            !CheckBlendFactor(alpha_src_factor) || !CheckBlendFactor(alpha_dst_factor))
+    /*# sets the blend equation with separate equations for color and alpha
+     *
+     * Sets the blend equation with separate equations for the color and alpha channels.
+     *
+     * @name render.set_blend_equation_separate
+     * @param equation_color [type:number] color blend equation
+     * @param equation_alpha [type:number] alpha blend equation
+     * @examples
+     *
+     * Set add for color and reverse subtract for alpha:
+     *
+     * ```lua
+     * render.set_blend_equation_separate(graphics.BLEND_EQUATION_ADD,
+     *                                    graphics.BLEND_EQUATION_REVERSE_SUBTRACT)
+     * ```
+     */
+    int RenderScript_SetBlendEquationSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t equations[2];
+        for (uint32_t e = 0; e < 2; ++e)
         {
-            return luaL_error(L, "Invalid blend factor in %s.set_blend_state", RENDER_SCRIPT_LIB_NAME);
+            equations[e] = luaL_checknumber(L, 1 + e);
         }
-
-        // Validate blend equations
-        if (!CheckBlendEquation(color_equation) || !CheckBlendEquation(alpha_equation))
+        for (uint32_t e = 0; e < 2; ++e)
         {
-            return luaL_error(L, "Invalid blend equation in %s.set_blend_state", RENDER_SCRIPT_LIB_NAME);
+            if (!CheckBlendEquation(equations[e]))
+            {
+                return luaL_error(L, "Invalid blend equation in %s.set_blend_equation_separate", RENDER_SCRIPT_LIB_NAME);
+            }
         }
-
-        // Pack: operand 0 = color_src, operand 1 = color_dst,
-        //        operand 2 = alpha_src | (alpha_dst << 32),
-        //        operand 3 = color_eq  | (alpha_eq << 32)
-        uint64_t op2 = (uint64_t)alpha_src_factor | ((uint64_t)alpha_dst_factor << 32);
-        uint64_t op3 = (uint64_t)color_equation   | ((uint64_t)alpha_equation << 32);
-
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_STATE, color_src_factor, color_dst_factor, op2, op3)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, equations[0], equations[1])))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -3201,7 +3139,8 @@ namespace dmRender
         {"set_view",                        RenderScript_SetView},
         {"set_projection",                  RenderScript_SetProjection},
         {"set_blend_func",                  RenderScript_SetBlendFunc},
-        {"set_blend_state",                 RenderScript_SetBlendState},
+        {"set_blend_func_separate",         RenderScript_SetBlendFuncSeparate},
+        {"set_blend_equation_separate",     RenderScript_SetBlendEquationSeparate},
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_depth_func",                  RenderScript_SetDepthFunc},
@@ -3341,6 +3280,18 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
 
 #undef REGISTER_BLEND_CONSTANT
+
+#define REGISTER_BLEND_EQUATION_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_EQUATION_##name); \
+        lua_setfield(L, -2, "BLEND_EQUATION_"#name);
+
+        REGISTER_BLEND_EQUATION_CONSTANT(ADD);
+        REGISTER_BLEND_EQUATION_CONSTANT(SUBTRACT);
+        REGISTER_BLEND_EQUATION_CONSTANT(REVERSE_SUBTRACT);
+        REGISTER_BLEND_EQUATION_CONSTANT(MIN);
+        REGISTER_BLEND_EQUATION_CONSTANT(MAX);
+
+#undef REGISTER_BLEND_EQUATION_CONSTANT
 
 #define REGISTER_COMPARE_FUNC_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \

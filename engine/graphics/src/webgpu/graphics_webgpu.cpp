@@ -3403,7 +3403,7 @@ static void WebGPUSetBlendFunc(HContext _context, BlendFactor source_factor, Ble
     context->m_CurrentPipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
 }
 
-static void WebGPUSetBlendState(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha, BlendEquation equation_color, BlendEquation equation_alpha)
+static void WebGPUSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
 {
     TRACE_CALL;
     assert(_context);
@@ -3412,6 +3412,13 @@ static void WebGPUSetBlendState(HContext _context, BlendFactor src_factor_color,
     context->m_CurrentPipelineState.m_BlendDstFactor      = dst_factor_color;
     context->m_CurrentPipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
     context->m_CurrentPipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+}
+
+static void WebGPUSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context                                = (WebGPUContext*)_context;
     context->m_CurrentPipelineState.m_BlendEquationColor  = equation_color;
     context->m_CurrentPipelineState.m_BlendEquationAlpha  = equation_alpha;
 }
