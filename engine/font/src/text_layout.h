@@ -50,4 +50,6 @@ TextResult TextLayoutSkribidiCreate(HFontCollection collection,
                                 uint32_t* codepoints, uint32_t num_codepoints,
                                 TextLayoutSettings* settings, HTextLayout* outlayout);
 
+uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints);
+
 #endif // DM_TEXT_LAYOUT_H
