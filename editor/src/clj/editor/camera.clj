@@ -1049,7 +1049,7 @@
           win-h (.getHeight win)
           screen-x ^double screen-x
           screen-y ^double screen-y
-          padding 5.0
+          padding 10.0
           warp-x (cond
                    (< screen-x (+ win-x padding))           (+ win-x win-w (- padding))
                    (> screen-x (- (+ win-x win-w) padding)) (+ win-x padding)
