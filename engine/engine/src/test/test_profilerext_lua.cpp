@@ -224,6 +224,43 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnFinalize)
     ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_finalize' was not closed before the end of the frame. Auto-closing it."));
 }
 
+TEST_F(ProfilerExtLuaTest, GarbageCollectedCoroutineScopeStateIsReleasedOnPreRender)
+{
+    ASSERT_TRUE(RunString(
+        "weak_threads = setmetatable({}, { __mode = \"v\" })\n"
+        "do\n"
+        "    local co = coroutine.create(function()\n"
+        "        profiler.scope_begin(\"coroutine_gc\")\n"
+        "    end)\n"
+        "    assert(coroutine.resume(co))\n"
+        "    assert(coroutine.status(co) == \"dead\")\n"
+        "    weak_threads[1] = co\n"
+        "    co = nil\n"
+        "end\n"
+        "collectgarbage(\"collect\")\n"
+        "collectgarbage(\"collect\")\n"
+        "assert(weak_threads[1] ~= nil)\n"
+        "local scratch = {}\n"
+        "for i = 1, 2048 do\n"
+        "    scratch[i] = string.rep(tostring(i), 32)\n"
+        "end\n"));
+
+    // The profiler tracks coroutine scope state via a raw lua_State*.
+    // Keep the coroutine alive while its scope state is pending auto-close,
+    // then release it once PreRender() clears the profiler state.
+    dmExtension::PreRender(&m_Params);
+
+    ASSERT_TRUE(RunString(
+        "collectgarbage(\"collect\")\n"
+        "collectgarbage(\"collect\")\n"
+        "assert(weak_threads[1] == nil)\n"
+        "weak_threads = nil\n"));
+
+    char* log = GetLog();
+    ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_gc' was not closed before the end of the frame. Auto-closing it."));
+
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

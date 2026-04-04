@@ -71,6 +71,8 @@ struct LuaProfilerScope
 struct LuaProfilerScopeState
 {
     lua_State*                   m_L;
+    int                          m_ThreadRef;
+    bool                         m_IsMainThread;
     dmArray<LuaProfilerScope>    m_Scopes;
     dmArray<char>                m_Names;
     LuaProfilerScopeState*       m_Next;
@@ -94,6 +96,28 @@ static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
     return 0;
 }
 
+static void RetainLuaProfilerScopeState(LuaProfilerScopeState* state)
+{
+    if (state->m_IsMainThread || state->m_ThreadRef != LUA_NOREF)
+    {
+        return;
+    }
+
+    lua_pushthread(state->m_L);
+    state->m_ThreadRef = dmScript::Ref(state->m_L, LUA_REGISTRYINDEX);
+}
+
+static void ReleaseLuaProfilerScopeState(LuaProfilerScopeState* state)
+{
+    if (state->m_ThreadRef == LUA_NOREF)
+    {
+        return;
+    }
+
+    dmScript::Unref(state->m_L, LUA_REGISTRYINDEX, state->m_ThreadRef);
+    state->m_ThreadRef = LUA_NOREF;
+}
+
 static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
 {
     LuaProfilerScopeState* state = FindLuaProfilerScopeState(L);
@@ -104,6 +128,8 @@ static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
 
     state = new LuaProfilerScopeState;
     state->m_L = L;
+    state->m_ThreadRef = LUA_NOREF;
+    state->m_IsMainThread = L == dmScript::GetMainThread(L);
     state->m_Scopes.SetCapacity(4);
     state->m_Names.SetCapacity(64);
     state->m_Next = g_LuaProfilerScopeStates;
@@ -111,15 +137,16 @@ static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
     return state;
 }
 
-static void DeleteLuaProfilerScopeState(lua_State* L)
+static void DeleteLuaProfilerScopeState(LuaProfilerScopeState* delete_state)
 {
     LuaProfilerScopeState** state_ptr = &g_LuaProfilerScopeStates;
     while (*state_ptr != 0)
     {
         LuaProfilerScopeState* state = *state_ptr;
-        if (state->m_L == L)
+        if (state == delete_state)
         {
             *state_ptr = state->m_Next;
+            ReleaseLuaProfilerScopeState(state);
             delete state;
             return;
         }
@@ -131,13 +158,13 @@ static void DeleteLuaProfilerScopeStates()
 {
     while (g_LuaProfilerScopeStates != 0)
     {
-        DeleteLuaProfilerScopeState(g_LuaProfilerScopeStates->m_L);
+        DeleteLuaProfilerScopeState(g_LuaProfilerScopeStates);
     }
 }
 
 static bool ShouldRetainLuaProfilerScopeState(LuaProfilerScopeState* state)
 {
-    return !state->m_Scopes.Empty() || state->m_L == dmScript::GetMainThread(state->m_L);
+    return !state->m_Scopes.Empty() || state->m_IsMainThread;
 }
 
 static void DeleteEmptyLuaProfilerScopeStates()
@@ -149,6 +176,7 @@ static void DeleteEmptyLuaProfilerScopeStates()
         if (!ShouldRetainLuaProfilerScopeState(state))
         {
             *state_ptr = state->m_Next;
+            ReleaseLuaProfilerScopeState(state);
             delete state;
         }
         else
@@ -184,6 +212,7 @@ static const char* GetLuaProfilerScopeName(LuaProfilerScopeState* state, const L
 static void PushLuaProfilerScope(lua_State* L, const char* name, uint32_t name_length)
 {
     LuaProfilerScopeState* state = GetOrCreateLuaProfilerScopeState(L);
+    RetainLuaProfilerScopeState(state);
     EnsureLuaProfilerCapacity(&state->m_Scopes, 1, 4);
     EnsureLuaProfilerCapacity(&state->m_Names, name_length + 1, 64);
 
@@ -781,6 +810,10 @@ static int ProfilerScopeEnd(lua_State* L)
     const char* name = GetLuaProfilerScopeName(state, &scope);
     ProfileScopeEnd(name, scope.m_NameHash);
     state->m_Names.SetSize(scope.m_NameOffset);
+    if (state->m_Scopes.Empty() && !state->m_IsMainThread)
+    {
+        DeleteLuaProfilerScopeState(state);
+    }
     return 0;
 }
 
