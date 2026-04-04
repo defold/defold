@@ -71,7 +71,6 @@ struct LuaProfilerScope
 struct LuaProfilerScopeState
 {
     lua_State*                   m_L;
-    int                          m_ThreadRef;
     bool                         m_IsMainThread;
     dmArray<LuaProfilerScope>    m_Scopes;
     dmArray<char>                m_Names;
@@ -96,28 +95,6 @@ static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
     return 0;
 }
 
-static void RetainLuaProfilerScopeState(LuaProfilerScopeState* state)
-{
-    if (state->m_IsMainThread || state->m_ThreadRef != LUA_NOREF)
-    {
-        return;
-    }
-
-    lua_pushthread(state->m_L);
-    state->m_ThreadRef = dmScript::Ref(state->m_L, LUA_REGISTRYINDEX);
-}
-
-static void ReleaseLuaProfilerScopeState(LuaProfilerScopeState* state)
-{
-    if (state->m_ThreadRef == LUA_NOREF)
-    {
-        return;
-    }
-
-    dmScript::Unref(state->m_L, LUA_REGISTRYINDEX, state->m_ThreadRef);
-    state->m_ThreadRef = LUA_NOREF;
-}
-
 static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
 {
     LuaProfilerScopeState* state = FindLuaProfilerScopeState(L);
@@ -128,7 +105,6 @@ static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
 
     state = new LuaProfilerScopeState;
     state->m_L = L;
-    state->m_ThreadRef = LUA_NOREF;
     state->m_IsMainThread = L == dmScript::GetMainThread(L);
     state->m_Scopes.SetCapacity(4);
     state->m_Names.SetCapacity(64);
@@ -146,7 +122,6 @@ static void DeleteLuaProfilerScopeState(LuaProfilerScopeState* delete_state)
         if (state == delete_state)
         {
             *state_ptr = state->m_Next;
-            ReleaseLuaProfilerScopeState(state);
             delete state;
             return;
         }
@@ -176,7 +151,6 @@ static void DeleteEmptyLuaProfilerScopeStates()
         if (!ShouldRetainLuaProfilerScopeState(state))
         {
             *state_ptr = state->m_Next;
-            ReleaseLuaProfilerScopeState(state);
             delete state;
         }
         else
@@ -212,7 +186,6 @@ static const char* GetLuaProfilerScopeName(LuaProfilerScopeState* state, const L
 static void PushLuaProfilerScope(lua_State* L, const char* name, uint32_t name_length)
 {
     LuaProfilerScopeState* state = GetOrCreateLuaProfilerScopeState(L);
-    RetainLuaProfilerScopeState(state);
     EnsureLuaProfilerCapacity(&state->m_Scopes, 1, 4);
     EnsureLuaProfilerCapacity(&state->m_Names, name_length + 1, 64);
 
