@@ -39,9 +39,6 @@
   []
   (AtomicLong. 0))
 
-(defn- new-history []
-  {:tape (conj (h/paper-tape history-size-max) [])})
-
 (defonce/record HistoryState [label graph sequence-label cache-keys])
 
 (defn history-state [graph outputs-modified]
@@ -63,6 +60,10 @@
   ([x] true)
   ([x y] (and x y (= x y) x))
   ([x y & more] (reduce =* (=* x y) more)))
+
+(defn- new-history [graph]
+  {:tape (conj (h/paper-tape history-size-max)
+               (history-state graph #{}))})
 
 (defn merge-or-push-history
   [history old-graph new-graph outputs-modified]
@@ -239,7 +240,7 @@
   (let [graph-id (next-available-graph-id system)]
     (-> system
         (attach-graph* graph-id graph)
-        (assoc-in [:history graph-id] (new-history)))))
+        (assoc-in [:history graph-id] (new-history graph)))))
 
 (defn detach-graph
   [system graph]

@@ -18,7 +18,6 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [schema.core :as s]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.defonce :as defonce]
@@ -464,29 +463,11 @@
       (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
-(defn- validate-property-value-impl [node-type node-id property-label property-value]
-  (let [value-type (some-> (in/property-type node-type property-label) deref in/schema s/maybe)
-        node-type-name (in/type-name node-type)]
-    (when-let [validation-error (some-> value-type (s/check property-value))]
-      (in/warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
-      (throw (ex-info "SCHEMA-VALIDATION"
-                      {:node-id node-id
-                       :type node-type-name
-                       :property property-label
-                       :expected value-type
-                       :actual property-value
-                       :validation-error validation-error})))))
-
-(defmacro ^:private validate-property-value [node-type node-id property-label property-value]
-  (when in/*check-schemas*
-    `(when ~`in/*check-schemas* ; Inner check to support disabling the schema check post compile-time.
-       (validate-property-value-impl ~node-type ~node-id ~property-label ~property-value))))
-
 (defn- invoke-setter
   [ctx node-id node property old-value new-value override-node? dynamic?]
   (let [node-type (gt/node-type node)
         setter-fn (in/property-setter node-type property)]
-    (validate-property-value node-type node-id property new-value)
+    (in/validate-property-value node-type node-id property new-value)
     (-> ctx
         (update :basis property-default-setter node-id node property new-value)
         (cond->
@@ -504,25 +485,21 @@
   ;; activated, as we're doing this on a newly constructed node and ctx-add-node
   ;; will mark all our outputs activated regardless.
   (let [node-id (gt/node-id node)
-        node-type (gt/node-type node)]
-    (reduce
-      (fn [ctx [property-label property-value]]
-        (if (nil? property-value)
-          ctx
-          (let [setter-fn (in/property-setter node-type property-label)]
-            (validate-property-value node-type node-id property-label property-value)
-            (if (nil? setter-fn)
-              ctx
-              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))))))
+        node-type (gt/node-type node)
+        ordered-property-setter-infos (in/ordered-property-setter-infos node-type)]
+    (if (coll/empty? ordered-property-setter-infos)
       ctx
-      (if (some? (gt/original node))
-        (gt/overridden-properties node)
-        (let [default-property-values (in/defaults node-type)
-              assigned-property-values (gt/assigned-properties node)]
-          (e/map (fn [[property-label default-property-value]]
-                   (pair property-label
-                         (get assigned-property-values property-label default-property-value)))
-                 default-property-values))))))
+      (let [assigned-properties (gt/assigned-properties node)
+            value-fn (if (some? (gt/original node))
+                       (fn override-node-value-fn [property-label _default-value]
+                         (get assigned-properties property-label))
+                       (fn regular-node-value-fn [property-label default-value]
+                         (get assigned-properties property-label default-value)))]
+        (coll/reduce-> ordered-property-setter-infos ctx
+          (fn [ctx [property-label default-value setter-fn]]
+            (if-some [property-value (value-fn property-label default-value)]
+              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))
+              ctx)))))))
 
 (defn- ctx-add-node [ctx node]
   (let [basis-after (gt/add-node (:basis ctx) node)

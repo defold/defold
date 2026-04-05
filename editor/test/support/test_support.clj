@@ -129,3 +129,11 @@
                 (map (fn [[sym ^String property-name]]
                        `(set-system-property! ~property-name ~sym))
                      (rseq sym+property-name-pairs)))]))]))))
+
+(defn cached-endpoints
+  "Returns a sorted set of Endpoints that currently reside in the cache."
+  ([] (cached-endpoints (g/cache)))
+  ([cache]
+   (into (sorted-set)
+         (map key)
+         cache)))

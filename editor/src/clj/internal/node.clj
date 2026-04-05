@@ -16,21 +16,28 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
-            [internal.util :as util]
             [internal.cache :as c]
-            [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
+            [internal.graph.types :as gt]
+            [internal.util :as util]
             [plumbing.core :as pc]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.fn :as fn])
-  (:import [internal.graph.error_values ErrorValue]
-           [schema.core Maybe ConditionalSchema]
-           [java.lang.ref WeakReference]))
+  (:import [clojure.lang IDeref IPersistentMap Named]
+           [internal.graph.error_values ErrorValue]
+           [java.lang.ref WeakReference]
+           [schema.core ConditionalSchema Maybe]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas (and *assert* (not (Boolean/getBoolean "defold.schema.check.disable")))))
+
+(defmacro when-check-schemas [& body]
+  (when *check-schemas*
+    `(when ~`*check-schemas* ; Inner check to support disabling the schema check post compile-time.
+       ~@body)))
 
 (defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
@@ -61,18 +68,18 @@
   ([evaluation-context-sym expr dry-expr]
    `(if-not (:dry-run ~evaluation-context-sym) ~expr ~dry-expr)))
 
-(prefer-method pp/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
-(prefer-method pp/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
+(prefer-method pp/code-dispatch IPersistentMap IDeref)
+(prefer-method pp/simple-dispatch IPersistentMap IDeref)
 
-(defprotocol Ref
+(defonce/protocol Ref
   (ref-key [this]))
 
 (defn ref? [x] (and x (extends? Ref (class x))))
 
-(defprotocol Type)
+(defonce/protocol Type)
 
 (defn- type? [x] (and (extends? Type (class x)) x))
-(defn- named? [x] (instance? clojure.lang.Named x))
+(defn- named? [x] (instance? Named x))
 
 ;;; ----------------------------------------
 ;;; Node type definition
@@ -87,15 +94,15 @@
 (def ^:private unjammable?         (partial has-flag? :unjammable))
 (def ^:private explicit?           (partial has-flag? :explicit))
 
-(defprotocol NodeType)
+(defonce/protocol NodeType)
 
 (defn node-type-deref? [x] (satisfies? NodeType x))
 
-(defrecord NodeTypeRef [k]
+(defonce/record NodeTypeRef [k]
   Ref
   (ref-key [this] k)
 
-  clojure.lang.IDeref
+  IDeref
   (deref [this]
     (node-type-resolve k)))
 
@@ -105,7 +112,7 @@
 (defn inherits? [^NodeTypeRef node-type ^NodeTypeRef node-supertype]
   (isa? (:key @node-type) (:key @node-supertype)))
 
-(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
+(defonce/record NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
   NodeType
   Type)
 
@@ -210,12 +217,12 @@
 ;;; ----------------------------------------
 ;;; Value type definition
 
-(defprotocol ValueType
+(defonce/protocol ValueType
   (dispatch-value [this])
   (schema [this] "Returns a schema.core/Schema that can conform values of this type")
   (form [this] "Returns a Clojure form for producing the schema"))
 
-(defrecord SchemaType [dispatch-value schema]
+(defonce/record SchemaType [dispatch-value schema]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
@@ -223,7 +230,7 @@
 
   Type)
 
-(defrecord ClassType [dispatch-value ^Class class]
+(defonce/record ClassType [dispatch-value ^Class class]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] class)
@@ -231,7 +238,7 @@
 
   Type)
 
-(defrecord ProtocolType [dispatch-value schema form]
+(defonce/record ProtocolType [dispatch-value schema form]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
@@ -248,11 +255,11 @@
 
 (defn- value-type-registry [] @value-type-registry-ref)
 
-(defrecord ValueTypeRef [k]
+(defonce/record ValueTypeRef [k]
   Ref
   (ref-key [this] k)
 
-  clojure.lang.IDeref
+  IDeref
   (deref [this]
     (value-type-resolve k)))
 
@@ -288,7 +295,7 @@
   ;; TODO(save-value-cleanup): Figure out why we have so much wrapping from (default ...) declarations.
   (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
 
-(defn- defaults-raw [node-type-deref]
+(defn- node-type-deref-defaults-raw [node-type-deref]
   (assert (satisfies? NodeType node-type-deref))
   (let [declared-property-labels (:declared-property node-type-deref)]
     (into {}
@@ -298,14 +305,46 @@
                           (prop-info-default prop-info)))))
           (:property node-type-deref))))
 
-(def defaults
-  "Return a map of default values for the node type."
-  (comp (fn/memoize defaults-raw) deref))
+(def ^{:private true
+       :arglists '([node-type-deref])}
+  node-type-deref-defaults
+  (fn/memoize node-type-deref-defaults-raw))
+
+(defn defaults
+  "Return a map of {prop-kw default-value} for the node-type. The map includes
+  all declared properties, not only the ones with (default ...) clauses."
+  [node-type]
+  (node-type-deref-defaults @node-type))
+
+(defn- node-type-deref-ordered-property-setter-infos-raw [node-type-deref]
+  {:pre [(node-type-deref? node-type-deref)]}
+  (let [prop-kws-in-declaration-order (:property-order-decl node-type-deref)
+        prop-kw->prop-info (:property node-type-deref)
+        prop-kw->default-value (node-type-deref-defaults node-type-deref)]
+    (coll/into-> prop-kws-in-declaration-order []
+      (keep (fn [prop-kw]
+              (when-some [prop-info (prop-kw->prop-info prop-kw)]
+                (when-some [setter-fn (some-> prop-info :setter :fn util/var-get-recursive)]
+                  (let [default-value (prop-kw->default-value prop-kw)]
+                    [prop-kw default-value setter-fn]))))))))
+
+(def ^{:private true
+       :arglists '([node-type-deref])}
+  node-type-deref-ordered-property-setter-infos
+  (fn/memoize node-type-deref-ordered-property-setter-infos-raw))
+
+(defn ordered-property-setter-infos
+  "Return a vector of property-setter-infos that can be used to invoke property
+  setters during construction. The property-setter-infos are listed in the
+  order the properties are declared in the defnode expression. Each element is a
+  vector of [prop-kw default-value setter-fn]."
+  [node-type]
+  (node-type-deref-ordered-property-setter-infos @node-type))
 
 ;;; ----------------------------------------
 ;;; Construction support
 
-(defrecord NodeImpl [_node-id node-type]
+(defonce/record NodeImpl [_node-id node-type]
   gt/Node
   (node-id [_] _node-id)
 
@@ -352,24 +391,6 @@
 
   (override-id [this]
     nil))
-
-(defn- args-without-properties [node-type-ref args]
-  (set/difference
-    (util/key-set args)
-    (util/key-set (:property (deref node-type-ref)))))
-
-(defn construct
-  [node-type-ref args]
-  (assert (and node-type-ref (deref node-type-ref)))
-  (assert (or (nil? args) (map? args)))
-  (assert (empty? (args-without-properties node-type-ref args))
-          (str "You have given values for properties "
-               (args-without-properties node-type-ref args)
-               ", but those don't exist on nodes of type "
-               (:k node-type-ref)))
-  (coll/merge
-    (->NodeImpl nil node-type-ref)
-    args))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -555,6 +576,49 @@
           (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
           (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
           (and (instance? ConditionalSchema input-schema) (some #(type-compatible? output-schema %) (map second (:preds-and-schemas input-schema))))))))
+
+(defn validate-property-value-impl [node-type-ref node-id property-label property-value]
+  (let [value-type (some-> (property-type node-type-ref property-label) deref schema s/maybe)
+        node-type-name (type-name node-type-ref)]
+    (when-let [validation-error (some-> value-type (s/check property-value))]
+      (warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
+      (throw (ex-info "SCHEMA-VALIDATION"
+                      {:node-id node-id
+                       :type node-type-name
+                       :property property-label
+                       :expected value-type
+                       :actual property-value
+                       :validation-error validation-error})))))
+
+(defmacro validate-property-value [node-type-ref node-id property-label property-value]
+  `(when-check-schemas
+     (validate-property-value-impl ~node-type-ref ~node-id ~property-label ~property-value)))
+
+;;; ----------------------------------------
+;;; Construction
+
+(defn- args-without-properties [node-type-ref args]
+  (set/difference
+    (util/key-set args)
+    (util/key-set (:property (deref node-type-ref)))))
+
+(defn construct
+  [node-type-ref args]
+  (assert (and node-type-ref (deref node-type-ref)))
+  (assert (or (nil? args) (map? args)))
+  (when-check-schemas
+    (assert (empty? (args-without-properties node-type-ref args))
+            (str "You have given values for properties "
+                 (args-without-properties node-type-ref args)
+                 ", but those don't exist on nodes of type "
+                 (:k node-type-ref)))
+    (let [node-id (:_node-id args)]
+      (coll/reduce-kv-> args nil
+        (fn [_ property-label property-value]
+          (validate-property-value node-type-ref node-id property-label property-value)))))
+  (coll/merge
+    (->NodeImpl nil node-type-ref)
+    args))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
@@ -1678,7 +1742,7 @@
 ;;; ----------------------------------------
 ;;; Overrides
 
-(defrecord OverrideNode [override-id node-id node-type original-id properties]
+(defonce/record OverrideNode [override-id node-id node-type original-id properties]
   gt/Node
   (node-id [this] node-id)
   (node-type [this] node-type)
