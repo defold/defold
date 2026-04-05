@@ -1,6 +1,8 @@
 
 layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
+layout(rgba32f) uniform image2D texture_out;
+
 #define MAX_LIGHTS 32
 
 struct Light
@@ -23,4 +25,6 @@ void main()
     {
         light_accum += lights[i].color;
     }
+    ivec2 tex_coord = ivec2(gl_GlobalInvocationID.xy);
+    imageStore(texture_out, tex_coord, light_accum);
 }
