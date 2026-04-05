@@ -321,8 +321,8 @@ namespace dmRender
         CreateConstants(graphics_context, m);
 
         bool has_light_buffer;
-        uint8_t light_buffer_set;
-        uint8_t light_buffer_binding;
+        uint16_t light_buffer_set;
+        uint16_t light_buffer_binding;
         GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
         m->m_HasLightBuffer     = has_light_buffer;
         m->m_LightBufferSet     = light_buffer_set;

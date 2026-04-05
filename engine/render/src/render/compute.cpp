@@ -56,8 +56,8 @@ namespace dmRender
         SetProgramConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
 
         bool has_light_buffer;
-        uint8_t light_buffer_set;
-        uint8_t light_buffer_binding;
+        uint16_t light_buffer_set;
+        uint16_t light_buffer_binding;
         GetProgramLightBufferBinding(render_context, program->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
         program->m_HasLightBuffer     = has_light_buffer;
         program->m_LightBufferSet     = light_buffer_set;

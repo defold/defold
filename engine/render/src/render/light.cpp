@@ -350,8 +350,8 @@ namespace dmRender
     {
         RenderContext* m_Context;
         bool           m_HasLightBuffer;
-        uint8_t        m_Set;
-        uint8_t        m_Binding;
+        uint16_t       m_Set;
+        uint16_t       m_Binding;
     };
 
     static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
@@ -380,11 +380,11 @@ namespace dmRender
         }
 
         cb_ctx->m_HasLightBuffer = true;
-        cb_ctx->m_Set            = (uint8_t) set;
-        cb_ctx->m_Binding        = (uint8_t) binding;
+        cb_ctx->m_Set            = set;
+        cb_ctx->m_Binding        = binding;
     }
 
-    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint8_t* out_set, uint8_t* out_binding)
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding)
     {
         LightBufferBindingCallbackContext cb_ctx;
         cb_ctx.m_Context         = render_context;
@@ -402,7 +402,7 @@ namespace dmRender
         }
     }
 
-    static void ApplyLightBufferForBinding(HRenderContext render_context, uint8_t light_buffer_set, uint8_t light_buffer_binding)
+    static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
     {
         if (IsLightBufferDirty(render_context))
         {
