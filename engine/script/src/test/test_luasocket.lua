@@ -14,6 +14,25 @@
 
 -- Tests adopted from luasocket library provided tests
 
+function test_html5_minimal()
+    local socket = require "socket"
+
+    local t = socket.gettime()
+    assert(type(t) == "number")
+
+    local tcp, tcp_err = socket.tcp()
+    assert(tcp == nil)
+    assert(type(tcp_err) == "string")
+
+    local udp, udp_err = socket.udp()
+    assert(udp == nil)
+    assert(type(udp_err) == "string")
+
+    local readable, select_err = socket.select({}, {}, 0)
+    assert(readable == nil)
+    assert(type(select_err) == "string")
+end
+
 function test_bind()
     local socket = require "socket"
     local u = socket.udp()
@@ -237,6 +256,6 @@ function test_bind_error()
 end
 
 
-functions = { test_getaddr = test_getaddr, test_bind = test_bind,
+functions = { test_html5_minimal = test_html5_minimal, test_getaddr = test_getaddr, test_bind = test_bind,
     test_udp = test_udp, test_tcp_clientserver = test_tcp_clientserver,
     test_udp_clientserver = test_udp_clientserver, test_bind_error = test_bind_error }

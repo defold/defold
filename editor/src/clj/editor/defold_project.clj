@@ -926,7 +926,6 @@
       (g/construct node-type
         :_node-id node-id
         :resource resource))
-    (g/connect node-id :_node-id project :nodes)
     (g/connect node-id :node-id+resource project :node-id+resources)))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
@@ -963,7 +962,7 @@
   ([project render-progress!]
    (load-project! project render-progress! (g/node-value project :resources)))
   ([project render-progress! resources]
-   (assert (empty? (g/node-value project :nodes)) "load-project should only be used when loading an empty project")
+   (assert (empty? (g/node-value project :node-id+resources)) "load-project should only be used when loading an empty project")
    ;; Create nodes for all resources in the workspace.
    (let [process-metrics (du/make-metrics-collector)
          resource-metrics (du/make-metrics-collector)
@@ -1068,7 +1067,8 @@
      (if-not include-non-editable-directories
        upgraded-editable-save-data
        (let [live-run-evaluation-context (dissoc evaluation-context :dry-run)
-             resources-by-proj-path (g/valid-node-value project :resource-map live-run-evaluation-context)
+             workspace (g/valid-node-value project :workspace live-run-evaluation-context)
+             resources-by-proj-path (g/valid-node-value workspace :resource-map live-run-evaluation-context)
              resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path live-run-evaluation-context)]
          (into upgraded-editable-save-data
                (keep (fn [[proj-path node-id]]
@@ -1574,8 +1574,6 @@
      gl/linear-mipmap-linear :filter-mode-mag-linear)})
 
 (g/defnode Project
-  (inherits core/Scope)
-
   (property workspace g/Any)
 
   (property all-selections g/Any)
@@ -1588,9 +1586,8 @@
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
-  (input resource-map g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
-  (input node-id+resources g/Any :array)
+  (input node-id+resources g/Any :array :cascade-delete)
   (input settings g/Any :substitute nil)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
@@ -1617,7 +1614,6 @@
                                                                  (->> all-sub-selections
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
-  (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1704,7 +1700,6 @@
       (let [graph-id (g/node-id->graph-id project)
             node-type (resource-node-type resource)
             creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                               (g/connect resource-node-id :_node-id project :nodes)
                                (g/connect resource-node-id :node-id+resource project :node-id+resources))
             created-resource-node-id (first (g/tx-data-added-node-ids creation-tx-data))
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
@@ -1809,7 +1804,6 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
-                (g/connect workspace-id :resource-map project :resource-map)
                 (g/set-graph-value graph :project-id project)
                 (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
                 (g/set-graph-value graph :code-transpilers transpilers-id)))))]

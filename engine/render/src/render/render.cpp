@@ -55,6 +55,7 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
     const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
     const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
+    const dmhash_t FRUSTUM_HASH_UNINITIALIZED         = 0;
 
     StencilTestParams::StencilTestParams() {
         Init();
@@ -207,7 +208,6 @@ namespace dmRender
         render_context->m_RenderListSortIndices.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
-        render_context->m_FrustumHash = 0xFFFFFFFF; // trigger a first recalculation each frame
     }
 
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
@@ -252,10 +252,11 @@ namespace dmRender
         uint32_t size = render_list.Size();
         render_list.SetSize(size + entries);
 
-        // If we push new items after the last frustum culling, we need to reevaluate it
-        render_context->m_FrustumHash = 0xFFFFFFFF;
+        // If we push new items after the last frustum culling, we need to reevaluate them.
+        RenderListEntry* start = render_list.Begin() + size;
+        memset(start, 0, entries * sizeof(RenderListEntry));
 
-        return (render_list.Begin() + size);
+        return start;
     }
 
     // Submit a range of entries (pointers must be from a range allocated by RenderListAlloc, and not between two alloc calls).
@@ -708,15 +709,16 @@ namespace dmRender
         return a->m_Dispatch == b->m_Dispatch;
     }
 
-    static void SetVisibility(uint32_t count, RenderListEntry* entries, Visibility visibility)
+    static void SetVisibility(uint32_t count, RenderListEntry* entries, Visibility visibility, uint32_t frustum_hash)
     {
         for (uint32_t i = 0; i < count; ++i)
         {
             entries[i].m_Visibility = visibility;
+            entries[i].m_FrustumHash = frustum_hash;
         }
     }
 
-    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum)
+    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum, uint32_t frustum_hash)
     {
         DM_PROFILE("FrustumCulling");
 
@@ -728,19 +730,45 @@ namespace dmRender
         while(iter.Next())
         {
             RenderListEntry* batch_start = iter.Begin();
+            uint32_t batch_length = iter.Length();
 
             const RenderListDispatch* d = &context->m_RenderListDispatch[batch_start->m_Dispatch];
             if (!d->m_VisibilityFn)
             {
-                SetVisibility(iter.Length(), iter.Begin(), dmRender::VISIBILITY_FULL);
+                SetVisibility(batch_length, batch_start, dmRender::VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
             }
-            else {
+            else
+            {
                 RenderListVisibilityParams params;
                 params.m_Frustum = &frustum;
                 params.m_UserData = d->m_UserData;
-                params.m_Entries = batch_start;
-                params.m_NumEntries = iter.Length();
-                d->m_VisibilityFn(params);
+
+                uint32_t i =0;
+                while(i < batch_length)
+                {
+                    // Skip over already calculated entries
+                    while(i < batch_length && batch_start[i].m_FrustumHash == frustum_hash)
+                    {
+                        i++;
+                    }
+
+                    // Calculate start/end of entries to calculate culling for
+                    uint32_t sub_batch_start = i;
+                    while(i < batch_length && batch_start[i].m_FrustumHash != frustum_hash)
+                    {
+                        // Update hash here since we are already looping over the entries
+                        batch_start[i].m_FrustumHash = frustum_hash;
+                        i++;
+                    }
+
+                    // Execute culling for this sub-batch if > 0
+                    params.m_Entries = batch_start + sub_batch_start;
+                    params.m_NumEntries = i - sub_batch_start;
+                    if (params.m_NumEntries > 0)
+                    {
+                        d->m_VisibilityFn(params);
+                    }
+                }
             }
         }
     }
@@ -923,24 +951,23 @@ namespace dmRender
             SortRenderList(context);
         }
 
-        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*) frustum_matrix, 16*sizeof(float)) : 0;
+        uint32_t frustum_hash = 0;
 
-        if (context->m_FrustumHash != frustum_hash)
+        if (frustum_matrix)
         {
-            // We use this to avoid calling the culling functions more than once in a row
-            context->m_FrustumHash = frustum_hash;
+            uint8_t frustum_key_buffer[sizeof(Matrix4) + sizeof(FrustumPlanes)];
+            memcpy(frustum_key_buffer, frustum_matrix, sizeof(Matrix4));
+            memcpy(frustum_key_buffer + sizeof(Matrix4), &frustum_num_planes, sizeof(frustum_num_planes));
+            frustum_hash = dmHashBuffer32(frustum_key_buffer, (uint32_t)sizeof(frustum_key_buffer));
 
-            if (frustum_matrix)
-            {
-                dmIntersection::Frustum frustum;
-                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, (int) frustum_num_planes, frustum);
-                FrustumCulling(context, frustum);
-            }
-            else
-            {
-                // Reset the visibility
-                SetVisibility(context->m_RenderList.Size(), context->m_RenderList.Begin(), dmRender::VISIBILITY_FULL);
-            }
+            dmIntersection::Frustum frustum;
+            dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, (int) frustum_num_planes, frustum);
+            FrustumCulling(context, frustum, frustum_hash);
+        }
+        else
+        {
+            // Reset the visibility
+            SetVisibility(context->m_RenderList.Size(), context->m_RenderList.Begin(), dmRender::VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
         }
 
         SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
@@ -1050,6 +1077,14 @@ namespace dmRender
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
 
         dmGraphics::EnableProgram(context, compute_program->m_Program);
+
+        ApplyComputeProgramConstants(render_context, compute_program);
+
+        if (constant_buffer)
+        {
+            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
+        }
+
         GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures);
 
         uint8_t next_texture_unit = 0;
@@ -1072,12 +1107,7 @@ namespace dmRender
             }
         }
 
-        ApplyComputeProgramConstants(render_context, compute_program);
-
-        if (constant_buffer)
-        {
-            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
-        }
+        ApplyComputeProgramLightBuffers(render_context, compute_program);
 
         dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
 

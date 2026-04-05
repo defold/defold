@@ -201,6 +201,8 @@ def build(bld):
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
                  defines     = ['VALGRIND'] + extra_defines)
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip.env.append_unique('CFLAGS', '-ansi') 
 
     libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
@@ -208,6 +210,8 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip_noasan.env.append_unique('CFLAGS', '-ansi')
 
     image = bld.stlib(features  = 'c cxx',
                     includes    = '.',
@@ -345,10 +349,12 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
-    bld(features='javac seq',
-        classpath=classpath  + os.pathsep + 'src/java',
-        srcdir='java_test',
-        outdir='java_test')
+    java_test_dir = bld.path.find_dir('java_test')
+    if java_test_dir and java_test_dir.ant_glob('**/*.java'):
+        bld(features='javac seq',
+            classpath=classpath  + os.pathsep + 'src/java',
+            srcdir='java_test',
+            outdir='java_test')
 
     # ************************************************************************
     if not Options.options.skip_build_tests:
@@ -392,6 +398,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mdns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_empty.h')
@@ -408,8 +415,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
