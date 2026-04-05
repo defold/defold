@@ -163,7 +163,7 @@
       (println (txerrstr ctx "cascading delete of " (pr-str to-delete))))
     (reduce delete-single ctx to-delete)))
 
-(defn- ctx-new-override
+(defn- ctx-add-override
   [ctx override-id root-id traverse-fn init-props-fn]
   (let [override (ig/make-override root-id traverse-fn init-props-fn)]
     (update ctx :basis gt/add-override override-id override)))
@@ -225,7 +225,7 @@
             ;; the original nodes.
             (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))))
 
-(defonce/type NewOverrideTXS [override-id root-id traverse-fn init-props-fn]
+(defonce/type AddOverrideTXS [override-id root-id traverse-fn init-props-fn]
   TransactionStep
   (step-type [_this]
     :tx-step/new-override)
@@ -234,11 +234,11 @@
     root-id)
 
   (perform [_this ctx]
-    (ctx-new-override ctx override-id root-id traverse-fn init-props-fn)))
+    (ctx-add-override ctx override-id root-id traverse-fn init-props-fn)))
 
 (defn- new-override
   [override-id root-id traverse-fn init-props-fn]
-  [(->NewOverrideTXS override-id root-id traverse-fn init-props-fn)])
+  [(->AddOverrideTXS override-id root-id traverse-fn init-props-fn)])
 
 (defonce/type OverrideNodeTXS [original-node-id override-node-id]
   TransactionStep
@@ -536,20 +536,23 @@
         (mark-all-outputs-activated node-id))))
 
 (defn- ctx-update-property
-  [ctx node-id property fn args opts]
-  (let [basis (:basis ctx)]
-    (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
-            ;; The context is intentionally bare, i.e. only :basis, for this reason
-            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
-            old-value (in/node-property-value node property evaluation-context)
+  [ctx node-id property-label update-fn args opts]
+  (let [basis (:basis ctx)
+        node (gt/node-by-id-at basis node-id)]
+    (if (nil? node) ; nil if node was deleted in this transaction
+      ctx
+      (let [is-override-node (some? (gt/original node))
+            is-dynamic (not (contains? (in/all-properties (gt/node-type node)) property-label))
+
+            ;; Use a custom evaluation-context since we're inside a transaction
+            ;; and cannot use the cache.
+            tx-data-context (:tx-data-context ctx)
+            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})
+            old-value (in/node-property-value node property-label evaluation-context)
             new-value (if (:inject-evaluation-context opts)
-                        (apply fn evaluation-context old-value args)
-                        (apply fn old-value args))
-            override-node? (some? (gt/original node))
-            dynamic? (not (contains? (some-> (gt/node-type node) in/all-properties) property))]
-        (invoke-setter ctx node-id node property old-value new-value override-node? dynamic?))
-      ctx)))
+                        (apply update-fn evaluation-context old-value args)
+                        (apply update-fn old-value args))]
+        (invoke-setter ctx node-id node property-label old-value new-value is-override-node is-dynamic)))))
 
 (defn- ctx-set-property
   [ctx node-id property-label new-value]
@@ -562,9 +565,9 @@
 
             ;; Use a custom evaluation-context since we're inside a transaction
             ;; and cannot use the cache.
-            old-value (let [tx-data-context (:tx-data-context ctx)
-                            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
-                        (in/node-property-value node property-label evaluation-context))]
+            tx-data-context (:tx-data-context ctx)
+            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})
+            old-value (in/node-property-value node property-label evaluation-context)]
         (invoke-setter ctx node-id node property-label old-value new-value is-override-node is-dynamic)))))
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
@@ -722,6 +725,20 @@
   [ctx graph-id fn args]
   (cond-> (update-in ctx [:basis :graphs graph-id :graph-values] #(apply fn % args))
           (not (:full-invalidation ctx)) (update :graphs-modified conj graph-id)))
+
+(defn- ctx-label [ctx label]
+  (assoc ctx :label label))
+
+(defn- ctx-sequence-label [ctx sequence-label]
+  (assoc ctx :sequence-label sequence-label))
+
+(defn- ctx-invalidate [ctx node-id]
+  (if (gt/node-by-id-at (:basis ctx) node-id)
+    (mark-all-outputs-activated ctx node-id)
+    ctx))
+
+(defn- ctx-invalidate-output [ctx node-id output-label]
+  (mark-output-activated ctx node-id output-label))
 
 ;; ---------------------------------------------------------------------------
 ;; Transaction steps
@@ -959,7 +976,7 @@
     nil)
 
   (perform [_this ctx]
-    (assoc ctx :label label)))
+    (ctx-label ctx label)))
 
 (defn label
   [label]
@@ -974,7 +991,7 @@
     nil)
 
   (perform [_this ctx]
-    (assoc ctx :sequence-label sequence-label)))
+    (ctx-sequence-label ctx sequence-label)))
 
 (defn sequence-label
   [sequence-label]
@@ -989,9 +1006,7 @@
     node-id)
 
   (perform [_this ctx]
-    (if (gt/node-by-id-at (:basis ctx) node-id)
-      (mark-all-outputs-activated ctx node-id)
-      ctx)))
+    (ctx-invalidate ctx node-id)))
 
 (defn invalidate
   [node-id]
@@ -1006,7 +1021,7 @@
     (pair node-id output-label))
 
   (perform [_this ctx]
-    (mark-output-activated ctx node-id output-label)))
+    (ctx-invalidate-output ctx node-id output-label)))
 
 (defn invalidate-output
   [node-id output-label]
