@@ -1,4 +1,4 @@
-script: "/gui/valid.gui_script"
+script: "/gui/goscript.gui_script"
 textures {
   name: "atlas"
   texture: "/gui/texture_setter_override_a.atlas"
