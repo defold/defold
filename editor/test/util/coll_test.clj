@@ -1510,6 +1510,188 @@
                (when (= "needle" value)
                  value)))))))
 
+(deftest removing-assoc-test
+  (testing "Adds and replaces non-nil values."
+    (is (= {:a 1
+            :b 2}
+           (coll/removing-assoc {:a 0} :a 1 :b 2))))
+
+  (testing "Keeps false values."
+    (is (= {:a false}
+           (coll/removing-assoc {:a 1} :a false))))
+
+  (testing "Removes nil values from maps."
+    (is (= {:c 3}
+           (coll/removing-assoc {:a 1
+                                 :b 2
+                                 :c 3}
+                                :a nil
+                                :b nil))))
+
+  (testing "Associates nil into non-map associatives."
+    (is (= [:a nil :c]
+           (coll/removing-assoc [:a :b :c] 1 nil))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}
+          original-map (with-meta {:a 1 :b 2} original-meta)
+          altered-map (coll/removing-assoc original-map :a nil)]
+      (is (= {:b 2} altered-map))
+      (is (identical? original-meta (meta altered-map)))))
+
+  (testing "Throws on odd number of key-value arguments."
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"removing-assoc expects an even number of arguments after the associative\."
+          (coll/removing-assoc {} :a 1 :b)))))
+
+(deftest removing-assoc-in-test
+  (testing "Adds and replaces non-nil values."
+    (is (= {:a {:b 1}}
+           (coll/removing-assoc-in {} [:a :b] 1)))
+    (is (= {:a {:b 2
+                :c 3}}
+           (coll/removing-assoc-in {:a {:b 1
+                                        :c 3}}
+                                   [:a :b]
+                                   2))))
+
+  (testing "Keeps false values."
+    (is (= {:a {:b false}}
+           (coll/removing-assoc-in {:a {:b true}} [:a :b] false))))
+
+  (testing "Removes nil values from maps and prunes empty parent maps."
+    (is (= {:a {:c 2}
+            :d 3}
+           (coll/removing-assoc-in {:a {:b 1
+                                        :c 2}
+                                    :d 3}
+                                   [:a :b]
+                                   nil)))
+    (is (= {:d 3}
+           (coll/removing-assoc-in {:a {:b 1}
+                                    :d 3}
+                                   [:a :b]
+                                   nil))))
+
+  (testing "Associates nil into nested non-map associatives."
+    (is (= {:a [:b nil :d]}
+           (coll/removing-assoc-in {:a [:b :c :d]} [:a 1] nil))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}
+          nested-meta {:nested-meta-key "nested-meta-value"}
+          original-map (with-meta {:a (with-meta {:b 1
+                                                  :c 2}
+                                                 nested-meta)}
+                                  original-meta)
+          altered-map (coll/removing-assoc-in original-map [:a :b] nil)]
+      (is (= {:a {:c 2}} altered-map))
+      (is (identical? original-meta (meta altered-map)))
+      (is (identical? nested-meta (meta (:a altered-map)))))))
+
+(deftest removing-update-test
+  (testing "Updates existing values."
+    (is (= {:a 2
+            :b 2}
+           (coll/removing-update {:a 1
+                                  :b 2}
+                                 :a
+                                 inc))))
+
+  (testing "Supplies additional arguments to f."
+    (is (= {:a [1 :arg1]}
+           (coll/removing-update {:a 1} :a vector :arg1)))
+    (is (= {:a [1 :arg1 :arg2]}
+           (coll/removing-update {:a 1} :a vector :arg1 :arg2)))
+    (is (= {:a [1 :arg1 :arg2 :arg3]}
+           (coll/removing-update {:a 1} :a vector :arg1 :arg2 :arg3)))
+    (is (= {:a [1 :arg1 :arg2 :arg3 :arg4]}
+           (coll/removing-update {:a 1} :a vector :arg1 :arg2 :arg3 :arg4)))
+    (is (= {:a [1 :arg1 :arg2 :arg3 :arg4 :arg5]}
+           (coll/removing-update {:a 1} :a vector :arg1 :arg2 :arg3 :arg4 :arg5))))
+
+  (testing "Keeps false values."
+    (is (= {:a false}
+           (coll/removing-update {:a true} :a (constantly false)))))
+
+  (testing "Removes nil values from maps."
+    (is (= {:b 2}
+           (coll/removing-update {:a 1
+                                  :b 2}
+                                 :a
+                                 (constantly nil)))))
+
+  (testing "Associates nil into non-map associatives."
+    (is (= [:a nil :c]
+           (coll/removing-update [:a :b :c] 1 (constantly nil)))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}
+          original-map (with-meta {:a 1 :b 2} original-meta)
+          altered-map (coll/removing-update original-map :a (constantly nil))]
+      (is (= {:b 2} altered-map))
+      (is (identical? original-meta (meta altered-map))))))
+
+(deftest removing-update-in-test
+  (testing "Updates nested existing values."
+    (is (= {:a {:b 2}}
+           (coll/removing-update-in {:a {:b 1}} [:a :b] inc))))
+
+  (testing "Supplies additional arguments to f."
+    (is (= {:a {:b [1 :arg1]}}
+           (coll/removing-update-in {:a {:b 1}} [:a :b] vector :arg1)))
+    (is (= {:a {:b [1 :arg1 :arg2]}}
+           (coll/removing-update-in {:a {:b 1}} [:a :b] vector :arg1 :arg2)))
+    (is (= {:a {:b [1 :arg1 :arg2 :arg3]}}
+           (coll/removing-update-in {:a {:b 1}} [:a :b] vector :arg1 :arg2 :arg3)))
+    (is (= {:a {:b [1 :arg1 :arg2 :arg3 :arg4]}}
+           (coll/removing-update-in {:a {:b 1}} [:a :b] vector :arg1 :arg2 :arg3 :arg4)))
+    (is (= {:a {:b [1 :arg1 :arg2 :arg3 :arg4 :arg5]}}
+           (coll/removing-update-in {:a {:b 1}} [:a :b] vector :arg1 :arg2 :arg3 :arg4 :arg5))))
+
+  (testing "Updates missing paths with nil as the old value."
+    (is (= {:a {:b :created}}
+           (coll/removing-update-in {}
+                                    [:a :b]
+                                    (fn [value]
+                                      (is (nil? value))
+                                      :created)))))
+
+  (testing "Keeps false values."
+    (is (= {:a {:b false}}
+           (coll/removing-update-in {:a {:b true}} [:a :b] (constantly false)))))
+
+  (testing "Removes nil values from maps and prunes empty parent maps."
+    (is (= {:a {:c 2}
+            :d 3}
+           (coll/removing-update-in {:a {:b 1
+                                         :c 2}
+                                     :d 3}
+                                    [:a :b]
+                                    (constantly nil))))
+    (is (= {:d 3}
+           (coll/removing-update-in {:a {:b 1}
+                                     :d 3}
+                                    [:a :b]
+                                    (constantly nil)))))
+
+  (testing "Associates nil into nested non-map associatives."
+    (is (= {:a [:b nil :d]}
+           (coll/removing-update-in {:a [:b :c :d]} [:a 1] (constantly nil)))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}
+          nested-meta {:nested-meta-key "nested-meta-value"}
+          original-map (with-meta {:a (with-meta {:b 1
+                                                  :c 2}
+                                                 nested-meta)}
+                                  original-meta)
+          altered-map (coll/removing-update-in original-map [:a :b] (constantly nil))]
+      (is (= {:a {:c 2}} altered-map))
+      (is (identical? original-meta (meta altered-map)))
+      (is (identical? nested-meta (meta (:a altered-map)))))))
+
 (deftest assoc-in-ex-test
   (testing "Calls empty-fn with the key-path for levels that do not exist."
     (let [empty-fn (fn empty-fn [parent-coll coll-key nested-key-path]

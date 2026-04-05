@@ -61,6 +61,7 @@
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
             [local-extensions :as local-extensions]
+            [potemkin.namespaces :as namespaces]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
@@ -94,6 +95,8 @@
            [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+(namespaces/import-vars [support.test-support cached-endpoints])
 
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
 (.setLevel ^Logger (LoggerFactory/getLogger "cognitect.aws.credentials") Level/ERROR)
@@ -599,13 +602,6 @@
 
 (defn evict-cached-project! [path]
   (fn/evict-memoized! load-system-and-project path))
-
-(defn cached-endpoints
-  ([] (cached-endpoints (g/cache)))
-  ([cache]
-   (into (sorted-set)
-         (map key)
-         cache)))
 
 (defn cacheable-save-data-endpoints
   ([node-id]

@@ -18,7 +18,6 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [schema.core :as s]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.defonce :as defonce]
@@ -48,6 +47,13 @@
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
+(defn- mark-endpoints-activated
+  [ctx endpoints record-history]
+  (if (:full-invalidation ctx)
+    ctx
+    (cond-> (update ctx :nodes-affected into endpoints)
+      record-history (update :history-nodes-affected into endpoints))))
+
 (defn- mark-input-activated
   [ctx node-id input-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
@@ -58,34 +64,25 @@
                          gt/node-type
                          in/input-dependencies
                          (get input-label))
-          nodes-affected (:nodes-affected ctx)]
-      (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (map #(gt/endpoint node-id %))
-              dirty-deps)))))
+          endpoints (into [] (map #(gt/endpoint node-id %)) dirty-deps)]
+      (mark-endpoints-activated ctx endpoints true))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if (:full-invalidation ctx)
-    ctx
-    (let [nodes-affected (:nodes-affected ctx)]
-      (assoc ctx
-        :nodes-affected
-        (conj nodes-affected (gt/endpoint node-id output-label))))))
+  (mark-endpoints-activated ctx [(gt/endpoint node-id output-label)] true))
+
+(defn- mark-output-invalidated
+  [ctx node-id output-label]
+  (mark-endpoints-activated ctx [(gt/endpoint node-id output-label)] false))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (if (:full-invalidation ctx)
     ctx
-    (let [nodes-affected (:nodes-affected ctx)]
-      (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (map #(gt/endpoint node-id %))
-              output-labels)))))
+    (let [endpoints (into [] (map #(gt/endpoint node-id %)) output-labels)]
+      (mark-endpoints-activated ctx endpoints true))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
@@ -96,12 +93,19 @@
           output-labels (-> (gt/node-by-id-at basis node-id)
                             gt/node-type
                             in/output-labels)
-          nodes-affected (:nodes-affected ctx)]
-      (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (map #(gt/endpoint node-id %))
-              output-labels)))))
+          endpoints (into [] (map #(gt/endpoint node-id %)) output-labels)]
+      (mark-endpoints-activated ctx endpoints true))))
+
+(defn- mark-all-outputs-invalidated
+  [ctx node-id]
+  (if (:full-invalidation ctx)
+    ctx
+    (let [basis (:basis ctx)
+          output-labels (-> (gt/node-by-id-at basis node-id)
+                            gt/node-type
+                            in/output-labels)
+          endpoints (into [] (map #(gt/endpoint node-id %)) output-labels)]
+      (mark-endpoints-activated ctx endpoints false))))
 
 (defn- next-node-id [ctx graph-id]
   (gt/next-node-id (:node-id-generators ctx) graph-id))
@@ -139,21 +143,27 @@
 (defn- disconnect-stale-outputs [ctx node-id old-node new-node]
   (disconnect-stale ctx node-id old-node new-node in/output-labels disconnect-outputs))
 
+(defn- mark-arc-targets-activated
+  [ctx arcs]
+  (reduce (fn [ctx ^Arc arc]
+            (mark-input-activated ctx (.target-id arc) (.target-label arc)))
+          ctx
+          arcs))
+
 (defn- delete-single
   [ctx node-id]
-  (let [basis (:basis ctx)]
-    (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (let [targets (ig/explicit-targets basis node-id)]
-        (-> (reduce (fn [ctx [node-id input]]
-                      (mark-input-activated ctx node-id input))
-                    ctx
-                    targets)
+  (let [basis (:basis ctx)
+        node (gt/node-by-id-at basis node-id)]
+    (if (nil? node) ; nil if node was deleted in this transaction
+      ctx
+      (let [target-arcs (ig/explicit-arcs-by-source basis node-id)]
+        (-> ctx
+            (mark-arc-targets-activated target-arcs)
             (disconnect-all-inputs node-id)
             (mark-all-outputs-activated node-id)
             (update :basis gt/delete-node node-id)
             (assoc-in [:nodes-deleted node-id] node)
-            (update :nodes-added (partial filterv #(not= node-id %)))))
-      ctx)))
+            (update :nodes-added (partial filterv #(not= node-id %))))))))
 
 (defn- ctx-delete-node [ctx node-id]
   (when *tx-debug*
@@ -464,29 +474,11 @@
       (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
-(defn- validate-property-value-impl [node-type node-id property-label property-value]
-  (let [value-type (some-> (in/property-type node-type property-label) deref in/schema s/maybe)
-        node-type-name (in/type-name node-type)]
-    (when-let [validation-error (some-> value-type (s/check property-value))]
-      (in/warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
-      (throw (ex-info "SCHEMA-VALIDATION"
-                      {:node-id node-id
-                       :type node-type-name
-                       :property property-label
-                       :expected value-type
-                       :actual property-value
-                       :validation-error validation-error})))))
-
-(defmacro ^:private validate-property-value [node-type node-id property-label property-value]
-  (when in/*check-schemas*
-    `(when ~`in/*check-schemas* ; Inner check to support disabling the schema check post compile-time.
-       (validate-property-value-impl ~node-type ~node-id ~property-label ~property-value))))
-
 (defn- invoke-setter
   [ctx node-id node property old-value new-value override-node? dynamic?]
   (let [node-type (gt/node-type node)
         setter-fn (in/property-setter node-type property)]
-    (validate-property-value node-type node-id property new-value)
+    (in/validate-property-value node-type node-id property new-value)
     (-> ctx
         (update :basis property-default-setter node-id node property new-value)
         (cond->
@@ -504,25 +496,21 @@
   ;; activated, as we're doing this on a newly constructed node and ctx-add-node
   ;; will mark all our outputs activated regardless.
   (let [node-id (gt/node-id node)
-        node-type (gt/node-type node)]
-    (reduce
-      (fn [ctx [property-label property-value]]
-        (if (nil? property-value)
-          ctx
-          (let [setter-fn (in/property-setter node-type property-label)]
-            (validate-property-value node-type node-id property-label property-value)
-            (if (nil? setter-fn)
-              ctx
-              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))))))
+        node-type (gt/node-type node)
+        ordered-property-setter-infos (in/ordered-property-setter-infos node-type)]
+    (if (coll/empty? ordered-property-setter-infos)
       ctx
-      (if (some? (gt/original node))
-        (gt/overridden-properties node)
-        (let [default-property-values (in/defaults node-type)
-              assigned-property-values (gt/assigned-properties node)]
-          (e/map (fn [[property-label default-property-value]]
-                   (pair property-label
-                         (get assigned-property-values property-label default-property-value)))
-                 default-property-values))))))
+      (let [assigned-properties (gt/assigned-properties node)
+            value-fn (if (some? (gt/original node))
+                       (fn override-node-value-fn [property-label _default-value]
+                         (get assigned-properties property-label))
+                       (fn regular-node-value-fn [property-label default-value]
+                         (get assigned-properties property-label default-value)))]
+        (coll/reduce-> ordered-property-setter-infos ctx
+          (fn [ctx [property-label default-value setter-fn]]
+            (if-some [property-value (value-fn property-label default-value)]
+              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))
+              ctx)))))))
 
 (defn- ctx-add-node [ctx node]
   (let [basis-after (gt/add-node (:basis ctx) node)
@@ -734,11 +722,11 @@
 
 (defn- ctx-invalidate [ctx node-id]
   (if (gt/node-by-id-at (:basis ctx) node-id)
-    (mark-all-outputs-activated ctx node-id)
+    (mark-all-outputs-invalidated ctx node-id)
     ctx))
 
 (defn- ctx-invalidate-output [ctx node-id output-label]
-  (mark-output-activated ctx node-id output-label))
+  (mark-output-invalidated ctx node-id output-label))
 
 ;; ---------------------------------------------------------------------------
 ;; Transaction steps
@@ -1078,8 +1066,10 @@
     actions))
 
 (defn mark-nodes-modified
-  [{:keys [nodes-affected] :as ctx}]
-  (assoc ctx :nodes-modified (into #{} (map gt/endpoint-node-id) nodes-affected)))
+  [{:keys [history-nodes-affected] :as ctx}]
+  (assoc ctx
+    :nodes-modified
+    (into #{} (map gt/endpoint-node-id) history-nodes-affected)))
 
 (defn apply-tx-label
   [{:keys [label sequence-label] :as ctx}]
@@ -1104,6 +1094,7 @@
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
+   :history-nodes-affected #{}
    :nodes-added []
    :nodes-modified #{}
    :nodes-deleted {}

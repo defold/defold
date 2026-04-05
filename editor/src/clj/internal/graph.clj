@@ -407,85 +407,81 @@
   [graph original-node-id]
   (get (:node->overrides graph) original-node-id))
 
-;; This function only removes the node from the single graph in which it exists
-;; It should only be used for testing purposes
-(defn graph-remove-node
-  ([graph node-id]
-   (graph-remove-node graph node-id (some-> (get-in graph [:nodes node-id]) gt/original)))
-  ([graph node-id original-id]
-   (graph-remove-node graph node-id original-id false))
-  ([graph node-id original-id original-deleted?]
-   (if (contains? (:nodes graph) node-id)
-     (let [graph (reduce (fn [graph override-node-id] (graph-remove-node graph override-node-id node-id true)) graph (overrides graph node-id))
-           sarcs (mapcat second (get-in graph [:sarcs node-id]))
-           tarcs (mapcat second (get-in graph [:tarcs node-id]))
-           override-id (when original-id (gt/override-id (get-in graph [:nodes node-id])))
-           override (when original-id (get-in graph [:overrides override-id]))]
-       (-> graph
-           (cond->
-               (not original-deleted?) (update-in [:node->overrides original-id] (partial util/removev #{node-id}))
-               (and override (= original-id (:root-id override))) (update :overrides dissoc override-id))
-           (update :nodes dissoc node-id)
-           (update :node->overrides dissoc node-id)
-           (update :sarcs dissoc node-id)
-           (update :sarcs (fn [s] (reduce (fn [s ^Arc arc]
-                                            (update-in s [(.source-id arc) (.source-label arc)]
-                                                       (fn [arcs] (util/removev (fn [^Arc arc] (= node-id (.target-id arc))) arcs))))
-                                          s tarcs)))
-           (update :tarcs dissoc node-id)
-           (update :tarcs (fn [s] (reduce (fn [s ^Arc arc]
-                                            (update-in s [(.target-id arc) (.target-label arc)]
-                                                       (fn [arcs] (util/removev (fn [^Arc arc] (= node-id (.source-id arc))) arcs))))
-                                          s sarcs)))))
-     graph)))
-
 (defn- arc-cross-graph? [^Arc arc]
   (not= (gt/node-id->graph-id (.source-id arc)) (gt/node-id->graph-id (.target-id arc))))
 
-(defn- arcs-remove-node [arcs node-id]
-  (util/removev (fn [^Arc arc] (or (= node-id (.source-id arc))
-                                   (= node-id (.target-id arc)))) arcs))
-
 (defn basis-remove-node
   ([basis node-id]
-   (basis-remove-node basis node-id (gt/original-node basis node-id) false))
+   (basis-remove-node basis node-id (gt/original-node basis node-id)))
   ([basis node-id original-id]
-   (basis-remove-node basis node-id original-id false))
-  ([basis node-id original-id original-deleted?]
-   (let [graph (node-id->graph basis node-id)
-         basis (reduce (fn [basis override-node-id] (basis-remove-node basis override-node-id node-id true)) basis (overrides graph node-id))
-         sarcs (mapcat second (get-in graph [:sarcs node-id]))
-         tarcs (mapcat second (get-in graph [:tarcs node-id]))
-         override-id (when original-id (gt/override-id (get-in graph [:nodes node-id])))
-         override (when original-id (get-in graph [:overrides override-id]))
-         ext-sarcs (filterv arc-cross-graph? sarcs)
-         ext-tarcs (filterv arc-cross-graph? tarcs)
-         basis (-> basis
-                   (update-in [:graphs (gt/node-id->graph-id node-id)]
-                              (fn [graph]
-                                (-> graph
-                                    (cond->
-                                        (not original-deleted?) (update-in [:node->overrides original-id] (partial util/removev #{node-id}))
-                                        (and override (= original-id (:root-id override))) (update :overrides dissoc override-id))
-                                    (update :nodes dissoc node-id)
-                                    (update :node->overrides dissoc node-id)
-                                    (update :sarcs dissoc node-id)
-                                    (update :sarcs (fn [s] (reduce (fn [s ^Arc arc]
-                                                                     (update-in s [(.source-id arc) (.source-label arc)] arcs-remove-node node-id))
-                                                                   s tarcs)))
-                                    (update :tarcs dissoc node-id)
-                                    (update :tarcs (fn [s] (reduce (fn [s ^Arc arc]
-                                                                     (update-in s [(.target-id arc) (.target-label arc)] arcs-remove-node node-id))
-                                                                   s sarcs)))))))
-         basis (reduce (fn [basis ^Arc arc]
-                         (let [target-id (.target-id arc)]
-                           (update-in basis [:graphs (gt/node-id->graph-id target-id) :tarcs target-id (.target-label arc)] arcs-remove-node node-id)))
-                       basis ext-sarcs)
-         basis (reduce (fn [basis ^Arc arc]
-                         (let [source-id (.source-id arc)]
-                           (update-in basis [:graphs (gt/node-id->graph-id source-id) :tarcs source-id (.source-label arc)] arcs-remove-node node-id)))
-                       basis ext-tarcs)]
-     basis)))
+   (let [graph (node-id->graph basis node-id)]
+     (if-not (contains? (:nodes graph) node-id)
+       basis
+       (let [sarcs (into [] (mapcat val) (get-in graph [:sarcs node-id]))
+             tarcs (into [] (mapcat val) (get-in graph [:tarcs node-id]))
+             override-id (when original-id (gt/override-id (get-in graph [:nodes node-id])))
+             override (when override-id (get-in graph [:overrides override-id]))
+             keep-arc? (fn keep-arc? [arc]
+                         (and (not= node-id (gt/source-id arc))
+                              (not= node-id (gt/target-id arc))))
+             filter-arcs #(coll/not-empty (filterv keep-arc? %))
+             basis (update-in
+                     basis
+                     [:graphs (gt/node-id->graph-id node-id)]
+                     (fn [graph]
+                       (-> graph
+                           (update-in [:node->overrides original-id] (partial util/removev #{node-id}))
+                           (cond->
+                             (and override (= original-id (:root-id override)))
+                             (update :overrides dissoc override-id))
+
+                           (update :nodes dissoc node-id)
+                           (update :node->overrides dissoc node-id)
+                           (update :sarcs (fn [node-id->label->arcs]
+                                            (reduce
+                                              (fn [node-id->label->arcs arc]
+                                                (coll/removing-update-in node-id->label->arcs (gt/source arc) filter-arcs))
+                                              (dissoc node-id->label->arcs node-id)
+                                              tarcs)))
+                           (update :tarcs (fn [node-id->label->arcs]
+                                            (reduce
+                                              (fn [node-id->label->arcs arc]
+                                                (coll/removing-update-in node-id->label->arcs (gt/target arc) filter-arcs))
+                                              (dissoc node-id->label->arcs node-id)
+                                              sarcs))))))
+             basis (coll/reduce-> sarcs basis
+                     (filter arc-cross-graph?)
+                     (fn [basis arc]
+                       (let [target-id (gt/target-id arc)
+                             target-label (gt/target-label arc)
+                             target-graph-id (gt/node-id->graph-id target-id)]
+                         (update-in
+                           basis [:graphs target-graph-id :tarcs]
+                           coll/removing-update-in [target-id target-label] filter-arcs))))
+             basis (coll/reduce-> tarcs basis
+                     (filter arc-cross-graph?)
+                     (fn [basis arc]
+                       (let [source-id (gt/source-id arc)
+                             source-label (gt/source-label arc)
+                             source-graph-id (gt/node-id->graph-id source-id)]
+                         (update-in
+                           basis [:graphs source-graph-id :sarcs]
+                           coll/removing-update-in [source-id source-label] filter-arcs))))]
+         basis)))))
+
+(declare multigraph-basis)
+
+(defn graph-remove-node
+  "Convenience function only for tests. Do not use. You should be using the
+  basis-remove-node function instead."
+  ([graph node-id]
+   (graph-remove-node graph node-id ::auto-resolve-original-id))
+  ([graph node-id original-id]
+   (let [basis (multigraph-basis [graph])
+         original-id (case original-id
+                       ::auto-resolve-original-id (gt/original-node basis node-id)
+                       original-id)]
+     (first (:graphs (basis-remove-node basis node-id original-id))))))
 
 (defn transform-node
   [graph node-id f & args]
@@ -508,30 +504,34 @@
 (defn disconnect-source
   [graph source-id source-label target-id target-label]
   (cond-> graph
-    (node-id->node graph source-id)
-    (update-in [:sarcs source-id source-label]
-               (fn [arcs]
-                 (util/removev
-                   (fn [^Arc arc]
-                     (and (= source-id (.source-id arc))
-                          (= target-id (.target-id arc))
-                          (= source-label (.source-label arc))
-                          (= target-label (.target-label arc))))
-                   arcs)))))
+          (node-id->node graph source-id)
+          (update :sarcs
+                  coll/removing-update-in [source-id source-label]
+                  (fn [arcs]
+                    (->> arcs
+                         (util/removev
+                           (fn [arc]
+                             (and (= source-id (gt/source-id arc))
+                                  (= target-id (gt/target-id arc))
+                                  (= source-label (gt/source-label arc))
+                                  (= target-label (gt/target-label arc)))))
+                         (coll/not-empty))))))
 
 (defn disconnect-target
   [graph source-id source-label target-id target-label]
   (cond-> graph
-    (node-id->node graph target-id)
-    (update-in [:tarcs target-id target-label]
-               (fn [arcs]
-                 (util/removev
-                   (fn [^Arc arc]
-                     (and (= source-id (.source-id arc))
-                          (= target-id (.target-id arc))
-                          (= source-label (.source-label arc))
-                          (= target-label (.target-label arc))))
-                   arcs)))))
+          (node-id->node graph target-id)
+          (update :tarcs
+                  coll/removing-update-in [target-id target-label]
+                  (fn [arcs]
+                    (->> arcs
+                         (util/removev
+                           (fn [arc]
+                             (and (= source-id (gt/source-id arc))
+                                  (= target-id (gt/target-id arc))
+                                  (= source-label (gt/source-label arc))
+                                  (= target-label (gt/target-label arc)))))
+                         (coll/not-empty))))))
 
 (defn override-by-id
   [basis override-id]

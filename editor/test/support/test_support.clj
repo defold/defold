@@ -17,7 +17,8 @@
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.library :as library]
-            [internal.system :as is])
+            [internal.system :as is]
+            [util.coll :as coll])
   (:import [java.io File]
            [java.net URI]
            [java.util Base64]
@@ -147,3 +148,21 @@
                 (map (fn [[sym ^String property-name]]
                        `(set-system-property! ~property-name ~sym))
                      (rseq sym+property-name-pairs)))]))]))))
+
+(defn cacheable-endpoints
+  "Returns a sorted set of Endpoints that are cacheable on the node-id."
+  ([node-id]
+   (cacheable-endpoints (g/now) node-id))
+  ([basis node-id]
+   (if-let [node-type (g/node-type* basis node-id)]
+     (coll/into-> (g/cached-outputs node-type) (sorted-set)
+       (map #(g/endpoint node-id %)))
+     coll/empty-sorted-set)))
+
+(defn cached-endpoints
+  "Returns a sorted set of Endpoints that currently reside in the cache."
+  ([] (cached-endpoints (g/cache)))
+  ([cache]
+   (into (sorted-set)
+         (map key)
+         cache)))

@@ -789,6 +789,80 @@
     (when-some [match (match-fn coll)]
       [(pair match init-path)])))
 
+(defmacro remove-from-associative [m k]
+  {:pre [(symbol? m)
+         (symbol? k)]}
+  `(if (map? ~m)
+     (dissoc ~m ~k)
+     (assoc ~m ~k nil)))
+
+(defn removing-assoc
+  "Like core.assoc, but removes the key from the resulting associative if it is
+  a map and the value is nil."
+  ([m k v]
+   (if (nil? v)
+     (remove-from-associative m k)
+     (assoc m k v)))
+  ([m k v & kvs]
+   (let [m (removing-assoc m k v)]
+     (if (nil? kvs)
+       m
+       (if (next kvs)
+         (recur m (first kvs) (second kvs) (nnext kvs))
+         (throw (IllegalArgumentException.
+                  "removing-assoc expects an even number of arguments after the associative.")))))))
+
+(defn removing-assoc-in
+  "Like core.assoc-in, but removes the key from the innermost associative if
+  it is a map and the value is nil, then removes any resulting empty maps along
+  the key path."
+  [m [k & ks] v]
+  (if (nil? ks)
+    (removing-assoc m k v)
+    (if-some [v (not-empty (removing-assoc-in (get m k) ks v))]
+      (assoc m k v)
+      (remove-from-associative m k))))
+
+(defn removing-update
+  "Like core.update, but removes the key from the resulting associative if it
+  is a map and the function returns nil."
+  ([m k f]
+   (if-some [v (f (get m k))]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x]
+   (if-some [v (f (get m k) x)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y]
+   (if-some [v (f (get m k) x y)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y z]
+   (if-some [v (f (get m k) x y z)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y z & more]
+   (if-some [v (apply f (get m k) x y z more)]
+     (assoc m k v)
+     (remove-from-associative m k))))
+
+(defn removing-update-in
+  "Like core.update-in, but removes the key from the innermost associative if it
+  is a map and the function returns nil, then removes any resulting empty maps
+  along the key path."
+  [m ks f & args]
+  (let [up (fn up [m ks f args]
+             (let [[k & ks] ks]
+               (if ks
+                 (if-some [v (not-empty (up (get m k) ks f args))]
+                   (assoc m k v)
+                   (remove-from-associative m k))
+                 (if-some [v (apply f (get m k) args)]
+                   (assoc m k v)
+                   (remove-from-associative m k)))))]
+    (up m ks f args)))
+
 (defn sorted-assoc-in-empty-fn
   "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and
   sorted maps for non-integer keys."
