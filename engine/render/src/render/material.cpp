@@ -29,9 +29,6 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
-    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
-
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
         switch(from_type)
@@ -303,44 +300,6 @@ namespace dmRender
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
     }
 
-    struct LightBufferConfigurationCallbackContext
-    {
-        RenderContext* m_Context;
-        Material* m_Material;
-    };
-
-    static void LightBufferConfigurationCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
-    {
-        LightBufferConfigurationCallbackContext* cb_ctx = (LightBufferConfigurationCallbackContext*) user_data;
-        Material* material = cb_ctx->m_Material;
-
-        if (material->m_HasLightBuffer || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
-        {
-            return;
-        }
-
-        uint32_t ubo_light_count = 0;
-        for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
-        {
-            if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
-            {
-                ubo_light_count = root_type->m_Members[i].m_ElementCount;
-                break;
-            }
-        }
-
-        if (cb_ctx->m_Context->m_MaxLightCount != ubo_light_count)
-        {
-            dmLogOnceWarning("The size of the light buffer must match the project configuration. You should use the same size everywhere for the uniform buffer!");
-            return;
-        }
-
-        // Only one light buffer binding is currently supported.
-        material->m_HasLightBuffer     = true;
-        material->m_LightBufferSet     = (uint8_t) set;
-        material->m_LightBufferBinding = (uint8_t) binding;
-    }
-
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -361,11 +320,13 @@ namespace dmRender
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
 
-        // Loop over the uniform buffers resources to check if there is a light uniform buffer present.
-        LightBufferConfigurationCallbackContext cb_ctx;
-        cb_ctx.m_Context = render_context;
-        cb_ctx.m_Material = m;
-        dmGraphics::IterateProgramResourceBindings(m->m_Program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferConfigurationCallback, &cb_ctx);
+        bool has_light_buffer;
+        uint8_t light_buffer_set;
+        uint8_t light_buffer_binding;
+        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
+        m->m_HasLightBuffer     = has_light_buffer;
+        m->m_LightBufferSet     = light_buffer_set;
+        m->m_LightBufferBinding = light_buffer_binding;
 
         return (HMaterial)m;
     }
