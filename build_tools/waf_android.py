@@ -86,7 +86,7 @@ class AndroidTestHarness(TestHarness):
             return
 
         if configfile:
-            self._configfile = '%s/%s' % (self.device_root, os.path.basename(configfile))
+            self._configfile = '%s/%s' % (self.device_root, 'unittest.cfg')
             Logs.info('android-test: staging config file to %s', self._configfile)
 
             ret = self._run(env, ['push', os.path.join(cwd, configfile), self._configfile])
@@ -128,8 +128,13 @@ class AndroidTestHarness(TestHarness):
 
         cmd = ['shell', device_program]
         if self._configfile:
-            Logs.info('android-test: using staged config file %s', self._configfile)
-            cmd.append(self._configfile)
+            # We don't prepend the temp folder, as that's already specified by the DM_HOSTFS
+            config_folder = os.path.basename(self.device_root)
+            # We map all config files to the same name, in order to keep it clean an uncluttered
+            relative_config = f'{config_folder}/unittest.cfg'
+
+            Logs.info('android-test: using staged config file %s', relative_config)
+            cmd.append(relative_config)
 
         Logs.info('android-test: %s', subprocess.list2cmdline(self._adb(env) + cmd))
         return self._run(env, cmd)
