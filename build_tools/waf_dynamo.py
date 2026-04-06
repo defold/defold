@@ -476,6 +476,8 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
+        self.env.append_value('DEFINES', 'JC_TEST_USE_COLORS=1')
+
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
         # -lsupc++
