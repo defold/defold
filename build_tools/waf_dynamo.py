@@ -477,7 +477,8 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-        self.env.append_value('DEFINES', 'JC_TEST_USE_COLORS=1')
+        self.env['DM_HOSTFS'] = '/data/local/tmp' # for unit tests
+        self.env.append_value('DEFINES', ['DM_NO_SYSTEM_FUNCTION', 'JC_TEST_USE_COLORS=1'])
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
