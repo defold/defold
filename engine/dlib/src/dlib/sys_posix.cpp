@@ -780,30 +780,44 @@ namespace dmSys
         }
     }
 
+#ifdef __ANDROID__
+    static AAssetManager* GetAndroidAssetManager()
+    {
+        if (!g_AndroidApp) return 0;
+        if (!g_AndroidApp->activity) return 0;
+        return g_AndroidApp->activity->assetManager;
+    }
+#endif
+
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
-#ifdef __ANDROID__
-        const char* asset_path = FixAndroidResourcePath(path);
 
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-        if (asset) {
-            uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
-            if (asset_size > buffer_size) {
+#ifdef __ANDROID__
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            const char* asset_path = FixAndroidResourcePath(path);
+
+            // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+            if (asset) {
+                uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
+                if (asset_size > buffer_size) {
+                    AAsset_close(asset);
+                    return RESULT_INVAL;
+                }
+                uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
                 AAsset_close(asset);
-                return RESULT_INVAL;
+                if (nread != asset_size) {
+                    return RESULT_IO;
+                }
+                *resource_size = asset_size;
+                return RESULT_OK;
             }
-            uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
-            AAsset_close(asset);
-            if (nread != asset_size) {
-                return RESULT_IO;
-            }
-            *resource_size = asset_size;
-            return RESULT_OK;
         }
 #endif
+
 #ifdef _WIN32
         struct _stat64 file_stat;
         if (_stat64(path, &file_stat) == 0) {

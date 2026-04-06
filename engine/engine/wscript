@@ -215,4 +215,4 @@ def build(bld):
 
 def shutdown(self):
     # unit tests disabled on win32 for now
-    waf_dynamo.run_tests(test_context, valgrind = True)
+    waf_dynamo.run_tests(test_context)

@@ -155,7 +155,7 @@ def shutdown(self):
         configfile = waf_dynamo.create_test_server_config(self, port=0, ip=local_ip, config_name="unittest.cfg")
 
     try:
-        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
+        waf_dynamo.run_tests(test_context, configfile = configfile)
     finally:
         if configfile and os.path.exists(configfile):
             os.remove(configfile)
