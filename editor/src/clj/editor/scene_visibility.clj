@@ -302,9 +302,9 @@
 (defn toggle-filters-enabled! [scene-visibility]
   (g/update-property! scene-visibility :visibility-filters-enabled? not))
 
-(defn- make-visibility-toggles-list
-  ^Region [app-view scene-vis-binding scene-visibility]
-  (let [keymap (g/node-value app-view :keymap)
+(defn show-settings! [app-view ^Parent owner scene-visibility]
+  (let [scene-vis-binding (->SceneVisibilityBinding scene-visibility)
+        keymap (g/node-value app-view :keymap)
         make-control
         (fn [{:keys [label tag command always-enabled]}]
           (if (= :separator label)
@@ -337,38 +337,23 @@
         filters-enabled-update-fn (fn [checked enabled]
                                     (ui/enable! filters-enabled-control enabled)
                                     (ui/value! check-box checked))
-        container (doto (StackPane.)
-                    (.setMinWidth 230)
-                    (ui/children! [(doto (Region.)
-                                     (ui/add-style! "popup-shadow"))
-                                   (doto (VBox.)
-                                     (ui/add-style! "visibility-toggles-list")
-                                     (ui/children! (into [filters-enabled-control]
-                                                         (map first)
-                                                         tag-toggles)))]))
+
+        children (into [filters-enabled-control] (map first) tag-toggles)
+
         update-fn (fn []
                     (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
                           visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
                       (filters-enabled-update-fn visibility-filters-enabled? true)
-                      (update-tag-toggles filtered-tags visibility-filters-enabled?)))]
-    (ui/add-style! filters-enabled-control "first-entry")
-    [container update-fn]))
+                      (update-tag-toggles filtered-tags visibility-filters-enabled?)))
 
-(defn show-settings! [app-view ^Parent owner scene-visibility]
-  (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-    (.hide popup)
-    (let [scene-vis-binding (->SceneVisibilityBinding scene-visibility)
-          [^Region toggles update-fn] (make-visibility-toggles-list app-view scene-vis-binding scene-visibility)
-          popup (popup/make-popup owner toggles) ;; TODO JOE: This should go
-          anchor (popup/pref-popup-position owner (.getMinWidth toggles))
-          refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
-      (update-fn)
-      (ui/user-data! owner ::popup popup)
-      (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
-      (ui/timer-stop-on-closed! popup refresh-timer)
-      (ui/timer-start! refresh-timer)
-      (.setAnchorLocation popup PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)  ;; TODO JOE: This should go
-      (.show popup owner (.getX anchor) (.getY anchor)))))
+        _ (ui/add-style! filters-enabled-control "first-entry")
+        _ (update-fn)
+
+        refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
+    (when-let [popup (popup/show-popup-with-content! owner 230 children
+                       {:on-closed (fn [_]
+                                     (ui/timer-stop! refresh-timer))})]
+      (ui/timer-start! refresh-timer))))
   
 (handler/defhandler :scene.visibility.toggle-filters :workbench
   (active? [scene-visibility evaluation-context]
