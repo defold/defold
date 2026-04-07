@@ -3,7 +3,7 @@
 def build(bld):
     test_testmain = bld.program(features = 'cxx test',
                                 includes = '..',
-                                use      = ['testmain', 'DLIB', 'PROFILE_NULL'],
+                                use      = ['testmain'],
                                 target   = 'test_testmain',
                                 source   = 'test_testmain.cpp')
     test_testmain.install_path = None
