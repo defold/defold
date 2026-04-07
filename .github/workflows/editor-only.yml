@@ -29,14 +29,14 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
@@ -56,14 +56,14 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       {
         name: 'Install dependencies',
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
@@ -88,14 +88,14 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } },
       {
         name: 'Install dependencies',
@@ -122,10 +122,10 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
