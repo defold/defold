@@ -128,16 +128,16 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         skip_http_run = True
 
-    # if 'android' in bld.env['PLATFORM']:
-    #     # MAWE: No reason other than we take it one step at a time
-    #     skip_http_run = True
-
     skip_http = False
     skip_threads = False
     if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         skip_http = True
         if bld.env.PLATFORM in ('js-web', 'wasm-web'):
             skip_threads = True
+
+    if 'android' in bld.env['PLATFORM']:
+        # MAWE: test_httpclient doesn't work yet due to g_AndroidApp issues
+        skip_http = True
 
     if _is_mac_ci():
         skip_http = True
