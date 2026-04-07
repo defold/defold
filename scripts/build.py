@@ -1046,12 +1046,9 @@ class Configuration(object):
             # Android SDK
             download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, sdk.ANDROID_TARGET_API_LEVEL, sdk.ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
-        if 'linux' in self.host:
-            package = sdk.PACKAGES_LINUX_X86_64_TOOLCHAIN
-            if self.host == 'arm64-linux':
-                package = sdk.PACKAGES_LINUX_ARM64_TOOLCHAIN
-
-            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, package), join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG), format='J')
+        # Linux
+        #   We removed the prepackaged clang versions, and instead rely on the system having a preinstalled version
+        #   See sdk.py for the required version of the clang on Linux
 
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios') and 'linux' in self.host:
             if not os.path.exists(join(sdkfolder, self.host, sdk.PACKAGES_LINUX_CLANG, 'cctools')):
