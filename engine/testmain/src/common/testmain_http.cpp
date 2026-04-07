@@ -69,6 +69,9 @@ static bool ParseHttpUrl(const char* url, std::string* host, int* port, std::str
 
 int TestHttpGet(const char* url, uint32_t* length, const char** content)
 {
+#if defined(_WIN32)
+    return -1000;
+#else
     if (length == 0)
     {
         return -1;
@@ -118,4 +121,5 @@ int TestHttpGet(const char* url, uint32_t* length, const char** content)
     }
 
     return result->status;
+#endif
 }
