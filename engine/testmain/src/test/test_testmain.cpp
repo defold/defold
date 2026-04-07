@@ -20,9 +20,6 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-static const char TEST_EXAMPLE_TXT[] = "http://httpbin.org/base64/SFRUUEJJTiBpcyBhd2Vzb21l";
-static const char TEST_EXAMPLE_TXT_CONTENT[] = "HTTPBIN is awesome";
-
 TEST(dmTestMain, PlatformInit)
 {
     ASSERT_TRUE(TestMainPlatformInit());
@@ -31,22 +28,6 @@ TEST(dmTestMain, PlatformInit)
     printf("DebuggerAttached: %d", is_attached?1:0);
     fflush(stdout);
 }
-
-// Test temporarily disabled since it doesn't build on win32 (due to Win 8 support)
-// TEST(dmTestMain, HttpGet)
-// {
-//     uint32_t length = 0;
-//     const char* content = 0;
-//     int result = TestHttpGet(TEST_EXAMPLE_TXT, &length, &content);
-//     ASSERT_EQ(200, result);
-//     ASSERT_EQ((uint32_t)strlen(TEST_EXAMPLE_TXT_CONTENT), length);
-//     ASSERT_STREQ(TEST_EXAMPLE_TXT_CONTENT, content);
-
-//     if (content != 0)
-//     {
-//         free((void*)content);
-//     }
-// }
 
 int main(int argc, char** argv)
 {

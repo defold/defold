@@ -21,12 +21,4 @@
 extern "C" bool TestMainPlatformInit();
 extern "C" int  TestMainIsDebuggerAttached();
 
-/*# Do a http get
- * @param url [type: const char*]
- * @param length [type: uint32_t*] (mandatory)
- * @param content [type: const char*] (optional). If 0, no content is loaded. allocated memory must be deallocated usin free()
- * @return status http result code (200 OK)
- */
-int TestHttpGet(const char* url, uint32_t* length, const char** content);
-
 #endif // DM_TESTMAIN_H
