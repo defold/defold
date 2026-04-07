@@ -2234,10 +2234,13 @@ class Configuration(object):
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             obj = bucket.Object(key_name)
-            obj.copy_from(
-                CopySource={'Bucket': hostname, 'Key': key_name},
-                WebsiteRedirectLocation=redirect
-            )
+            try:
+                obj.copy_from(
+                    CopySource={'Bucket': hostname, 'Key': key_name},
+                    WebsiteRedirectLocation=redirect
+                )
+            except Exception:
+                bucket.put_object(Key=key_name, Body='0', WebsiteRedirectLocation=redirect)
 
     def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
