@@ -1207,4 +1207,4 @@
                              {:key :invert-y :type :toggle :label "scene-popup.invert-y"}
                              {:key :walking-mode :type :toggle :label "scene-popup.walking-mode"}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
-    (popup/show-settings! owner localization prefs-binding 280 settings-descriptor)))
+    (popup/show-settings! owner localization prefs-binding 250 settings-descriptor)))

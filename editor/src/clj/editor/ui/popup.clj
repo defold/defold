@@ -39,13 +39,14 @@
 (defprotocol SettingsBinding
   (get-value [this key])
   (set-value! [this key v])
-  (reset-all! [this])
-  (on-change! [this]))
+  (reset-all! [this]))
 
 (defrecord PrefsBinding [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
   SettingsBinding
   (get-value [_ key-path] (prefs/get prefs (into prefs-prefix key-path)))
-  (set-value! [_ key-path v] (prefs/set! prefs (into prefs-prefix key-path) v))
+  (set-value! [_ key-path v]
+    (prefs/set! prefs (into prefs-prefix key-path) v)
+    (when on-change-fn (on-change-fn v)))
   (reset-all! [_]
     (doseq [{:keys [key type]} setting-descriptors
             :when (not (contains? hidden-settings key))
@@ -53,15 +54,14 @@
                        (mapv #(vector key %) axes)
                        [[key]])
             :let [prefs-path (into prefs-prefix key-path)]]
-      (prefs/set! prefs prefs-path (:default (prefs/schema prefs prefs-path)))))
-  (on-change! [_] (when on-change-fn (on-change-fn))))
+      (prefs/set! prefs prefs-path (:default (prefs/schema prefs prefs-path))))
+    (when on-change-fn (on-change-fn nil))))
 
 (defrecord NodePropertyBinding [node-id defaults on-change-fn]
   SettingsBinding
   (get-value [_ key] (g/node-value node-id key))
   (set-value! [_ key v] (g/set-property! node-id key v))
-  (reset-all! [_] nil) ;; TODO JOE: Do we need to do something here?
-  (on-change! [_] (when on-change-fn (on-change-fn))))
+  (reset-all! [_] nil))
 
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -84,8 +84,7 @@
     (fn [_ _ _]
       (.setFocusTraversable node true))))
 
-(defn- slider-setting
-  [settings-binding ^PopupControl popup key label-text range-min range-max]
+(defn- slider-setting [settings-binding ^PopupControl popup key label-text range-min range-max]
   (let [value (get-value settings-binding [key])
         slider (Slider. range-min range-max value)
         label (Label. label-text)]
@@ -99,25 +98,38 @@
       (.valueProperty slider)
       (fn [_observable _old-val new-val]
         (let [val (math/round-with-precision new-val 0.01)]
-          (set-value! settings-binding [key] val)
-          (on-change! settings-binding))))
+          (set-value! settings-binding [key] val))))
     [label slider]))
 
-(defn- toggle-setting [settings-binding key label-text]
-  (let [value (get-value settings-binding [key])
-        check-box (CheckBox.)
-        label (Label. label-text)]
+(defn- toggle-setting [settings-binding key label-text acc-text]
+  (let [check-box (CheckBox.)
+        label (Label. label-text)
+        acc (Label. (or acc-text ""))]
     (doto check-box
-      (ui/value! value)
+      (ui/value! (get-value settings-binding [key]))
       (ui/remove-style! "check-box")
       (ui/add-style! "slide-switch")
       (ensure-focus-traversable!)
       (ui/on-action! (fn [_]
-                       (set-value! settings-binding [key] (ui/value check-box))
-                       (on-change! settings-binding))))
+                       (let [value (ui/value check-box)]
+                         (set-value! settings-binding [key] value)))))
     (HBox/setHgrow label Priority/ALWAYS)
     (ui/add-style! label "slide-switch-label")
-    [label check-box]))
+    (when (os/is-mac-os?)
+      (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
+    (ui/add-style! acc "accelerator-label")
+    (let [hbox (doto (HBox.)
+                 (.setAlignment Pos/CENTER_LEFT)
+                 (ui/add-style! "toggle-row")
+                 (ui/on-click! (fn [_]
+                                 (let [value (ui/value check-box)]
+                                   (ui/value! check-box (not value))
+                                   (set-value! settings-binding [key] value))))
+                 (ui/children! [label acc check-box]))
+          update (fn [checked enabled]
+                   (ui/enable! hbox enabled)
+                   (ui/value! check-box checked))]
+      [hbox]))) ;; TODO JOE: What does scene_visibility do with the update function?
 
 (defn- vec3-group
   [settings-binding key axis]
@@ -128,9 +140,9 @@
         update-fn (fn [_] (try
                             (let [value (Float/parseFloat (.getText text-field))]
                               (if (pos? value)
-                                (do (set-value! settings-binding [key axis] value)
-                                    (ui/text! text-field (str value))
-                                    (on-change! settings-binding))
+                                (do
+                                  (set-value! settings-binding [key axis] value)
+                                  (ui/text! text-field (str value)))
                                 (cancel-fn nil)))
                             (catch Exception _e
                               (cancel-fn nil))))]
@@ -162,11 +174,10 @@
     (ui/observe (.selectedToggleProperty plane-group)
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
                   (if new-value
-                    (do (let [active-plane (-> (.getText new-value)
-                                               string/lower-case
-                                               keyword)]
-                          (set-value! settings-binding [key] active-plane))
-                        (on-change! settings-binding))
+                    (let [active-plane (-> (.getText new-value)
+                                           string/lower-case
+                                           keyword)]
+                      (set-value! settings-binding [key] active-plane))
                     (.setSelected old-value true))))
     (concat [label] buttons)))
 
@@ -178,8 +189,7 @@
         cancel-fn (fn [_] (ui/text! text-field color))
         update-fn (fn [_] (try
                             (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
-                              (do (set-value! settings-binding [key] value)
-                                  (on-change! settings-binding))
+                              (set-value! settings-binding [key] value)
                               (cancel-fn nil))
                             (catch Exception _e
                               (cancel-fn nil))))]
@@ -199,7 +209,6 @@
           (let [target ^Node (.getTarget event)
                 parent (.getParent target)]
             (reset-all! settings-binding)
-            (on-change! settings-binding)
             (doto parent
               (ui/children! (ui/node-array (settings localization settings-binding popup setting-descriptors hidden-settings)))
               (.requestFocus))))]
@@ -208,11 +217,11 @@
       (ensure-focus-traversable!))
     button))
 
-(defn- setting-row [localization settings-binding popup {:keys [type key label min max]}]
+(defn- setting-row [localization settings-binding popup {:keys [type key label min max accelerator]}]
   (let [label-text (when label (localization (localization/message label)))]
     (case type
       :slider      (slider-setting settings-binding popup key label-text min max)
-      :toggle      (toggle-setting settings-binding key label-text)
+      :toggle      (toggle-setting settings-binding key label-text accelerator)
       :vec3-floats (vec3-floats-setting settings-binding key)
       :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
       :color       (color-setting settings-binding key label-text))))

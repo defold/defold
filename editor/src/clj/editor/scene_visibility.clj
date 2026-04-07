@@ -292,7 +292,7 @@
                  (ui/on-click! (fn [_]
                                  (ui/value! check-box (not (ui/value check-box)))
                                  (on-change (ui/value check-box))))
-                 (ui/children! [check-box label acc]))
+                 (ui/children! [label acc check-box]))
           update (fn [checked enabled]
                    (ui/enable! hbox enabled)
                    (ui/value! check-box checked))]
