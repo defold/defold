@@ -5,7 +5,6 @@ on:
     branches-ignore:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
-      - 'editor-dev'
 
   repository_dispatch: {}
 
