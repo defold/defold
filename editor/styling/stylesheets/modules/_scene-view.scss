@@ -13,15 +13,8 @@
         -fx-spacing: 10px;
         -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
 
-        .plane-toggle {
-            -fx-text-fill: -df-text;
-            -fx-background-radius: 0;
-            -fx-border-radius: 0;
-            -fx-pref-width: 58px;
-
-            &:selected {
-                -fx-background-color: -df-background-light;
-            }
+        .toggle-button:selected {
+            -fx-background-color: -df-background-light;
         }
 
         > .toggle-button,
@@ -34,28 +27,21 @@
             -fx-border-width: 0;
             -fx-alignment: center;
 
-            & > .image-view {
+            > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
             }
 
-            &:hover {
-                & > .image-view {
+            &:hover, &:selected {
+                > .image-view {
                     -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
                 }
-
                 SVGPath {
                     -fx-fill: -df-text-selected;
                 }
             }
+
             &:selected {
                 -fx-background-color: -df-background-light;
-                & > .image-view {
-                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
-                }
-
-                SVGPath {
-                    -fx-fill: -df-text-selected;
-                }
             }
         }
 
@@ -75,10 +61,8 @@
                 -fx-border-width: 0;
                 -fx-padding: 0 6px 0 0;
 
-                &:hover {
-                    & > .image-view {
-                        -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
-                    }
+                &:hover > .image-view {
+                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
                 }
             }
 
@@ -87,28 +71,25 @@
             }
         }
 
+        .plane-toggle {
+            -fx-text-fill: -df-text;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-pref-width: 58px;
+        }
+
         #visibility-settings-graphic {
-            & > #eye-icon {
+            > #eye-icon {
                 -fx-translate-y: 1px;
             }
 
-            & > #active-indicator {
+            > #active-indicator {
                 visibility: hidden;
                 -fx-fill: -df-defold-orange;
                 -fx-stroke: -df-component-darker;
                 -fx-stroke-width: 1px;
                 -fx-translate-x: 3.5px;
                 -fx-translate-y: -5px;
-            }
-        }
-
-        .toggle-button {
-            &:selected > #visibility-settings-graphic > #active-indicator {
-                -fx-stroke: -df-background-light;
-            }
-
-            &.filters-active > #visibility-settings-graphic > #active-indicator {
-                visibility: visible;
             }
         }
 
@@ -133,6 +114,12 @@
             }
         }
 
+        .accelerator-label {
+            -fx-alignment: center-right;
+            -fx-text-fill: -df-text-dark;
+            -fx-padding: 0 5 0 5;
+        }
+
         .popup-settings {
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
@@ -144,7 +131,7 @@
             }
 
             .label {
-                -fx-pref-width: 120px;
+                -fx-pref-width: 100px;
                 -fx-padding: 1px;
             }
 
@@ -161,35 +148,44 @@
                     -fx-background-color: -df-component-darker;
                     -fx-border-color: -df-component-lighter -df-component-lighter -df-defold-orange -df-component-lighter;
                 }
-
             }
 
-            .button {
+            .button, .toggle-button {
                 -fx-border-color: -df-component-lighter;
 
-                &:hover, 
-                &:focused {
+                &:hover, &:focused {
                     -fx-background-color: -df-component-light;
                     -fx-text-fill: -df-text-selected;
                 }
             }
 
             .toggle-button {
-                -fx-border-color: -df-component-lighter;
-
-                &:hover,
-                &:focused {
-                    -fx-background-color: -df-component-light;
-                    -fx-text-fill: -df-text-selected;
-                }
-
                 &:selected {
-                    -fx-background-color: -df-background-light;
                     -fx-text-fill: -df-text-selected;
                 }
 
                 &:focused {
-                   -fx-border-color: -df-text;
+                    -fx-border-color: -df-text;
+                }
+
+                &:selected > #visibility-settings-graphic > #active-indicator {
+                    -fx-stroke: -df-background-light;
+                }
+
+                &.filters-active > #visibility-settings-graphic > #active-indicator {
+                    visibility: visible;
+                }
+            }
+
+            .toggle-row {
+                -fx-spacing: 8px;
+
+                .slide-switch {
+                    -fx-padding: 0 20px 0 5px;
+                }
+
+                .slide-switch-label {
+                    -fx-hgrow: ALWAYS;
                 }
             }
 
@@ -208,12 +204,9 @@
                     }
                 }
 
-                &:focused {
-                    .thumb {
-                        -fx-background-color: -df-component-lighter;
-                    }
-                   
-                } 
+                &:focused .thumb {
+                    -fx-background-color: -df-component-lighter;
+                }
             }
         }
 
@@ -228,13 +221,7 @@
         }
 
         .separator {
-            &:horizontal {
-                .line {
-                    -fx-border-color: -df-component-lighter;
-                }
-            }
-
-            &:vertical {
+            &:horizontal, &:vertical {
                 .line {
                     -fx-border-color: -df-component-lighter;
                 }
@@ -249,13 +236,13 @@
             -fx-border-width: 0;
             -fx-border-insets: 0;
             -fx-background-color: transparent;
-            >.image-view {
+            > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
             }
-            >.choice-box {
+            > .choice-box {
                 -fx-border-width: 0;
                 -fx-pref-width: 90px;
-                >.label {
+                > .label {
                     -fx-background-color: -df-component-dark;
                     -fx-text-fill: -df-text;
                 }
@@ -273,7 +260,7 @@
                             -fx-background-color: -df-text-selected;
                         }
                     }
-                    >.label {
+                    > .label {
                         -fx-text-fill: -df-text-selected;
                     }
                 }
@@ -317,27 +304,22 @@
         -fx-background-radius: 3px;
         -fx-border-radius: 3px;
 
-        &:hover {
+        &:hover, &:armed {
             -fx-border-color: transparent;
             -fx-background-color: transparent;
         }
 
-        &:armed {
-            -fx-border-color: transparent;
-            -fx-background-color: transparent;
+        &:hover .scene-preview-close-icon {
+            -fx-effect: innershadow(gaussian, -df-text-selected, 10, 0.35, 0, 0);
+        }
+
+        &:armed .scene-preview-close-icon {
+            -fx-effect: innershadow(gaussian, -df-text-selected, 12, 0.45, 0, 0);
         }
     }
 
     .scene-preview-close-icon {
         -fx-effect: null;
         -fx-background-color: -df-text;
-    }
-
-    .scene-preview-close-button:hover .scene-preview-close-icon {
-        -fx-effect: innershadow(gaussian, -df-text-selected, 10, 0.35, 0, 0);
-    }
-
-    .scene-preview-close-button:armed .scene-preview-close-icon {
-        -fx-effect: innershadow(gaussian, -df-text-selected, 12, 0.45, 0, 0);
     }
 }

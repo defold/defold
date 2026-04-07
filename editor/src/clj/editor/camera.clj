@@ -1205,5 +1205,6 @@
   (let [settings-descriptor [{:key :speed :type :slider :label "scene-popup.move-speed" :min 0.75 :max 2.0}
                              {:key :look-sensitivity :type :slider :label "scene-popup.look-sensitivity" :min 0.02 :max 0.4}
                              {:key :invert-y :type :toggle :label "scene-popup.invert-y"}
-                             {:key :walking-mode :type :toggle :label "scene-popup.walking-mode"}]]
-    (popup/show-settings! owner localization (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} nil) 260 settings-descriptor)))
+                             {:key :walking-mode :type :toggle :label "scene-popup.walking-mode"}]
+        prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
+    (popup/show-settings! owner localization prefs-binding 280 settings-descriptor)))

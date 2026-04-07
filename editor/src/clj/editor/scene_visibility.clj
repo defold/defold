@@ -27,7 +27,8 @@
   (:import [javafx.geometry Point2D Pos]
            [javafx.scene Parent]
            [javafx.scene.control CheckBox Label PopupControl Separator]
-           [javafx.scene.layout HBox Priority Region StackPane VBox]))
+           [javafx.scene.layout HBox Priority Region StackPane VBox]
+           [javafx.stage PopupWindow$AnchorLocation]))
 
 (set! *warn-on-reflection* true)
 
@@ -374,6 +375,7 @@
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
       (ui/timer-stop-on-closed! popup refresh-timer)
       (ui/timer-start! refresh-timer)
+      (.setAnchorLocation popup PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)  ;; TODO JOE: This should go
       (.show popup owner (.getX anchor) (.getY anchor)))))
   
 (handler/defhandler :scene.visibility.toggle-filters :workbench

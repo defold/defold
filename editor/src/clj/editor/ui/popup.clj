@@ -223,8 +223,12 @@
     (->> setting-descriptors
          (remove (fn [{:keys [key]}] (contains? hidden-settings key)))
          (reduce (fn [rows descriptor]
-                   (conj rows (doto (HBox. 5 (ui/node-array (setting-row localization settings-binding popup descriptor)))
-                                (.setAlignment Pos/CENTER))))
+                   (let [children (setting-row localization settings-binding popup descriptor)
+                         row (doto (HBox. 5 (ui/node-array children))
+                               (.setAlignment Pos/CENTER))]
+                     (doseq [child children]
+                       (HBox/setHgrow child Priority/ALWAYS))
+                     (conj rows row)))
                  [reset-btn]))))
 
 (defn pref-popup-position
