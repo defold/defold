@@ -1724,7 +1724,8 @@
   (g/update-property resource-node-id :tracking type-preserving-add 0.1))
 
 (defmethod edit-resource-node "light" [resource-node-id]
-  (g/update-property resource-node-id :range type-preserving-add 1))
+  ;; All light types expose :intensity; :range is only for point/spot.
+  (g/update-property resource-node-id :intensity type-preserving-add 1))
 
 (defmethod edit-resource-node "material" [resource-node-id]
   (g/update-property resource-node-id :tags conj "new_tag"))

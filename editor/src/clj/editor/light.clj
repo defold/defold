@@ -249,7 +249,7 @@
         cb (double cb)
         tip (doto (Vector3d. (.x p) (.y p) (.z p))
               (.add (doto (Vector3d. (.x d-world) (.y d-world) (.z d-world)) (.scale L))))
-        [right up n] (billboard-axes tip camera)
+        [^Vector3d right ^Vector3d up ^Vector3d n] (billboard-axes tip camera)
         d-flat (Vector3d. (.x d-world) (.y d-world) (.z d-world))
         dn (.dot d-flat n)
         _ (.sub d-flat (doto (Vector3d. (.x n) (.y n) (.z n)) (.scale dn)))
@@ -301,7 +301,7 @@
                                sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
                                r (* (double sf) origin-marker-pixels)]
                            (if-some [axes (billboard-axes world-translation camera)]
-                             (let [[right up _] axes]
+                             (let [[^Vector3d right ^Vector3d up _] axes]
                                (fill-point-billboard-circle! vbuf world-translation right up r ocr ocg ocb))
                              vbuf)))
                        (->color-vtx (* n billboard-circle-segments 2))
@@ -325,7 +325,7 @@
                                r (* (double (or range 1.0)) (double (renderable-min-scale renderable)))
                                r (max r 0.01)]
                            (if-some [axes (billboard-axes world-translation camera)]
-                             (let [[right up _] axes]
+                             (let [[^Vector3d right ^Vector3d up _] axes]
                                (fill-point-billboard-circle! vbuf world-translation right up r cr cg cb))
                              vbuf)))
                        (->color-vtx (* n billboard-circle-segments 2))
@@ -471,10 +471,11 @@
               [:inner-cone-angle] inner-cone-angle
               [:outer-cone-angle] outer-cone-angle}}))
 
-(defn- sanitize-light [light-desc]
+(defn- canonicalize-light-read [light-desc]
   {:pre [(map? light-desc)]}
-  ;; Keep tags and data; strip empty optional protobuf cruft if needed later.
-  light-desc)
+  (let [m (parse-data-desc light-desc)]
+    (build-data-desc (:light-type m) (:color m) (:intensity m) (:range m)
+                     (:direction m) (:inner-cone-angle m) (:outer-cone-angle m))))
 
 (defn load-light [_project self _resource light-desc]
   {:pre [(map? light-desc)]} ; DataProto$Data in map format.
@@ -520,7 +521,11 @@
     :node-type LightNode
     :ddf-type DataProto$Data
     :load-fn load-light
-    :sanitize-fn sanitize-light
+    ;; After :read-fn (read-map-without-defaults), normalize to the same map
+    ;; produce-save-value emits. Empty/sparse files become {} in the first step;
+    ;; without this, :source-value (disk) and :save-value (graph) disagree and
+    ;; sparse-protobuf-test / dirty checks fail. Not for migrating legacy formats.
+    :sanitize-fn canonicalize-light-read
     :icon light-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
