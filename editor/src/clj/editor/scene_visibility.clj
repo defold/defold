@@ -100,6 +100,18 @@
 (g/deftype OutlineNamePathsByNodeID {s/Int (s/both TOutlineNamePaths (s/pred seq))})
 (g/deftype SceneHideHistoryData [(s/one s/Int "scene-resource-node") (s/one THideHistory "hide-history")])
 
+(defrecord SceneVisibilityBinding [scene-visibility]
+  popup/SettingsBinding
+  (get-value [_ key]
+    (if (= :visibility-filters-enabled? key)
+      (g/node-value scene-visibility :visibility-filters-enabled?)
+      (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key))))
+  (set-value! [_ key v]
+    (if (= :visibility-filters-enabled? key)
+      (set-filters-enabled! scene-visibility v)
+      (set-tag-visibility! scene-visibility key v)))
+  (reset-all! [_] nil))
+
 (defn- scene-outline-name-paths
   ([scene]
    (scene-outline-name-paths [] scene))
@@ -275,29 +287,6 @@
 ;; Visibility Filters
 ;; -----------------------------------------------------------------------------
 
-(defn- make-toggle [{:keys [label acc on-change]}]
-  (let [check-box (CheckBox.)
-        label (Label. label)
-        acc (Label. acc)]
-    (ui/on-action! check-box (fn [_] (on-change (ui/value check-box))))
-    (ui/remove-style! check-box "check-box")
-    (ui/add-style! check-box "slide-switch")
-    (HBox/setHgrow label Priority/ALWAYS)
-    (ui/add-style! label "slide-switch-label")
-    (when (os/is-mac-os?)
-      (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
-    (ui/add-style! acc "accelerator-label")
-    (let [hbox (doto (HBox.)
-                 (.setAlignment Pos/CENTER_LEFT)
-                 (ui/on-click! (fn [_]
-                                 (ui/value! check-box (not (ui/value check-box)))
-                                 (on-change (ui/value check-box))))
-                 (ui/children! [label acc check-box]))
-          update (fn [checked enabled]
-                   (ui/enable! hbox enabled)
-                   (ui/value! check-box checked))]
-      [hbox update])))
-
 (defn set-tag-visibility! [scene-visibility tag visible]
   (g/update-property! scene-visibility :filtered-renderable-tags (if visible disj conj) tag))
 
@@ -314,22 +303,24 @@
   (g/update-property! scene-visibility :visibility-filters-enabled? not))
 
 (defn- make-visibility-toggles-list
-  ^Region [app-view scene-visibility]
+  ^Region [app-view scene-vis-binding scene-visibility]
   (let [keymap (g/node-value app-view :keymap)
         make-control
         (fn [{:keys [label tag command always-enabled]}]
           (if (= :separator label)
             [(Separator.) nil]
-            (let [[control update-fn]
-                  (make-toggle {:label label
-                                :acc (if command (keymap/display-text keymap command "") "")
-                                :on-change (fn [checked]
-                                             (set-tag-visibility! scene-visibility tag checked))})
+            (let [[^HBox toggle-control]
+                  (popup/toggle-setting scene-vis-binding tag label
+                                        (if command (keymap/display-text keymap command "") ""))
+                  check-box (last (.getChildren toggle-control))
+                  update-fn (fn [checked enabled]
+                              (ui/enable! toggle-control enabled)
+                              (ui/value! check-box checked))
                   update-from-hidden-tags
                   (fn [hidden-tags enabled]
                     (let [checked (not (contains? hidden-tags tag))]
                       (update-fn checked (or always-enabled enabled))))]
-              [control update-from-hidden-tags])))
+              [toggle-control update-from-hidden-tags])))
 
         tag-toggles (mapv make-control renderable-tag-toggles-info)
         tag-toggle-update-fns (into [] (keep second) tag-toggles)
@@ -339,12 +330,13 @@
           (doseq [update-fn tag-toggle-update-fns]
             (update-fn hidden-tags enabled)))
 
-        [filters-enabled-control filters-enabled-update-fn]
-        (make-toggle {:label "Visibility Filters"
-                      :acc (keymap/display-text keymap :scene.visibility.toggle-filters "")
-                      :on-change (fn [checked]
-                                   (set-filters-enabled! scene-visibility checked))})
-
+        [^HBox filters-enabled-control]
+        (popup/toggle-setting scene-vis-binding :visibility-filters-enabled? "Visibility Filters"
+                              (keymap/display-text keymap :scene.visibility.toggle-filters ""))
+        check-box (last (.getChildren filters-enabled-control))
+        filters-enabled-update-fn (fn [checked enabled]
+                                    (ui/enable! filters-enabled-control enabled)
+                                    (ui/value! check-box checked))
         container (doto (StackPane.)
                     (.setMinWidth 230)
                     (ui/children! [(doto (Region.)
@@ -354,7 +346,6 @@
                                      (ui/children! (into [filters-enabled-control]
                                                          (map first)
                                                          tag-toggles)))]))
-
         update-fn (fn []
                     (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
                           visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
@@ -366,7 +357,8 @@
 (defn show-settings! [app-view ^Parent owner scene-visibility]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
-    (let [[^Region toggles update-fn] (make-visibility-toggles-list app-view scene-visibility)
+    (let [scene-vis-binding (->SceneVisibilityBinding scene-visibility)
+          [^Region toggles update-fn] (make-visibility-toggles-list app-view scene-vis-binding scene-visibility)
           popup (popup/make-popup owner toggles) ;; TODO JOE: This should go
           anchor (popup/pref-popup-position owner (.getMinWidth toggles))
           refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]

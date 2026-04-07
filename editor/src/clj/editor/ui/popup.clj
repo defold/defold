@@ -43,25 +43,16 @@
 
 (defrecord PrefsBinding [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
   SettingsBinding
-  (get-value [_ key-path] (prefs/get prefs (into prefs-prefix key-path)))
-  (set-value! [_ key-path v]
-    (prefs/set! prefs (into prefs-prefix key-path) v)
+  (get-value [_ key] (prefs/get prefs (conj prefs-prefix key)))
+  (set-value! [_ key v]
+    (prefs/set! prefs (conj prefs-prefix key) v)
     (when on-change-fn (on-change-fn v)))
   (reset-all! [_]
     (doseq [{:keys [key type]} setting-descriptors
             :when (not (contains? hidden-settings key))
-            key-path (if (= type :vec3-floats)
-                       (mapv #(vector key %) axes)
-                       [[key]])
-            :let [prefs-path (into prefs-prefix key-path)]]
+            :let [prefs-path (into prefs-prefix key)]]
       (prefs/set! prefs prefs-path (:default (prefs/schema prefs prefs-path))))
     (when on-change-fn (on-change-fn nil))))
-
-(defrecord NodePropertyBinding [node-id defaults on-change-fn]
-  SettingsBinding
-  (get-value [_ key] (g/node-value node-id key))
-  (set-value! [_ key v] (g/set-property! node-id key v))
-  (reset-all! [_] nil))
 
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -85,7 +76,7 @@
       (.setFocusTraversable node true))))
 
 (defn- slider-setting [settings-binding ^PopupControl popup key label-text range-min range-max]
-  (let [value (get-value settings-binding [key])
+  (let [value (get-value settings-binding key)
         slider (Slider. range-min range-max value)
         label (Label. label-text)]
     (doto slider
@@ -98,21 +89,21 @@
       (.valueProperty slider)
       (fn [_observable _old-val new-val]
         (let [val (math/round-with-precision new-val 0.01)]
-          (set-value! settings-binding [key] val))))
+          (set-value! settings-binding key val))))
     [label slider]))
 
-(defn- toggle-setting [settings-binding key label-text acc-text]
+(defn toggle-setting [settings-binding key label-text acc-text] ;; TODO JOE: Make this private
   (let [check-box (CheckBox.)
         label (Label. label-text)
         acc (Label. (or acc-text ""))]
     (doto check-box
-      (ui/value! (get-value settings-binding [key]))
+      (ui/value! (get-value settings-binding key))
       (ui/remove-style! "check-box")
       (ui/add-style! "slide-switch")
       (ensure-focus-traversable!)
       (ui/on-action! (fn [_]
                        (let [value (ui/value check-box)]
-                         (set-value! settings-binding [key] value)))))
+                         (set-value! settings-binding key value)))))
     (HBox/setHgrow label Priority/ALWAYS)
     (ui/add-style! label "slide-switch-label")
     (when (os/is-mac-os?)
@@ -124,24 +115,21 @@
                  (ui/on-click! (fn [_]
                                  (let [value (ui/value check-box)]
                                    (ui/value! check-box (not value))
-                                   (set-value! settings-binding [key] value))))
-                 (ui/children! [label acc check-box]))
-          update (fn [checked enabled]
-                   (ui/enable! hbox enabled)
-                   (ui/value! check-box checked))]
-      [hbox]))) ;; TODO JOE: What does scene_visibility do with the update function?
+                                   (set-value! settings-binding key value))))
+                 (ui/children! [label acc check-box]))]
+      [hbox])))
 
 (defn- vec3-group
   [settings-binding key axis]
   (let [text-field (TextField.)
         label (Label. (string/upper-case (name axis)))
-        size-val (str (get (get-value settings-binding [key]) axis))
+        size-val (str (get (get-value settings-binding key) axis))
         cancel-fn (fn [_] (ui/text! text-field size-val))
         update-fn (fn [_] (try
                             (let [value (Float/parseFloat (.getText text-field))]
                               (if (pos? value)
                                 (do
-                                  (set-value! settings-binding [key axis] value)
+                                  (set-value! settings-binding key (assoc (get-value settings-binding key) axis value))
                                   (ui/text! text-field (str value)))
                                 (cancel-fn nil)))
                             (catch Exception _e
@@ -160,7 +148,7 @@
 
 ;; TODO: Rename this cause plane is too specific
 (defn- plane-toggle-button [settings-binding plane-group key plane]
-  (let [active-plane (get-value settings-binding [key])]
+  (let [active-plane (get-value settings-binding key)]
     (doto (ToggleButton. (string/upper-case (name plane)))
       (ensure-focus-traversable!)
       (.setToggleGroup plane-group)
@@ -177,19 +165,19 @@
                     (let [active-plane (-> (.getText new-value)
                                            string/lower-case
                                            keyword)]
-                      (set-value! settings-binding [key] active-plane))
+                      (set-value! settings-binding key active-plane))
                     (.setSelected old-value true))))
     (concat [label] buttons)))
 
 (defn- color-setting [settings-binding key label-text]
   (let [text-field (TextField.)
-        [r g b a] (get-value settings-binding [key])
+        [r g b a] (get-value settings-binding key)
         color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
         label (Label. label-text)
         cancel-fn (fn [_] (ui/text! text-field color))
         update-fn (fn [_] (try
                             (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
-                              (set-value! settings-binding [key] value)
+                              (set-value! settings-binding key value)
                               (cancel-fn nil))
                             (catch Exception _e
                               (cancel-fn nil))))]
