@@ -21,8 +21,15 @@ class TestHarness(object):
     def stop(self, env, cwd, configfile):
         pass
 
+    def _proc_env(self, env):
+        proc_env = dict(os.environ)
+        for key, value in env.items():
+            if isinstance(value, str):
+                proc_env[key] = value
+        return proc_env
+
     def run_test(self, program, configfile, env, argv):
-        proc = subprocess.Popen(argv, env=env)
+        proc = subprocess.Popen(argv, env=self._proc_env(env))
         return proc.wait()
 
 
@@ -43,7 +50,7 @@ class DefaultTestHarness(TestHarness):
                 mainclass,
                 '-verbose:class']
 
-        proc = subprocess.Popen(argv, env=env)
+        proc = subprocess.Popen(argv, env=self._proc_env(env))
         return proc.wait()
 
 

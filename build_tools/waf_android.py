@@ -51,7 +51,7 @@ class AndroidTestHarness(TestHarness):
 
     def _run(self, env, args):
         cmd = self._adb(env) + args
-        proc_env = dict(os.environ)
+        proc_env = self._proc_env(env)
         if 'ADB' in env:
             adb = Utils.to_list(env['ADB'])
             if adb:

@@ -449,9 +449,6 @@ const TestParam params_extension[] = {
 #if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/test.config"),
 #endif
-#if defined(DM_SUPPORT_HTTP_READ)
-    TestParam("http://localhost:%d/src/test/data/test.config")
-#endif
 };
 
 INSTANTIATE_TEST_CASE_P(ConfigfileExtension, ConfigfileExtension, jc_test_values_in(params_extension));

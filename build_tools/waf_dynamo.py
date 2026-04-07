@@ -1480,11 +1480,8 @@ def run_tests(ctx, configfile = None):
             # Create the environment for the task
             env = dict(os.environ)
             merged_table = t.env.get_merged_dict()
-            keys=list(merged_table.keys())
-            for key in keys:
-                v = merged_table[key]
-                if isinstance(v, str):
-                    env[key] = v
+            for key in merged_table:
+                env[key] = merged_table[key]
 
             if task is None:
                 print("Skipping", t.name)
