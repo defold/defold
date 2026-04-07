@@ -445,13 +445,13 @@ TEST_P(ConfigfileExtension, ConfigfileExtension)
     ASSERT_EQ(4096.0f, dmConfigFile::GetFloat(config, "ext.virtual", 0));
 }
 
-const TestParam params_extension[] = {
 #if defined(DM_SUPPORT_FILE_READ)
+const TestParam params_extension[] = {
     TestParam("src/test/data/test.config"),
-#endif
 };
 
 INSTANTIATE_TEST_CASE_P(ConfigfileExtension, ConfigfileExtension, jc_test_values_in(params_extension));
+#endif
 
 static void Usage()
 {
