@@ -68,6 +68,7 @@ ZIP="zip"
 UNZIP="unzip"
 ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-macos/zipalign"
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
+AAPT2="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/aapt2"
 GDBSERVER=${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver
 
 OBJDUMP=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/llvm-objdump
@@ -76,6 +77,7 @@ OBJDUMP=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/llvm-objdum
 [ $(which "${UNZIP}") ] || terminate "'${UNZIP}' is not installed"
 [ $(which "${ZIPALIGN}") ] || terminate "'${ZIPALIGN}' is not installed"
 [ $(which "${APKSIGNER}") ] || terminate "'${APKSIGNER}' is not installed"
+[ $(which "${AAPT2}") ] || terminate "'${AAPT2}' is not installed"
 [ $(which "${OBJDUMP}") ] || terminate "'${OBJDUMP}' is not installed"
 
 [ -f "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
@@ -84,6 +86,10 @@ OBJDUMP=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/llvm-objdum
 
 KEYSTORE="$(cd "$(dirname "${KEYSTORE}")"; pwd)/$(basename "${KEYSTORE}")"
 KEYSTORE_PASS="$(cd "$(dirname "${KEYSTORE_PASS}")"; pwd)/$(basename "${KEYSTORE_PASS}")"
+
+function should_store_native_libs() {
+    "${AAPT2}" dump xmltree --file AndroidManifest.xml "${SOURCE}" | grep -q 'extractNativeLibs.*=false'
+}
 
 
 # ----------------------------------------------------------------------------
@@ -136,14 +142,25 @@ WRAP_ASAN=${SCRIPT_PATH}/android-wrap-asan.sh
         cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
     fi
 
+    STORED_FILES=("resources.arsc")
+    if should_store_native_libs; then
+        while IFS= read -r file; do
+            STORED_FILES+=("${file#./}")
+        done < <(find ./lib -type f -name '*.so' | sort)
+    fi
 
-    ${ZIP} -qr "${REPACKZIP}" "." -x "resources.arsc"
+    ZIP_EXCLUDES=()
+    for file in "${STORED_FILES[@]}"; do
+        ZIP_EXCLUDES+=(-x "${file}")
+    done
+
+    "${ZIP}" -qr "${REPACKZIP}" "." "${ZIP_EXCLUDES[@]}"
     # Targeting R+ (version 30 and above) requires the resources.arsc of installed
     # APKs to be stored uncompressed and aligned on a 4-byte boundary
-    ${ZIP} -q -Z store "${REPACKZIP}" "resources.arsc"
+    "${ZIP}" -q -0 "${REPACKZIP}" "${STORED_FILES[@]}"
 )
 
-"${ZIPALIGN}" -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1
+"${ZIPALIGN}" -p -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1
 
 "${APKSIGNER}" sign --verbose --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" --ks "${KEYSTORE}" --ks-pass file:"${KEYSTORE_PASS}"
 
