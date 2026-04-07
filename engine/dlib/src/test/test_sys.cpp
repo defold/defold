@@ -34,6 +34,8 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Re
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
 
+int g_Argc;
+char** g_Argv;
 
 // Unit test helpers
 TEST(dmTestUtil, MakeHostPath)
@@ -45,12 +47,51 @@ TEST(dmTestUtil, MakeHostPath)
 }
 ///////////////////////////////////////////////////////////
 
+static const char* FindLocalFileFromArgs(const char* extension)
+{
+#if defined(ANDROID)
+    // First, try to find a local path, using the command line arguments
+    // It helps keep setting up tests easy on devices, by avoiding copying extra files for testing
+    size_t host_fs_len = strlen(DM_HOSTFS);
+    if (host_fs_len > 0)
+    {
+        for (int i = 0; i < g_Argc; ++i)
+        {
+            const char* arg = g_Argv[i];
+
+            // If we're looking for a certain file type
+            if (extension)
+            {
+                const char* ext = strrchr(arg, '.');
+                if (!ext)
+                    continue;
+                if (strcmp(extension, ext) != 0)
+                    continue;
+            }
+
+            if (strstr(arg, DM_HOSTFS))
+            {
+                arg += host_fs_len;
+            }
+
+            return arg;
+        }
+    }
+#endif
+    return 0;
+}
+
 TEST(dmSys, Exists)
 {
-    char path[128];
+    char path[1024];
     bool r;
 
-    r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "src"));
+    const char* local = "src";
+#if defined(ANDROID)
+    local = FindLocalFileFromArgs(0);
+#endif
+
+    r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), local));
     ASSERT_TRUE(r);
 
     r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "notexist"));
@@ -59,17 +100,27 @@ TEST(dmSys, Exists)
 
 TEST(dmSys, IsDir)
 {
-    char path[128];
+    char path[1024];
     dmSys::Result r;
 
+    const char* local_file = "wscript";
+    const char* local_dir = "src";
+
+#if defined(ANDROID)
+    local_file = FindLocalFileFromArgs(0);
+    char local_dir_buffer[1024];
+    dmPath::Dirname(local_file, local_dir_buffer, sizeof(local_dir_buffer));
+    local_dir = local_dir_buffer;
+#endif
+
     // Check a directory
-    dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+    dmTestUtil::MakeHostPath(path, sizeof(path), local_dir);
     ASSERT_TRUE(dmSys::Exists(path));
     r = dmSys::IsDir(path);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
     // Check a file
-    dmTestUtil::MakeHostPath(path, sizeof(path), "wscript");
+    dmTestUtil::MakeHostPath(path, sizeof(path), local_file);
     ASSERT_TRUE(dmSys::Exists(path));
     r = dmSys::IsDir(path);
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
@@ -131,8 +182,11 @@ TEST(dmSys, Unlink)
 
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
+#if defined(ANDROID)
+    SKIP(); // A unit test doesn't have the Jni environment
+#endif
+
     char path[4];
-    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -142,8 +196,11 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 
 TEST(dmSys, GetApplicationSavePathBuffer)
 {
+#if defined(ANDROID)
+    SKIP(); // A unit test doesn't have the Jni environment
+#endif
+
     char path[4];
-    char discard[128];
     path[3] = '!';
     dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
@@ -153,6 +210,10 @@ TEST(dmSys, GetApplicationSavePathBuffer)
 
 TEST(dmSys, GetApplicationSupportPath)
 {
+#if defined(ANDROID)
+    SKIP(); // A unit test doesn't have the Jni environment
+#endif
+
     char path[1024];
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, sizeof(path));
     ASSERT_EQ(dmSys::RESULT_OK, result);
@@ -160,9 +221,6 @@ TEST(dmSys, GetApplicationSupportPath)
 }
 
 #endif
-
-int g_Argc;
-char** g_Argv;
 
 TEST(dmSys, GetResourcesPath)
 {
@@ -253,13 +311,19 @@ TEST(dmSys, LoadResource)
     r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, &size);
+    const char* local_file = "wscript";
+#if defined(ANDROID)
+    local_file = FindLocalFileFromArgs(".cfg");
+    ASSERT_NE((const char*)0, local_file);
+#endif
+
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), 0, 0, &size);
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 
-    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), buffer, sizeof(buffer), &size);
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), buffer, sizeof(buffer), &size);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     uint32_t size2;
-    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), &size2);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), &size2);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     ASSERT_EQ(size, size2);
     ASSERT_GT(size, 0);

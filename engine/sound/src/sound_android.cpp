@@ -16,12 +16,11 @@
 #include "sound_private.h"
 #include <dlib/log.h>
 #include <dmsdk/dlib/android.h>
+#include <glfw/glfw_native.h>
 
 #include <android_native_app_glue.h>
 #include <jni.h>
 #include <assert.h>
-
-extern struct android_app* g_AndroidApp;
 
 struct SoundManager
 {
@@ -79,9 +78,12 @@ namespace dmSound
         JNIEnv* environment = thread.GetEnv();
         if (environment != NULL)
         {
+            struct android_app* app = glfwGetAndroidApp();
+            assert(app);
+
             jclass      jni_class_NativeActivity     = environment->FindClass("android/app/NativeActivity");
             jmethodID   jni_method_getClassLoader    = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
-            jobject     jni_object_getClassLoader    = environment->CallObjectMethod(g_AndroidApp->activity->clazz, jni_method_getClassLoader);
+            jobject     jni_object_getClassLoader    = environment->CallObjectMethod(app->activity->clazz, jni_method_getClassLoader);
             jclass      jni_class_ClassLoader        = environment->FindClass("java/lang/ClassLoader");
             jmethodID   jni_method_loadClass         = environment->GetMethodID(jni_class_ClassLoader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
@@ -89,7 +91,7 @@ namespace dmSound
             jclass      jni_class_SoundManager       = (jclass) environment->CallObjectMethod(jni_object_getClassLoader, jni_method_loadClass, jni_string_SoundManager);
             jmethodID   jni_constructor_SoundManager = environment->GetMethodID(jni_class_SoundManager, "<init>", "(Landroid/app/Activity;)V");
 
-            g_SoundManager.m_SoundManager            = environment->NewGlobalRef(environment->NewObject(jni_class_SoundManager, jni_constructor_SoundManager, g_AndroidApp->activity->clazz));
+            g_SoundManager.m_SoundManager            = environment->NewGlobalRef(environment->NewObject(jni_class_SoundManager, jni_constructor_SoundManager, app->activity->clazz));
             g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
 
             environment->DeleteLocalRef(jni_string_SoundManager);

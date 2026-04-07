@@ -16,13 +16,6 @@
 
 #include "testmain.h"
 
-// Unfortunately, we've opted for some weird code flow for this struct.
-// We really need to clean this up
-#ifdef __ANDROID__
-#include <android/asset_manager.h>
-struct android_app* g_AndroidApp ;
-#endif
-
 extern "C" bool TestMainPlatformInit()
 {
     return true;

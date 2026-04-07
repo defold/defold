@@ -20,9 +20,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <glfw/glfw_native.h.h>
+
 #include <android_native_app_glue.h>
 #include <android/asset_manager.h>
-extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -30,6 +31,13 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 namespace dmResource
 {
+    static AAssetManager* GetAndroidAssetManager()
+    {
+        struct android_app* app = glfwGetAndroidApp();
+        if (!app) return 0;
+        if (!app->activity) return 0;
+        return app->activity->assetManager;
+    }
 
     struct MountInfo
     {
@@ -43,7 +51,9 @@ namespace dmResource
 
     Result MapAsset(const char* path, void*& out_asset, uint32_t& out_size, void*& out_map)
     {
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
+        AAssetManager* am = GetAndroidAssetManager();
+        if (!am)
+            return RESULT_INVAL_ERROR;
 
         out_asset = (void*)AAssetManager_open(am, path, AASSET_MODE_RANDOM);
         if (!out_asset)

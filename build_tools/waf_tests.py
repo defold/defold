@@ -23,7 +23,12 @@ class TestHarness(object):
 
     def _proc_env(self, env):
         proc_env = dict(os.environ)
-        for key, value in env.items():
+        if hasattr(env, 'get_merged_dict'):
+            env_items = env.get_merged_dict().items()
+        else:
+            env_items = env.items()
+
+        for key, value in env_items:
             if isinstance(value, str):
                 proc_env[key] = value
         return proc_env

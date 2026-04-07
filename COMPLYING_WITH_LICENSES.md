@@ -42,7 +42,6 @@ The following software has licenses which require inclusion of their respective 
     * [miniz](https://github.com/richgel999/miniz) - Rich Geldrich
     * [zip](https://github.com/kuba--/zip) - Kuba Podgórski
     * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used offline to generate polyphase filter coefficients for sound system
-    * [cpp-httplib](https://github.com/yhirose/cpp-httplib) - Used in unit tests
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
   * BSD 2.0 license (3-clause license)

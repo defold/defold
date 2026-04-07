@@ -16,21 +16,26 @@
 
 #include <assert.h>
 #include <dmsdk/dlib/android.h>
-
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
+#include <glfw/glfw_native.h>
 
 namespace dmAndroid
 {
 
 ThreadAttacher::ThreadAttacher()
-: m_Activity(g_AndroidApp->activity)
+: m_Activity(NULL)
 , m_Env(NULL)
 , m_IsAttached(false)
 {
-    if (m_Activity->vm->GetEnv((void **)&m_Env, JNI_VERSION_1_6) != JNI_OK)
+    struct android_app* app = glfwGetAndroidApp();
+    if (app)
     {
-        m_Activity->vm->AttachCurrentThread(&m_Env, 0);
-        m_IsAttached = true;
+        m_Activity = app->activity;
+
+        if (m_Activity->vm->GetEnv((void **)&m_Env, JNI_VERSION_1_6) != JNI_OK)
+        {
+            m_Activity->vm->AttachCurrentThread(&m_Env, 0);
+            m_IsAttached = true;
+        }
     }
 }
 
@@ -67,7 +72,10 @@ jclass LoadClass(JNIEnv* env, jobject activity, const char* class_name)
 
 jclass LoadClass(JNIEnv* env, const char* class_name)
 {
-    return LoadClass(env, g_AndroidApp->activity->clazz, class_name);
+    struct android_app* app = glfwGetAndroidApp();
+    assert(app != 0);
+
+    return LoadClass(env, app->activity->clazz, class_name);
 }
 
 } // namespace

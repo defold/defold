@@ -21,8 +21,6 @@
 #include "../graphics_vulkan_defines.h"
 #include "../graphics_vulkan_private.h"
 
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
-
 namespace dmGraphics
 {
     VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
@@ -35,9 +33,12 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
+        struct android_app* app = glfwGetAndroidApp();
+        assert(app);
+
         VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
         vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-        vk_surface_create_info.window = g_AndroidApp->window;
+        vk_surface_create_info.window = app->window;
 
         return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
     }

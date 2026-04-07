@@ -14,14 +14,13 @@
 
 #include <dlib/profile.h>
 #include <dmsdk/dlib/android.h>
+#include <glfw/glfw_native.h>
 
 #include "profiler_private.h"
 #include "profiler_proc_utils.h"
 
 DM_PROPERTY_EXTERN(rmtp_Profiler);
 DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, PROFILE_PROPERTY_FRAME_RESET, "Thread attached to JVM", &rmtp_Profiler);
-
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 void dmProfilerExt::SampleCpuUsage()
 {
@@ -48,7 +47,10 @@ double dmProfilerExt::GetCpuUsage()
 
 void dmProfilerExt::UpdatePlatformProfiler()
 {
+    struct android_app* app = glfwGetAndroidApp();
+    assert(app);
+
     // Shows if thread was attached to JVM and wasn't detached
     JNIEnv* env = 0;
-    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, g_AndroidApp->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
+    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, app->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
 }
