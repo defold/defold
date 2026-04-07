@@ -2227,6 +2227,8 @@ TEST(MDNS, ZeroTtlAnnouncements)
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_SRV));
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_TXT));
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_A));
+    DrainSocket(capture.m_Socket, 100);
+    Pump(mdns, 0, 20, 5 * 1000);
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
     ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
