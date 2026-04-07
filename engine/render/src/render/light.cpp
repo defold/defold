@@ -17,8 +17,9 @@
 
 namespace dmRender
 {
-    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
-    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
+    static const dmhash_t LIGHT_BUFFER_TYPE          = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE          = dmHashString64("lights");
+    static const uint16_t LIGHT_BUFFER_BINDING_UNSET = 0xFFFFu;
 
     static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
     static void CommitLightCount(HRenderContext render_context);
@@ -328,6 +329,8 @@ namespace dmRender
         render_context->m_LightBufferDirtyCount       = 0;
         render_context->m_LightBufferDataWriteStart   = 0;
         render_context->m_LightBufferLastWrittenCount = 0;
+        render_context->m_LightBufferAppliedSet       = LIGHT_BUFFER_BINDING_UNSET;
+        render_context->m_LightBufferAppliedBinding   = LIGHT_BUFFER_BINDING_UNSET;
 
         if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
         {
@@ -343,6 +346,9 @@ namespace dmRender
         if (render_context->m_LightUniformBuffer)
         {
             dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+            render_context->m_LightUniformBuffer        = 0;
+            render_context->m_LightBufferAppliedSet     = LIGHT_BUFFER_BINDING_UNSET;
+            render_context->m_LightBufferAppliedBinding = LIGHT_BUFFER_BINDING_UNSET;
         }
     }
 
@@ -409,10 +415,22 @@ namespace dmRender
             WriteLightInstanceData(render_context);
         }
 
+        // EnableUniformBuffer only clears the slot at the *new* (set, binding). If the light buffer
+        // was previously bound elsewhere, clear that slot so m_CurrentUniformBuffers stays consistent.
+        if (render_context->m_LightBufferAppliedSet != LIGHT_BUFFER_BINDING_UNSET &&
+            (render_context->m_LightBufferAppliedSet != light_buffer_set ||
+             render_context->m_LightBufferAppliedBinding != light_buffer_binding))
+        {
+            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+        }
+
         dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
                                         render_context->m_LightUniformBuffer,
                                         light_buffer_set,
                                         light_buffer_binding);
+
+        render_context->m_LightBufferAppliedSet     = light_buffer_set;
+        render_context->m_LightBufferAppliedBinding = light_buffer_binding;
     }
 
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material)

@@ -352,6 +352,9 @@ namespace dmRender
         uint32_t                    m_LightBufferDataWriteStart;
         uint32_t                    m_LightBufferLastWrittenCount;
         uint16_t                    m_MaxLightCount;
+        // Last set+binding where ApplyLightBufferForBinding enabled m_LightUniformBuffer (0xFFFF = none).
+        uint16_t                    m_LightBufferAppliedSet;
+        uint16_t                    m_LightBufferAppliedBinding;
         uint16_t                    m_LightBufferDirtyCount         : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
