@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/log.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -29,7 +28,8 @@ TEST(dmTestMain, PlatformInit)
     ASSERT_TRUE(TestMainPlatformInit());
 
     bool is_attached = TestMainIsDebuggerAttached();
-    dmLogInfo("DebuggerAttached: %d", is_attached?1:0);
+    printf("DebuggerAttached: %d", is_attached?1:0);
+    fflush(stdout);
 }
 
 TEST(dmTestMain, HttpGet)
