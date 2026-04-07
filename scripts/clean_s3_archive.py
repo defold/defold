@@ -33,7 +33,7 @@ keep = [
     "beta",
     "alpha",
     "dev",
-    "editor-alpha"
+    "editor-alpha" # MAWE: Let's keep them for a little while longer during the migration phase
 ]
 
 for object_summary in bucket.objects.filter(Prefix=archive_root):
