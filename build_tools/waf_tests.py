@@ -35,9 +35,22 @@ class TestHarness(object):
 
 class DefaultTestHarness(TestHarness):
     def run_jar_test(self, task, env, configfile):
+        generator = getattr(task, 'generator', None)
+
         mainclass = getattr(task, 'mainclass', '')
+        if not mainclass and generator is not None:
+            mainclass = getattr(generator, 'mainclass', '')
+        if not mainclass:
+            raise RuntimeError("Jar test task %s is missing mainclass" % getattr(task, 'name', task))
+
         classpath = Utils.to_list(getattr(task, 'classpath', []))
+        if generator is not None:
+            classpath.extend(Utils.to_list(getattr(generator, 'classpath', [])))
+
         java_library_paths = Utils.to_list(getattr(task, 'java_library_paths', []))
+        if generator is not None:
+            java_library_paths.extend(Utils.to_list(getattr(generator, 'java_library_paths', [])))
+
         jar_path = task.outputs[0].abspath()
         jar_dir = os.path.dirname(jar_path)
         java_library_paths.append(jar_dir)
