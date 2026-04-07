@@ -71,6 +71,7 @@ struct LuaProfilerScope
 struct LuaProfilerScopeState
 {
     lua_State*                   m_L;
+    bool                         m_IsMainThread;
     dmArray<LuaProfilerScope>    m_Scopes;
     dmArray<char>                m_Names;
     LuaProfilerScopeState*       m_Next;
@@ -104,6 +105,7 @@ static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
 
     state = new LuaProfilerScopeState;
     state->m_L = L;
+    state->m_IsMainThread = L == dmScript::GetMainThread(L);
     state->m_Scopes.SetCapacity(4);
     state->m_Names.SetCapacity(64);
     state->m_Next = g_LuaProfilerScopeStates;
@@ -111,13 +113,13 @@ static LuaProfilerScopeState* GetOrCreateLuaProfilerScopeState(lua_State* L)
     return state;
 }
 
-static void DeleteLuaProfilerScopeState(lua_State* L)
+static void DeleteLuaProfilerScopeState(LuaProfilerScopeState* delete_state)
 {
     LuaProfilerScopeState** state_ptr = &g_LuaProfilerScopeStates;
     while (*state_ptr != 0)
     {
         LuaProfilerScopeState* state = *state_ptr;
-        if (state->m_L == L)
+        if (state == delete_state)
         {
             *state_ptr = state->m_Next;
             delete state;
@@ -131,13 +133,13 @@ static void DeleteLuaProfilerScopeStates()
 {
     while (g_LuaProfilerScopeStates != 0)
     {
-        DeleteLuaProfilerScopeState(g_LuaProfilerScopeStates->m_L);
+        DeleteLuaProfilerScopeState(g_LuaProfilerScopeStates);
     }
 }
 
 static bool ShouldRetainLuaProfilerScopeState(LuaProfilerScopeState* state)
 {
-    return !state->m_Scopes.Empty() || state->m_L == dmScript::GetMainThread(state->m_L);
+    return !state->m_Scopes.Empty() || state->m_IsMainThread;
 }
 
 static void DeleteEmptyLuaProfilerScopeStates()
@@ -781,6 +783,10 @@ static int ProfilerScopeEnd(lua_State* L)
     const char* name = GetLuaProfilerScopeName(state, &scope);
     ProfileScopeEnd(name, scope.m_NameHash);
     state->m_Names.SetSize(scope.m_NameOffset);
+    if (state->m_Scopes.Empty() && !state->m_IsMainThread)
+    {
+        DeleteLuaProfilerScopeState(state);
+    }
     return 0;
 }
 

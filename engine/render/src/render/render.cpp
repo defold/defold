@@ -761,10 +761,13 @@ namespace dmRender
                         i++;
                     }
 
-                    // Execute culling for this sub-batch
+                    // Execute culling for this sub-batch if > 0
                     params.m_Entries = batch_start + sub_batch_start;
                     params.m_NumEntries = i - sub_batch_start;
-                    d->m_VisibilityFn(params);
+                    if (params.m_NumEntries > 0)
+                    {
+                        d->m_VisibilityFn(params);
+                    }
                 }
             }
         }
@@ -1074,6 +1077,14 @@ namespace dmRender
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
 
         dmGraphics::EnableProgram(context, compute_program->m_Program);
+
+        ApplyComputeProgramConstants(render_context, compute_program);
+
+        if (constant_buffer)
+        {
+            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
+        }
+
         GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures);
 
         uint8_t next_texture_unit = 0;
@@ -1096,12 +1107,7 @@ namespace dmRender
             }
         }
 
-        ApplyComputeProgramConstants(render_context, compute_program);
-
-        if (constant_buffer)
-        {
-            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
-        }
+        ApplyComputeProgramLightBuffers(render_context, compute_program);
 
         dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
 
