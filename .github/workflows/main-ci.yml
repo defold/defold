@@ -162,7 +162,7 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       { name: 'Set up Android SDK', uses: android-actions/setup-android@v3 },
-      { name: 'Set up Android NDK r25b', id: setup-ndk, uses: nttld/setup-ndk@v1, with: { ndk-version: r25b } },
+      { name: 'Set up Android NDK r25b', id: setup-ndk, uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779, with: { ndk-version: r25b, add-to-path: false } },
       { name: 'Install dependencies',
         env: { ANDROID_NDK_HOME: '${{ steps.setup-ndk.outputs.ndk-path }}', ANDROID_NDK_ROOT: '${{ steps.setup-ndk.outputs.ndk-path }}' },
         run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
