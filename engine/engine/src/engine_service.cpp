@@ -595,13 +595,20 @@ namespace dmEngineService
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
+        ResourceHandlerParams* params = (ResourceHandlerParams*)context;
+        if (!params->m_Factory || !params->m_Regist)
+        {
+            dmWebServer::SetStatusCode(request, 500);
+            SendText(request, "Profiler state is not initialized");
+            return;
+        }
+
         dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
             return;
         }
-        ResourceHandlerParams* params = (ResourceHandlerParams*)context;
         dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
 
         // Collect dynamic textures from gui
@@ -665,7 +672,14 @@ namespace dmEngineService
 
     static void HttpGameObjectRequestCallback(void* context, dmWebServer::Request* request)
     {
-        dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
+        ResourceHandlerParams* params = (ResourceHandlerParams*)context;
+        dmGameObject::HRegister regist = params->m_Regist;
+        if (!regist)
+        {
+            dmWebServer::SetStatusCode(request, 500);
+            SendText(request, "Profiler state is not initialized");
+            return;
+        }
 
         dmGameObject::SceneNode root;
         if (!dmGameObject::TraverseGetRoot(regist, &root))
@@ -808,7 +822,14 @@ namespace dmEngineService
 
     static void HttpSceneGraphRequestCallback(void* context, dmWebServer::Request* request)
     {
-        dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
+        ResourceHandlerParams* params = (ResourceHandlerParams*)context;
+        dmGameObject::HRegister regist = params->m_Regist;
+        if (!regist)
+        {
+            dmWebServer::SetStatusCode(request, 500);
+            SendText(request, "Profiler state is not initialized");
+            return;
+        }
 
         dmGameObject::SceneNode root;
         if (!dmGameObject::TraverseGetRoot(regist, &root))
@@ -840,6 +861,15 @@ namespace dmEngineService
         dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
     }
 
+    static void AddProfilerHandler(dmWebServer::HServer web_server, const char* path, const dmWebServer::HandlerParams* params)
+    {
+        dmWebServer::Result result = dmWebServer::AddHandler(web_server, path, params);
+        if (result != dmWebServer::RESULT_OK && result != dmWebServer::RESULT_HANDLER_ALREADY_REGISTRED)
+        {
+            dmLogWarning("Unable to register profiler handler '%s' (%d)", path, result);
+        }
+    }
+
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
     {
         dmWebServer::HandlerParams resource_params;
@@ -847,23 +877,23 @@ namespace dmEngineService
         engine_service->m_ResourceHandlerParams.m_Factory = factory;
         engine_service->m_ResourceHandlerParams.m_Regist = regist;
         resource_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
+        AddProfilerHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
 
         dmWebServer::HandlerParams gameobject_params;
         gameobject_params.m_Handler = HttpGameObjectRequestCallback;
-        gameobject_params.m_Userdata = regist;
-        dmWebServer::AddHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params);
+        gameobject_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
+        AddProfilerHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params);
 
         dmWebServer::HandlerParams scenegraph_params;
         scenegraph_params.m_Handler = HttpSceneGraphRequestCallback;
-        scenegraph_params.m_Userdata = regist;
-        dmWebServer::AddHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params);
+        scenegraph_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
+        AddProfilerHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params);
 
         // The entry point to the engine service profiler
         dmWebServer::HandlerParams profile_params;
         profile_params.m_Handler = ProfileHandler;
         profile_params.m_Userdata = 0;
-        dmWebServer::AddHandler(engine_service->m_WebServer, "/", &profile_params);
+        AddProfilerHandler(engine_service->m_WebServer, "/", &profile_params);
     }
 
      void InitState(HEngineService engine_service, EngineState* state)

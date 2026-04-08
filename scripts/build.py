@@ -2228,19 +2228,11 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        # We handle the stable channel seperately, since we want it to point
-        # to the editor-dev release (which uses the latest stable engine).
-        editor_channel = None
-        if self.channel == "stable":
-            editor_channel = "editor-alpha"
-        else:
-            editor_channel = self.channel or "stable"
-
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
         bucket = s3.get_bucket(hostname)
 
-        editor_archive_path = urlparse(self.get_archive_path(editor_channel)).path
+        editor_archive_path = urlparse(self.get_archive_path(self.channel)).path
 
         release_sha1 = releases[0]['sha1']
 
@@ -2271,16 +2263,19 @@ class Configuration(object):
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
         # For example;
-        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
+        #   redirect: /editor2/channels/stable/Defold-x86_64-macos.dmg -> /archive/<sha1>/stable/Defold-x86_64-macos.dmg
         for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
-            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
+            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
+            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             obj = bucket.Object(key_name)
-            obj.copy_from(
-                CopySource={'Bucket': hostname, 'Key': key_name},
-                WebsiteRedirectLocation=redirect
-            )
+            try:
+                obj.copy_from(
+                    CopySource={'Bucket': hostname, 'Key': key_name},
+                    WebsiteRedirectLocation=redirect
+                )
+            except Exception:
+                bucket.put_object(Key=key_name, Body='0', WebsiteRedirectLocation=redirect)
 
     def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
@@ -2298,30 +2293,9 @@ class Configuration(object):
         return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
 
     def _get_github_release_body(self):
-        engine_channel = None
-        editor_channel = None
-        engine_sha1 = None
-        editor_sha1 = None
-        if self.channel in ('stable','beta'):
-            engine_sha1 = self._git_sha1()
-
-        elif self.channel in ('editor-alpha',):
-            engine_channel = 'stable'
-            editor_channel = self.channel
-            editor_sha1 = self._git_sha1()
-            engine_sha1 = self._git_sha1(self.version) # engine version
-
-        else:
-            engine_sha1 = self._git_sha1()
-            engine_channel = self.channel
-            editor_channel = self.channel
-
-        if not editor_sha1:
-            editor_sha1 = engine_sha1
-
+        sha1 = self._git_sha1()
         body  = "Defold version %s\n" % self.version
-        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
-        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "Channel=%s sha1: %s\n" % (self.channel, sha1)
         body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return body
 
@@ -2342,27 +2316,13 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         # Create or update the tag for engine releases
+        prerelease = self.channel in ('alpha', 'beta')
         tag_name = None
-        is_editor_branch = False
-        engine_channel = None
-        editor_channel = None
-        prerelease = True
         if self.channel in ('stable', 'beta', 'alpha'):
-            engine_channel = self.channel
-            editor_channel = self.channel
-            prerelease = self.channel in ('alpha', 'beta')
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        elif self.channel in ('editor-alpha',):
-            # We update the stable release with new editor builds
-            engine_channel = 'stable'
-            editor_channel = self.channel
-            prerelease = False
-            tag_name = self.compose_tag_name(self.version, engine_channel)
-            is_editor_branch = True
-
-        if tag_name is not None and not is_editor_branch:
+        if tag_name is not None:
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
@@ -2389,43 +2349,35 @@ class Configuration(object):
         if tag_name:
             # only allowed anyways with a github token
             body = self._get_github_release_body()
-            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
-            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+            release_name = 'v%s - %s' % (self.version, self.channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
 
         # Release to steam for stable only
-        # if tag_name and (self.channel == 'editor-alpha'):
+        # if tag_name and (self.channel == 'stable'):
         #     self.release_to_steam()
 
-    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
-    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=stable
+    # on a branch with the correct sha1 (e.g. beta or master)
     def release_to_github(self):
         engine_channel = None
-        release_sha1 = None
-        is_editor_branch = False
         prerelease = True
-        if self.channel in ('editor-alpha',):
-            engine_channel = 'stable'
-            is_editor_branch = True
+        release_sha1 = self._git_sha1(self.version) # engine version
+        if self.channel in ('stable', 'beta'):
             prerelease = False
-            release_sha1 = self._git_sha1()
-        else:
-            release_sha1 = self._git_sha1(self.version) # engine version
-            if self.channel in ('stable', 'beta'):
-                prerelease = False
 
         tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
 
-        if tag_name is not None and not is_editor_branch:
+        if tag_name is not None:
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
-            # e.g. editor-dev releases
+            # untagged releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         body = self._get_github_release_body()
         release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
 
-        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
 
     def get_editor_urls_from_s3(self, archive_path, tag_name):
         release = s3.get_single_release(archive_path, tag_name)
@@ -2448,20 +2400,18 @@ class Configuration(object):
 
     # Use with ./scripts/build.py release_to_steam --version=1.4.8
     def release_to_steam(self):
-        editor_channel = "editor-alpha"
-        engine_channel = "stable"
-        tag_name = self.compose_tag_name(self.version, engine_channel)
-        archive_path = self.get_archive_path(editor_channel)
+        channel = "stable"
+        tag_name = self.compose_tag_name(self.version, channel)
+        archive_path = self.get_archive_path(channel)
         urls = self.get_editor_urls_from_s3(archive_path, tag_name)
         release_to_steam.release(self, urls)
 
 
     # Use with ./scripts/build.py release_to_egs --version=1.4.8
     def release_to_egs(self):
-        editor_channel = "editor-alpha"
-        engine_channel = "stable"
-        tag_name = self.compose_tag_name(self.version, engine_channel)
-        archive_path = self.get_archive_path(editor_channel)
+        channel = "stable"
+        tag_name = self.compose_tag_name(self.version, channel)
+        archive_path = self.get_archive_path(channel)
         urls = self.get_editor_urls_from_s3(archive_path, tag_name)
         release_to_egs.release(self, urls, tag_name)
 

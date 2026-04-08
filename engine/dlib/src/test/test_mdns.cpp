@@ -1555,6 +1555,7 @@ TEST(MDNS, ResolveAndConnect)
     ASSERT_EQ(4, read);
     ASSERT_TRUE(memcmp(response, "PONG", 4) == 0);
 
+    ASSERT_TRUE(WaitForFlag(&server_ctx.m_Completed, 300, 10 * 1000));
     ASSERT_TRUE(dmAtomicGet32(&server_ctx.m_Accepted) == 1);
     ASSERT_EQ(dmSocket::RESULT_OK, server_ctx.m_Result);
 }

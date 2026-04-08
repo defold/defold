@@ -20,13 +20,9 @@
             [editor.fs :as fs]
             [editor.git :as git]
             [util.text-util :as text-util])
-  (:import [ch.qos.logback.classic Level Logger]
-           [java.io File]
+  (:import [java.io File]
            [org.eclipse.jgit.api Git]
-           [org.eclipse.jgit.revwalk RevCommit]
-           [org.slf4j LoggerFactory]))
-
-(.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jgit.util.FS") Level/ERROR)
+           [org.eclipse.jgit.revwalk RevCommit]))
 
 (defn create-file
   ^File [git path content]
