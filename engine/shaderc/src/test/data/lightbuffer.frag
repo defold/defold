@@ -13,6 +13,7 @@ uniform Light
 uniform fs_uniforms
 {
 	vec4 lights_count;
+	// other uniform members
 };
 
 out vec4 FragColor;

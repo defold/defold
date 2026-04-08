@@ -26,6 +26,7 @@
             [editor.fxui :as fxui]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light-uniforms :as light-u]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.grid :as grid]
@@ -665,10 +666,13 @@
               additional-renderables-by-pass)]
     {:renderables filtered-additional-renderables-by-pass}))
 
-(g/defnk produce-pass->render-args [^Region viewport camera]
-  (into {}
-        (map (juxt identity (partial pass-render-args viewport camera)))
-        pass/all-passes))
+(g/defnk produce-pass->render-args [^Region viewport camera scene-render-data]
+  (let [preview-lights (light-u/packed-lights-from-scene (:renderables scene-render-data))]
+    (into {}
+          (map (fn [pass]
+                 [pass (assoc (pass-render-args viewport camera pass)
+                              :editor/preview-lights preview-lights)]))
+          pass/all-passes)))
 
 (g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]
   (let [renderables-by-pass (:renderables scene-render-data)]

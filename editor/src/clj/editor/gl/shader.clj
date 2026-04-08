@@ -580,6 +580,16 @@ These forms should be quoted, as if they came from a macro."
               (catch IllegalArgumentException e
                 (throw (IllegalArgumentException. (format "Failed setting sampler uniform '%s' at index %d." sampler-name sampler-index) e))))))))))
 
+(defn set-uniforms-for-current-program!
+  "Sets each `[uniform-name value]` pair for which `uniform-name` is an active uniform.
+  Uses a single scene-cache lookup. The current GL program must match the shader's linked program."
+  [^GL2 gl ^ShaderLifecycle shader-lifecycle name-value-pairs]
+  (when-let [{:keys [^int program uniform-infos]} (scene-cache/request-object! ::shader (:request-id shader-lifecycle) gl (:request-data shader-lifecycle))]
+    (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
+      (doseq [[name val] name-value-pairs
+              :when (and (string? (not-empty name)) (some? val) (uniform-infos name))]
+        (set-uniform-impl! gl program uniform-infos name val)))))
+
 (defn- shader-type+source-pair? [value]
   (and (vector? value)
        (= 2 (count value))

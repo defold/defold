@@ -35,7 +35,7 @@
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto DataProto$Data]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -217,6 +217,70 @@
 (defn- conj-line-vertex! [vbuf x y z cr cg cb]
   (conj! vbuf [(double x) (double y) (double z) (double cr) (double cg) (double cb) 1.0]))
 
+;; Same mesh as scene-tools/move-arrow-vertex-groups (translation move-x/y/z): cone + shaft along +X, length ~100 units.
+(def ^:private directional-arrow-vertex-groups (scene-tools/move-arrow-vertex-groups))
+
+(def ^:private directional-arrow-mesh-lens
+  (reduce (fn [[^long tris ^long lines] [mode vs]]
+            (let [c (long (count vs))]
+              (cond
+                (= mode GL/GL_TRIANGLES) [(+ tris c) lines]
+                (= mode GL/GL_LINES) [tris (+ lines c)]
+                :else [tris lines])))
+          [0 0]
+          directional-arrow-vertex-groups))
+
+(def ^:private directional-arrow-tri-vert-count (long (first directional-arrow-mesh-lens)))
+(def ^:private directional-arrow-line-vert-count (long (second directional-arrow-mesh-lens)))
+
+;; Translation gizmo arrow is modeled on +X; map local +X to world light direction (column 0 = dir).
+(defn- mat3-x-axis-to-dir ^Matrix3d [^Vector3d dir]
+  (let [x (Vector3d. (.x dir) (.y dir) (.z dir))
+        len (Math/sqrt (+ (* (.x x) (.x x)) (* (.y x) (.y x)) (* (.z x) (.z x))))]
+    (if (< len 1e-10)
+      (doto (Matrix3d.) (.setIdentity))
+      (do
+        (.scale x (/ 1.0 len))
+        (let [ref (if (< (Math/abs (.x x)) 0.9)
+                    (Vector3d. 1.0 0.0 0.0)
+                    (Vector3d. 0.0 1.0 0.0))
+              y (doto (Vector3d.) (.cross ref x))
+              ylen (Math/sqrt (+ (* (.x y) (.x y)) (* (.y y) (.y y)) (* (.z y) (.z y))))]
+          (if (< ylen 1e-8)
+            (doto (Matrix3d.) (.setIdentity))
+            (let [y (doto y (.scale (/ 1.0 ylen)))
+                  z (doto (Vector3d.) (.cross x y))]
+              (.normalize z)
+              (doto (Matrix3d.)
+                (.setColumn 0 (.x x) (.y x) (.z x))
+                (.setColumn 1 (.x y) (.y y) (.z y))
+                (.setColumn 2 (.x z) (.y z) (.z z))))))))))
+
+(defn- transform-local-arrow-point ^Vector3d [^Matrix3d R ^Vector3d p s lx ly lz]
+  ;; No ^double arg hints: primitive fns are limited to 4 parameters in Clojure.
+  (let [s (double s)
+        lx (double lx)
+        ly (double ly)
+        lz (double lz)
+        tv (Vector3d. (* s lx) (* s ly) (* s lz))]
+    (.transform R tv)
+    (.add tv p)
+    tv))
+
+(defn- fill-directional-move-arrow! [vbuf-tris vbuf-lines ^Vector3d p ^Vector3d d-world cr cg cb total-len]
+  ;; No ^double on total-len: any primitive param hint limits fns to 4 args in Clojure; this has 8 params.
+  (let [^Matrix3d R (mat3-x-axis-to-dir d-world)
+        s (/ (double total-len) 100.0)
+        cr (double cr)
+        cg (double cg)
+        cb (double cb)]
+    (doseq [[mode vs] directional-arrow-vertex-groups]
+      (doseq [v vs]
+        (let [^Vector3d w (transform-local-arrow-point R p s (double (nth v 0)) (double (nth v 1)) (double (nth v 2)))]
+          (if (= mode GL/GL_TRIANGLES)
+            (conj-line-vertex! vbuf-tris (.x w) (.y w) (.z w) cr cg cb)
+            (conj-line-vertex! vbuf-lines (.x w) (.y w) (.z w) cr cg cb)))))))
+
 (defn- fill-point-billboard-circle! [vbuf ^Vector3d center ^Vector3d right ^Vector3d up radius cr cg cb]
   (let [segments (long billboard-circle-segments)
         radius (double radius)
@@ -224,8 +288,9 @@
         cg (double cg)
         cb (double cb)]
     (reduce (fn [vbuf i]
-              (let [t0 (* 2.0 Math/PI (/ (double i) segments))
-                    t1 (* 2.0 Math/PI (/ (double (inc i)) segments))
+              (let [i (long i)
+                    t0 (* 2.0 Math/PI (/ (double i) segments))
+                    t1 (* 2.0 Math/PI (/ (double (unchecked-inc i)) segments))
                     cos0 (Math/cos t0) sin0 (Math/sin t0)
                     cos1 (Math/cos t1) sin1 (Math/sin t1)
                     x0 (+ (.x center) (* radius (+ (* (.x right) cos0) (* (.x up) sin0))))
@@ -239,47 +304,6 @@
                     (conj-line-vertex! x1 y1 z1 cr cg cb))))
             vbuf
             (range segments))))
-
-(defn- fill-directional-arrow! [vbuf ^Vector3d p ^Vector3d d-world camera cr cg cb total-len]
-  (let [head-depth-frac 0.26
-        head-width-frac 0.16
-        L (double total-len)
-        cr (double cr)
-        cg (double cg)
-        cb (double cb)
-        tip (doto (Vector3d. (.x p) (.y p) (.z p))
-              (.add (doto (Vector3d. (.x d-world) (.y d-world) (.z d-world)) (.scale L))))
-        [^Vector3d right ^Vector3d up ^Vector3d n] (billboard-axes tip camera)
-        d-flat (Vector3d. (.x d-world) (.y d-world) (.z d-world))
-        dn (.dot d-flat n)
-        _ (.sub d-flat (doto (Vector3d. (.x n) (.y n) (.z n)) (.scale dn)))
-        dflen (Math/sqrt (+ (* (.x d-flat) (.x d-flat)) (* (.y d-flat) (.y d-flat)) (* (.z d-flat) (.z d-flat))))
-        forward (if (> dflen 1e-6)
-                  (doto (Vector3d. (.x d-flat) (.y d-flat) (.z d-flat)) (.scale (/ 1.0 dflen)))
-                  (Vector3d. (.x right) (.y right) (.z right)))
-        perp (doto (Vector3d.) (.cross n forward))
-        plen (Math/sqrt (+ (* (.x perp) (.x perp)) (* (.y perp) (.y perp)) (* (.z perp) (.z perp))))
-        perp (if (> plen 1e-6)
-               (doto perp (.scale (/ 1.0 plen)))
-               (Vector3d. (.x up) (.y up) (.z up)))
-        hd (* L head-depth-frac)
-        hw (* L head-width-frac)
-        back (doto (Vector3d. (.x tip) (.y tip) (.z tip))
-               (.add (doto (Vector3d. (.x forward) (.y forward) (.z forward)) (.scale (- hd)))))
-        b0 (doto (Vector3d. (.x back) (.y back) (.z back))
-             (.add (doto (Vector3d. (.x perp) (.y perp) (.z perp)) (.scale hw))))
-        b1 (doto (Vector3d. (.x back) (.y back) (.z back))
-             (.add (doto (Vector3d. (.x perp) (.y perp) (.z perp)) (.scale (- hw)))))]
-    ;; Shaft meets the arrowhead at `back` (midpoint of base b0–b1). Triangle: tip–b0, tip–b1, b0–b1.
-    (-> vbuf
-        (conj-line-vertex! (.x p) (.y p) (.z p) cr cg cb)
-        (conj-line-vertex! (.x back) (.y back) (.z back) cr cg cb)
-        (conj-line-vertex! (.x tip) (.y tip) (.z tip) cr cg cb)
-        (conj-line-vertex! (.x b0) (.y b0) (.z b0) cr cg cb)
-        (conj-line-vertex! (.x tip) (.y tip) (.z tip) cr cg cb)
-        (conj-line-vertex! (.x b1) (.y b1) (.z b1) cr cg cb)
-        (conj-line-vertex! (.x b0) (.y b0) (.z b0) cr cg cb)
-        (conj-line-vertex! (.x b1) (.y b1) (.z b1) cr cg cb))))
 
 (defn- outline-rgb-for-light [renderable _base-color]
   (if-let [sel (:selected renderable)]
@@ -341,30 +365,48 @@
   (let [n (long n)
         renderables (mapv unify-scale renderables)
         camera (:camera render-args)
-        vbuf (persistent!
-               (reduce (fn [vbuf ri]
-                         (let [renderable (nth renderables ri)
-                               {:keys [color direction]} (:user-data renderable)
-                               [cr cg cb] (outline-rgb-for-light renderable color)
-                               ^Vector3d p (:world-translation renderable)
-                               d (world-dir-from-light renderable direction)
-                               sf (scene-tools/scale-factor camera (:viewport render-args) p)
-                               total-len (* (double sf) gizmo-target-pixels)]
-                           (fill-directional-arrow! vbuf p d camera cr cg cb total-len)))
-                       (->color-vtx (* n 8))
-                       (range n)))]
-    (when (pos? (count vbuf))
-      (let [vb (vtx/use-with ::light-directional-gizmo vbuf outline-shader)]
+        [vbuf-tris vbuf-lines]
+        (let [[vt vl]
+              (reduce (fn [[vt vl] ri]
+                        (let [renderable (nth renderables ri)
+                              {:keys [color direction]} (:user-data renderable)
+                              [cr cg cb] (outline-rgb-for-light renderable color)
+                              ^Vector3d p (:world-translation renderable)
+                              d (world-dir-from-light renderable direction)
+                              sf (scene-tools/scale-factor camera (:viewport render-args) p)
+                              total-len (* (double sf) gizmo-target-pixels)]
+                          (fill-directional-move-arrow! vt vl p d cr cg cb total-len)
+                          [vt vl]))
+                      [(->color-vtx (* (long n) (long directional-arrow-tri-vert-count)))
+                       (->color-vtx (* (long n) (long directional-arrow-line-vert-count)))]
+                      (range n))]
+          [(persistent! vt) (persistent! vl)])]
+    (when (pos? (count vbuf-tris))
+      (let [vb (vtx/use-with ::light-directional-gizmo-tris vbuf-tris outline-shader)]
         (gl/with-gl-bindings gl render-args [outline-shader vb]
-          (.glDrawArrays gl GL/GL_LINES 0 (count vbuf)))))
+          (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf-tris)))))
+    (when (pos? (count vbuf-lines))
+      (let [vb (vtx/use-with ::light-directional-gizmo-lines vbuf-lines outline-shader)]
+        (gl/with-gl-bindings gl render-args [outline-shader vb]
+          (.glDrawArrays gl GL/GL_LINES 0 (count vbuf-lines)))))
     (render-origin-markers-billboard gl render-args renderables n)))
 
 (defn- render-spot-light [gl render-args renderables n]
   (render-light-lines gl render-args renderables n)
   (render-origin-markers-billboard gl render-args renderables n))
 
+(defn- preview-light-user-data
+  [light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  {:editor-preview-light {:light-type light-type
+                         :color color
+                         :intensity intensity
+                         :range range
+                         :direction direction
+                         :inner-cone-angle inner-cone-angle
+                         :outer-cone-angle outer-cone-angle}})
+
 (g/defnk produce-light-scene
-  [_node-id light-type color direction range outer-cone-angle inner-cone-angle]
+  [_node-id light-type color intensity direction range outer-cone-angle inner-cone-angle]
   (case light-type
       :point
       (let [r (max (double range) 0.01)
@@ -375,8 +417,9 @@
                       :batch-key [outline-shader]
                       :tags #{:outline}
                       :passes [pass/outline]
-                      :user-data {:color colors/outline-color
-                                  :range range}}})
+                      :user-data (merge {:color colors/outline-color
+                                         :range range}
+                                        (preview-light-user-data :point color intensity range direction inner-cone-angle outer-cone-angle))}})
 
       :directional
       (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))]
@@ -386,8 +429,9 @@
                       :batch-key [outline-shader]
                       :tags #{:outline}
                       :passes [pass/outline]
-                      :user-data {:color colors/outline-color
-                                  :direction direction}}})
+                      :user-data (merge {:color colors/outline-color
+                                         :direction direction}
+                                        (preview-light-user-data :directional color intensity range direction inner-cone-angle outer-cone-angle))}})
 
       :spot
       (let [h (max (double range) 0.01)
@@ -407,9 +451,10 @@
                       :tags #{:outline}
                       :passes [pass/outline]
                       ;; Cone lines use default outline gray when unselected (same as camera frustum); selection overrides in scene-shapes/render-lines.
-                      :user-data {:color colors/outline-color
-                                  :geometry (scene-shapes/light-cone-lines inner-radius-ratio)
-                                  :point-scale ps}}})
+                      :user-data (merge {:color colors/outline-color
+                                         :geometry (scene-shapes/light-cone-lines inner-radius-ratio)
+                                         :point-scale ps}
+                                        (preview-light-user-data :spot color intensity range direction inner-cone-angle outer-cone-angle))}})
 
     {:node-id _node-id
      :aabb geom/empty-bounding-box}))

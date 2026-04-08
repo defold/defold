@@ -58,6 +58,13 @@
 ;; from the reflected data when the shader is created (see the implementation of
 ;; editor.gl.shader/make-shader-program) since there is no way a user can know
 ;; what the generated id will be for older shaders.
+;;
+;; UBO members (e.g. `uniform fs_uniforms { vec4 lights_count; ... }`) are reflected
+;; with that `_<uboId>.` prefix so it can be stripped to logical names such as
+;; `lights_count`. By contrast, a top-level uniform array of structs such as
+;; `uniform Light lights[N]` is not a UBO: active uniform names are typically the
+;; driver-flattened `lights[i].field` strings with no resource id prefix—upload code
+;; must use those exact names (see `editor.gl.light-uniforms`).
 (defn- resource-binding-namespaces [^SPIRVReflector spirv-reflector]
   ;; Storage buffers (also known as SSBOs) will need the same mapping as uniform
   ;; buffers, but since we don't support them in the editor yet, we don't gather
