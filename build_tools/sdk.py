@@ -271,9 +271,9 @@ def _get_android_local_ndk_env_path(verbose=False):
     return None
 
 def get_android_local_ndk_path(platform, verbose=False):
-    path = _get_android_local_ndk_env_path(verbose)
-    if path:
-        return path
+    # path = _get_android_local_ndk_env_path(verbose)
+    # if path:
+    #     return path
 
     sdk_root = get_android_local_sdk_path(verbose)
     ndk_root = os.path.join(sdk_root, 'ndk')
