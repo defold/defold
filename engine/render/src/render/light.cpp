@@ -15,6 +15,7 @@
 #include "render.h"
 #include "render_private.h"
 
+#include <dmsdk/dlib/align.h>
 #include <dlib/dstrings.h>
 
 namespace dmRender
@@ -157,7 +158,7 @@ namespace dmRender
 
         UniformBufferLayout::m_Hash is derived only from the std140 layout of type "Light" (four vec4 members).
         The instance count MAX_LIGHTS is on the UBO binding, not part of the type — same as GetUniformBufferLayout for programs.
-        Total GPU buffer size = max_lights * sizeof(Light) in std140 (64 bytes per light).
+        Total GPU buffer size = max_lights * DM_ALIGN(sizeof(Light) in std140, min UBO offset alignment).
         Active light count is set via lights_count outside this buffer.
         */
 
@@ -195,8 +196,9 @@ namespace dmRender
 
         if (max_lights <= 0)
         {
-            render_context->m_LightUniformBuffer      = 0;
-            render_context->m_LightBufferDataWriteStart = 0;
+            render_context->m_LightUniformBuffer          = 0;
+            render_context->m_LightBufferDataWriteStart   = 0;
+            render_context->m_LightBufferGpuElementStride = 0;
             return;
         }
 
@@ -205,7 +207,10 @@ namespace dmRender
         dmGraphics::GetUniformBufferLayout(0, &light_type, 1, &layout);
 
         assert(layout.m_Size > 0 && "Light struct std140 size");
-        layout.m_Size *= (uint32_t) max_lights;
+        const uint32_t light_struct_size = (uint32_t) layout.m_Size;
+        const uint32_t gpu_stride        = DM_ALIGN(light_struct_size, dmGraphics::GetUniformBufferOffsetAlignment(render_context->m_GraphicsContext));
+        layout.m_Size                    = gpu_stride * (uint32_t) max_lights;
+        render_context->m_LightBufferGpuElementStride = gpu_stride;
 
         render_context->m_LightUniformBuffer          = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout);
         render_context->m_LightBufferDataWriteStart = 0;
@@ -265,13 +270,15 @@ namespace dmRender
 
         if (render_context->m_LightBufferDirtyEnd > render_context->m_LightBufferDirtyStart)
         {
-            uint32_t write_light_data_start = render_context->m_LightBufferDataWriteStart;
-            uint32_t write_start            = write_light_data_start + render_context->m_LightBufferDirtyStart * sizeof(LightSTD140);
-            uint32_t write_end              = write_light_data_start + render_context->m_LightBufferDirtyEnd * sizeof(LightSTD140);
-            uint32_t write_size             = write_end - write_start;
-            LightSTD140* write_ptr_start    = &render_context->m_LightBufferScratch[render_context->m_LightBufferDirtyStart];
+            const uint32_t write_light_data_start = render_context->m_LightBufferDataWriteStart;
+            const uint32_t stride                 = render_context->m_LightBufferGpuElementStride;
 
-            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer, write_start, write_size, (void*) write_ptr_start);
+            for (uint32_t i = render_context->m_LightBufferDirtyStart; i < render_context->m_LightBufferDirtyEnd; ++i)
+            {
+                const uint32_t write_start = write_light_data_start + i * stride;
+                dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer,
+                    write_start, sizeof(LightSTD140), (void*) &render_context->m_LightBufferScratch[i]);
+            }
 
             render_context->m_LightBufferDirtyStart = render_context->m_LightBufferScratch.Size();
             render_context->m_LightBufferDirtyEnd   = 0;
@@ -299,6 +306,7 @@ namespace dmRender
         render_context->m_LightBufferDirtyEnd         = 0;
         render_context->m_LightBufferDirtyCount       = 0;
         render_context->m_LightBufferDataWriteStart   = 0;
+        render_context->m_LightBufferGpuElementStride = 0;
         render_context->m_LightBufferLastWrittenCount = 0;
 
         if (render_context->m_RenderLightsIndices.Capacity() < max_lights)

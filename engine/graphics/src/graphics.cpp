@@ -2292,6 +2292,10 @@ namespace dmGraphics
     {
         g_functions.m_DisableUniformBuffer(context, uniform_buffer);
     }
+    uint32_t GetUniformBufferOffsetAlignment(HContext context)
+    {
+        return g_functions.m_GetUniformBufferOffsetAlignment(context);
+    }
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

@@ -355,6 +355,7 @@ namespace dmRender
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
         uint32_t                    m_LightBufferDataWriteStart;
+        uint32_t                    m_LightBufferGpuElementStride; // std140 Light size aligned for UBO offset rules (API-specific)
         uint32_t                    m_LightBufferLastWrittenCount;
         uint16_t                    m_MaxLightCount;
         uint16_t                    m_LightBufferDirtyCount         : 1;

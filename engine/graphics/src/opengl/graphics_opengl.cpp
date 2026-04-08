@@ -2115,6 +2115,15 @@ static void LogFrameBufferError(GLenum status)
         delete ubo;
     }
 
+    static uint32_t OpenGLGetUniformBufferOffsetAlignment(HContext _context)
+    {
+        (void) _context;
+        GLint align = 256;
+        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
+        CHECK_GL_ERROR;
+        return (uint32_t) align;
+    }
+
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         OpenGLContext* context = (OpenGLContext*) _context;

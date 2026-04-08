@@ -7026,9 +7026,13 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
     ASSERT_NE((void*)0, ubo->m_Buffer);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
-    const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
-    ASSERT_LE(light_data_offset + light_data_bytes, ubo->m_BufferSize);
-    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferScratch.Begin(), light_data_bytes));
+    const uint32_t stride            = render_ctx->m_LightBufferGpuElementStride;
+    ASSERT_GT(stride, 0u);
+    ASSERT_LE(light_data_offset + 10u * stride, ubo->m_BufferSize);
+    for (uint32_t i = 0; i < 10u; ++i)
+    {
+        ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset + i * stride, &render_ctx->m_LightBufferScratch[i], sizeof(dmRender::LightSTD140)));
+    }
 
     dmResource::Release(m_Factory, (void*) material_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -7098,9 +7102,13 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUboCompute)
     ASSERT_NE((void*)0, ubo->m_Buffer);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
-    const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
-    ASSERT_LE(light_data_offset + light_data_bytes, ubo->m_BufferSize);
-    ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferScratch.Begin(), light_data_bytes));
+    const uint32_t stride            = render_ctx->m_LightBufferGpuElementStride;
+    ASSERT_GT(stride, 0u);
+    ASSERT_LE(light_data_offset + 10u * stride, ubo->m_BufferSize);
+    for (uint32_t i = 0; i < 10u; ++i)
+    {
+        ASSERT_EQ(0, memcmp(ubo->m_Buffer + light_data_offset + i * stride, &render_ctx->m_LightBufferScratch[i], sizeof(dmRender::LightSTD140)));
+    }
 
     dmResource::Release(m_Factory, (void*) compute_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));

@@ -1993,6 +1993,12 @@ bail:
         delete ubo;
     }
 
+    static uint32_t VulkanGetUniformBufferOffsetAlignment(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*)_context;
@@ -2507,47 +2513,81 @@ bail:
                         }
                     }
 
+                    const uint32_t ubo_elem_count = dmMath::Max(1u, (uint32_t) res->m_ElementCount);
+
                     if (bound_ubo)
                     {
-                        // TODO: We shouldn't have to rebind this UBO every time it has to be used,
-                        //       but in order for us to do that we need persistent descriptor sets.
-                        //       To solve that, we should cache bindings. For now we simply update
-                        //       the descriptor every frame, like animals..
-                        UpdateUniformBufferDescriptor(context,
-                            bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                            vk_write_buffer_descriptors[buffer_to_write_index++],
-                            vk_write_desc_info,
-                            0,
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                        // One descriptor per array element (Vulkan); dynamic offsets index into the same VkBuffer.
+                        // Stride must be a multiple of minUniformBufferOffsetAlignment (see Vulkan spec / validation).
+                        const uint32_t elem_stride = (ubo_elem_count > 1u)
+                            ? DM_ALIGN((uint32_t) pgm_layout->m_Size, dynamic_alignment)
+                            : bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size;
+                        const uint32_t per_range = elem_stride;
+
+                        if (per_range * ubo_elem_count > bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size)
+                        {
+                            dmLogWarning("Bound uniform buffer is too small for binding '%s' (need %u bytes, have %u).",
+                                res->m_Name,
+                                per_range * ubo_elem_count,
+                                (uint32_t) bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+                        }
+
+                        VkDescriptorBufferInfo* buf_infos = &vk_write_buffer_descriptors[buffer_to_write_index];
+                        buffer_to_write_index = (uint16_t) (buffer_to_write_index + ubo_elem_count);
+
+                        for (uint32_t ei = 0; ei < ubo_elem_count; ++ei)
+                        {
+                            buf_infos[ei].buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
+                            buf_infos[ei].offset = 0;
+                            buf_infos[ei].range  = per_range;
+                            dynamic_offsets[dynamic_offset_index++] = ei * elem_stride;
+                        }
+
+                        vk_write_desc_info.descriptorCount = ubo_elem_count;
+                        vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                        vk_write_desc_info.pBufferInfo     = buf_infos;
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
                     }
                     else
                     {
-                        dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                        const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
-                        const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
-
+                        const uint32_t uniform_size_nonalign = res->m_BindingInfo.m_BlockSize;
                         assert(uniform_size_nonalign > 0);
 
-                        // Copy client data to aligned host memory
-                        // The data_offset here is the offset into the programs uniform data,
-                        // i.e the source buffer.
+                        uint32_t per_elem_raw;
+                        if (ubo_elem_count > 1u)
+                        {
+                            assert((uniform_size_nonalign % ubo_elem_count) == 0);
+                            per_elem_raw = uniform_size_nonalign / ubo_elem_count;
+                        }
+                        else
+                        {
+                            per_elem_raw = uniform_size_nonalign;
+                        }
+                        const uint32_t per_elem_stride = DM_ALIGN(per_elem_raw, dynamic_alignment);
+
+                        const uint32_t base_cursor = (uint32_t) scratch_buffer->m_MappedDataCursor;
+
                         memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
                             &program->m_UniformData[next->m_UniformBufferOffset], uniform_size_nonalign);
 
-                        UpdateUniformBufferDescriptor(context,
-                            scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                            vk_write_buffer_descriptors[buffer_to_write_index++],
-                            vk_write_desc_info,
-                            0,
-                            uniform_size_align);
+                        VkDescriptorBufferInfo* buf_infos = &vk_write_buffer_descriptors[buffer_to_write_index];
+                        buffer_to_write_index = (uint16_t) (buffer_to_write_index + ubo_elem_count);
 
-                        scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                        for (uint32_t ei = 0; ei < ubo_elem_count; ++ei)
+                        {
+                            buf_infos[ei].buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
+                            buf_infos[ei].offset = 0;
+                            buf_infos[ei].range  = per_elem_stride;
+                            dynamic_offsets[dynamic_offset_index++] = base_cursor + ei * per_elem_stride;
+                        }
+
+                        scratch_buffer->m_MappedDataCursor += (size_t) ubo_elem_count * (size_t) per_elem_stride;
                         TouchResource(context, &scratch_buffer->m_DeviceBuffer);
 
-                        dynamic_offset_index++;
+                        vk_write_desc_info.descriptorCount = ubo_elem_count;
+                        vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                        vk_write_desc_info.pBufferInfo     = buf_infos;
                     }
                 } break;
                 case BINDING_FAMILY_GENERIC:
@@ -2968,7 +3008,10 @@ bail:
             if (binding.descriptorCount == 0)
             {
                 binding.binding            = res.m_Binding;
-                binding.descriptorCount    = 1;
+                // UBO arrays (e.g. uniform Block { } name[N]) map to N dynamic uniform-buffer descriptors in Vulkan.
+                binding.descriptorCount    = res.m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER
+                    ? dmMath::Max(1u, (uint32_t) res.m_ElementCount)
+                    : 1u;
                 binding.pImmutableSamplers = 0;
 
                 program_resource_binding.m_Res       = &res;
@@ -3011,7 +3054,7 @@ bail:
                         program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
                         program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
 
-                        info.m_UniformBufferCount++;
+                        info.m_UniformBufferCount     += binding.descriptorCount;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                     }
