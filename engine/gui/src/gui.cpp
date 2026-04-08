@@ -78,6 +78,7 @@ namespace dmGui
     static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
+    inline void CalculateNodeSize(InternalNode* in);
     static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
     static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
                                       int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
@@ -732,6 +733,12 @@ namespace dmGui
             {
                 nodes[i].m_Node.m_Texture     = texture_source;
                 nodes[i].m_Node.m_TextureType = texture_type;
+
+                if (texture_type == NODE_TEXTURE_TYPE_TEXTURE_SET)
+                {
+                    UpdateTextureSetAnimData(scene, &nodes[i]);
+                    CalculateNodeSize(&nodes[i]);
+                }
             }
         }
     }
@@ -2401,8 +2408,11 @@ namespace dmGui
         uint32_t node_count = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
 
+		// It's needed in cases when texture reloaded using hot reload
+		// There is no way to notify nodes about it
         if (dLib::IsDebugMode())
         {
+            DM_PROFILE("DebugUpdateTextureSetAnimData");
             for (uint32_t i = 0; i < node_count; ++i)
             {
                 InternalNode* node = &nodes[i];
