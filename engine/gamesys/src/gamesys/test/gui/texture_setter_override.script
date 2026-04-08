@@ -14,15 +14,6 @@
 
 local ATLAS_B = hash("/gui/texture_setter_override_b.t.texturesetc")
 
-function init(self)
-    self.updated = false
-end
-
 function update(self, dt)
-    if self.updated then
-        return
-    end
-
     go.set("#gui", "textures", ATLAS_B, { key = "atlas" })
-    self.updated = true
 end
