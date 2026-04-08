@@ -145,7 +145,11 @@ jobs:
   bld-eng-android:
     strategy:
       matrix:
-        platform: [armv7-android, arm64-android]
+        include:
+          - platform: armv7-android
+            skip_tests: true
+          - platform: arm64-android
+            skip_tests: false
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps: [
@@ -156,10 +160,22 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Enable KVM', if: matrix.platform == 'arm64-android', run: 'echo \'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"\' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
+        if: matrix.platform == 'arm64-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
+        uses: reactivecircus/android-emulator-runner@v2,
+        with: {
+          api-level: 30,
+          arch: arm64-v8a,
+          profile: pixel_7_pro,
+          script: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
+        }
+      },
+      {
+        name: 'Build engine',
+        if: matrix.platform == 'armv7-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs engine'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
