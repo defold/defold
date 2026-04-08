@@ -286,7 +286,7 @@ def get_android_local_ndk_path(platform, verbose=False):
     for x in ndk_versions:
         print("  MAWE NDK:", x)
 
-    system(f'find {ndk_root} -iname "*clang"')
+    os.system(f'find {ndk_root} -iname "*clang"')
 
     preferred_versions = [x for x in ndk_versions if x.startswith(preferred_major)]
 
