@@ -282,6 +282,12 @@ def get_android_local_ndk_path(platform, verbose=False):
 
     preferred_major = _get_version_major_prefix(ANDROID_NDK_VERSION)
     ndk_versions = [x for x in os.listdir(ndk_root)]
+    print("MAWE NDK VERSIONS")
+    for x in ndk_versions:
+        print("  MAWE NDK:", x)
+
+    system(f'find {ndk_root} -iname "*clang"')
+
     preferred_versions = [x for x in ndk_versions if x.startswith(preferred_major)]
 
     version = None
