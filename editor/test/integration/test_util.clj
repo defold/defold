@@ -1749,7 +1749,7 @@
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "rivemodel" [resource-node-id]
-  (g/update-property resource-node-id :create-go-bones not))
+  (g/update-property resource-node-id :auto-bind not))
 
 (defmethod edit-resource-node "rivescene" [resource-node-id]
   (g/set-property resource-node-id :rive-file nil))
