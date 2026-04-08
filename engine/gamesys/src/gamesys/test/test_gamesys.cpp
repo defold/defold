@@ -74,6 +74,11 @@
 
 using namespace dmVMath;
 
+namespace dmGraphics
+{
+    extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
+}
+
 #if !defined(DM_TEST_EXTERN_INIT_FUNCTIONS)
     bool GameSystemTest_PlatformInit()
     {
@@ -6937,13 +6942,13 @@ TEST_F(MaterialTest, TestLightBuffer)
     ASSERT_LT(material->m_LightBufferSet, 8u);
     ASSERT_LT(material->m_LightBufferBinding, 32u);
 
-    // Verify the material's program declares a LightBuffer with the expected layout
+    // Verify the material's program declares uniform Light { LightData lights[] } with the expected layout
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     ASSERT_NE((dmGraphics::HProgram)0, program);
     const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
     ASSERT_NE((void*)0, program_meta);
 
-    const dmhash_t light_buffer_type = dmHashString64("LightBuffer");
+    const dmhash_t light_buffer_type = dmHashString64("Light");
     const dmhash_t lights_member = dmHashString64("lights");
     bool found_light_buffer = false;
     for (uint32_t i = 0; i < program_meta->m_TypeInfos.Size(); ++i)
@@ -6972,9 +6977,10 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
 {
     // Spawns multiple point-light components from the same .lightc with distinct transforms, runs the
     // game-object update (LateUpdate -> SetLightInstance -> scratch), then applies light_buffer.material
-    // (fragment shader sums lights[i].color from LightBuffer) so ApplyMaterialProgramLightBuffers uploads
-    // scratch + active light count into the render light uniform buffer. On the null graphics adapter we
-    // memcmp the UBO backing store against scratch to prove the upload path ran with the expected layout.
+    // (fragment shader sums lights[i].color from uniform Light { LightData lights[] }) so
+    // ApplyMaterialProgramLightBuffers uploads scratch to the lights UBO and sets lights_count via
+    // SetConstantV4. On the null graphics adapter we memcmp the UBO backing store against scratch and
+    // read lights_count from the program uniform scratch buffer.
     dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
 
@@ -7006,17 +7012,18 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUbo)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
     ASSERT_TRUE(material->m_HasLightBuffer);
+    ASSERT_TRUE(material->m_HasLightsCountUniform);
 
-    // Writes the light count into the light uniform buffer
+    dmGraphics::HContext gfx = dmRender::GetGraphicsContext(m_RenderContext);
+    dmGraphics::EnableProgram(gfx, dmRender::GetMaterialProgram(material));
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material);
+
+    const Vector4& count_v = dmGraphics::GetConstantV4Ptr(gfx, material->m_LightsCountLocation);
+    ASSERT_NEAR(10.0f, count_v.getX(), EPSILON);
 
     dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
-
-    float count_written = 0.0f;
-    memcpy(&count_written, ubo->m_Buffer, sizeof(float));
-    ASSERT_NEAR(10.0f, count_written, EPSILON);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
@@ -7045,7 +7052,7 @@ TEST_F(MaterialTest, TestLightBufferAbsent)
 #if defined(DM_HAVE_PLATFORM_COMPUTE_SUPPORT)
 TEST_F(ResourceTest, TestLightBufferWriteIntoUboCompute)
 {
-    // Same as TestLightBufferWriteIntoUbo, but uses a compute program that declares LightBuffer
+    // Same as TestLightBufferWriteIntoUbo, but uses a compute program that declares uniform Light
     // and dmRender::ApplyComputeProgramLightBuffers to upload scratch into the light UBO.
     dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
@@ -7077,16 +7084,18 @@ TEST_F(ResourceTest, TestLightBufferWriteIntoUboCompute)
     dmRender::HComputeProgram compute_program = compute_res->m_Program;
     ASSERT_NE((void*)0, compute_program);
     ASSERT_TRUE(compute_program->m_HasLightBuffer);
+    ASSERT_TRUE(compute_program->m_HasLightsCountUniform);
 
+    dmGraphics::HContext gfx = dmRender::GetGraphicsContext(m_RenderContext);
+    dmGraphics::EnableProgram(gfx, dmRender::GetComputeProgram(compute_program));
     dmRender::ApplyComputeProgramLightBuffers(m_RenderContext, compute_program);
+
+    const Vector4& count_v = dmGraphics::GetConstantV4Ptr(gfx, compute_program->m_LightsCountLocation);
+    ASSERT_NEAR(10.0f, count_v.getX(), EPSILON);
 
     dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
-
-    float count_written = 0.0f;
-    memcpy(&count_written, ubo->m_Buffer, sizeof(float));
-    ASSERT_NEAR(10.0f, count_written, EPSILON);
 
     const uint32_t light_data_offset = render_ctx->m_LightBufferDataWriteStart;
     const uint32_t light_data_bytes  = 10u * (uint32_t) sizeof(dmRender::LightSTD140);
@@ -7327,13 +7336,13 @@ TEST_F(ShaderTest, ComputeLightBuffer)
     const dmGraphics::ShaderMeta* program_meta = dmGraphics::GetShaderMeta(program);
     ASSERT_NE((void*)0, program_meta);
 
-    const dmhash_t light_buffer_type = dmHashString64("LightBuffer");
+    const dmhash_t light_block_type = dmHashString64("Light");
     const dmhash_t lights_member = dmHashString64("lights");
     bool found_light_buffer = false;
     for (uint32_t i = 0; i < program_meta->m_TypeInfos.Size(); ++i)
     {
         const dmGraphics::ShaderResourceTypeInfo& type_info = program_meta->m_TypeInfos[i];
-        if (type_info.m_NameHash == light_buffer_type)
+        if (type_info.m_NameHash == light_block_type)
         {
             found_light_buffer = true;
             for (uint32_t m = 0; m < type_info.m_MemberCount; ++m)

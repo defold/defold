@@ -2,7 +2,7 @@
 
 #define MAX_LIGHTS 32
 
-struct Light
+struct LightData
 {
     vec4 position;        // xyz: position, w:unused
     vec4 color;           // RGBA (matches LightParams order)
@@ -12,10 +12,15 @@ struct Light
                           // z: innerConeAngle (radians, spot only)
                           // w: outerConeAngle (radians, spot only)
 };
-uniform LightBuffer
+
+uniform Light
 {
-    vec4  lights_count; // x: number of active lights
-    Light lights[MAX_LIGHTS];
+    LightData lights[MAX_LIGHTS];
+};
+
+uniform fs_uniforms
+{
+    vec4 lights_count;
 };
 
 out vec4 out_fragColor;

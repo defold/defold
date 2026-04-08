@@ -63,6 +63,13 @@ namespace dmRender
         program->m_LightBufferSet     = light_buffer_set;
         program->m_LightBufferBinding = light_buffer_binding;
 
+        program->m_LightsCountLocation = dmGraphics::FindUniformLocation(program->m_Program, "fs_uniforms.lights_count");
+        if (program->m_LightsCountLocation == dmGraphics::INVALID_UNIFORM_LOCATION)
+        {
+            program->m_LightsCountLocation = dmGraphics::FindUniformLocation(program->m_Program, "lights_count");
+        }
+        program->m_HasLightsCountUniform = (program->m_LightsCountLocation != dmGraphics::INVALID_UNIFORM_LOCATION) ? 1u : 0u;
+
         return (HComputeProgram) program;
     }
 
