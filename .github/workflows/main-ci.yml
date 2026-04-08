@@ -148,8 +148,10 @@ jobs:
         include:
           - platform: armv7-android
             skip_tests: true
+            ndk_api: 19
           - platform: arm64-android
             skip_tests: false
+            ndk_api: 21
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps: [
@@ -160,6 +162,15 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Set up Android SDK', uses: android-actions/setup-android@v3 },
+      { name: 'Set up Android NDK r25b', id: setup-ndk, uses: nttld/setup-ndk@v1, with: { ndk-version: r25b } },
+      { name: 'Export ANDROID_NDK env',
+        shell: bash,
+        run: 'echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"; echo "Using ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}"' },
+      { name: 'Configure Android toolchain environment',
+        shell: bash,
+        run: 'set -euo pipefail; echo "ANDROID_NDK_HOME=${ANDROID_NDK}" >> "$GITHUB_ENV"; echo "NDK_PATH=${ANDROID_NDK}" >> "$GITHUB_ENV"; echo "ANDROID_API=${{ matrix.ndk_api }}" >> "$GITHUB_ENV"'
+      },
       { name: 'Enable KVM', if: matrix.platform == 'arm64-android', run: "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm" },
       {
         name: 'Build engine',
