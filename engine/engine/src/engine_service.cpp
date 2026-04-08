@@ -595,17 +595,18 @@ namespace dmEngineService
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
-        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
-        if (r != dmWebServer::RESULT_OK)
-        {
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
-            return;
-        }
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
         if (!params->m_Factory || !params->m_Regist)
         {
             dmWebServer::SetStatusCode(request, 500);
             SendText(request, "Profiler state is not initialized");
+            return;
+        }
+
+        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
+        if (r != dmWebServer::RESULT_OK)
+        {
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
             return;
         }
         dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
