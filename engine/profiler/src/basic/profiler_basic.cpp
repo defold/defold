@@ -111,6 +111,7 @@ struct ThreadData
     Sample*         m_CurrentSample;
     dmArray<Sample> m_SamplePool;
     int32_t         m_ThreadId;
+    uint32_t        m_OverflowDepth;
 
     ThreadData(int32_t thread_id)
         : m_ThreadId(thread_id)
@@ -128,11 +129,9 @@ struct ThreadData
 
 static Sample* AllocateNewSample(ThreadData* td)
 {
-    static Sample g_DummySample = { 0 };
-
     if (td->m_SamplePool.Full())
     {
-        return &g_DummySample;
+        return 0;
     }
 
     td->m_SamplePool.SetSize(td->m_SamplePool.Size() + 1);
@@ -145,6 +144,7 @@ static void ResetThreadData(ThreadData* td)
     td->m_Root.m_FirstChild = 0;
     td->m_Root.m_LastChild = 0;
     td->m_CurrentSample = &td->m_Root;
+    td->m_OverflowDepth = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -382,6 +382,10 @@ static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
     if (!sample)
     {
         sample = AllocateNewSample(td);
+        if (!sample)
+        {
+            return 0;
+        }
         memset(sample, 0, sizeof(Sample));
 
         sample->m_NameHash = name_hash;
@@ -646,12 +650,25 @@ static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
     CHECK_INITIALIZED();
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
-    uint64_t    tstart = dmTime::GetMonotonicTime();
-
-    InternalizeName(name, (uint32_t*)&name_hash);
-
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
-    Sample*     sample = AllocateSample(td, name_hash); // Adds it to the thread data
+    if (td->m_OverflowDepth != 0)
+    {
+        td->m_OverflowDepth++;
+        return;
+    }
+
+    uint64_t tstart = dmTime::GetMonotonicTime();
+    uint32_t sample_name_hash = GetOrCacheNameHash(name, (uint32_t*)&name_hash);
+    Sample* sample = AllocateSample(td, sample_name_hash); // Adds it to the thread data
+    if (!sample)
+    {
+        // Once the sample pool is exhausted we skip nested scopes until the stack is balanced
+        // again, instead of linking a shared sentinel node into the sample tree.
+        td->m_OverflowDepth = 1;
+        return;
+    }
+
+    InternalizeName(name, &sample_name_hash);
 
     if (sample->m_CallCount > 1) // we want to preserve the real start of this sample
         sample->m_TempStart = tstart;
@@ -665,9 +682,15 @@ static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
     CHECK_INITIALIZED();
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
+    ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+    if (td->m_OverflowDepth != 0)
+    {
+        td->m_OverflowDepth--;
+        return;
+    }
+
     uint64_t    end = dmTime::GetMonotonicTime();
 
-    ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
     Sample*     sample = td->m_CurrentSample;
 
     uint64_t    length = 0;

@@ -224,6 +224,19 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnFinalize)
     ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_finalize' was not closed before the end of the frame. Auto-closing it."));
 }
 
+TEST_F(ProfilerExtLuaTest, ExcessiveUniqueScopesDoNotHangProfiler)
+{
+    ASSERT_TRUE(RunString(
+        "profiler.scope_begin(\"overflow_root\")\n"
+        "for i = 1, 4200 do\n"
+        "    profiler.scope_begin(\"overflow_child_\" .. i)\n"
+        "    profiler.scope_end()\n"
+        "end\n"
+        "profiler.scope_end()\n"
+        "profiler.scope_begin(\"after_overflow\")\n"
+        "profiler.scope_end()\n"));
+}
+
 TEST_F(ProfilerExtLuaTest, GarbageCollectedCoroutineScopeStateIsReleasedOnPreRender)
 {
     ASSERT_TRUE(RunString(
