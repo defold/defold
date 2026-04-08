@@ -1054,14 +1054,13 @@ operation.tile-map.add-layer = Add Layer
 # Scene View Popups
 
 scene-popup.reset-defaults-button = Reset to Defaults
-scene-popup.plane = Plane
-scene-popup.color = Color
-scene-popup.opacity = Opacity
-scene-popup.grid-plane = Plane
-scene-popup.move-speed = Move Speed
-scene-popup.look-sensitivity = Look Sensitivity
-scene-popup.invert-y = Invert Y
-scene-popup.walking-mode = Walking Mode
+scene-popup.grid.plane = Plane
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacity
+scene-popup.camera.move-speed = Move Speed
+scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.invert-y = Invert Y
+scene-popup.camera.walking-mode = Walking Mode
 
 # Properties
 

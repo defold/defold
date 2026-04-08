@@ -1181,7 +1181,7 @@
 
 (defn show-settings! [^Parent owner prefs localization]
   (popup/show-settings! owner prefs localization 260 [:scene :perspective-camera]
-                        [{:key :speed :type :slider :label "scene-popup.move-speed" :min 0.75 :max 2.0}
-                         {:key :look-sensitivity :type :slider :label "scene-popup.look-sensitivity" :min 0.02 :max 0.4}
-                         {:key :invert-y :type :toggle :label "scene-popup.invert-y"}
-                         {:key :walking-mode :type :toggle :label "scene-popup.walking-mode"}]))
+                        [{:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.75 :max 2.0}
+                         {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4}
+                         {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y"}
+                         {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode"}]))
