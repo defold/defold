@@ -1829,6 +1829,9 @@ def detect(conf):
             if build_util.get_target_platform() == 'win32':
                 libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
 
+            bindirs_env = os.pathsep.join(bindirs)
+            os.environ['PATH'] = bindirs_env + os.pathsep + os.environ['PATH']
+            conf.environ['PATH'] = bindirs_env + os.pathsep + conf.environ['PATH']
             conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
             conf.env['INCLUDES'] = includes
             conf.env['LIBPATH']  = libdirs
