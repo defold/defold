@@ -481,6 +481,68 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetNonPositiveSize)
+{
+    const char* script_template =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
+    "        width = %s,\n"
+    "        height = 2,\n"
+    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
+    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
+    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
+    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
+    "end\n";
+
+    const char* invalid_widths[] = { "0", "-1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid_widths); ++i)
+    {
+        char script[1024];
+        dmSnPrintf(script, sizeof(script), script_template, invalid_widths[i]);
+
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+        dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+        dmRender::DeleteRenderScriptInstance(render_script_instance);
+        dmRender::DeleteRenderScript(m_Context, render_script);
+    }
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetSetSizeInvalid)
+{
+    const char* script_template =
+    "function update(self)\n"
+    "    local params_color = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
+    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
+    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
+    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
+    "    render.set_render_target_size(self.rt, %s, 4)\n"
+    "end\n";
+
+    const char* invalid_widths[] = { "0", "-1", "1000000000" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid_widths); ++i)
+    {
+        char script[1024];
+        dmSnPrintf(script, sizeof(script), script_template, invalid_widths[i]);
+
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+        dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::DeleteRenderScriptInstance(render_script_instance);
+        dmRender::DeleteRenderScript(m_Context, render_script);
+    }
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
 {
     const char* script =
