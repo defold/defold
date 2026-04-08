@@ -258,11 +258,7 @@ ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
         if (p->m_Disabled) continue;
         if (p->m_ScopeBegin)
         {
-            ProfileScopeResult listener_result = p->m_ScopeBegin(p->m_Ctx, name, name_hash ? *name_hash : 0);
-            if (listener_result != PROFILE_SCOPE_RESULT_OK)
-            {
-                result = listener_result;
-            }
+            result = p->m_ScopeBegin(p->m_Ctx, name, name_hash ? *name_hash : 0);
         }
     }
 
