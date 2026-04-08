@@ -36,10 +36,9 @@
 (deftest dirty-save-data-test
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
-    ; It's an old file with old properties that are migrated at load time which touches these files
-    (is (= #{"/bones/bones.collection", "/bones/marty.rivescene" "/bones/marty.rivemodel"} (test-util/dirty-proj-paths project)))
+    (is (= #{} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/bones/marty.rivescene")
-    (is (= #{"/bones/marty.rivescene" "/bones/bones.collection" "/bones/marty.rivemodel"} (test-util/dirty-proj-paths project)))
+    (is (= #{"/bones/marty.rivescene"} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/bones/marty.rivemodel")
     (is (= #{"/bones/marty.rivescene" "/bones/marty.rivemodel"} (test-util/dirty-proj-paths project)))))
 
@@ -61,8 +60,7 @@
         (is (not (g/error? (g/node-value node-id :scene)))))
 
       (testing "save-value"
-        (is (= {:atlas "/defold-rive/assets/empty.atlas"
-                :scene "/bones/marty.riv"}
+        (is (= {:scene "/bones/marty.riv"}
                (g/node-value node-id :save-value)))))))
 
 (deftest rivemodel-outputs-test
@@ -82,8 +80,6 @@
       (testing "save-value"
         (is (= {:artboard "New Artboard"
                 :blit-material "/defold-rive/assets/shader-library/rivemodel_blit.material"
-                :default-animation "Animation1"
-                :material "/defold-rive/assets/rivemodel.material"
                 :scene "/bones/marty.rivescene"}
                (g/node-value node-id :save-value)))))))
 
