@@ -477,8 +477,8 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-        self.env['DM_HOSTFS'] = '/data/local/tmp/' # for unit tests
         self.env.append_value('DEFINES', ['DM_NO_SYSTEM_FUNCTION', 'JC_TEST_USE_COLORS=1'])
+        self.env.append_value('DEFINES', ['DM_TEST_ANDROID_WIP']) # to make it clear if a test is disabled due to WIP
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
@@ -1441,7 +1441,7 @@ def _should_run_test_taskgen(ctx, taskgen):
     return True
 
 
-def run_tests(ctx, configfile = None):
+def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
@@ -1449,12 +1449,19 @@ def run_tests(ctx, configfile = None):
         Logs.info('Not running tests. node.js not found')
         return
 
+    # Check if we're in WIP mode
+    if 'android' in ctx.env.PLATFORM:
+        if os.path.basename(os.getcwd()) not in ['dlib']:
+            print("************************************************************")
+            print("Android test support is underway. Skipping!")
+            print("************************************************************")
+            return
+
     harness = get_test_harness(ctx.env.PLATFORM)
     cwd = os.getcwd()
 
-    print("MAWE USING HARNESS", harness, ctx.env.PLATFORM)
     try:
-        harness.prepare(ctx.env, cwd, configfile)
+        harness.prepare(ctx.env, cwd, configfile, folders)
     except Exception as e:
         print("Failed to prepare test harness for platform %s" % (ctx.env.PLATFORM))
         raise e

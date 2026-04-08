@@ -170,7 +170,8 @@ def shutdown(sht):
             print("Wrote fallback test config file: %s" % configfilepath)
 
     try:
-        waf_dynamo.run_tests(test_context, configfile = configfilepath)
+        waf_dynamo.run_tests(test_context, configfile = configfilepath,
+                                folders = {"src/test/data": "src/test/data"})
     finally:
         if configfilepath and os.path.exists(configfilepath):
             os.remove(configfilepath)

@@ -47,51 +47,12 @@ TEST(dmTestUtil, MakeHostPath)
 }
 ///////////////////////////////////////////////////////////
 
-static const char* FindLocalFileFromArgs(const char* extension)
-{
-#if defined(ANDROID)
-    // First, try to find a local path, using the command line arguments
-    // It helps keep setting up tests easy on devices, by avoiding copying extra files for testing
-    size_t host_fs_len = strlen(DM_HOSTFS);
-    if (host_fs_len > 0)
-    {
-        for (int i = 0; i < g_Argc; ++i)
-        {
-            const char* arg = g_Argv[i];
-
-            // If we're looking for a certain file type
-            if (extension)
-            {
-                const char* ext = strrchr(arg, '.');
-                if (!ext)
-                    continue;
-                if (strcmp(extension, ext) != 0)
-                    continue;
-            }
-
-            if (strstr(arg, DM_HOSTFS))
-            {
-                arg += host_fs_len;
-            }
-
-            return arg;
-        }
-    }
-#endif
-    return 0;
-}
-
 TEST(dmSys, Exists)
 {
     char path[1024];
     bool r;
 
-    const char* local = "src";
-#if defined(ANDROID)
-    local = FindLocalFileFromArgs(0);
-#endif
-
-    r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), local));
+    r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "src"));
     ASSERT_TRUE(r);
 
     r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "notexist"));
@@ -103,24 +64,14 @@ TEST(dmSys, IsDir)
     char path[1024];
     dmSys::Result r;
 
-    const char* local_file = "wscript";
-    const char* local_dir = "src";
-
-#if defined(ANDROID)
-    local_file = FindLocalFileFromArgs(0);
-    char local_dir_buffer[1024];
-    dmPath::Dirname(local_file, local_dir_buffer, sizeof(local_dir_buffer));
-    local_dir = local_dir_buffer;
-#endif
-
     // Check a directory
-    dmTestUtil::MakeHostPath(path, sizeof(path), local_dir);
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src");
     ASSERT_TRUE(dmSys::Exists(path));
     r = dmSys::IsDir(path);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
     // Check a file
-    dmTestUtil::MakeHostPath(path, sizeof(path), local_file);
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/empty.config");
     ASSERT_TRUE(dmSys::Exists(path));
     r = dmSys::IsDir(path);
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
@@ -311,12 +262,9 @@ TEST(dmSys, LoadResource)
     r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    const char* local_file = "wscript";
-#if defined(ANDROID)
-    local_file = FindLocalFileFromArgs(".cfg");
-    ASSERT_NE((const char*)0, local_file);
-#endif
+    const char* local_file = "src/test/data/test.config"; // Must be non-empty
 
+    // Check that the file is larger than the passed buffer size
     r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), local_file), 0, 0, &size);
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 

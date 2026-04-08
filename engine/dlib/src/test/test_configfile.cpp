@@ -30,12 +30,6 @@
     #undef DM_SUPPORT_HTTP_READ
 #endif
 
-#if defined(__ANDROID__)
-    // While we could copy files over to the android device
-    // It's just easier to read over the http connection
-    #undef DM_SUPPORT_FILE_READ
-#endif
-
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = -1;
 

@@ -11,11 +11,19 @@ from waf_tests import TestHarness, register_test_harness
 
 class AndroidTestHarness(TestHarness):
     def __init__(self):
-        self.device_root = '/data/local/tmp/defold-tests'
+        self.device_root = '/data/local/tmp/unittest'
         self._prepared = False
+        self._library_name = None
+        self._library_root = None
         self._configfile = None
         self._reverse_port = None
         self._reverse_active = False
+
+    def _get_library_name(self, cwd):
+        library_name = os.path.basename(os.path.normpath(cwd))
+        if not library_name:
+            return 'test'
+        return library_name
 
     def _get_reverse_port(self, cwd, configfile):
         if not configfile:
@@ -63,13 +71,67 @@ class AndroidTestHarness(TestHarness):
             Logs.error('android-test: adb not found, set ADB or put adb on PATH')
             raise
 
-    def prepare(self, env, cwd, configfile):
+    def _push_file(self, env, source, device_path):
+        device_parent = os.path.dirname(device_path)
+        ret = self._run(env, ['shell', 'mkdir', '-p', device_parent])
+        if ret != 0:
+            Logs.info('android-test: failed to create device file parent %s', device_parent)
+            return ret
+
+        ret = self._run(env, ['push', source, device_path])
+        if ret != 0:
+            Logs.info('android-test: failed to push file %s', source)
+            return ret
+
+        return 0
+
+    def _push_source_path(self, env, cwd, source, target):
+        if not os.path.isabs(source):
+            source = os.path.join(cwd, source)
+        source = os.path.normpath(source)
+
+        if not os.path.exists(source):
+            Logs.info('android-test: source %s not found, skipping', source)
+            return 0
+
+        target = (target or '').replace(os.sep, '/').lstrip('/')
+        if not target:
+            target = os.path.basename(source)
+
+        device_path = '%s/%s' % (self._library_root, target)
+
+        if os.path.isdir(source):
+            Logs.info('android-test: staging folder %s to %s', source, device_path)
+
+            ret = self._run(env, ['shell', 'mkdir', '-p', device_path])
+            if ret != 0:
+                Logs.info('android-test: failed to create device folder %s', device_path)
+                return ret
+
+            ret = self._run(env, ['push', source + '/.', device_path])
+            if ret != 0:
+                Logs.info('android-test: failed to push folder %s', source)
+                return ret
+        else:
+            Logs.info('android-test: staging file %s to %s', source, device_path)
+            ret = self._push_file(env, source, device_path)
+            if ret != 0:
+                return ret
+
+        return 0
+
+    def prepare(self, env, cwd, configfile, folders = None):
         self._prepared = True
         Logs.info('android-test: prepare cwd=%s configfile=%s', cwd, configfile)
 
+        self._library_name = self._get_library_name(cwd)
+        self._library_root = '%s/%s' % (self.device_root, self._library_name)
         self._configfile = None
         self._reverse_active = False
         self._reverse_port = self._get_reverse_port(cwd, configfile)
+
+        if folders != None and not isinstance(folders, dict):
+            raise TypeError('android-test: folders must be a dict or None')
 
         if self._reverse_port:
             ret = self._run(env, ['reverse', 'tcp:%d' % self._reverse_port, 'tcp:%d' % self._reverse_port])
@@ -80,13 +142,19 @@ class AndroidTestHarness(TestHarness):
             self._reverse_active = True
             Logs.info('android-test: enabled adb reverse tcp:%d tcp:%d', self._reverse_port, self._reverse_port)
 
-        ret = self._run(env, ['shell', 'mkdir', '-p', self.device_root])
+        ret = self._run(env, ['shell', 'mkdir', '-p', self._library_root])
         if ret != 0:
             Logs.info('android-test: failed to create device folder')
             return
 
+        if folders != None:
+            for source, target in folders.items():
+                ret = self._push_source_path(env, cwd, source, target)
+                if ret != 0:
+                    return
+
         if configfile:
-            self._configfile = '%s/%s' % (self.device_root, 'unittest.cfg')
+            self._configfile = '%s/%s' % (self._library_root, 'unittest.cfg')
             Logs.info('android-test: staging config file to %s', self._configfile)
 
             ret = self._run(env, ['push', os.path.join(cwd, configfile), self._configfile])
@@ -106,32 +174,26 @@ class AndroidTestHarness(TestHarness):
         self._configfile = None
         self._reverse_active = False
         self._reverse_port = None
+        self._library_name = None
+        self._library_root = None
 
     def run_test(self, program, configfile, env, argv):
-        device_program = '%s/%s' % (self.device_root, os.path.basename(program))
-        Logs.info('android-test: push %s %s', program, device_program)
-        args = ['shell', 'mkdir', '-p', self.device_root]
-        ret = self._run(env, args)
-        if ret != 0:
-            Logs.info('android-test: failed to create device test directory')
-            return ret
-
-        ret = self._run(env, ['push', program, device_program])
+        device_program = os.path.basename(program)
+        device_program_path = '%s/%s' % (self._library_root, device_program)
+        Logs.info('android-test: push %s %s', program, device_program_path)
+        ret = self._run(env, ['push', program, device_program_path])
         if ret != 0:
             Logs.info('android-test: failed to push test binary')
             return ret
 
-        ret = self._run(env, ['shell', 'chmod', '755', device_program])
+        ret = self._run(env, ['shell', 'chmod', '755', device_program_path])
         if ret != 0:
             Logs.info('android-test: failed to chmod test binary')
             return ret
 
-        cmd = ['shell', device_program]
+        cmd = ['shell', 'cd', self._library_root, '&&', './%s' % device_program]
         if self._configfile:
-            # We don't prepend the temp folder, as that's already specified by the DM_HOSTFS
-            config_folder = os.path.basename(self.device_root)
-            # We map all config files to the same name, in order to keep it clean an uncluttered
-            relative_config = f'{config_folder}/unittest.cfg'
+            relative_config = './unittest.cfg'
 
             Logs.info('android-test: using staged config file %s', relative_config)
             cmd.append(relative_config)

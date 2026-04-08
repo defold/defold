@@ -15,7 +15,7 @@ def register_test_harness(platforms, harness):
 
 
 class TestHarness(object):
-    def prepare(self, env, cwd, configfile):
+    def prepare(self, env, cwd, configfile, folders = None):
         pass
 
     def stop(self, env, cwd, configfile):
