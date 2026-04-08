@@ -577,11 +577,11 @@ namespace dmProfiler
 // ***************************************************************************************************************
 // Listener api
 
-static void SetThreadName(void* ctx, const char* name)
+static ProfileResult SetThreadName(void* ctx, const char* name)
 {
     (void)ctx;
     PropertyInitialize();
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     int32_t      thread_id = GetThreadId();
     const char** existing = g_ProfileContext->m_ThreadNames.Get(thread_id);
@@ -596,6 +596,7 @@ static void SetThreadName(void* ctx, const char* name)
         g_ProfileContext->m_ThreadNames.SetCapacity((cap * 2) / 3, cap);
     }
     g_ProfileContext->m_ThreadNames.Put(thread_id, strdup(name));
+    return PROFILE_RESULT_OK;
 }
 
 static void* CreateListener()
@@ -624,17 +625,18 @@ static void DestroyListener(void* listener)
     g_Lock = 0;
 }
 
-static void FrameBegin(void* ctx)
+static ProfileResult FrameBegin(void* ctx)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
+    return PROFILE_RESULT_OK;
 }
 
-static void FrameEnd(void* ctx)
+static ProfileResult FrameEnd(void* ctx)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     // For each top property
@@ -642,20 +644,20 @@ static void FrameEnd(void* ctx)
         g_PropertyTreeCallback(g_PropertyTreeCallbackCtx, 0); // 0 being the root index
 
     ResetProperties(g_ProfileContext);
+    return PROFILE_RESULT_OK;
 }
 
-static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
-    if (!IsProfileInitialized())
-        return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
     if (td->m_OverflowDepth != 0)
     {
         td->m_OverflowDepth++;
-        return PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES;
+        return PROFILE_RESULT_OUT_OF_SAMPLES;
     }
 
     uint64_t tstart = dmTime::GetMonotonicTime();
@@ -666,7 +668,7 @@ static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_
         // Once the sample pool is exhausted we skip nested scopes until the stack is balanced
         // again, instead of linking a shared sentinel node into the sample tree.
         td->m_OverflowDepth = 1;
-        return PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES;
+        return PROFILE_RESULT_OUT_OF_SAMPLES;
     }
 
     InternalizeName(name, &sample_name_hash);
@@ -676,20 +678,20 @@ static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_
     else
         sample->m_Start = tstart;
 
-    return PROFILE_SCOPE_RESULT_OK;
+    return PROFILE_RESULT_OK;
 }
 
-static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
     if (td->m_OverflowDepth != 0)
     {
         td->m_OverflowDepth--;
-        return;
+        return PROFILE_RESULT_OK;
     }
 
     uint64_t    end = dmTime::GetMonotonicTime();
@@ -732,6 +734,8 @@ static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
 
         ResetThreadData(td);
     }
+
+    return PROFILE_RESULT_OK;
 }
 
 // ***************************************************************************************************************

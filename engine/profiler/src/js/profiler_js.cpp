@@ -204,9 +204,9 @@ static void DestroyListener(void*)
     g_Lock = 0;
 }
 
-static void SetThreadName(void*, const char* name)
+static ProfileResult SetThreadName(void*, const char* name)
 {
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     if (g_ProfileContext->m_ThreadNames.Full())
     {
@@ -214,40 +214,43 @@ static void SetThreadName(void*, const char* name)
         g_ProfileContext->m_ThreadNames.SetCapacity((cap*2)/3, cap);
     }
     g_ProfileContext->m_ThreadNames.Put(GetThreadId(), strdup(name));
+    return PROFILE_RESULT_OK;
 }
 
-static void FrameBegin(void*)
+static ProfileResult FrameBegin(void*)
 {
+    return PROFILE_RESULT_OK;
 }
 
-static void FrameEnd(void*)
+static ProfileResult FrameEnd(void*)
 {
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     dmProfileJSEndFrame(GetThreadId());
+    return PROFILE_RESULT_OK;
 }
 
-static ProfileScopeResult ScopeBegin(void*, const char* name, uint64_t name_hash)
+static ProfileResult ScopeBegin(void*, const char* name, uint64_t name_hash)
 {
     (void)name_hash;
-    if (!IsProfileInitialized())
-        return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     dmProfileJSBeginMark(GetThreadId(), name);
-    return PROFILE_SCOPE_RESULT_OK;
+    return PROFILE_RESULT_OK;
 }
 
-static void ScopeEnd(void*, const char* name, uint64_t name_hash)
+static ProfileResult ScopeEnd(void*, const char* name, uint64_t name_hash)
 {
     (void)name_hash;
-    CHECK_INITIALIZED();
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     const int32_t thread_id = GetThreadId();
 
     if (dmProfileJSEndMark(thread_id)) {
         dmProfileJSReset(thread_id);
     }
+    return PROFILE_RESULT_OK;
 }
 
 // *******************************************************************

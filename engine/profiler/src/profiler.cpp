@@ -192,10 +192,10 @@ static void PushLuaProfilerScope(lua_State* L, const char* name, uint32_t name_l
     LuaProfilerScope scope;
     scope.m_NameOffset = state->m_Names.Size();
     uint64_t name_hash = 0;
-    ProfileScopeResult result = ProfileScopeBegin(name, &name_hash);
+    ProfileResult result = ProfileScopeBegin(name, &name_hash);
     scope.m_NameHash = name_hash;
 
-    if (result == PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES)
+    if (result == PROFILE_RESULT_OUT_OF_SAMPLES)
     {
         dmLogWarning("Lua profiler scope '%s' exceeded the profiler sample limit for the current thread/frame. Additional Lua profiler scopes will be dropped until the stack unwinds.", name);
     }

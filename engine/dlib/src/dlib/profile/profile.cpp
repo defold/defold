@@ -173,6 +173,40 @@ void ProfileUnregisterProfiler(const char* name)
         }                                                               \
     }
 
+#define CHECK_INITIALIZED_RETVAL(_RETVAL)                               \
+    if (!IsProfileInitialized())                                        \
+        return _RETVAL;
+
+#define DO_LOOP_NOARGS_RETVAL(_FUNC)                                    \
+    do                                                                  \
+    {                                                                   \
+        ProfileResult result = PROFILE_RESULT_OK;                       \
+        for (ProfileListener* p = g_ProfileListeners; p != 0; p = p->m_Next) \
+        {                                                               \
+            if (p->m_Disabled) continue;                                \
+            if (p->m_ ## _FUNC)                                         \
+            {                                                           \
+                result = p->m_ ## _FUNC(p->m_Ctx);                      \
+            }                                                           \
+        }                                                               \
+        return result;                                                  \
+    } while (0)
+
+#define DO_LOOP_RETVAL(_FUNC, ...)                                      \
+    do                                                                  \
+    {                                                                   \
+        ProfileResult result = PROFILE_RESULT_OK;                       \
+        for (ProfileListener* p = g_ProfileListeners; p != 0; p = p->m_Next) \
+        {                                                               \
+            if (p->m_Disabled) continue;                                \
+            if (p->m_ ## _FUNC)                                         \
+            {                                                           \
+                result = p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__);         \
+            }                                                           \
+        }                                                               \
+        return result;                                                  \
+    } while (0)
+
 
 // *****************************************************************************************
 // Initialize / Finalize
@@ -231,56 +265,48 @@ HProfile ProfileFrameBegin()
     return result;
 }
 
-void ProfileFrameEnd(HProfile profile)
+ProfileResult ProfileFrameEnd(HProfile profile)
 {
     if (!profile)
-        return;
+        return PROFILE_RESULT_OK;
 
-    DO_LOOP_NOARGS(FrameEnd);
-}
-
-ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
-{
-    if (!IsProfileInitialized())
-        return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
-
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
-    ProfileScopeResult result = PROFILE_SCOPE_RESULT_OK;
+    DO_LOOP_NOARGS_RETVAL(FrameEnd);
+}
 
+ProfileResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
+{
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
     if (name_hash && !*name_hash)
     {
         *name_hash = dmHashString64(name);
     }
 
-    for (ProfileListener* p = g_ProfileListeners; p != 0; p = p->m_Next)
-    {
-        if (p->m_Disabled) continue;
-        if (p->m_ScopeBegin)
-        {
-            result = p->m_ScopeBegin(p->m_Ctx, name, name_hash ? *name_hash : 0);
-        }
-    }
-
-    return result;
+    DO_LOOP_RETVAL(ScopeBegin, name, name_hash ? *name_hash : 0);
 }
 
-void ProfileScopeEnd(const char* name, uint64_t name_hash)
+ProfileResult ProfileScopeEnd(const char* name, uint64_t name_hash)
 {
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
-    DO_LOOP(ScopeEnd, name, name_hash);
+    DO_LOOP_RETVAL(ScopeEnd, name, name_hash);
 }
 
-void ProfileSetThreadName(const char* name)
+ProfileResult ProfileSetThreadName(const char* name)
 {
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
-    DO_LOOP(SetThreadName, name);
+    DO_LOOP_RETVAL(SetThreadName, name);
 }
 
-void ProfileLogText(const char* format, ...)
+ProfileResult ProfileLogText(const char* format, ...)
 {
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
     char buffer[DM_PROFILE_TEXT_LENGTH];
@@ -294,7 +320,7 @@ void ProfileLogText(const char* format, ...)
     }
     va_end(lst);
 
-    DO_LOOP(LogText, buffer);
+    DO_LOOP_RETVAL(LogText, buffer);
 }
 
 // *****************************************************************************************

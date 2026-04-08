@@ -89,18 +89,18 @@ enum ProfilePropertyFlags
     PROFILE_PROPERTY_FRAME_RESET = 1  // reset the property each frame
 };
 
-/*# Enum to describe the result of starting a profile scope
+/*# Enum to describe the result of a profiler operation
  * @enum
- * @name ProfileScopeResult
- * @member PROFILE_SCOPE_RESULT_OK
- * @member PROFILE_SCOPE_RESULT_NOT_INITIALIZED
- * @member PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES
+ * @name ProfileResult
+ * @member PROFILE_RESULT_OK
+ * @member PROFILE_RESULT_NOT_INITIALIZED
+ * @member PROFILE_RESULT_OUT_OF_SAMPLES
  */
-enum ProfileScopeResult
+enum ProfileResult
 {
-    PROFILE_SCOPE_RESULT_OK = 0,
-    PROFILE_SCOPE_RESULT_NOT_INITIALIZED = 1,
-    PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES = 2,
+    PROFILE_RESULT_OK = 0,
+    PROFILE_RESULT_NOT_INITIALIZED = 1,
+    PROFILE_RESULT_OUT_OF_SAMPLES = 2,
 };
 
 /*# Index constant to mark a a property as invalid
@@ -228,12 +228,12 @@ const uint32_t PROFILE_PROPERTY_INVALID_IDX = 0xFFFFFFFF;
 typedef void* (*ProfileCreateListenerFn)();
 typedef void (*ProfileDestroyListenerFn)(void* ctx);
 
-typedef void (*ProfileFrameBeginFn)(void* ctx);
-typedef void (*ProfileFrameEndFn)(void* ctx);
-typedef ProfileScopeResult (*ProfileScopeBeginFn)(void* ctx, const char* name, uint64_t name_hash);
-typedef void (*ProfileScopeEndFn)(void* ctx, const char* name, uint64_t name_hash);
-typedef void (*ProfileSetThreadNameFn)(void* ctx, const char* name);
-typedef void (*ProfileLogTextFn)(void* ctx, const char* text);
+typedef ProfileResult (*ProfileFrameBeginFn)(void* ctx);
+typedef ProfileResult (*ProfileFrameEndFn)(void* ctx);
+typedef ProfileResult (*ProfileScopeBeginFn)(void* ctx, const char* name, uint64_t name_hash);
+typedef ProfileResult (*ProfileScopeEndFn)(void* ctx, const char* name, uint64_t name_hash);
+typedef ProfileResult (*ProfileSetThreadNameFn)(void* ctx, const char* name);
+typedef ProfileResult (*ProfileLogTextFn)(void* ctx, const char* text);
 
 typedef void (*ProfilePropertyCreateGroupFn)(void* ctx, const char* name, const char* desc, ProfileIdx idx, ProfileIdx parent);
 typedef void (*ProfilePropertyCreateBoolFn)(void* ctx, const char* name, const char* desc, int value, uint32_t flags, ProfileIdx idx, ProfileIdx parent);
@@ -343,8 +343,9 @@ bool ProfileIsInitialized();
  * Set the current thread name to each registered profiler
  * @name ProfileSetThreadName
  * @param name [type:const char*] Name of the thread
+ * @return result [type:ProfileResult] Status for the thread name operation
  */
-void ProfileSetThreadName(const char* name);
+ProfileResult ProfileSetThreadName(const char* name);
 
 /*#
  * Begin profiling, eg start of frame
@@ -358,36 +359,39 @@ HProfile ProfileFrameBegin();
  * Release profile returned by #ProfileFrameBegin
  * @name ProfileFrameEnd
  * @param profile [type: HProfile] Profile to release
+ * @return result [type:ProfileResult] Status for the frame end operation
  */
-void ProfileFrameEnd(HProfile profile);
+ProfileResult ProfileFrameEnd(HProfile profile);
 
 /*#
  * Start a new profile scope
  * @name ProfileScopeBegin
  * @param name [type:const char*] Name of the scope
  * @param name_hash [type:uint64_t] Hashed name of the scope
- * @return result [type:ProfileScopeResult] Status for the scope begin operation
+ * @return result [type:ProfileResult] Status for the scope begin operation
  */
-ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash);
+ProfileResult ProfileScopeBegin(const char* name, uint64_t* name_hash);
 
 /*#
  * End the last added scope
  * @name ProfileScopeEnd
  * @param name [type:const char*] Name of the scope
  * @param name_hash [type:uint64_t] Hashed name of the scope
+ * @return result [type:ProfileResult] Status for the scope end operation
  */
-void ProfileScopeEnd(const char* name, uint64_t name_hash);
+ProfileResult ProfileScopeEnd(const char* name, uint64_t name_hash);
 
 /*#
  * Log text via the registered profilers
  * @name ProfileLogText
  * @param name [type:const char*] Name of the scope
  * @param ... [type: va_list] Arguments for internal logging function
+ * @return result [type:ProfileResult] Status for the log text operation
  */
 #ifdef __GNUC__
-    void ProfileLogText(const char* text, ...) __attribute__ ((format (printf, 1, 2)));
+    ProfileResult ProfileLogText(const char* text, ...) __attribute__ ((format (printf, 1, 2)));
 #else
-    void ProfileLogText(const char* text, ...);
+    ProfileResult ProfileLogText(const char* text, ...);
 #endif
 
 /// Internal, do not use. Use DM_PROFILE() instead

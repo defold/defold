@@ -33,10 +33,11 @@ static const char*              g_ProfilerName = "ProfilerDummy";
 static ProfileListener          g_Listener = {};
 
 
-static void LogText(void* _ctx, const char* text)
+static ProfileResult LogText(void* _ctx, const char* text)
 {
     ProfilerDummyContext* ctx = (ProfilerDummyContext*)_ctx;
     dmStrlCat(ctx->m_TextBuffer, text, sizeof(ctx->m_TextBuffer));
+    return PROFILE_RESULT_OK;
 }
 
 static void* CreateListener()
@@ -265,12 +266,13 @@ static void ProfilePropertyReset(void* _ctx, ProfileIdx idx)
     prop->m_Value = prop->m_DefaultValue;
 }
 
-static void FrameBegin(void* ctx)
+static ProfileResult FrameBegin(void* ctx)
 {
     (void)ctx;
+    return PROFILE_RESULT_OK;
 }
 
-static void FrameEnd(void* ctx)
+static ProfileResult FrameEnd(void* ctx)
 {
     (void)ctx;
 
@@ -279,6 +281,7 @@ static void FrameEnd(void* ctx)
     g_Context->m_NumProperties = 0;
     g_Context->m_NumSamples = 1;
     g_Context->m_CurrentSample = &g_Context->m_Samples[0];
+    return PROFILE_RESULT_OK;
 }
 
 static ProfilerDummySample* AllocateSample(ProfilerDummyContext* ctx, uint64_t name_hash)
@@ -324,7 +327,7 @@ static ProfilerDummySample* AllocateSample(ProfilerDummyContext* ctx, uint64_t n
     return sample;
 }
 
-static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
 
@@ -340,10 +343,10 @@ static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_
     else
         sample->m_Start = tstart;
 
-    return PROFILE_SCOPE_RESULT_OK;
+    return PROFILE_RESULT_OK;
 }
 
-static void ScopeEnd(void* _ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeEnd(void* _ctx, const char* name, uint64_t name_hash)
 {
     ProfilerDummyContext* ctx = (ProfilerDummyContext*)_ctx;
 
@@ -366,6 +369,7 @@ static void ScopeEnd(void* _ctx, const char* name, uint64_t name_hash)
 
     ctx->m_CurrentSample = sample->m_Parent;
     assert(ctx->m_CurrentSample != 0);
+    return PROFILE_RESULT_OK;
 }
 
 void DummyProfilerRegister()

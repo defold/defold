@@ -27,8 +27,10 @@ bool ProfileIsInitialized()
     return false;
 }
 
-void ProfileSetThreadName(const char* name)
+ProfileResult ProfileSetThreadName(const char* name)
 {
+    (void)name;
+    return PROFILE_RESULT_NOT_INITIALIZED;
 }
 
 HProfile ProfileFrameBegin()
@@ -36,21 +38,30 @@ HProfile ProfileFrameBegin()
     return 0;
 }
 
-void ProfileFrameEnd(HProfile profile)
+ProfileResult ProfileFrameEnd(HProfile profile)
 {
+    (void)profile;
+    return PROFILE_RESULT_NOT_INITIALIZED;
 }
 
-ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
+ProfileResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
 {
-    return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
+    (void)name;
+    (void)name_hash;
+    return PROFILE_RESULT_NOT_INITIALIZED;
 }
 
-void ProfileScopeEnd(const char* name, uint64_t name_hash)
+ProfileResult ProfileScopeEnd(const char* name, uint64_t name_hash)
 {
+    (void)name;
+    (void)name_hash;
+    return PROFILE_RESULT_NOT_INITIALIZED;
 }
 
-void ProfileLogText(const char* text, ...)
+ProfileResult ProfileLogText(const char* text, ...)
 {
+    (void)text;
+    return PROFILE_RESULT_NOT_INITIALIZED;
 }
 
 void ProfilePropertySetBool(ProfileIdx idx, int v)
