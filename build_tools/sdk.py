@@ -131,7 +131,10 @@ def log_verbose(verbose, msg):
 
 def _get_latest_version_from_folders(path, replace_patterns=[]):
     dirs = [x for x in os.listdir(path)]
-    if len(dirs) == 0:
+    return _get_latest_version_from_list(dirs, replace_patterns)
+
+def _get_latest_version_from_list(entries, replace_patterns=[]):
+    if len(entries) == 0:
         return None
 
     def _replace_pattern(s, patterns):
@@ -142,8 +145,14 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
             s = re.sub(r'-ext\d+$', '', s)
         return s
 
-    dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
-    return dirs[0]
+    entries = sorted(entries, key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
+    return entries[0]
+
+def _get_version_major_prefix(version):
+    match = re.match(r'^(\d+)', version)
+    if match:
+        return match.group(1)
+    return version
 
 def _get_host_exe_suffix():
     if sys.platform == 'win32':
@@ -253,12 +262,35 @@ def get_android_local_sdk_path(verbose=False):
 
     raise SDKException(f"Path {path} not found")
 
+def _get_android_local_ndk_env_path(verbose=False):
+    for var_name in ('ANDROID_NDK_HOME', 'ANDROID_NDK_ROOT'):
+        path = os.environ.get(var_name, None)
+        if path and os.path.exists(path):
+            log_verbose(verbose, f"  Detected ndk path from {var_name}: {path}")
+            return path
+    return None
+
 def get_android_local_ndk_path(platform, verbose=False):
-    sdk_root = get_android_local_sdk_path()
+    path = _get_android_local_ndk_env_path(verbose)
+    if path:
+        return path
+
+    sdk_root = get_android_local_sdk_path(verbose)
     ndk_root = os.path.join(sdk_root, 'ndk')
     if not os.path.exists(ndk_root):
         raise SDKException(f"  Failed to find {ndk_root}")
-    version = _get_latest_version_from_folders(ndk_root)
+
+    preferred_major = _get_version_major_prefix(ANDROID_NDK_VERSION)
+    ndk_versions = [x for x in os.listdir(ndk_root)]
+    preferred_versions = [x for x in ndk_versions if x.startswith(preferred_major)]
+
+    version = None
+    if len(preferred_versions) > 0:
+        version = _get_latest_version_from_list(preferred_versions)
+
+    if not version:
+        version = _get_latest_version_from_folders(ndk_root)
+
     if not version:
         raise SDKException(f"  No ndk versions installed in {ndk_root}")
     return os.path.join(ndk_root, version)

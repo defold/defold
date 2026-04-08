@@ -161,21 +161,17 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       { name: 'Set up Android SDK', uses: android-actions/setup-android@v3 },
       { name: 'Set up Android NDK r25b', id: setup-ndk, uses: nttld/setup-ndk@v1, with: { ndk-version: r25b } },
-      { name: 'Export ANDROID_NDK env',
-        shell: bash,
-        run: 'echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"; echo "Using ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}"' },
-      { name: 'Configure Android toolchain environment',
-        shell: bash,
-        run: 'set -euo pipefail; echo "ANDROID_NDK_HOME=${ANDROID_NDK}" >> "$GITHUB_ENV"; echo "NDK_PATH=${ANDROID_NDK}" >> "$GITHUB_ENV"; echo "ANDROID_API=${{ matrix.ndk_api }}" >> "$GITHUB_ENV"'
-      },
+      { name: 'Install dependencies',
+        env: { ANDROID_NDK_HOME: '${{ steps.setup-ndk.outputs.ndk-path }}', ANDROID_NDK_ROOT: '${{ steps.setup-ndk.outputs.ndk-path }}' },
+        run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       { name: 'Enable KVM', if: matrix.platform == 'arm64-android', run: "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm" },
       {
         name: 'Build engine',
         if: matrix.platform == 'arm64-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         uses: reactivecircus/android-emulator-runner@v2,
+        env: { ANDROID_NDK_HOME: '${{ steps.setup-ndk.outputs.ndk-path }}', ANDROID_NDK_ROOT: '${{ steps.setup-ndk.outputs.ndk-path }}' },
         with: {
           api-level: 30,
           arch: arm64-v8a,
