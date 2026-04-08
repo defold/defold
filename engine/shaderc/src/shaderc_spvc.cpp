@@ -131,7 +131,7 @@ namespace dmShaderc
         {IMAGE_STORAGE_TYPE_R64I, "R64I"},
     };
 
-    static uint32_t GetTypeIndex(ShaderReflection& reflection, spvc_compiler compiler, const char* type_name, spvc_type_id type_id, spvc_type type)
+    static uint32_t GetTypeIndex(ShaderReflection& reflection, spvc_compiler compiler, const char* type_name, spvc_type type)
     {
         dmhash_t type_name_hash = dmHashString64(type_name);
         for (int i = 0; i < reflection.m_Types.Size(); ++i)
@@ -160,6 +160,8 @@ namespace dmShaderc
         ResourceMember* members = type_info->m_Members.Begin();
         memset(members, 0, sizeof(ResourceMember) * member_count);
 
+        const spvc_type_id struct_name_lookup_id = spvc_type_get_base_type_id(type);
+
         for (int i = 0; i < member_count; ++i)
         {
             spvc_type_id member_type_id    = spvc_type_get_member_type(type, i);
@@ -177,7 +179,8 @@ namespace dmShaderc
 
             ResourceMember& member    = members[i];
             member.m_Offset           = (uint32_t) member_offset;
-            member.m_Name             = spvc_compiler_get_member_name(compiler, type_id, i);
+            // Member decorations live on the base struct type, not on qualified wrappers (see spvc_type_get_base_type_id).
+            member.m_Name             = spvc_compiler_get_member_name(compiler, struct_name_lookup_id, i);
             member.m_NameHash         = dmHashString64(member.m_Name);
             member.m_Type.m_ArraySize = 1;
 
@@ -191,7 +194,7 @@ namespace dmShaderc
             if (member_base_type == SPVC_BASETYPE_STRUCT)
             {
                 const char* name             = spvc_compiler_get_name(compiler, member_type_id);
-                member.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, name, member_type_id, member_type);
+                member.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, name, member_type);
                 member.m_Type.m_UseTypeIndex = true;
             }
             else
@@ -242,6 +245,15 @@ namespace dmShaderc
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
 
+            // UBO/SSBO variables are OpTypePointer(Uniform|StorageBuffer, T). Peel once so array/struct queries see T.
+            SpvStorageClass sc = spvc_type_get_storage_class(type);
+            if (sc == SpvStorageClassUniform || sc == SpvStorageClassStorageBuffer)
+            {
+                type_id = spvc_type_get_base_type_id(type);
+                type    = spvc_compiler_get_type_handle(compiler, type_id);
+                base_type = spvc_type_get_basetype(type);
+            }
+
             // Uniform/storage buffer: uniform Block { T x[N]; } or uniform T { } x[N] — outer type is an array; unwrap for struct layout.
             resource.m_Type.m_ArraySize = 1;
             unsigned num_resource_array_dims = spvc_type_get_num_array_dimensions(type);
@@ -267,7 +279,7 @@ namespace dmShaderc
                 {
                     resource.m_BlockSize *= resource.m_Type.m_ArraySize;
                 }
-                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, type_id, type);
+                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, type);
                 resource.m_Type.m_UseTypeIndex = true;
             }
             else
