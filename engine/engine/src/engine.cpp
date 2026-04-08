@@ -67,6 +67,10 @@
     #include <emscripten/emscripten.h>
 #endif
 
+#if defined(__ANDROID__)
+    #include <dmsdk/dlib/android.h>
+#endif
+
 #if defined(__EMSCRIPTEN__)
     #include "engine_web.h"
 #endif
@@ -116,6 +120,64 @@ namespace dmEngine
 #endif
 
     using namespace dmVMath;
+
+#if defined(__ANDROID__)
+    static void AndroidStartupRaceSetRequestedOrientation(JNIEnv* env, jobject activity, jint orientation)
+    {
+        jclass activity_class = env->GetObjectClass(activity);
+        jmethodID set_requested_orientation = env->GetMethodID(activity_class, "setRequestedOrientation", "(I)V");
+        env->CallVoidMethod(activity, set_requested_orientation, orientation);
+        env->DeleteLocalRef(activity_class);
+    }
+
+    // TEMP CODE FOR TEST: Reproduce Android startup window churn without requiring a native extension in the test project.
+    static void RunAndroidStartupRaceTest(dmConfigFile::HConfig config)
+    {
+        const int32_t enabled = dmConfigFile::GetInt(config, "startup_race.enabled", 0);
+        if (!enabled)
+        {
+            return;
+        }
+
+        const int32_t delay_ms = dmConfigFile::GetInt(config, "startup_race.delay_ms", 200);
+        const int32_t flip_orientation = dmConfigFile::GetInt(config, "startup_race.flip_orientation", 1);
+        const int32_t flip_count = dmConfigFile::GetInt(config, "startup_race.flip_count", 6);
+        const int32_t flip_interval_ms = dmConfigFile::GetInt(config, "startup_race.flip_interval_ms", 150);
+        const int32_t final_orientation = dmConfigFile::GetInt(config, "startup_race.final_orientation", 13);
+
+        if (delay_ms > 0)
+        {
+            dmLogInfo("startup_race: sleeping for %d ms before window open", delay_ms);
+            dmTime::Sleep((uint32_t) delay_ms * 1000U);
+            dmLogInfo("startup_race: continuing startup");
+        }
+
+        if (!flip_orientation || flip_count <= 0 || flip_interval_ms <= 0)
+        {
+            return;
+        }
+
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (env == 0)
+        {
+            dmLogError("startup_race: Unable to attach JNI environment");
+            return;
+        }
+
+        jobject activity = thread.GetActivity()->clazz;
+        for (int32_t i = 0; i < flip_count; ++i)
+        {
+            const jint orientation = (i % 2 == 0) ? 1 : 0; // portrait, landscape
+            dmLogInfo("startup_race: requesting orientation %d (%d/%d)", orientation, i + 1, flip_count);
+            AndroidStartupRaceSetRequestedOrientation(env, activity, orientation);
+            dmTime::Sleep((uint32_t) flip_interval_ms * 1000U);
+        }
+
+        dmLogInfo("startup_race: restoring orientation %d", final_orientation);
+        AndroidStartupRaceSetRequestedOrientation(env, activity, final_orientation);
+    }
+#endif
 
 #define SYSTEM_SOCKET_NAME "@system"
 
@@ -956,12 +1018,21 @@ namespace dmEngine
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
 
+#if defined(__ANDROID__)
+        // TEMP CODE FOR TEST: Reproduce Android startup window churn without requiring a native extension in the test project.
+        dmLogInfo("ANDROID_STARTUP: before RunAndroidStartupRaceTest");
+        RunAndroidStartupRaceTest(engine->m_Config);
+        dmLogInfo("ANDROID_STARTUP: after RunAndroidStartupRaceTest");
+#endif
+
+        dmLogInfo("ANDROID_STARTUP: before AppInitialize");
         ScopedExtensionAppParams app_params(engine);
         dmExtension::Result er = dmExtension::AppInitialize(app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;
         }
+        dmLogInfo("ANDROID_STARTUP: after AppInitialize");
 
         int instance_index = 0;
 #if !defined(DM_RELEASE)
@@ -974,6 +1045,7 @@ namespace dmEngine
         // 0 - no logs, 1 - debug only, 2 - always
         if ((write_log_file == 2) || (write_log_file == 1 && dLib::IsDebugMode()))
         {
+            dmLogInfo("ANDROID_STARTUP: before log file setup write_log_file=%d", write_log_file);
             uint32_t count = 0;
             char* log_paths[3];
 
@@ -996,9 +1068,14 @@ namespace dmEngine
             char main_log_path[DMPATH_MAX_PATH];
             if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK)
             {
+                dmLogInfo("ANDROID_STARTUP: GetLogPath ok path=%s", sys_path);
                 dmPath::Concat(sys_path, log_file_name, main_log_path, sizeof(main_log_path));
                 log_paths[count] = main_log_path;
                 count++;
+            }
+            else
+            {
+                dmLogInfo("ANDROID_STARTUP: GetLogPath failed");
             }
 
             char application_support_path[DMPATH_MAX_PATH];
@@ -1006,17 +1083,25 @@ namespace dmEngine
             const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
             if (dmSys::GetApplicationSupportPath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
             {
+                dmLogInfo("ANDROID_STARTUP: GetApplicationSupportPath ok path=%s", application_support_path);
                 dmPath::Concat(application_support_path, log_file_name, application_support_log_path, sizeof(application_support_log_path));
                 log_paths[count] = application_support_log_path;
                 count++;
             }
+            else
+            {
+                dmLogInfo("ANDROID_STARTUP: GetApplicationSupportPath failed");
+            }
             for (uint32_t i = 0; i < count; ++i)
             {
+                dmLogInfo("ANDROID_STARTUP: SetLogFile try path=%s", log_paths[i]);
                 if (dmLog::SetLogFile(log_paths[i]))
                 {
+                    dmLogInfo("ANDROID_STARTUP: SetLogFile success path=%s", log_paths[i]);
                     break;
                 }
             }
+            dmLogInfo("ANDROID_STARTUP: after log file setup");
         }
 
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
@@ -1077,9 +1162,13 @@ namespace dmEngine
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
         }
 
+        dmLogInfo("ANDROID_STARTUP: before NewWindow");
         engine->m_Window = dmPlatform::NewWindow();
+        dmLogInfo("ANDROID_STARTUP: after NewWindow window=%p", engine->m_Window);
 
+        dmLogInfo("ANDROID_STARTUP: before OpenWindow");
         WindowResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
+        dmLogInfo("ANDROID_STARTUP: after OpenWindow result=%d", platform_result);
         if (platform_result != WINDOW_RESULT_OK)
         {
             dmLogFatal("Could not open window (%d).", platform_result);
