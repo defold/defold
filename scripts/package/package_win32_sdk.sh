@@ -47,7 +47,7 @@ if info is None:
 
 sdk_root = info['sdk_root'].rstrip("\\/")
 sdk_path = os.path.dirname(sdk_root)
-year = os.path.normpath(info['vs_root']).split(os.sep)[-4]
+year = os.path.normpath(info['vs_root']).split(os.sep)[-6]
 
 values = {
     'MSVC_VERSION': info['vs_version'],

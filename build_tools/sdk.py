@@ -148,7 +148,7 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return dirs[0]
 
-def _sort_version_strings(values, replace_patterns=[]):
+def _sort_version_strings(values):
     def _replace_pattern(s, patterns):
         for pattern, replace in patterns:
             s = s.replace(pattern, replace)
