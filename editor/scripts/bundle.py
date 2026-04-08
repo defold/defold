@@ -802,7 +802,7 @@ Commands:
     if options.engine_artifacts == 'auto':
         # If the VERSION file contains a version for which a tag
         # exists, then we're on a branch that uses a stable engine
-        # (ie. editor-dev or branch based on editor-dev), so use that.
+        # (ie. master or branch based on master), so use that.
         # Otherwise use archived artifacts for HEAD.
         options.engine_sha1 = git_sha1_from_version_file(options) or git_sha1('HEAD')
     elif options.engine_artifacts == 'dynamo-home':

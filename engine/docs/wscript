@@ -217,7 +217,7 @@ def build(bld):
     apidoc_extract_task(bld, "../gui/src/",                     ["gui_script.cpp"])
     apidoc_extract_task(bld, "../gui/src/",                     ["dmsdk"])
     apidoc_extract_task(bld, "../hid/src/",                     ["dmsdk"])
-    apidoc_extract_task(bld, "../liveupdate/src/",              ["liveupdate.h"])
+    apidoc_extract_task(bld, "../liveupdate/",                  ["src"])
     apidoc_extract_task(bld, "../lua/src/",                     [""])
     apidoc_extract_task(bld, "../lua/src/",                     ["dmsdk"])
     apidoc_extract_task(bld, "../lua/src/",                     ["cs/dmsdk"])

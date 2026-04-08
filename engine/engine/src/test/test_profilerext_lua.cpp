@@ -224,6 +224,57 @@ TEST_F(ProfilerExtLuaTest, CoroutineScopesAreAutoClosedOnFinalize)
     ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_finalize' was not closed before the end of the frame. Auto-closing it."));
 }
 
+TEST_F(ProfilerExtLuaTest, ExcessiveUniqueScopesDoNotHangProfiler)
+{
+    ASSERT_TRUE(RunString(
+        "profiler.scope_begin(\"overflow_root\")\n"
+        "for i = 1, 4200 do\n"
+        "    profiler.scope_begin(\"overflow_child_\" .. i)\n"
+        "    profiler.scope_end()\n"
+        "end\n"
+        "profiler.scope_end()\n"
+        "profiler.scope_begin(\"after_overflow\")\n"
+        "profiler.scope_end()\n"));
+
+    char* log = GetLog();
+    ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'overflow_child_"));
+    ASSERT_NE((char*) 0, strstr(log, "exceeded the profiler sample limit"));
+}
+
+TEST_F(ProfilerExtLuaTest, GarbageCollectedCoroutineScopeStateIsReleasedOnPreRender)
+{
+    ASSERT_TRUE(RunString(
+        "weak_threads = setmetatable({}, { __mode = \"v\" })\n"
+        "do\n"
+        "    local co = coroutine.create(function()\n"
+        "        profiler.scope_begin(\"coroutine_gc\")\n"
+        "    end)\n"
+        "    assert(coroutine.resume(co))\n"
+        "    assert(coroutine.status(co) == \"dead\")\n"
+        "    weak_threads[1] = co\n"
+        "    co = nil\n"
+        "end\n"
+        "collectgarbage(\"collect\")\n"
+        "collectgarbage(\"collect\")\n"
+        "assert(weak_threads[1] == nil)\n"
+        "local scratch = {}\n"
+        "for i = 1, 2048 do\n"
+        "    scratch[i] = string.rep(tostring(i), 32)\n"
+        "end\n"));
+
+    // The profiler tracks coroutine scope state via a raw lua_State*.
+    // The coroutine can already be GC'd here, but PreRender() must still
+    // be able to auto-close and remove the stale non-main-thread state.
+    dmExtension::PreRender(&m_Params);
+
+    ASSERT_TRUE(RunString(
+        "weak_threads = nil\n"));
+
+    char* log = GetLog();
+    ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'coroutine_gc' was not closed before the end of the frame. Auto-closing it."));
+
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

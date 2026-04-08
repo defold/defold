@@ -167,14 +167,19 @@ namespace dmPhysics
         }
     }
 
-    void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object)
+    void OverlapCacheDecreaseCount(OverlapCache* cache, uint64_t object_a, uint64_t object_b)
     {
-        OverlapEntry* entry = cache->m_OverlapCache.Get(object);
-        if (entry != 0x0)
+        OverlapEntry* entry_a = cache->m_OverlapCache.Get(object_a);
+        if (entry_a != 0x0)
         {
-            for (int i = 0; i < entry->m_OverlapCount; ++i)
+            for (uint32_t i = 0; i < entry_a->m_OverlapCount; ++i)
             {
-                entry->m_Overlaps[i].m_Count--;
+                Overlap& overlap = entry_a->m_Overlaps[i];
+                if (overlap.m_Object == object_b)
+                {
+                    overlap.m_Count--;
+                    break;
+                }
             }
         }
     }
