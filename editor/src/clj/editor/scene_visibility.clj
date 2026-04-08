@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.os :as os]
             [editor.system :as system]
             [editor.types :as types]
@@ -99,18 +100,6 @@
 (g/deftype OutlineNamePathsByBool {s/Bool TOutlineNamePaths})
 (g/deftype OutlineNamePathsByNodeID {s/Int (s/both TOutlineNamePaths (s/pred seq))})
 (g/deftype SceneHideHistoryData [(s/one s/Int "scene-resource-node") (s/one THideHistory "hide-history")])
-
-(defrecord SceneVisibilityBinding [scene-visibility]
-  popup/SettingsBinding
-  (get-value [_ key]
-    (if (= :visibility-filters-enabled? key)
-      (g/node-value scene-visibility :visibility-filters-enabled?)
-      (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key))))
-  (set-value! [_ key v]
-    (if (= :visibility-filters-enabled? key)
-      (set-filters-enabled! scene-visibility v)
-      (set-tag-visibility! scene-visibility key v)))
-  (reset-all! [_] nil))
 
 (defn- scene-outline-name-paths
   ([scene]
@@ -287,22 +276,19 @@
 ;; Visibility Filters
 ;; -----------------------------------------------------------------------------
 
-(defn set-tag-visibility! [scene-visibility tag visible]
-  (g/update-property! scene-visibility :filtered-renderable-tags (if visible disj conj) tag))
+(defrecord SceneVisibilityBinding [scene-visibility]
+  popup/SettingsBinding
+  (get-value [_ key]
+    (if (= :visibility-filters-enabled? key)
+      (g/node-value scene-visibility :visibility-filters-enabled?)
+      (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key))))
+  (set-value! [_ key v]
+    (if (= :visibility-filters-enabled? key)
+      (g/set-property! scene-visibility :visibility-filters-enabled? v)
+      (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key)))
+  (reset-all! [_] nil))
 
-(defn toggle-tag-visibility! [scene-visibility tag]
-  (g/update-property! scene-visibility :filtered-renderable-tags (fn [tags]
-                                                                   (if (contains? tags tag)
-                                                                     (disj tags tag)
-                                                                     (conj tags tag)))))
-
-(defn set-filters-enabled! [scene-visibility enabled]
-  (g/set-property! scene-visibility :visibility-filters-enabled? enabled))
-
-(defn toggle-filters-enabled! [scene-visibility]
-  (g/update-property! scene-visibility :visibility-filters-enabled? not))
-
-(defn show-settings! [app-view ^Parent owner scene-visibility]
+(defn show-settings-old! [app-view ^Parent owner scene-visibility]
   (let [scene-vis-binding (->SceneVisibilityBinding scene-visibility)
         keymap (g/node-value app-view :keymap)
         make-control
@@ -354,11 +340,46 @@
                        {:on-closed (fn [_]
                                      (ui/timer-stop! refresh-timer))})]
       (ui/timer-start! refresh-timer))))
-  
+
+(defn show-settings! [app-view localization ^Parent owner scene-visibility]
+  (let [keymap (g/node-value app-view :keymap)
+        setting-descriptors
+        (into [{:key :visibility-filters-enabled?
+                :type :toggle
+                :label "scene-popup.visibility-filters"
+                :accelerator (keymap/display-text keymap :scene.visibility.toggle-filters "")}
+               {:type :separator}]
+              (map (fn [{:keys [label tag command always-enabled]}]
+                     {:key tag
+                      :type :toggle
+                      :label label
+                      :accelerator (when command
+                                     (keymap/display-text keymap command ""))}))
+              renderable-tag-toggles-info)
+        scene-vis-binding (->SceneVisibilityBinding scene-visibility)
+        update-fn (fn []
+                    (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
+                          enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
+                      ;; Update enable/disable state of tag toggle rows
+                      ;; based on filters-enabled? flag
+                      ))
+        refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
+    (when (popup/show-settings! owner localization scene-vis-binding 230 setting-descriptors false
+                                #_{:show-reset-button false
+                                 :on-closed (fn [_] (ui/timer-stop! refresh-timer))})
+      (update-fn)
+      (ui/timer-start! refresh-timer))))
+
+(defn toggle-tag-visibility! [scene-visibility tag]
+  (g/update-property! scene-visibility :filtered-renderable-tags (fn [tags]
+                                                                   (if (contains? tags tag)
+                                                                     (disj tags tag)
+                                                                     (conj tags tag)))))
+
 (handler/defhandler :scene.visibility.toggle-filters :workbench
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (run [scene-visibility] (toggle-filters-enabled! scene-visibility)))
+  (run [scene-visibility] (g/update-property! scene-visibility :visibility-filters-enabled? not)))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]

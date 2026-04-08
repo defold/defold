@@ -27,7 +27,7 @@
            [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button CheckBox Control Label PopupControl Skin Slider TextField ToggleButton ToggleGroup]
+           [javafx.scene.control Button CheckBox Control Label PopupControl Separator Skin Slider TextField ToggleButton ToggleGroup]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
@@ -205,18 +205,28 @@
       (ensure-focus-traversable!))
     button))
 
+(defn settings-visible? [^Parent owner]
+  (some? (ui/user-data owner ::popup)))
+
+(defn pref-popup-position
+  ^Point2D [^Parent container width]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
+
 (defn- setting-row [localization settings-binding popup {:keys [type key label min max accelerator]}]
+  (println label)
   (let [label-text (when label (localization (localization/message label)))]
     (case type
       :slider      (slider-setting settings-binding popup key label-text min max)
       :toggle      (toggle-setting settings-binding key label-text accelerator)
       :vec3-floats (vec3-floats-setting settings-binding key)
       :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
-      :color       (color-setting settings-binding key label-text))))
+      :color       (color-setting settings-binding key label-text)
+      :separator   [(Separator.)])))
 
-(defn- settings [localization settings-binding popup setting-descriptors hidden-settings]
+(defn- settings [localization settings-binding popup setting-descriptors include-reset-btn hidden-settings]
   (let [button-text (localization (localization/message "scene-popup.reset-defaults-button"))
-        reset-btn (reset-button localization settings-binding popup setting-descriptors hidden-settings button-text)]
+        reset-btn (when include-reset-btn
+                    (reset-button localization settings-binding popup setting-descriptors hidden-settings button-text))]
     (->> setting-descriptors
          (remove (fn [{:keys [key]}] (contains? hidden-settings key)))
          (reduce (fn [rows descriptor]
@@ -226,16 +236,12 @@
                      (doseq [child children]
                        (HBox/setHgrow child Priority/ALWAYS))
                      (conj rows row)))
-                 [reset-btn]))))
-
-(defn pref-popup-position
-  ^Point2D [^Parent container width]
-  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
+                 (if include-reset-btn [reset-btn] [])))))
 
 (defn show-settings!
-  ([^Parent owner localization settings-binding width setting-descriptors]
-   (show-settings! owner localization settings-binding width setting-descriptors nil))
-  ([^Parent owner localization settings-binding width setting-descriptors hidden-settings]
+  ([^Parent owner localization settings-binding width setting-descriptors include-reset-btn]
+   (show-settings! owner localization settings-binding width setting-descriptors include-reset-btn nil))
+  ([^Parent owner localization settings-binding width setting-descriptors include-reset-btn hidden-settings]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (.hide popup)
      (let [region (StackPane.)
@@ -244,7 +250,7 @@
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
-                             (doto (VBox. 10 (ui/node-array (settings localization settings-binding popup setting-descriptors hidden-settings)))
+                             (doto (VBox. (ui/node-array (settings localization settings-binding popup setting-descriptors include-reset-btn hidden-settings)))
                                (.setFocusTraversable true)
                                (ensure-focus-traversable!)
                                (ui/add-style! "popup-settings"))])
@@ -266,10 +272,10 @@
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
-                             (doto (VBox. 10 (ui/node-array children))
+                             (doto (VBox. (ui/node-array children))
                                (.setFocusTraversable true)
                                (ensure-focus-traversable!)
-                               (ui/add-style! "popup-settings"))])
+                               (ui/add-style! "visibility-toggles-list"))])
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
@@ -277,6 +283,3 @@
                           (ui/user-data! owner ::popup nil)
                           (when on-closed (on-closed e))))
          (.show owner (.getX anchor) (.getY anchor)))))))
-
-(defn settings-visible? [^Parent owner]
-  (some? (ui/user-data owner ::popup)))

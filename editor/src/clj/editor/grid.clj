@@ -281,4 +281,4 @@
                              {:key :color :type :color :label "scene-popup.color"}
                              {:key :opacity :type :slider :label "scene-popup.opacity" :min 0.0 :max 1.0}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :grid] settings-descriptor ignore-options (fn [_] (invalidate-grids! app-view)))]
-    (popup/show-settings! owner localization prefs-binding 220 settings-descriptor)))
+    (popup/show-settings! owner localization prefs-binding 220 settings-descriptor true)))

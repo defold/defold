@@ -519,12 +519,12 @@
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
-  (run [app-view scene-visibility]
+  (run [app-view localization scene-visibility]
     (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab)
                            .getContent
                            (.lookup "#visibility-settings-graphic")
                            .getParent)]
-      (scene-visibility/show-settings! app-view btn scene-visibility)))
+      (scene-visibility/show-settings! app-view localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
     (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
                            .getContent
