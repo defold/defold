@@ -16,6 +16,7 @@
   (:require [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.graph-util :as gu]
+            [editor.handler :as handler]
             [editor.input :as i]
             [editor.keymap :as keymap]
             [editor.math :as math]
@@ -1178,6 +1179,27 @@
 
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output update-tick-handler Runnable :cached (g/constantly handle-update-tick)))
+
+;; NOTE: If we don't register these commands deleting the commands default shortcut makes the command unreachable unless
+;; we clear player prefs, so add these dummy commands to keep them active
+(handler/defhandler :scene.free-camera.up :free-camera (run []))
+(handler/defhandler :scene.free-camera.down :free-camera (run []))
+(handler/defhandler :scene.free-camera.left :free-camera (run []))
+(handler/defhandler :scene.free-camera.forward :free-camera (run []))
+(handler/defhandler :scene.free-camera.right :free-camera (run []))
+(handler/defhandler :scene.free-camera.backward :free-camera (run []))
+
+(handler/defhandler :scene.free-camera.invert-y :workbench
+  (run [app-view prefs]
+    (let [prefs-key [:scene :perspective-camera :invert-y]
+          current-value (prefs/get prefs prefs-key)]
+      (prefs/set! prefs prefs-key (not current-value)))))
+
+(handler/defhandler :scene.free-camera.walking-mode :workbench
+  (run [app-view prefs]
+    (let [prefs-key [:scene :perspective-camera :walking-mode]
+          current-value (prefs/get prefs prefs-key)]
+      (prefs/set! prefs prefs-key (not current-value)))))
 
 (defn show-settings! [^Parent owner prefs localization]
   (popup/show-settings! owner prefs localization 260 [:scene :perspective-camera]

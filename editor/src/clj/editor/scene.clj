@@ -1359,15 +1359,6 @@
           (when (and camera image-view)
             (c/start-free-cam-mode! image-view camera (i/get-cursor-pos))))))))
 
-;; NOTE: If we don't register these commands deleting the commands default shortcut makes the command unreachable unless
-;; we clear player prefs, so add these dummy commands to keep them active
-(handler/defhandler :scene.free-camera.up :free-camera (run []))
-(handler/defhandler :scene.free-camera.down :free-camera (run []))
-(handler/defhandler :scene.free-camera.left :free-camera (run []))
-(handler/defhandler :scene.free-camera.forward :free-camera (run []))
-(handler/defhandler :scene.free-camera.right :free-camera (run []))
-(handler/defhandler :scene.free-camera.backward :free-camera (run []))
-
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
   (g/set-property! app-view :manip-space manip-space))
