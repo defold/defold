@@ -119,17 +119,35 @@ void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
         }
     }
 
-    DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_ProfileLock);
-
-    dmSnPrintf(profiler->m_Name, sizeof(profiler->m_Name), "%s", name);
-    profiler->m_Next = g_ProfileListeners; // it's ok to add it first
+    bool initialized = IsProfileInitialized();
     profiler->m_Ctx = 0;
-    g_ProfileListeners = profiler;
 
-    if (IsProfileInitialized())
+    // Backend callback: do not hold g_ProfileLock here
+    if (initialized)
     {
         CreateListener(profiler);
-        CreateListenerProperties(profiler);
+    }
+
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_ProfileLock);
+
+        dmSnPrintf(profiler->m_Name, sizeof(profiler->m_Name), "%s", name);
+        profiler->m_Next = g_ProfileListeners;
+
+        // Publish as disabled so the listener cannot receive property callbacks
+        // before the existing property table has been replayed
+        if (initialized)
+        {
+            profiler->m_Disabled = true;
+        }
+
+        g_ProfileListeners = profiler;
+
+        if (initialized && profiler->m_Ctx != 0)
+        {
+            CreateListenerProperties(profiler);
+            profiler->m_Disabled = false;
+        }
     }
 
     dmLogDebug("Registered profiler '%s'", profiler->m_Name);
