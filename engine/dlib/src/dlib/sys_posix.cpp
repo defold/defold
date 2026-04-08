@@ -62,7 +62,6 @@
 #ifdef __ANDROID__
 
 #include <dmsdk/dlib/android.h>
-#include <glfw/glfw_native.h>
 #include <sys/types.h>
 #include <android/asset_manager.h>
 #endif
@@ -729,7 +728,7 @@ namespace dmSys
 
     static AAssetManager* GetAndroidAssetManager()
     {
-        struct android_app* app = glfwGetAndroidApp();
+        struct android_app* app = dmAndroid::GetAndroidApp();
         if (!app) return 0;
         if (!app->activity) return 0;
         return app->activity->assetManager;

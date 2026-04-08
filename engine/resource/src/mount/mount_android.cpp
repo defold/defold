@@ -14,13 +14,12 @@
 
 #include <dlib/log.h>
 #include <dlib/path.h>
+#include <dmsdk/dlib/android.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#include <glfw/glfw_native.h.h>
 
 #include <android_native_app_glue.h>
 #include <android/asset_manager.h>
@@ -33,7 +32,7 @@ namespace dmResource
 {
     static AAssetManager* GetAndroidAssetManager()
     {
-        struct android_app* app = glfwGetAndroidApp();
+        struct android_app* app = dmAndroid::GetAndroidApp();
         if (!app) return 0;
         if (!app->activity) return 0;
         return app->activity->assetManager;
@@ -53,7 +52,7 @@ namespace dmResource
     {
         AAssetManager* am = GetAndroidAssetManager();
         if (!am)
-            return RESULT_INVAL_ERROR;
+            return RESULT_NOT_SUPPORTED;
 
         out_asset = (void*)AAssetManager_open(am, path, AASSET_MODE_RANDOM);
         if (!out_asset)

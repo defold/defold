@@ -19,6 +19,7 @@
 #include <dlib/time.h>
 #include <dlib/thread.h>
 #include <glfw/glfw.h>
+#include <dmsdk/dlib/android.h>
 #endif
 
 #include "engine.h"
@@ -81,7 +82,7 @@ static int WaitForWindow()
         void* data = NULL;
         int ident = ALooper_pollOnce(300, NULL, NULL, &data);
 
-        struct android_app* app = glfwGetAndroidApp();
+        struct android_app* app = dmAndroid::GetAndroidApp();
         assert(app);
 
         if (ident >= 0 && data != NULL) {
@@ -112,7 +113,7 @@ int engine_main(int argc, char *argv[])
     pthread_getattr_np(pthread_self(), &attr);
     pthread_attr_getstacksize(&attr, &stacksize);
 
-    struct android_app* app = glfwGetAndroidApp();
+    struct android_app* app = dmAndroid::GetAndroidApp();
     assert(app);
 
     app->onAppCmd = glfwAndroidHandleCommand;

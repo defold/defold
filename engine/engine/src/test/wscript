@@ -43,8 +43,6 @@ def build(bld):
         additional_libs += ['UNWIND']
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
-        graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
 
     # Currently a bug in Remotery where the quick shutdown of the remotery instance can cause problems
     #profile_lib = ['PROFILE', 'PROFILEREXT']

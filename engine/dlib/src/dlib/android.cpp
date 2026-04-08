@@ -16,17 +16,28 @@
 
 #include <assert.h>
 #include <dmsdk/dlib/android.h>
-#include <glfw/glfw_native.h>
 
 namespace dmAndroid
 {
+
+static struct android_app* g_AndroidApp = 0;
+
+void SetAndroidApp(struct android_app* app)
+{
+    g_AndroidApp = app;
+}
+
+struct android_app* GetAndroidApp()
+{
+    return g_AndroidApp;
+}
 
 ThreadAttacher::ThreadAttacher()
 : m_Activity(NULL)
 , m_Env(NULL)
 , m_IsAttached(false)
 {
-    struct android_app* app = glfwGetAndroidApp();
+    struct android_app* app = dmAndroid::GetAndroidApp();
     if (app)
     {
         m_Activity = app->activity;
@@ -72,7 +83,7 @@ jclass LoadClass(JNIEnv* env, jobject activity, const char* class_name)
 
 jclass LoadClass(JNIEnv* env, const char* class_name)
 {
-    struct android_app* app = glfwGetAndroidApp();
+    struct android_app* app = dmAndroid::GetAndroidApp();
     assert(app != 0);
 
     return LoadClass(env, app->activity->clazz, class_name);

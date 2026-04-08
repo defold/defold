@@ -14,7 +14,6 @@
 
 #include <dlib/profile.h>
 #include <dmsdk/dlib/android.h>
-#include <glfw/glfw_native.h>
 
 #include "profiler_private.h"
 #include "profiler_proc_utils.h"
@@ -47,7 +46,7 @@ double dmProfilerExt::GetCpuUsage()
 
 void dmProfilerExt::UpdatePlatformProfiler()
 {
-    struct android_app* app = glfwGetAndroidApp();
+    struct android_app* app = dmAndroid::GetAndroidApp();
     assert(app);
 
     // Shows if thread was attached to JVM and wasn't detached

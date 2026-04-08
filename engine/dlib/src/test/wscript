@@ -136,14 +136,8 @@ def build(bld):
             skip_threads = True
 
     if 'android' in bld.env['PLATFORM']:
-        # MAWE: test_httpclient doesn't work yet due to g_AndroidApp issues
+        # MAWE: test_httpclient etc still has a lot of issues
         skip_http = True
-
-    app_libs = []
-    if 'android' in bld.env['PLATFORM']:
-        # We currently need DMGLFW for g_AndroidApp
-        # We then need OpenGL due to DMGLFW :(
-        app_libs = ['OPENGL', 'DMGLFW']
 
     if _is_mac_ci():
         skip_http = True
@@ -181,15 +175,15 @@ def build(bld):
     create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
     create_test(bld, 'test_memprofile', extra_libs = ['DL', 'THREAD'])
     create_test(bld, 'test_message', extra_libs = ['THREAD'])
-    create_test(bld, 'test_configfile', extra_libs = ['THREAD'] + app_libs)
+    create_test(bld, 'test_configfile', extra_libs = ['THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
 
     if not skip_http:
-        create_test(bld, 'test_httpclient', extra_libs = ['THREAD'] + app_libs, extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_httpcache', extra_libs = ['THREAD'] + app_libs, extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_httpserver', extra_libs = ['THREAD'] + app_libs, extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'] + app_libs,
+        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
                     extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
@@ -209,11 +203,11 @@ def build(bld):
         create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
         create_test(bld, 'test_job_system')
 
-    create_test(bld, 'test_sys', extra_libs = ['THREAD'] + app_libs, extra_defines = extra_defines, skip_run = skip_run)
+    create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_run)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_mdns', extra_libs = ['THREAD'], skip_run = skip_run)
     if not skip_threads:
-        create_test(bld, 'test_log', extra_libs = ['THREAD'] + app_libs, skip_run = skip_http_run)
+        create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
@@ -224,8 +218,8 @@ def build(bld):
     if bld.env.PLATFORM in ['arm64-linux', 'x86_64-linux']:
         create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_zip', extra_libs = ['THREAD'] + app_libs)
-    create_test(bld, 'test_zlib', extra_libs = ['THREAD'] + app_libs)
+    create_test(bld, 'test_zip', extra_libs = ['THREAD'])
+    create_test(bld, 'test_zlib', extra_libs = ['THREAD'])
 
     create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.lz4'])

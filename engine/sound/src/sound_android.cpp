@@ -16,7 +16,6 @@
 #include "sound_private.h"
 #include <dlib/log.h>
 #include <dmsdk/dlib/android.h>
-#include <glfw/glfw_native.h>
 
 #include <android_native_app_glue.h>
 #include <jni.h>
@@ -78,7 +77,7 @@ namespace dmSound
         JNIEnv* environment = thread.GetEnv();
         if (environment != NULL)
         {
-            struct android_app* app = glfwGetAndroidApp();
+            struct android_app* app = dmAndroid::GetAndroidApp();
             assert(app);
 
             jclass      jni_class_NativeActivity     = environment->FindClass("android/app/NativeActivity");

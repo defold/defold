@@ -14,8 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
-
-#include  <glfw/glfw_native.h>
+#include <dmsdk/dlib/android.h>
 #include <android_native_app_glue.h>
 
 #include "../graphics_vulkan_defines.h"
@@ -33,7 +32,7 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
-        struct android_app* app = glfwGetAndroidApp();
+        struct android_app* app = dmAndroid::GetAndroidApp();
         assert(app);
 
         VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
