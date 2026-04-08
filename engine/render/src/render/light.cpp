@@ -21,7 +21,6 @@ namespace dmRender
 {
     // Matches GLSL: uniform Light { ... } lights[MAX];
     static const dmhash_t LIGHT_UNIFORM_BLOCK_TYPE_HASH = dmHashString64("Light");
-    static const dmhash_t LIGHT_MEMBER_TYPE             = dmHashString64("lights");
 
     static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
     static void CommitLightCount(HRenderContext render_context);
@@ -147,63 +146,69 @@ namespace dmRender
     static void GenerateUniformBuffer(HRenderContext render_context, int max_lights)
     {
         /*
-        struct Light { vec4 position; vec4 color; vec4 direction_range; vec4 params; };
-        uniform Light { Light lights[MAX_LIGHTS]; };  // or: uniform Light { ... } lights[MAX_LIGHTS];
-        Active count is set via vec4 lights_count (e.g. in fs_uniforms), not stored in this UBO.
+        GLSL (must match shaders and SPIR-V reflection):
+            uniform Light
+            {
+                vec4 position;
+                vec4 color;
+                vec4 direction_range;
+                vec4 params;
+            } lights[MAX_LIGHTS];
+
+        UniformBufferLayout::m_Hash is derived only from the std140 layout of type "Light" (four vec4 members).
+        The instance count MAX_LIGHTS is on the UBO binding, not part of the type — same as GetUniformBufferLayout for programs.
+        Total GPU buffer size = max_lights * sizeof(Light) in std140 (64 bytes per light).
+        Active light count is set via lights_count outside this buffer.
         */
 
-        dmGraphics::ShaderResourceMember   light_root_members[1];
         dmGraphics::ShaderResourceMember   light_members[4];
-        dmGraphics::ShaderResourceTypeInfo light_types[2];
+        dmGraphics::ShaderResourceTypeInfo light_type;
 
-        memset(light_root_members, 0, sizeof(light_root_members));
         memset(light_members, 0, sizeof(light_members));
-        memset(light_types, 0, sizeof(light_types));
+        memset(&light_type, 0, sizeof(light_type));
 
-        light_root_members[0].m_Name                 = (char*)"lights";
-        light_root_members[0].m_NameHash             = dmHashString64("lights");
-        light_root_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
-        light_root_members[0].m_ElementCount         = max_lights;
-        light_root_members[0].m_Type.m_TypeIndex     = 1; // LightData
-        light_root_members[0].m_Type.m_UseTypeIndex  = 1;
+        light_members[0].m_Name                = (char*)"position";
+        light_members[0].m_NameHash            = dmHashString64("position");
+        light_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[0].m_Type.m_UseTypeIndex = 0;
+        light_members[0].m_ElementCount        = 1;
+        light_members[1].m_Name                = (char*)"color";
+        light_members[1].m_NameHash            = dmHashString64("color");
+        light_members[1].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[1].m_Type.m_UseTypeIndex = 0;
+        light_members[1].m_ElementCount        = 1;
+        light_members[2].m_Name                = (char*)"direction_range";
+        light_members[2].m_NameHash            = dmHashString64("direction_range");
+        light_members[2].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[2].m_Type.m_UseTypeIndex = 0;
+        light_members[2].m_ElementCount        = 1;
+        light_members[3].m_Name                = (char*)"params";
+        light_members[3].m_NameHash            = dmHashString64("params");
+        light_members[3].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[3].m_Type.m_UseTypeIndex = 0;
+        light_members[3].m_ElementCount        = 1;
 
-        light_members[0].m_Name                 = (char*)"position";
-        light_members[0].m_NameHash             = dmHashString64("position");
-        light_members[0].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        light_members[0].m_Type.m_UseTypeIndex  = 0;
-        light_members[0].m_ElementCount         = 1;
-        light_members[1].m_Name                 = (char*)"color";
-        light_members[1].m_NameHash             = dmHashString64("color");
-        light_members[1].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        light_members[1].m_Type.m_UseTypeIndex  = 0;
-        light_members[1].m_ElementCount         = 1;
-        light_members[2].m_Name                 = (char*)"direction_range";
-        light_members[2].m_NameHash             = dmHashString64("direction_range");
-        light_members[2].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        light_members[2].m_Type.m_UseTypeIndex  = 0;
-        light_members[2].m_ElementCount         = 1;
-        light_members[3].m_Name                 = (char*)"params";
-        light_members[3].m_NameHash             = dmHashString64("params");
-        light_members[3].m_Type.m_ShaderType    = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        light_members[3].m_Type.m_UseTypeIndex  = 0;
-        light_members[3].m_ElementCount         = 1;
+        light_type.m_Name        = (char*)"Light";
+        light_type.m_NameHash    = dmHashString64("Light");
+        light_type.m_Members     = light_members;
+        light_type.m_MemberCount = DM_ARRAY_SIZE(light_members);
 
-        // GLSL: struct LightData { ... }; uniform Light { LightData lights[MAX]; };
-        light_types[0].m_Name        = (char*)"Light";
-        light_types[0].m_NameHash    = dmHashString64("Light");
-        light_types[0].m_Members     = light_root_members;
-        light_types[0].m_MemberCount = DM_ARRAY_SIZE(light_root_members);
-        light_types[1].m_Name        = (char*)"LightData";
-        light_types[1].m_NameHash    = dmHashString64("LightData");
-        light_types[1].m_Members     = light_members;
-        light_types[1].m_MemberCount = DM_ARRAY_SIZE(light_members);
+        if (max_lights <= 0)
+        {
+            render_context->m_LightUniformBuffer      = 0;
+            render_context->m_LightBufferDataWriteStart = 0;
+            return;
+        }
 
         dmGraphics::UniformBufferLayout layout;
-        dmGraphics::UpdateShaderTypesOffsets(light_types, DM_ARRAY_SIZE(light_types));
-        dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types), &layout);
+        dmGraphics::UpdateShaderTypesOffsets(&light_type, 1);
+        dmGraphics::GetUniformBufferLayout(0, &light_type, 1, &layout);
 
-        render_context->m_LightUniformBuffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout);
-        render_context->m_LightBufferDataWriteStart = light_root_members[0].m_Offset;
+        assert(layout.m_Size > 0 && "Light struct std140 size");
+        layout.m_Size *= (uint32_t) max_lights;
+
+        render_context->m_LightUniformBuffer          = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout);
+        render_context->m_LightBufferDataWriteStart = 0;
     }
 
     static inline void CommitLightInstance(HRenderContext render_context, LightInstance* instance)
@@ -321,7 +326,7 @@ namespace dmRender
         uint16_t       m_Binding;
     };
 
-    static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, uint32_t binding_element_count, void* user_data)
     {
         LightBufferBindingCallbackContext* cb_ctx = (LightBufferBindingCallbackContext*) user_data;
 
@@ -330,15 +335,7 @@ namespace dmRender
             return;
         }
 
-        uint32_t ubo_light_count = 0;
-        for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
-        {
-            if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
-            {
-                ubo_light_count = root_type->m_Members[i].m_ElementCount;
-                break;
-            }
-        }
+        const uint32_t ubo_light_count = binding_element_count;
 
         if (cb_ctx->m_Context->m_MaxLightCount != ubo_light_count)
         {

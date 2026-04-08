@@ -384,6 +384,9 @@ public class ShaderProgramBuilder extends Builder {
             resourceBindingBuilder.setInstanceNameHash(res.instanceNameHash);
         }
 
+        int elementCount = (res.type != null && res.type.arraySize > 0) ? res.type.arraySize : 1;
+        resourceBindingBuilder.setElementCount(elementCount);
+
         return resourceBindingBuilder;
     }
 

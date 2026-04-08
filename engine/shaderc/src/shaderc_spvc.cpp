@@ -225,7 +225,8 @@ namespace dmShaderc
 
         for (uint32_t i = 0; i < count; ++i)
         {
-            spvc_type type          = spvc_compiler_get_type_handle(compiler, list[i].type_id);
+            spvc_type_id type_id    = list[i].type_id;
+            spvc_type    type       = spvc_compiler_get_type_handle(compiler, type_id);
             spvc_basetype base_type = spvc_type_get_basetype(type);
 
             ShaderResource& resource = resources_out[write_index + i];
@@ -241,13 +242,32 @@ namespace dmShaderc
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
 
+            // Uniform/storage buffer: uniform Block { T x[N]; } or uniform T { } x[N] — outer type is an array; unwrap for struct layout.
+            resource.m_Type.m_ArraySize = 1;
+            unsigned num_resource_array_dims = spvc_type_get_num_array_dimensions(type);
+            if (num_resource_array_dims > 1)
+            {
+                dmLogWarning("Unsupported top-level resource array dimensions: %u", num_resource_array_dims);
+            }
+            if (num_resource_array_dims > 0)
+            {
+                resource.m_Type.m_ArraySize = spvc_type_get_array_dimension(type, 0);
+                type_id                     = spvc_type_get_base_type_id(type);
+                type                        = spvc_compiler_get_type_handle(compiler, type_id);
+                base_type                   = spvc_type_get_basetype(type);
+            }
+
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
                 size_t size = 0;
                 spvc_compiler_get_declared_struct_size(compiler, type, &size);
 
-                resource.m_BlockSize           = (uint32_t) size;
-                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, list[i].base_type_id, type);
+                resource.m_BlockSize = (uint32_t) size;
+                if (resource.m_Type.m_ArraySize > 1)
+                {
+                    resource.m_BlockSize *= resource.m_Type.m_ArraySize;
+                }
+                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, type_id, type);
                 resource.m_Type.m_UseTypeIndex = true;
             }
             else
