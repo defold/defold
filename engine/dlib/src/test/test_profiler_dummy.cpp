@@ -324,7 +324,7 @@ static ProfilerDummySample* AllocateSample(ProfilerDummyContext* ctx, uint64_t n
     return sample;
 }
 
-static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
 
@@ -339,6 +339,8 @@ static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
         sample->m_TempStart = tstart;
     else
         sample->m_Start = tstart;
+
+    return PROFILE_SCOPE_RESULT_OK;
 }
 
 static void ScopeEnd(void* _ctx, const char* name, uint64_t name_hash)

@@ -644,17 +644,18 @@ static void FrameEnd(void* ctx)
     ResetProperties(g_ProfileContext);
 }
 
-static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
 {
     (void)ctx;
-    CHECK_INITIALIZED();
+    if (!IsProfileInitialized())
+        return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
     if (td->m_OverflowDepth != 0)
     {
         td->m_OverflowDepth++;
-        return;
+        return PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES;
     }
 
     uint64_t tstart = dmTime::GetMonotonicTime();
@@ -665,7 +666,7 @@ static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
         // Once the sample pool is exhausted we skip nested scopes until the stack is balanced
         // again, instead of linking a shared sentinel node into the sample tree.
         td->m_OverflowDepth = 1;
-        return;
+        return PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES;
     }
 
     InternalizeName(name, &sample_name_hash);
@@ -674,6 +675,8 @@ static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
         sample->m_TempStart = tstart;
     else
         sample->m_Start = tstart;
+
+    return PROFILE_SCOPE_RESULT_OK;
 }
 
 static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)

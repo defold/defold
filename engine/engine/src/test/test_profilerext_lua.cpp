@@ -235,6 +235,10 @@ TEST_F(ProfilerExtLuaTest, ExcessiveUniqueScopesDoNotHangProfiler)
         "profiler.scope_end()\n"
         "profiler.scope_begin(\"after_overflow\")\n"
         "profiler.scope_end()\n"));
+
+    char* log = GetLog();
+    ASSERT_NE((char*) 0, strstr(log, "Lua profiler scope 'overflow_child_"));
+    ASSERT_NE((char*) 0, strstr(log, "exceeded the profiler sample limit"));
 }
 
 TEST_F(ProfilerExtLuaTest, GarbageCollectedCoroutineScopeStateIsReleasedOnPreRender)

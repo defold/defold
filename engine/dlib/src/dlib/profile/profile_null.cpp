@@ -40,8 +40,9 @@ void ProfileFrameEnd(HProfile profile)
 {
 }
 
-void ProfileScopeBegin(const char* name, uint64_t* name_hash)
+ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
 {
+    return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
 }
 
 void ProfileScopeEnd(const char* name, uint64_t name_hash)

@@ -89,6 +89,20 @@ enum ProfilePropertyFlags
     PROFILE_PROPERTY_FRAME_RESET = 1  // reset the property each frame
 };
 
+/*# Enum to describe the result of starting a profile scope
+ * @enum
+ * @name ProfileScopeResult
+ * @member PROFILE_SCOPE_RESULT_OK
+ * @member PROFILE_SCOPE_RESULT_NOT_INITIALIZED
+ * @member PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES
+ */
+enum ProfileScopeResult
+{
+    PROFILE_SCOPE_RESULT_OK = 0,
+    PROFILE_SCOPE_RESULT_NOT_INITIALIZED = 1,
+    PROFILE_SCOPE_RESULT_OUT_OF_SAMPLES = 2,
+};
+
 /*# Index constant to mark a a property as invalid
  * @enum
  * @name PROFILE_PROPERTY_INVALID_IDX
@@ -216,7 +230,7 @@ typedef void (*ProfileDestroyListenerFn)(void* ctx);
 
 typedef void (*ProfileFrameBeginFn)(void* ctx);
 typedef void (*ProfileFrameEndFn)(void* ctx);
-typedef void (*ProfileScopeBeginFn)(void* ctx, const char* name, uint64_t name_hash);
+typedef ProfileScopeResult (*ProfileScopeBeginFn)(void* ctx, const char* name, uint64_t name_hash);
 typedef void (*ProfileScopeEndFn)(void* ctx, const char* name, uint64_t name_hash);
 typedef void (*ProfileSetThreadNameFn)(void* ctx, const char* name);
 typedef void (*ProfileLogTextFn)(void* ctx, const char* text);
@@ -352,8 +366,9 @@ void ProfileFrameEnd(HProfile profile);
  * @name ProfileScopeBegin
  * @param name [type:const char*] Name of the scope
  * @param name_hash [type:uint64_t] Hashed name of the scope
+ * @return result [type:ProfileScopeResult] Status for the scope begin operation
  */
-void ProfileScopeBegin(const char* name, uint64_t* name_hash);
+ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash);
 
 /*#
  * End the last added scope

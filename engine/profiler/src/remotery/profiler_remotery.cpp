@@ -124,14 +124,15 @@ namespace dmProfilerRemotery
         rmt_LogText(text);
     }
 
-    static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+    static ProfileScopeResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
     {
         if (!IsInitialized())
         {
-            return;
+            return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
         }
         // By passing in 0 here, it will have to hash the string each time
         _rmt_BeginCPUSample(name, RMTSF_Aggregate, 0);
+        return PROFILE_SCOPE_RESULT_OK;
     }
 
     static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)

@@ -228,12 +228,14 @@ static void FrameEnd(void*)
     dmProfileJSEndFrame(GetThreadId());
 }
 
-static void ScopeBegin(void*, const char* name, uint64_t name_hash)
+static ProfileScopeResult ScopeBegin(void*, const char* name, uint64_t name_hash)
 {
     (void)name_hash;
-    CHECK_INITIALIZED();
+    if (!IsProfileInitialized())
+        return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     dmProfileJSBeginMark(GetThreadId(), name);
+    return PROFILE_SCOPE_RESULT_OK;
 }
 
 static void ScopeEnd(void*, const char* name, uint64_t name_hash)

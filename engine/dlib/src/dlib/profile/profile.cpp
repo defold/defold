@@ -239,16 +239,34 @@ void ProfileFrameEnd(HProfile profile)
     DO_LOOP_NOARGS(FrameEnd);
 }
 
-void ProfileScopeBegin(const char* name, uint64_t* name_hash)
+ProfileScopeResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
 {
+    if (!IsProfileInitialized())
+        return PROFILE_SCOPE_RESULT_NOT_INITIALIZED;
+
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    ProfileScopeResult result = PROFILE_SCOPE_RESULT_OK;
 
     if (name_hash && !*name_hash)
     {
         *name_hash = dmHashString64(name);
     }
 
-    DO_LOOP(ScopeBegin, name, name_hash ? *name_hash : 0);
+    for (ProfileListener* p = g_ProfileListeners; p != 0; p = p->m_Next)
+    {
+        if (p->m_Disabled) continue;
+        if (p->m_ScopeBegin)
+        {
+            ProfileScopeResult listener_result = p->m_ScopeBegin(p->m_Ctx, name, name_hash ? *name_hash : 0);
+            if (listener_result != PROFILE_SCOPE_RESULT_OK)
+            {
+                result = listener_result;
+            }
+        }
+    }
+
+    return result;
 }
 
 void ProfileScopeEnd(const char* name, uint64_t name_hash)
@@ -552,4 +570,3 @@ void ProfilePropertyReset(ProfileIdx idx)
     GET_PROP_AND_CHECK(idx);
     DO_LOOP(PropertyReset, idx);
 }
-
