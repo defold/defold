@@ -149,14 +149,12 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     return dirs[0]
 
 def _sort_version_strings(values):
-    def _replace_pattern(s, patterns):
-        for pattern, replace in patterns:
-            s = s.replace(pattern, replace)
+    def _normalize_version(s):
         if '-ext' in s:
             s = re.sub(r'-ext\d+$', '', s)
         return s
 
-    return sorted(values, key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
+    return sorted(values, key=lambda x: tuple(int(token) for token in _normalize_version(x).split('.')), reverse=True)
 
 def _get_host_exe_suffix():
     if sys.platform == 'win32':
