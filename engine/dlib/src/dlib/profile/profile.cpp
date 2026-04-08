@@ -186,7 +186,9 @@ void ProfileUnregisterProfiler(const char* name)
             if (p->m_Disabled) continue;                                \
             if (p->m_ ## _FUNC)                                         \
             {                                                           \
-                result = p->m_ ## _FUNC(p->m_Ctx);                      \
+                ProfileResult listener_result = p->m_ ## _FUNC(p->m_Ctx); \
+                if (listener_result != result)                           \
+                    result = listener_result;                           \
             }                                                           \
         }                                                               \
         return result;                                                  \
@@ -201,7 +203,9 @@ void ProfileUnregisterProfiler(const char* name)
             if (p->m_Disabled) continue;                                \
             if (p->m_ ## _FUNC)                                         \
             {                                                           \
-                result = p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__);         \
+                ProfileResult listener_result = p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__); \
+                if (listener_result != result)                           \
+                    result = listener_result;                           \
             }                                                           \
         }                                                               \
         return result;                                                  \
