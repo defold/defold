@@ -34,27 +34,29 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private renderable-tag-toggles-info
-  (cond-> [{:label "Collision Shapes" :tag :collision-shape}
-           {:label "Camera" :tag :camera}
-           #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
-           {:label "GUI Bounds" :tag :gui-bounds}
-           {:label "GUI Shapes" :tag :gui-shape}
-           {:label "GUI Particle Effects" :tag :gui-particlefx}
-           {:label "GUI Spine Scenes" :tag :gui-spine}
-           {:label "GUI Text" :tag :gui-text}
-           {:label "Models" :tag :model}
-           {:label "Particle Effects" :tag :particlefx}
-           {:label "Skeletons" :tag :skeleton}
-           {:label "Spine Scenes" :tag :spine}
-           {:label "Sprites" :tag :sprite}
-           {:label "Text" :tag :text}
-           {:label "Tile Maps" :tag :tilemap}
-           {:label :separator}
-           {:label "Component Guides" :tag :outline :command :scene.visibility.toggle-component-guides :always-enabled true}]
+  (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :command :scene.visibility.toggle-filters}
+           {:type :space}
+           {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :tag :collision-shape}
+           {:type :toggle :label "scene-popup.scene-visibility.camera" :tag :camera}
+           #_{:label "scene-popup.scene-visibility.gui-elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
+           {:type :toggle :label "scene-popup.scene-visibility.gui-bounds" :tag :gui-bounds}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-shapes" :tag :gui-shape}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-particle-effects" :tag :gui-particlefx}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-spine-scenes" :tag :gui-spine}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-text" :tag :gui-text}
+           {:type :toggle :label "scene-popup.scene-visibility.models" :tag :model}
+           {:type :toggle :label "scene-popup.scene-visibility.particle-effects" :tag :particlefx}
+           {:type :toggle :label "scene-popup.scene-visibility.skeletons" :tag :skeleton}
+           {:type :toggle :label "scene-popup.scene-visibility.spine-scenes" :tag :spine}
+           {:type :toggle :label "scene-popup.scene-visibility.sprites" :tag :sprite}
+           {:type :toggle :label "scene-popup.scene-visibility.text" :tag :text}
+           {:type :toggle :label "scene-popup.scene-visibility.tile-maps" :tag :tilemap}
+           {:type :separator}
+           {:type :toggle :label "scene-popup.scene-visibility.component-guides" :tag :outline :command :scene.visibility.toggle-component-guides :always-enabled true}]
 
           (system/defold-dev?)
-          (into [{:label :separator}
-                 {:label "Scene Visibility Bounds" :tag :dev-visibility-bounds :appear-filtered false}])))
+          (into [{:type :separator}
+                 {:type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds" :tag :dev-visibility-bounds :appear-filtered false}])))
 
 (def ^:private appear-filtered-renderable-tags
   (into #{}
@@ -343,19 +345,11 @@
 
 (defn show-settings! [app-view localization ^Parent owner scene-visibility]
   (let [keymap (g/node-value app-view :keymap)
-        setting-descriptors
-        (into [{:key :visibility-filters-enabled?
-                :type :toggle
-                :label "scene-popup.visibility-filters"
-                :accelerator (keymap/display-text keymap :scene.visibility.toggle-filters "")}
-               {:type :separator}]
-              (map (fn [{:keys [label tag command always-enabled]}]
-                     {:key tag
-                      :type :toggle
-                      :label label
-                      :accelerator (when command
-                                     (keymap/display-text keymap command ""))}))
-              renderable-tag-toggles-info)
+        setting-descriptors (mapv #(-> %
+                                       (assoc :key (:tag %)
+                                              :accelerator (keymap/display-text keymap (:command %) ""))
+                                       (dissoc :tag :command #_#_:always-enabled :appear-filtered))
+                                  renderable-tag-toggles-info)
         scene-vis-binding (->SceneVisibilityBinding scene-visibility)
         update-fn (fn []
                     (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
@@ -366,7 +360,7 @@
         refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
     (when (popup/show-settings! owner localization scene-vis-binding 230 setting-descriptors false
                                 #_{:show-reset-button false
-                                 :on-closed (fn [_] (ui/timer-stop! refresh-timer))})
+                                   :on-closed (fn [_] (ui/timer-stop! refresh-timer))})
       (update-fn)
       (ui/timer-start! refresh-timer))))
 

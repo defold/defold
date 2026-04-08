@@ -123,11 +123,21 @@
         .popup-settings {
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
-            -fx-padding: 12px;
+            -fx-padding: 0px 0px 7px 0px;
 
             HBox {
+                -fx-padding: 3px 8px 3px 8px;
                 -fx-pref-height: 28px;
                 -fx-alignment: center-left;
+            }
+
+            Region {
+                -fx-padding: 1px !important;
+            }
+
+            Separator {
+                -fx-padding: -10px 0px;
+                -fx-background-color: -df-component-dark;
             }
 
             .label {
@@ -178,10 +188,10 @@
             }
 
             .toggle-row {
-                -fx-spacing: 8px;
+                -fx-spacing: 0px;
 
                 .slide-switch {
-                    -fx-padding: 0 20px 0 5px;
+                    -fx-padding: 0 0px 0 5px;
                 }
 
                 .slide-switch-label {

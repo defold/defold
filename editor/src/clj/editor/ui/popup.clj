@@ -221,6 +221,7 @@
       :vec3-floats (vec3-floats-setting settings-binding key)
       :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
       :color       (color-setting settings-binding key label-text)
+      :space       [(Region.)]
       :separator   [(Separator.)])))
 
 (defn- settings [localization settings-binding popup setting-descriptors include-reset-btn hidden-settings]
@@ -231,7 +232,7 @@
          (remove (fn [{:keys [key]}] (contains? hidden-settings key)))
          (reduce (fn [rows descriptor]
                    (let [children (setting-row localization settings-binding popup descriptor)
-                         row (doto (HBox. 5 (ui/node-array children))
+                         row (doto (HBox. (ui/node-array children))
                                (.setAlignment Pos/CENTER))]
                      (doseq [child children]
                        (HBox/setHgrow child Priority/ALWAYS))
@@ -258,28 +259,4 @@
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
          (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
-         (.show owner (.getX anchor) (.getY anchor)))))))
-
-(defn show-popup-with-content!
-  ([^Parent owner width children]
-   (show-popup-with-content! owner width children nil))
-  ([^Parent owner width children {:keys [on-closed]}]
-   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-     (.hide popup)
-     (let [region (StackPane.)
-           popup (make-popup owner region)
-           anchor ^Point2D (pref-popup-position (.getParent owner) width)]
-       (.setPrefWidth region width)
-       (ui/children! region [(doto (Region.)
-                               (ui/add-style! "popup-shadow"))
-                             (doto (VBox. (ui/node-array children))
-                               (.setFocusTraversable true)
-                               (ensure-focus-traversable!)
-                               (ui/add-style! "visibility-toggles-list"))])
-       (ui/user-data! owner ::popup popup)
-       (doto popup
-         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-         (ui/on-closed! (fn [e]
-                          (ui/user-data! owner ::popup nil)
-                          (when on-closed (on-closed e))))
          (.show owner (.getX anchor) (.getY anchor)))))))
