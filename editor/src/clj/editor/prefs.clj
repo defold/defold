@@ -246,7 +246,13 @@
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}}}
+                                         :default [0.5 0.5 0.5 1.0]}}}
+             :perspective-camera {:type :object
+                                  :scope :project
+                                  :properties {:speed {:type :number :default 1.0}
+                                               :look-sensitivity {:type :number :default 0.15}
+                                               :invert-y {:type :boolean :default false}
+                                               :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :one-of

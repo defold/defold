@@ -1351,10 +1351,9 @@
       :palette (handle-input-palette self action state evaluation-context)
       :editor  (handle-input-editor self action state evaluation-context))))
 
-(defn make-input-handler
-  []
+(defn make-input-handler []
   (let [state (atom nil)]
-    (fn [self action _]
+    (fn [self _input-state action _]
       (handle-input self action state))))
 
 (defn- get-current-tile

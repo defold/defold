@@ -1170,7 +1170,7 @@
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
-(defn handle-input [self action selection-data]
+(defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if (first (get selection-data self))
                      (do

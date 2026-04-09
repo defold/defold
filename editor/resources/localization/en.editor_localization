@@ -1051,6 +1051,17 @@ operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
 
+# Scene View Popups
+
+scene-popup.reset-defaults-button = Reset to Defaults
+scene-popup.grid.plane = Plane
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacity
+scene-popup.camera.move-speed = Move Speed
+scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.invert-y = Invert Y
+scene-popup.camera.walking-mode = Walking Mode
+
 # Properties
 
 property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}" in editor scripts
