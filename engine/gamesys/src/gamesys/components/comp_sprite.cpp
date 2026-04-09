@@ -591,7 +591,7 @@ namespace dmGameSystem
         }
     }
 
-    static void ClearCurrentAnimation(SpriteComponent* component, TextureSetResource* texture_set)
+    static void ClearCurrentAnimation(SpriteComponent* component)
     {
         component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
         component->m_IsPlaying = 0;
@@ -600,6 +600,25 @@ namespace dmGameSystem
         component->m_AnimationID = 0;
 
         component->m_AnimationReHash = 1;
+    }
+
+    static bool GetCurrentOrFirstAnimation(TextureSetResource* texture_set, dmhash_t current_animation, dmhash_t* animation_out)
+    {
+        if (!texture_set)
+            return false;
+
+        if (texture_set->m_AnimationIds.Get(current_animation) != 0)
+        {
+            *animation_out = current_animation;
+            return true;
+        }
+
+        dmHashTable64<uint32_t>::Iterator animation_iterator = texture_set->m_AnimationIds.GetIterator();
+        if (!animation_iterator.Next())
+            return false;
+
+        *animation_out = animation_iterator.GetKey();
+        return true;
     }
 
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
@@ -643,7 +662,7 @@ namespace dmGameSystem
         }
         else
         {
-            ClearCurrentAnimation(component, texture_set);
+            ClearCurrentAnimation(component);
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
@@ -2506,14 +2525,13 @@ namespace dmGameSystem
             {
                 TextureSetResource* texture_set = GetFirstTextureSet(component);
                 dmhash_t current_animation = component->m_CurrentAnimation;
-                uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(current_animation) : 0;
-                if (anim_id)
+                if (GetCurrentOrFirstAnimation(texture_set, current_animation, &current_animation))
                 {
                     PlayAnimation(component, current_animation, GetCursor(component), component->m_PlaybackRate);
                 }
                 else
                 {
-                    ClearCurrentAnimation(component, texture_set);
+                    ClearCurrentAnimation(component);
                 }
             }
             return res;

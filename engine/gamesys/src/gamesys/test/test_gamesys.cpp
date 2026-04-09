@@ -1226,6 +1226,11 @@ public:
         m_Output.PushArray(formatted_string, len);
     }
 
+    bool Empty() const
+    {
+        return m_Output.Size() == 0;
+    }
+
     bool Contains(const char* needle)
     {
         if (m_Output.Size() == 0 || m_Output[m_Output.Size() - 1] != '\0')
@@ -1920,7 +1925,7 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
 
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, atlas_b));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, atlas_b, &tex1_options));
-        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_EQ(animation_b, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
         PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, animation_b, 0.0f, 1.0f);
 
@@ -1931,15 +1936,48 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
         ASSERT_EQ(atlas_b, GetHashProperty(go, sprite_comp_id, image_prop_id, &tex1_options));
         ASSERT_EQ(animation_b, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
-        ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
+        ASSERT_TRUE(log_capture.Empty());
     }
 
     dmResource::Release(m_Factory, atlas_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(SpriteTest, SetImageClearsInvalidAnimationIdWithoutLogging)
+TEST_F(SpriteTest, SetImageKeepsSharedAnimationWithoutLogging)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t animation_prop_id = dmHashString64("animation");
+    dmhash_t shared_animation_id = dmHashString64("anim");
+    dmhash_t new_image_id = dmHashString64("/tile/valid.t.texturesetc");
+    dmGameSystem::TextureSetResource* image_resource = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &image_resource));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+    {
+        GamesysErrorLogCapture log_capture;
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, new_image_id));
+        ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        RenderCollection(m_RenderContext, m_Collection);
+
+        ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_TRUE(log_capture.Empty());
+    }
+
+    dmResource::Release(m_Factory, image_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, SetImageFallsBackToFirstAnimationWithoutLogging)
 {
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t sprite_comp_id = dmHashString64("sprite");
@@ -1964,33 +2002,33 @@ TEST_F(SpriteTest, SetImageClearsInvalidAnimationIdWithoutLogging)
         ASSERT_EQ(old_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, new_image_id));
-        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         RenderCollection(m_RenderContext, m_Collection);
-        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
         PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, new_animation_id, 0.0f, 1.0f);
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
-        ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
+        ASSERT_TRUE(log_capture.Empty());
     }
 
     dmResource::Release(m_Factory, image_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(SpriteTest, SetImageClearsInRangeAnimationIdForTrimmedAtlas)
+TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
 {
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t sprite_comp_id = dmHashString64("sprite");
     dmhash_t image_prop_id = dmHashString64("image");
     dmhash_t animation_prop_id = dmHashString64("animation");
     dmhash_t old_animation_id = dmHashString64("anim_loop_pingpong");
+    dmhash_t fallback_animation_id = dmHashString64("frame_0");
     dmhash_t new_image_id = dmHashString64("/sprite/image/stale_animation_id_in_range.t.texturesetc");
     dmGameSystem::TextureSetResource* image_resource = 0;
 
@@ -2015,16 +2053,16 @@ TEST_F(SpriteTest, SetImageClearsInRangeAnimationIdForTrimmedAtlas)
         GamesysErrorLogCapture log_capture;
 
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, new_image_id));
-        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_EQ(fallback_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
         ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
 
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         RenderCollection(m_RenderContext, m_Collection);
 
+        ASSERT_EQ(fallback_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
         ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
-        ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
-        ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
+        ASSERT_TRUE(log_capture.Empty());
     }
 
     dmResource::Release(m_Factory, image_resource);
