@@ -176,6 +176,7 @@
 
     // Uniform buffer objects
     PFNGLBINDBUFFERBASEPROC          glBindBufferBase          = NULL;
+    PFNGLBINDBUFFERRANGEPROC         glBindBufferRange         = NULL;
     PFNGLBUFFERDATAPROC              glBufferData              = NULL;
     PFNGLGETUNIFORMBLOCKINDEXPROC    glGetUniformBlockIndex    = NULL;
     PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
@@ -1353,6 +1354,7 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS_OPTIONAL(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
 
         GET_PROC_ADDRESS(glBindBufferBase, "glBindBufferBase", PFNGLBINDBUFFERBASEPROC);
+        GET_PROC_ADDRESS(glBindBufferRange, "glBindBufferRange", PFNGLBINDBUFFERRANGEPROC);
         GET_PROC_ADDRESS(glBufferData, "glBufferData", PFNGLBUFFERDATAPROC);
         GET_PROC_ADDRESS(glGetUniformBlockIndex, "glGetUniformBlockIndex", PFNGLGETUNIFORMBLOCKINDEXPROC);
         GET_PROC_ADDRESS(glGetActiveUniformBlockiv, "glGetActiveUniformBlockiv", PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
