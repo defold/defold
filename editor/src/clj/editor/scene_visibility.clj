@@ -24,7 +24,8 @@
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
             [internal.util :as iutil]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :as coll])
   (:import [javafx.geometry Point2D Pos]
            [javafx.scene Parent]
            [javafx.scene.control CheckBox Label PopupControl Separator]
@@ -34,7 +35,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private renderable-tag-toggles-info
-  (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :tag :visibility-filters-enabled? :command :scene.visibility.toggle-filters}
+  (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :tag :visibility-filters-enabled? :command :scene.visibility.toggle-filters :always-enabled true}
            {:type :space}
            {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :tag :collision-shape}
            {:type :toggle :label "scene-popup.scene-visibility.camera" :tag :camera}
@@ -57,6 +58,11 @@
           (system/defold-dev?)
           (into [{:type :separator}
                  {:type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds" :tag :dev-visibility-bounds :appear-filtered false}])))
+
+(def ^:private toggleable-filters
+  (coll/into-> renderable-tag-toggles-info #{}
+    (filter #(and (not (:always-enabled %)) (= (:type %) :toggle)))
+    (map :tag)))
 
 (def ^:private appear-filtered-renderable-tags
   (into #{}
@@ -121,6 +127,7 @@
 (g/defnode SceneVisibilityNode
   (property visibility-filters-enabled? g/Bool (default true))
   (property filtered-renderable-tags types/RenderableTags (default #{:dev-visibility-bounds}))
+  (property ui-check-boxes g/Any (default {}))
 
   (input active-resource-node+type g/Any)
   (input active-scene g/Any :substitute nil)
@@ -277,6 +284,12 @@
 ;; -----------------------------------------------------------------------------
 ;; Visibility Filters
 ;; -----------------------------------------------------------------------------
+(defn- sync-filter-checkboxes! [scene-visibility]
+  (let [check-boxes (:filter-check-boxes (g/node-value scene-visibility :ui-check-boxes))]
+    (when (seq check-boxes)
+      (let [enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
+        (doseq [cb check-boxes]
+          (ui/enable! cb enabled?))))))
 
 (defrecord SceneVisibilityBinding [scene-visibility]
   popup/SettingsBinding
@@ -286,7 +299,9 @@
       (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key))))
   (set-value! [_ key v]
     (if (= :visibility-filters-enabled? key)
-      (g/set-property! scene-visibility :visibility-filters-enabled? v)
+      (do
+        (g/set-property! scene-visibility :visibility-filters-enabled? v)
+        (sync-filter-checkboxes! scene-visibility))
       (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key)))
   (reset-all! [_] nil))
 
@@ -343,6 +358,10 @@
                                      (ui/timer-stop! refresh-timer))})]
       (ui/timer-start! refresh-timer))))
 
+(defn- extract-popup-check-box [controls tag]
+  (println (tag controls))
+  (last (.getChildren ^HBox (first (tag controls)))))
+
 (defn show-settings! [app-view keymap localization ^Parent owner scene-visibility]
   (let [keymap (g/node-value app-view :keymap)
         setting-descriptors (mapv #(-> %
@@ -350,19 +369,20 @@
                                        (dissoc :tag #_#_:always-enabled :appear-filtered))
                                   renderable-tag-toggles-info)
         scene-vis-binding (->SceneVisibilityBinding scene-visibility)
-        update-fn (fn []
-                    (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
-                          enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
-                      ;; Update enable/disable state of tag toggle rows
-                      ;; based on filters-enabled? flag
-                      ;; (filters-enabled-update-fn visibility-filters-enabled? true)
-                      ;; (update-tag-toggles filtered-tags visibility-filters-enabled?)
-                      ))
-        refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
-    (update-fn)
-    (ui/timer-start! refresh-timer)
-    ;; TODO JOE: On close, we have to set the references to the UI controls to nil so the garbage collector doesn't hold on to them
-    (popup/show-settings! owner keymap localization scene-vis-binding 230 setting-descriptors false nil (fn [_] (ui/timer-stop! refresh-timer)))))
+        controls (popup/show-settings! owner keymap localization scene-vis-binding 230 setting-descriptors false nil
+                                       ;; NOTE: On close, free the references to the check-boxes
+                                       (fn [_]
+                                         (clojure.pprint/pprint (g/node-value scene-visibility :ui-check-boxes))
+                                         (g/set-property! scene-visibility :ui-check-boxes nil)))]
+    (when controls
+      (g/set-property! scene-visibility :ui-check-boxes
+                       {:filter-check-boxes (coll/into-> controls []
+                                              (keep (fn [[key entry]]
+                                                      (when (contains? toggleable-filters key)
+                                                        ;; NOTE: We only need the HBox for this, so we can disable the whole thing
+                                                        (first entry)))))
+                        :visibility-filter-check-box (extract-popup-check-box controls :visibility-filters-enabled?)
+                        :component-guide-check-box (extract-popup-check-box controls :outline)}))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
   (g/update-property! scene-visibility :filtered-renderable-tags (fn [tags]
@@ -373,12 +393,20 @@
 (handler/defhandler :scene.visibility.toggle-filters :workbench
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (run [scene-visibility] (g/update-property! scene-visibility :visibility-filters-enabled? not)))
+  (run [scene-visibility]
+    (g/update-property! scene-visibility :visibility-filters-enabled? not)
+    (sync-filter-checkboxes! scene-visibility)
+    (when-let [cb (:visibility-filter-check-box (g/node-value scene-visibility :ui-check-boxes))]
+      (ui/value! cb (g/node-value scene-visibility :visibility-filters-enabled?)))))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (run [scene-visibility] (toggle-tag-visibility! scene-visibility :outline)))
+  (run [scene-visibility]
+    (toggle-tag-visibility! scene-visibility :outline)
+    (when-let [cb (:component-guide-check-box (g/node-value scene-visibility :ui-check-boxes))]
+      (let [visible (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) :outline))]
+        (ui/value! cb visible)))))
 
 (handler/defhandler :scene.visibility.toggle-grid :workbench
   (active? [app-view scene-visibility evaluation-context]
