@@ -597,11 +597,7 @@ namespace dmGameSystem
         component->m_IsPlaying = 0;
         component->m_CurrentAnimation = 0x0;
         component->m_CurrentAnimationFrame = 0;
-
-        if (!texture_set || (uint16_t)texture_set->m_TextureSet->m_Animations.m_Count <= component->m_AnimationID)
-        {
-            component->m_AnimationID = 0;
-        }
+        component->m_AnimationID = 0;
 
         component->m_AnimationReHash = 1;
     }
@@ -2702,5 +2698,11 @@ namespace dmGameSystem
     {
         SpriteComponent* comp = (SpriteComponent*) sprite_component;
         *scale_out = comp->m_Scale;
+    }
+
+    uint16_t GetSpriteComponentAnimationIndex(void* sprite_component)
+    {
+        SpriteComponent* comp = (SpriteComponent*) sprite_component;
+        return comp->m_AnimationID;
     }
 }

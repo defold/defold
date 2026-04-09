@@ -90,6 +90,7 @@ namespace dmGameSystem
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
     extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
     extern void GetSpriteComponentScale(void* sprite_component, dmVMath::Vector3* scale_out);
+    extern uint16_t GetSpriteComponentAnimationIndex(void* sprite_component);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
     extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
@@ -1285,6 +1286,16 @@ static dmGameSystem::LabelComponent* GetLabelComponent(dmGameObject::HInstance i
     return (dmGameSystem::LabelComponent*) component;
 }
 
+static void* GetSpriteComponent(dmGameObject::HInstance instance, dmhash_t component_id)
+{
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld world = 0;
+    EXPECT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, component_id, &component_type, &component, &world));
+    EXPECT_NE((void*)0, component);
+    return component;
+}
+
 static dmGameSystem::GuiComponent* GetGuiComponent(dmGameObject::HCollection collection)
 {
     uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, dmHashString64("guic"));
@@ -1965,6 +1976,53 @@ TEST_F(SpriteTest, SetImageClearsInvalidAnimationIdWithoutLogging)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
+        ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
+        ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
+    }
+
+    dmResource::Release(m_Factory, image_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, SetImageClearsInRangeAnimationIdForTrimmedAtlas)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t animation_prop_id = dmHashString64("animation");
+    dmhash_t old_animation_id = dmHashString64("anim_loop_pingpong");
+    dmhash_t new_image_id = dmHashString64("/sprite/image/stale_animation_id_in_range.t.texturesetc");
+    dmGameSystem::TextureSetResource* image_resource = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/image/stale_animation_id_in_range.t.texturesetc", (void**) &image_resource));
+    ASSERT_TRUE(image_resource->m_TextureSet->m_Animations.m_Count > 6);
+    ASSERT_NE(dmGameSystemDDF::SPRITE_TRIM_MODE_OFF, image_resource->m_TextureSet->m_Geometries[0].m_TrimMode);
+    ASSERT_EQ((uint32_t*)0, image_resource->m_AnimationIds.Get(old_animation_id));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    void* sprite_component = GetSpriteComponent(go, sprite_comp_id);
+    ASSERT_NE((void*)0, sprite_component);
+
+    PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, old_animation_id, 0.0f, 1.0f);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(old_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+    ASSERT_GT(dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component), 0u);
+
+    {
+        GamesysErrorLogCapture log_capture;
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, new_image_id));
+        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        RenderCollection(m_RenderContext, m_Collection);
+
+        ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
         ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
         ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
     }
