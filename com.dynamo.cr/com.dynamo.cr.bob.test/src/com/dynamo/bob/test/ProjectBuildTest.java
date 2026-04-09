@@ -49,6 +49,8 @@ import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.liveupdate.proto.Manifest;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 public class ProjectBuildTest {
 
@@ -71,12 +73,27 @@ public class ProjectBuildTest {
     }
 
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
+        build(false, false);
+    }
+
+    void buildArchive(boolean publishLiveupdate) throws IOException, CompileExceptionError, MultipleCompileException {
+        build(true, publishLiveupdate);
+    }
+
+    private void build(boolean archive, boolean publishLiveupdate) throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
         ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        if (archive) {
+            project.setOption("archive", "true");
+        }
+        if (publishLiveupdate) {
+            project.setOption("liveupdate", "true");
+        }
 
         // project.setOption("platform", Platform.X86Win32.getPair());
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
@@ -257,6 +274,174 @@ public class ProjectBuildTest {
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
 
         checkProjectSetting(outputProps, "project", "custom_property", null);
+    }
+
+    @Test
+    public void testArchiveBuildStripsExcludedEntriesFromBundledManifestByDefault() throws IOException, CompileExceptionError, MultipleCompileException {
+        createExcludedLiveUpdateProject(null);
+
+        buildArchive(true);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+        Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
+
+        assertEquals(0, countExcludedEntries(bundledManifestData));
+        assertTrue(countExcludedEntries(publishedManifestData) > 0);
+
+        assertFalse(hasResource(bundledManifestData, "/logic/level.collectionc"));
+        assertFalse(hasResource(bundledManifestData, "/logic/level.goc"));
+        assertFalse(hasResource(bundledManifestData, "/logic/level.scriptc"));
+
+        assertTrue(hasResource(publishedManifestData, "/logic/level.collectionc"));
+        assertTrue(hasResource(publishedManifestData, "/logic/level.goc"));
+        assertTrue(hasResource(publishedManifestData, "/logic/level.scriptc"));
+    }
+
+    @Test
+    public void testArchiveBuildCanKeepExcludedEntriesInBundledManifest() throws IOException, CompileExceptionError, MultipleCompileException {
+        createExcludedLiveUpdateProject("exclude_entries_from_main_manifest = 0\n");
+
+        buildArchive(true);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+        Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
+
+        assertTrue(countExcludedEntries(bundledManifestData) > 0);
+        assertEquals(publishedManifestData, bundledManifestData);
+    }
+
+    @Test
+    public void testArchiveBuildWithoutLiveUpdatePublishingKeepsExcludedEntriesBundled() throws IOException, CompileExceptionError, MultipleCompileException {
+        createExcludedLiveUpdateProject(null);
+
+        buildArchive(false);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+
+        assertEquals(0, countExcludedEntries(bundledManifestData));
+        assertTrue(hasResource(bundledManifestData, "/logic/level.collectionc"));
+        assertTrue(hasResource(bundledManifestData, "/logic/level.goc"));
+        assertTrue(hasResource(bundledManifestData, "/logic/level.scriptc"));
+    }
+
+    @Test
+    public void testArchiveBuildWithoutExcludedResourcesKeepsManifestUnchanged() throws IOException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        createLiveUpdatePublisherSettings();
+        createFile(contentRoot, "game.project", "[display]\nwidth=640\nheight=480\n[liveupdate]\nsettings = /liveupdate.settings\n");
+
+        buildArchive(true);
+
+        Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
+        Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
+
+        assertEquals(0, countExcludedEntries(bundledManifestData));
+        assertEquals(0, countExcludedEntries(publishedManifestData));
+        assertEquals(publishedManifestData, bundledManifestData);
+    }
+
+    private void createExcludedLiveUpdateProject(String extraLiveUpdateSettings) throws IOException {
+        createDefaultFiles();
+        createLiveUpdatePublisherSettings();
+
+        StringBuilder gameProject = new StringBuilder();
+        gameProject.append("[display]\nwidth=640\nheight=480\n");
+        gameProject.append("[liveupdate]\nsettings = /liveupdate.settings\n");
+        if (extraLiveUpdateSettings != null) {
+            gameProject.append(extraLiveUpdateSettings);
+        }
+        createFile(contentRoot, "game.project", gameProject.toString());
+
+        createFile(contentRoot, "logic/main.collection",
+                "name: \"main\"\n" +
+                "instances {\n" +
+                "  id: \"main\"\n" +
+                "  prototype: \"/logic/main.go\"\n" +
+                "  position {\n" +
+                "    x: 0.0\n" +
+                "    y: 0.0\n" +
+                "    z: 0.0\n" +
+                "  }\n" +
+                "  rotation {\n" +
+                "    x: 0.0\n" +
+                "    y: 0.0\n" +
+                "    z: 0.0\n" +
+                "    w: 1.0\n" +
+                "  }\n" +
+                "}\n");
+        createFile(contentRoot, "logic/main.go",
+                "components {\n" +
+                "  id: \"level_proxy\"\n" +
+                "  component: \"/logic/level.collectionproxy\"\n" +
+                "}\n");
+        createFile(contentRoot, "logic/level.collectionproxy",
+                "collection: \"/logic/level.collection\"\n" +
+                "exclude: true\n");
+        createFile(contentRoot, "logic/level.collection",
+                "name: \"level\"\n" +
+                "instances {\n" +
+                "  id: \"level\"\n" +
+                "  prototype: \"/logic/level.go\"\n" +
+                "  position {\n" +
+                "    x: 0.0\n" +
+                "    y: 0.0\n" +
+                "    z: 0.0\n" +
+                "  }\n" +
+                "  rotation {\n" +
+                "    x: 0.0\n" +
+                "    y: 0.0\n" +
+                "    z: 0.0\n" +
+                "    w: 1.0\n" +
+                "  }\n" +
+                "}\n");
+        createFile(contentRoot, "logic/level.go",
+                "components {\n" +
+                "  id: \"script\"\n" +
+                "  component: \"/logic/level.script\"\n" +
+                "}\n");
+        createFile(contentRoot, "logic/level.script", "function init(self)\nend\n");
+    }
+
+    private void createLiveUpdatePublisherSettings() throws IOException {
+        createFile(contentRoot, "liveupdate.settings",
+                "[liveupdate]\n" +
+                "mode = Folder\n" +
+                "output-directory = liveupdate_output\n" +
+                "output-folder-name = published\n");
+    }
+
+    private File getBundledManifestFile() {
+        return new File(contentRoot, "build/game.dmanifest");
+    }
+
+    private File getPublishedManifestFile() {
+        return new File(contentRoot, "liveupdate_output/published/liveupdate.game.dmanifest");
+    }
+
+    private Manifest.ManifestData readManifestData(File manifestFile) throws IOException {
+        try (FileInputStream inputStream = new FileInputStream(manifestFile)) {
+            Manifest.ManifestFile manifest = Manifest.ManifestFile.parseFrom(inputStream);
+            return Manifest.ManifestData.parseFrom(manifest.getData());
+        }
+    }
+
+    private int countExcludedEntries(Manifest.ManifestData manifestData) {
+        int excludedEntries = 0;
+        for (Manifest.ResourceEntry entry : manifestData.getResourcesList()) {
+            if ((entry.getFlags() & ResourceEntryFlag.EXCLUDED.getNumber()) != 0) {
+                excludedEntries++;
+            }
+        }
+        return excludedEntries;
+    }
+
+    private boolean hasResource(Manifest.ManifestData manifestData, String url) {
+        for (Manifest.ResourceEntry entry : manifestData.getResourcesList()) {
+            if (url.equals(entry.getUrl())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String createFile(String root, String name, String content) throws IOException {

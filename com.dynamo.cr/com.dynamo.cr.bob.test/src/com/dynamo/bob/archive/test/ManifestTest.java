@@ -16,6 +16,7 @@ package com.dynamo.bob.archive.test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -56,6 +57,7 @@ public class ManifestTest {
 
         public ManifestHeader manifestHeader = null;
         public ManifestData manifestData = null;
+        public ManifestData strippedManifestData = null;
         public ManifestFile manifestFile = null;
         public byte[] manifest = null;
 
@@ -74,11 +76,17 @@ public class ManifestTest {
 
             for (String[] entry : this.resources) {
                 byte[] data = entry[1].getBytes();
-                manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, ResourceEntryFlag.BUNDLED.getNumber());
+                ResourceNode node = this.resourceGraph.getResourceNodeFromPath(entry[0]);
+                int flags = ResourceEntryFlag.BUNDLED.getNumber();
+                if (node != null && !node.isInMainBundle()) {
+                    flags = ResourceEntryFlag.EXCLUDED.getNumber();
+                }
+                manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, flags);
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();
             this.manifestData = manifestBuilder.buildManifestData();
+            this.strippedManifestData = manifestBuilder.buildManifestData(true);
             this.manifestFile = manifestBuilder.buildManifestFile();
             this.manifest = manifestBuilder.buildManifest();
         }
@@ -306,6 +314,25 @@ public class ManifestTest {
         }
     }
 
+    private ResourceEntry findResource(ManifestData data, String url) {
+        for (ResourceEntry entry : data.getResourcesList()) {
+            if (url.equals(entry.getUrl())) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    private int countExcludedResources(ManifestData data) {
+        int excluded = 0;
+        for (ResourceEntry entry : data.getResourcesList()) {
+            if ((entry.getFlags() & ResourceEntryFlag.EXCLUDED.getNumber()) != 0) {
+                excluded++;
+            }
+        }
+        return excluded;
+    }
+
     @Test
     public void testCreateManifest_Resources() throws IOException {
         ManifestInstance instance = new ManifestInstance();
@@ -328,5 +355,44 @@ public class ManifestTest {
                 assertEquals(3, current.getDependantsCount());
             }
         }
+    }
+
+    @Test
+    public void testBuildManifest_FullManifestMatchesDefaultBehavior() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+
+        assertEquals(instance.manifestData, instance.manifestBuilder.buildManifestData(false));
+    }
+
+    @Test
+    public void testBuildManifest_StrippedManifestOmitsExcludedEntries() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+        ManifestData fullData = instance.manifestData;
+        ManifestData strippedData = instance.strippedManifestData;
+
+        assertEquals(instance.resources.length, fullData.getResourcesCount());
+        assertEquals(7, countExcludedResources(fullData));
+        assertEquals(6, strippedData.getResourcesCount());
+        assertEquals(0, countExcludedResources(strippedData));
+
+        assertFalse(findResource(strippedData, "/main/level1.collectionc") != null);
+        assertFalse(findResource(strippedData, "/main/level1.goc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.collectionproxyc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.collectionc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.goc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.soundc") != null);
+
+        assertTrue(findResource(strippedData, "/main/main.collectionc") != null);
+        assertTrue(findResource(strippedData, "/main/level1.collectionproxyc") != null);
+    }
+
+    @Test
+    public void testBuildManifest_FullManifestRetainsExcludedDependencyMetadata() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+        ResourceEntry fullEntry = findResource(instance.manifestData, "/main/level1.collectionc");
+
+        assertTrue(fullEntry != null);
+        assertEquals(ResourceEntryFlag.EXCLUDED.getNumber(), fullEntry.getFlags());
+        assertEquals(3, fullEntry.getDependantsCount());
     }
 }

@@ -273,6 +273,10 @@ public class GameProjectBuilder extends Builder {
         return manifestBuilder;
     }
 
+    private boolean shouldStripLiveUpdateEntriesFromMainManifest() {
+        return project.getProjectProperties().getBooleanValue("liveupdate", "exclude_entries_from_main_manifest", true);
+    }
+
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties' conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) {
@@ -351,7 +355,10 @@ public class GameProjectBuilder extends Builder {
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
-                byte[] manifestFile = manifestBuilder.buildManifest();
+                byte[] fullManifestFile = manifestBuilder.buildManifest();
+                byte[] bundledManifestFile = shouldStripLiveUpdateEntriesFromMainManifest()
+                        ? manifestBuilder.buildManifest(true)
+                        : fullManifestFile;
                 this.project.setArchiveBuilder(archiveBuilder);
 
                 // Write outputs to the build system
@@ -364,7 +371,7 @@ public class GameProjectBuilder extends Builder {
                 task.getOutputs().get(2).setContent(archiveDataInputStream);
 
                 // game.dmanifest
-                task.getOutputs().get(3).setContent(manifestFile);
+                task.getOutputs().get(3).setContent(bundledManifestFile);
 
                 // game.graph.json
                 resourceGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
@@ -379,7 +386,7 @@ public class GameProjectBuilder extends Builder {
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
                 String liveupdateManifestFilename = "liveupdate.game.dmanifest";
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
-                FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
+                FileUtils.writeByteArrayToFile(manifestTmpFileHandle, fullManifestFile);
 
                 ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
                 project.getPublisher().publish(manifestArchiveEntry, manifestTmpFileHandle);

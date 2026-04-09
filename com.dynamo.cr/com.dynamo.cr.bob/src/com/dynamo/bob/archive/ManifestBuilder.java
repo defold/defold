@@ -39,6 +39,7 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
 
@@ -255,7 +256,19 @@ public class ManifestBuilder {
         return builder.build();
     }
 
-    private void buildUrlToResourceMap(Set<ResourceEntry> entries) throws IOException {
+    private List<ResourceEntry> getManifestEntries(boolean stripExcludedEntries) {
+        List<ResourceEntry> manifestEntries = new ArrayList<>();
+        for (ResourceEntry entry : this.resourceEntries) {
+            if (stripExcludedEntries && (entry.getFlags() & ResourceEntryFlag.EXCLUDED.getNumber()) != 0) {
+                continue;
+            }
+            manifestEntries.add(entry);
+        }
+        return manifestEntries;
+    }
+
+    private void buildUrlToResourceMap(List<ResourceEntry> entries) throws IOException {
+        urlToResource.clear();
         for (ResourceEntry entry : entries) {
             if (entry.hasHash()) {
                 urlToResource.put(entry.getUrl(), entry);
@@ -266,6 +279,10 @@ public class ManifestBuilder {
     }
 
     public ManifestData buildManifestData() throws IOException {
+        return buildManifestData(false);
+    }
+
+    public ManifestData buildManifestData(boolean stripExcludedEntries) throws IOException {
         TimeProfiler.start("buildManifestData");
         logger.info("buildManifestData begin");
         long tstart = System.currentTimeMillis();
@@ -275,7 +292,8 @@ public class ManifestBuilder {
         ManifestHeader manifestHeader = this.buildManifestHeader();
         builder.setHeader(manifestHeader);
 
-        buildUrlToResourceMap(this.resourceEntries);
+        List<ResourceEntry> manifestEntries = getManifestEntries(stripExcludedEntries);
+        buildUrlToResourceMap(manifestEntries);
 
         List<String> sortedEngineVersions = new ArrayList<>(this.supportedEngineVersions);
         Collections.sort(sortedEngineVersions);
@@ -292,7 +310,7 @@ public class ManifestBuilder {
             }
         }
 
-        for (ResourceEntry entry : this.resourceEntries) {
+        for (ResourceEntry entry : manifestEntries) {
             String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
@@ -323,10 +341,14 @@ public class ManifestBuilder {
     }
 
     public ManifestFile buildManifestFile() throws IOException {
+        return buildManifestFile(false);
+    }
+
+    public ManifestFile buildManifestFile(boolean stripExcludedEntries) throws IOException {
         TimeProfiler.start("buildManifestFile");
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
-        ManifestData manifestData = this.buildManifestData();
+        ManifestData manifestData = this.buildManifestData(stripExcludedEntries);
         byte[] manifestBytes = manifestData.toByteArray();
         builder.setData(ByteString.copyFrom(manifestBytes));
         builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
@@ -346,6 +368,10 @@ public class ManifestBuilder {
     }
 
     public byte[] buildManifest() throws IOException {
-        return this.buildManifestFile().toByteArray();
+        return this.buildManifest(false);
+    }
+
+    public byte[] buildManifest(boolean stripExcludedEntries) throws IOException {
+        return this.buildManifestFile(stripExcludedEntries).toByteArray();
     }
 }
