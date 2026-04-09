@@ -80,6 +80,11 @@
     #define glDrawElementsInstanced PFN_glDrawElementsInstanced
     #define glVertexAttribDivisor PFN_glVertexAttribDivisor
 
+    // GLES2 headers alone do not declare ES 3.0 UBO queries / bind range (we require GLES 3).
+    #ifndef GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT
+    #define GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT 0x8DF4
+    #endif
+
 #elif defined (__MACH__)
     // NOP
 #elif defined (__linux__)
@@ -462,6 +467,9 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLBINDBUFFERBASEPROC) (GLenum target, GLuint index, GLuint buffer);
     DM_PFNGLBINDBUFFERBASEPROC glBindBufferBase = NULL;
+
+    typedef void (* DM_PFNGLBINDBUFFERRANGEPROC) (GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size);
+    DM_PFNGLBINDBUFFERRANGEPROC glBindBufferRange = NULL;
 
     typedef GLuint (* DM_PFNGLGETUNIFORMBLOCKINDEXPROC) (GLuint program, const GLchar *uniformBlockName);
     DM_PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = NULL;
@@ -1518,6 +1526,7 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture,            "glBindImageTexture",        "shader_image_load_store", "glBindImageTexture",        DM_PFNGLBINDIMAGETEXTUREPROC,        _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,             "glDispatchCompute",         "compute_shader",          "glDispatchCompute",         DM_PFNGLDISPATCHCOMPUTEPROC,         _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,              "glBindBufferBase",           "",                       "glBindBufferBase",          DM_PFNGLBINDBUFFERBASEPROC,          _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferRange,             "glBindBufferRange",          "",                       "glBindBufferRange",         DM_PFNGLBINDBUFFERRANGEPROC,         _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,        "glGetUniformBlockIndex",     "",                       "glGetUniformBlockIndex",    DM_PFNGLGETUNIFORMBLOCKINDEXPROC,    _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,     "glGetActiveUniformBlockiv",  "",                       "glGetActiveUniformBlockiv", DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC, _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,         "glGetActiveUniformsiv",      "",                       "glGetActiveUniformsiv",     DM_PFNGLGETACTIVEUNIFORMSIVPROC,     _context);
