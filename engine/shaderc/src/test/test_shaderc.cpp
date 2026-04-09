@@ -108,31 +108,6 @@ static const dmShaderc::ShaderResource* GetShaderResourceByNameHash(const dmArra
     return 0;
 }
 
-// lightbuffer.frag: uniform Light { ... } lights[MAX_LIGHTS]; with MAX_LIGHTS 8
-TEST(Shaderc, TestLightBufferUboArrayReflection)
-{
-    uint32_t       data_size;
-    void*          data = ReadFile("./build/src/test/data/lightbuffer.spv", &data_size);
-    ASSERT_NE((void*)0, data);
-
-    dmShaderc::HShaderContext                 shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
-    const dmShaderc::ShaderReflection* reflection        = dmShaderc::GetReflection(shader_ctx);
-
-    const dmShaderc::ShaderResource* light_ubo = GetShaderResourceByNameHash(reflection->m_UniformBuffers, dmHashString64("Light"));
-    ASSERT_NE((const dmShaderc::ShaderResource*)0, light_ubo);
-    ASSERT_EQ(8u, light_ubo->m_Type.m_ArraySize);
-    ASSERT_EQ(dmHashString64("lights"), light_ubo->m_InstanceNameHash);
-    ASSERT_EQ(512u, light_ubo->m_BlockSize); // std140: 4 x vec4 => 64 bytes per light * 8
-
-    const dmShaderc::ShaderResource* fs_ubo = GetShaderResourceByNameHash(reflection->m_UniformBuffers, dmHashString64("fs_uniforms"));
-    ASSERT_NE((const dmShaderc::ShaderResource*)0, fs_ubo);
-    ASSERT_EQ(1u, fs_ubo->m_Type.m_ArraySize);
-    ASSERT_EQ(16u, fs_ubo->m_BlockSize);
-
-    dmShaderc::DeleteShaderContext(shader_ctx);
-    free(data);
-}
-
 static inline const char* FindFirstOccurance(const char* src, const char* text)
 {
     return strstr(src, text);

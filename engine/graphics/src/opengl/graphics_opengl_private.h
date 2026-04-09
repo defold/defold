@@ -127,12 +127,8 @@ namespace dmGraphics
         uint8_t*                   m_BlockMemory;
         HOpenglID                  m_Id;
         GLint                      m_BindPoint;
-        GLint                      m_BlockSize; // Total GL buffer size (whole instance array or one block)
+        GLint                      m_BlockSize;
         GLint                      m_ActiveUniforms;
-        uint32_t                   m_FirstGlBlockIndex; // glGetUniformBlockIndex for [0] / sole block
-        uint32_t                   m_SingleElementSize;  // GL_UNIFORM_BLOCK_DATA_SIZE for one array element
-        uint32_t                   m_ElementStride;      // Byte stride between elements (UBO offset aligned)
-        uint16_t                   m_ArrayElementCount;  // 1 for non-array UBOs
         uint8_t                    m_ResourceBinding;
         uint8_t                    m_ResourceSet : 7;
         uint8_t                    m_Dirty       : 1;

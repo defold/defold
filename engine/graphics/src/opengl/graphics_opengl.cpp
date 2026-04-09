@@ -80,11 +80,6 @@
     #define glDrawElementsInstanced PFN_glDrawElementsInstanced
     #define glVertexAttribDivisor PFN_glVertexAttribDivisor
 
-    // GLES2 headers alone do not declare ES 3.0 UBO queries / bind range (we require GLES 3).
-    #ifndef GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT
-    #define GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT 0x8DF4
-    #endif
-
 #elif defined (__MACH__)
     // NOP
 #elif defined (__linux__)
@@ -181,7 +176,6 @@
 
     // Uniform buffer objects
     PFNGLBINDBUFFERBASEPROC          glBindBufferBase          = NULL;
-    PFNGLBINDBUFFERRANGEPROC         glBindBufferRange         = NULL;
     PFNGLBUFFERDATAPROC              glBufferData              = NULL;
     PFNGLGETUNIFORMBLOCKINDEXPROC    glGetUniformBlockIndex    = NULL;
     PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
@@ -467,9 +461,6 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLBINDBUFFERBASEPROC) (GLenum target, GLuint index, GLuint buffer);
     DM_PFNGLBINDBUFFERBASEPROC glBindBufferBase = NULL;
-
-    typedef void (* DM_PFNGLBINDBUFFERRANGEPROC) (GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size);
-    DM_PFNGLBINDBUFFERRANGEPROC glBindBufferRange = NULL;
 
     typedef GLuint (* DM_PFNGLGETUNIFORMBLOCKINDEXPROC) (GLuint program, const GLchar *uniformBlockName);
     DM_PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = NULL;
@@ -1362,7 +1353,6 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS_OPTIONAL(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
 
         GET_PROC_ADDRESS(glBindBufferBase, "glBindBufferBase", PFNGLBINDBUFFERBASEPROC);
-        GET_PROC_ADDRESS(glBindBufferRange, "glBindBufferRange", PFNGLBINDBUFFERRANGEPROC);
         GET_PROC_ADDRESS(glBufferData, "glBufferData", PFNGLBUFFERDATAPROC);
         GET_PROC_ADDRESS(glGetUniformBlockIndex, "glGetUniformBlockIndex", PFNGLGETUNIFORMBLOCKINDEXPROC);
         GET_PROC_ADDRESS(glGetActiveUniformBlockiv, "glGetActiveUniformBlockiv", PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
@@ -1526,7 +1516,6 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture,            "glBindImageTexture",        "shader_image_load_store", "glBindImageTexture",        DM_PFNGLBINDIMAGETEXTUREPROC,        _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,             "glDispatchCompute",         "compute_shader",          "glDispatchCompute",         DM_PFNGLDISPATCHCOMPUTEPROC,         _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,              "glBindBufferBase",           "",                       "glBindBufferBase",          DM_PFNGLBINDBUFFERBASEPROC,          _context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferRange,             "glBindBufferRange",          "",                       "glBindBufferRange",         DM_PFNGLBINDBUFFERRANGEPROC,         _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,        "glGetUniformBlockIndex",     "",                       "glGetUniformBlockIndex",    DM_PFNGLGETUNIFORMBLOCKINDEXPROC,    _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,     "glGetActiveUniformBlockiv",  "",                       "glGetActiveUniformBlockiv", DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC, _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,         "glGetActiveUniformsiv",      "",                       "glGetActiveUniformsiv",     DM_PFNGLGETACTIVEUNIFORMSIVPROC,     _context);
@@ -2124,15 +2113,6 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
         delete ubo;
-    }
-
-    static uint32_t OpenGLGetUniformBufferOffsetAlignment(HContext _context)
-    {
-        (void) _context;
-        GLint align = 256;
-        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
-        CHECK_GL_ERROR;
-        return (uint32_t) align;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2770,11 +2750,6 @@ static void LogFrameBufferError(GLenum status)
             for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
             {
                 OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[i];
-                if (ubo.m_ActiveUniforms <= 0)
-                {
-                    continue;
-                }
-
                 OpenGLUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[ubo.m_ResourceSet][ubo.m_ResourceBinding];
 
                 if (bound_ubo)
@@ -2796,49 +2771,24 @@ static void LogFrameBufferError(GLenum status)
 
                 if (bound_ubo)
                 {
-                    const GLuint buf = GetGLHandle(context, bound_ubo->m_Id);
-                    if (ubo.m_ArrayElementCount > 1u)
-                    {
-                        for (uint32_t e = 0; e < (uint32_t) ubo.m_ArrayElementCount; ++e)
-                        {
-                            glBindBufferRange(GL_UNIFORM_BUFFER, ubo.m_BindPoint + (GLint) e, buf,
-                                (GLintptr) ((size_t) e * (size_t) ubo.m_ElementStride),
-                                (GLsizeiptr) ubo.m_SingleElementSize);
-                            CHECK_GL_ERROR;
-                        }
-                    }
-                    else
-                    {
-                        glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, buf);
-                        CHECK_GL_ERROR;
-                    }
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
+                    CHECK_GL_ERROR;
                 }
                 else
                 {
-                    if (ubo.m_Dirty > 0)
-                    {
-                        glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo.m_Id));
-                        CHECK_GL_ERROR;
-                        glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
-                        CHECK_GL_ERROR;
-                        ubo.m_Dirty = false;
-                    }
-
-                    if (ubo.m_ArrayElementCount > 1u)
-                    {
-                        const GLuint buf = GetGLHandle(context, ubo.m_Id);
-                        for (uint32_t e = 0; e < (uint32_t) ubo.m_ArrayElementCount; ++e)
-                        {
-                            glBindBufferRange(GL_UNIFORM_BUFFER, ubo.m_BindPoint + (GLint) e, buf,
-                                (GLintptr) ((size_t) e * (size_t) ubo.m_ElementStride),
-                                (GLsizeiptr) ubo.m_SingleElementSize);
-                            CHECK_GL_ERROR;
-                        }
-                    }
-                    else
+                    if (ubo.m_ActiveUniforms > 0)
                     {
                         glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, ubo.m_Id));
                         CHECK_GL_ERROR;
+
+                        if (ubo.m_Dirty > 0)
+                        {
+                            glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo.m_Id));
+                            CHECK_GL_ERROR;
+                            glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                            CHECK_GL_ERROR;
+                            ubo.m_Dirty = false;
+                        }
                     }
                 }
             }
@@ -3009,7 +2959,6 @@ static void LogFrameBufferError(GLenum status)
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
         GLint size = program_size;
-
         glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
         CHECK_GL_ERROR;
         glCompileShader(shader_id);
@@ -3048,8 +2997,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
             if (error_buffer)
             {
-                dmSnPrintf(error_buffer, error_buffer_size,
-                    "Unable to compile %s shader with source:%s\n----\nError: %s", type_str, (char*) program, log_str == 0 ? "Unknown" : log_str);
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nError: %s", type_str, log_str == 0 ? "Unknown" : log_str);
             }
             if (log_str)
             {
@@ -3157,66 +3105,6 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
-    // glGetUniformBlockIndex requires an array element for uniform block arrays, e.g. "lights[0]" for
-    // `uniform Light { ... } lights[4];` — the type name "Light" alone returns GL_INVALID_INDEX.
-    static GLuint GetOpenGLUniformBlockIndex(GLuint program_handle, const ShaderResourceBinding& res)
-    {
-        GLuint block_index = glGetUniformBlockIndex(program_handle, res.m_Name);
-        CHECK_GL_ERROR;
-        if (block_index != GL_INVALID_INDEX)
-        {
-            return block_index;
-        }
-
-        char indexed_name[256];
-        if (res.m_InstanceName != 0x0 && res.m_InstanceName[0] != '\0')
-        {
-            const int n = snprintf(indexed_name, sizeof(indexed_name), "%s[0]", res.m_InstanceName);
-            if (n > 0 && n < (int) sizeof(indexed_name))
-            {
-                block_index = glGetUniformBlockIndex(program_handle, indexed_name);
-                CHECK_GL_ERROR;
-                if (block_index != GL_INVALID_INDEX)
-                {
-                    return block_index;
-                }
-            }
-        }
-
-        if (res.m_ElementCount > 1 && res.m_Name != 0x0 && res.m_Name[0] != '\0')
-        {
-            const int n = snprintf(indexed_name, sizeof(indexed_name), "%s[0]", res.m_Name);
-            if (n > 0 && n < (int) sizeof(indexed_name))
-            {
-                block_index = glGetUniformBlockIndex(program_handle, indexed_name);
-                CHECK_GL_ERROR;
-            }
-        }
-
-        return block_index;
-    }
-
-    static bool OpenGLFindScratchUboForGlBlockIndex(OpenGLProgram* program, GLuint gl_block_index, OpenGLScratchUniformBuffer** out_ubo, uint32_t* out_array_element)
-    {
-        const uint32_t n = program->m_UniformBuffers.Size();
-        for (uint32_t j = 0; j < n; ++j)
-        {
-            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[j];
-            if (ubo.m_ActiveUniforms <= 0)
-            {
-                continue;
-            }
-            if (gl_block_index >= ubo.m_FirstGlBlockIndex &&
-                gl_block_index < ubo.m_FirstGlBlockIndex + (GLuint) ubo.m_ArrayElementCount)
-            {
-                *out_ubo          = &ubo;
-                *out_array_element = gl_block_index - ubo.m_FirstGlBlockIndex;
-                return true;
-            }
-        }
-        return false;
-    }
-
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
@@ -3226,15 +3114,14 @@ static void LogFrameBufferError(GLenum status)
 
         memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
-        const uint32_t ubo_offset_align = OpenGLGetUniformBufferOffsetAlignment((HContext) context);
-
         uint32_t num_uniform_buffers = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         for (uint32_t j = 0; j < num_uniform_buffers; ++j)
         {
             ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
 
             GLuint program_handle = GetGLHandle(context, program->m_Id);
-            GLuint blockIndex = GetOpenGLUniformBlockIndex(program_handle, res);
+            GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
+            CHECK_GL_ERROR;
 
             if (blockIndex == GL_INVALID_INDEX)
             {
@@ -3251,30 +3138,19 @@ static void LogFrameBufferError(GLenum status)
             glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
             CHECK_GL_ERROR;
 
-            const uint32_t elem_count =
-                (uint32_t) dmMath::Max((uint32_t) 1, (uint32_t) res.m_ElementCount);
-            const uint32_t stride =
-                (elem_count > 1u) ? DM_ALIGN((uint32_t) blockSize, ubo_offset_align) : (uint32_t) blockSize;
-            const uint32_t total_size =
-                (elem_count > 1u) ? (stride * (elem_count - 1u) + (uint32_t) blockSize) : (uint32_t) blockSize;
-
-            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[j];
+            OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
             ubo.m_Indices.SetCapacity(activeUniforms);
             ubo.m_Indices.SetSize(activeUniforms);
             ubo.m_Offsets.SetCapacity(activeUniforms);
             ubo.m_Offsets.SetSize(activeUniforms);
-            ubo.m_Layout             = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-            ubo.m_BindPoint          = (GLint) ubo_binding;
-            ubo.m_BlockSize          = (GLint) total_size;
-            ubo.m_ActiveUniforms     = activeUniforms;
-            ubo.m_ResourceBinding    = res.m_Binding;
-            ubo.m_ResourceSet        = res.m_Set;
-            ubo.m_FirstGlBlockIndex  = blockIndex;
-            ubo.m_SingleElementSize  = (uint32_t) blockSize;
-            ubo.m_ElementStride      = stride;
-            ubo.m_ArrayElementCount  = (uint16_t) elem_count;
-            ubo.m_BlockMemory        = new uint8_t[total_size];
-            memset(ubo.m_BlockMemory, 0, total_size);
+            ubo.m_Layout          = (UniformBufferLayout*) pgm_res.m_BindingUserData;
+            ubo.m_BindPoint       = ubo_binding++;
+            ubo.m_BlockSize       = blockSize;
+            ubo.m_ActiveUniforms  = activeUniforms;
+            ubo.m_ResourceBinding = res.m_Binding;
+            ubo.m_ResourceSet     = res.m_Set;
+            ubo.m_BlockMemory     = new uint8_t[ubo.m_BlockSize];
+            memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
 
             glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
             CHECK_GL_ERROR;
@@ -3289,23 +3165,13 @@ static void LogFrameBufferError(GLenum status)
             glBindBuffer(GL_UNIFORM_BUFFER, buffer_handle);
             CHECK_GL_ERROR;
 
-            glBufferData(GL_UNIFORM_BUFFER, (GLsizeiptr) total_size, ubo.m_BlockMemory, GL_STATIC_DRAW);
+            glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
             CHECK_GL_ERROR;
 
-            for (uint32_t e = 0; e < elem_count; ++e)
-            {
-                // OpenGL assigns consecutive uniform block indices for each element of a uniform block array.
-                glUniformBlockBinding(program_handle, blockIndex + (GLuint) e, ubo.m_BindPoint + (GLint) e);
-                CHECK_GL_ERROR;
-            }
-
-            if (elem_count == 1u)
-            {
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, buffer_handle);
-                CHECK_GL_ERROR;
-            }
-
-            ubo_binding += elem_count;
+            glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, buffer_handle);
+            CHECK_GL_ERROR;
+            glUniformBlockBinding(program_handle, blockIndex, ubo.m_BindPoint);
+            CHECK_GL_ERROR;
             glBindBuffer(GL_UNIFORM_BUFFER, 0);
             CHECK_GL_ERROR;
         }
@@ -3550,30 +3416,18 @@ static void LogFrameBufferError(GLenum status)
 
             if (uniform_block_index != -1)
             {
-                OpenGLScratchUniformBuffer* ubo_ptr = 0x0;
-                uint32_t array_elem_unused = 0;
-                if (OpenGLFindScratchUboForGlBlockIndex(program, (GLuint) uniform_block_index, &ubo_ptr, &array_elem_unused))
-                {
-                    (void) array_elem_unused;
-                    OpenGLScratchUniformBuffer& ubo = *ubo_ptr;
-                    uint32_t uniform_member_index = 0;
+                OpenGLScratchUniformBuffer& ubo = program->m_UniformBuffers[uniform_block_index];
+                uint32_t uniform_member_index = 0;
 
-                    for (int j = 0; j < ubo.m_Indices.Size(); ++j)
-                    {
-                        if (ubo.m_Indices[j] == i)
-                        {
-                            uniform_member_index = j;
-                            break;
-                        }
-                    }
-                    uniform_location = ((uint64_t) 1) << 32 | uniform_member_index << 16 | uniform_block_index;
-                }
-                else
+                for (int j = 0; j < ubo.m_Indices.Size(); ++j)
                 {
-                    dmLogWarning("OpenGL: could not map active uniform (block index %d) to a program UBO scratch slot.",
-                        uniform_block_index);
-                    uniform_location = INVALID_UNIFORM_LOCATION;
+                    if (ubo.m_Indices[j] == i)
+                    {
+                        uniform_member_index = j;
+                        break;
+                    }
                 }
+                uniform_location = ((uint64_t) 1) << 32 | uniform_member_index << 16 | uniform_block_index;
             }
             else
             {
@@ -3762,10 +3616,6 @@ static void LogFrameBufferError(GLenum status)
         {
         #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
             OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
-            if (!compute_shader)
-            {
-                return 0;
-            }
             if (!SetupComputeProgram(context, program, compute_shader))
             {
                 DeleteShader(context, compute_shader);
@@ -3779,17 +3629,7 @@ static void LogFrameBufferError(GLenum status)
         else
         {
             OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, error_buffer, error_buffer_size);
-            if (!vertex_shader)
-            {
-                return 0;
-            }
-
             OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, error_buffer, error_buffer_size);
-            if (!fragment_shader)
-            {
-                DeleteShader(context, vertex_shader);
-                return 0;
-            }
             if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader))
             {
                 DeleteShader(context, vertex_shader);
@@ -4076,18 +3916,11 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLScratchUniformBuffer* ubo = 0x0;
-            uint32_t array_element = 0;
-            if (!OpenGLFindScratchUboForGlBlockIndex(context->m_CurrentProgram, (GLuint) block_index, &ubo, &array_element) || !ubo)
-            {
-                assert(0 && "UBO uniform location refers to unknown GL block index");
-                return;
-            }
+            OpenGLScratchUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
-            const size_t base = (size_t) array_element * (size_t) ubo->m_ElementStride;
-            uint8_t* data_ptr = ubo->m_BlockMemory + base + (size_t) ubo->m_Offsets[member_index];
+            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count);
-            ubo->m_Dirty = true;
+            ubo.m_Dirty = true;
         }
         else
         {
@@ -4105,18 +3938,11 @@ static void LogFrameBufferError(GLenum status)
         {
             uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
             uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
-            OpenGLScratchUniformBuffer* ubo = 0x0;
-            uint32_t array_element = 0;
-            if (!OpenGLFindScratchUboForGlBlockIndex(context->m_CurrentProgram, (GLuint) block_index, &ubo, &array_element) || !ubo)
-            {
-                assert(0 && "UBO uniform location refers to unknown GL block index");
-                return;
-            }
+            OpenGLScratchUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[block_index];
 
-            const size_t base = (size_t) array_element * (size_t) ubo->m_ElementStride;
-            uint8_t* data_ptr = ubo->m_BlockMemory + base + (size_t) ubo->m_Offsets[member_index];
+            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
             memcpy(data_ptr, data, sizeof(Vector4) * count * 4);
-            ubo->m_Dirty = true;
+            ubo.m_Dirty = true;
         }
         else
         {

@@ -85,7 +85,6 @@ namespace dmRender
         {
             memset(this, 0, sizeof(*this));
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
-            m_LightsCountLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         }
 
         dmRender::HRenderContext                    m_RenderContext;
@@ -105,9 +104,7 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
-        dmGraphics::HUniformLocation                m_LightsCountLocation;
         uint8_t                                     m_HasLightBuffer : 1;
-        uint8_t                                     m_HasLightsCountUniform : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
@@ -122,9 +119,7 @@ namespace dmRender
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
-        dmGraphics::HUniformLocation                m_LightsCountLocation;
         uint8_t                                     m_HasLightBuffer : 1;
-        uint8_t                                     m_HasLightsCountUniform : 1;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -355,7 +350,6 @@ namespace dmRender
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
         uint32_t                    m_LightBufferDataWriteStart;
-        uint32_t                    m_LightBufferGpuElementStride; // std140 Light size aligned for UBO offset rules (API-specific)
         uint32_t                    m_LightBufferLastWrittenCount;
         uint16_t                    m_MaxLightCount;
         uint16_t                    m_LightBufferDirtyCount         : 1;

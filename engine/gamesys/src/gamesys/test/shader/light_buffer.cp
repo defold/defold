@@ -5,22 +5,17 @@ layout(rgba32f) uniform image2D texture_out;
 
 #define MAX_LIGHTS 32
 
-struct LightData
+struct Light
 {
     vec4 position;        // xyz: position, w:unused
     vec4 color;           // RGBA (matches LightParams order)
     vec4 direction_range; // xyz: normalized direction; w: range
     vec4 params;          // x: type (0 dir, 1 point, 2 spot; matches dmRender::LightType)
 };
-
-uniform Light
+uniform LightBuffer
 {
-    LightData lights[MAX_LIGHTS];
-};
-
-uniform fs_uniforms
-{
-    vec4 lights_count;
+    vec4  lights_count; // x: number of active lights
+    Light lights[MAX_LIGHTS];
 };
 
 void main()

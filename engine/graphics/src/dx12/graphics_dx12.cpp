@@ -1620,12 +1620,6 @@ namespace dmGraphics
         delete ubo;
     }
 
-    static uint32_t DX12GetUniformBufferOffsetAlignment(HContext _context)
-    {
-        (void) _context;
-        return 256u;
-    }
-
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DX12Context* context        = (DX12Context*) _context;

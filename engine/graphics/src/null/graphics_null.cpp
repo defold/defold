@@ -421,12 +421,6 @@ namespace dmGraphics
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
     }
 
-    static uint32_t NullGetUniformBufferOffsetAlignment(HContext _context)
-    {
-        (void) _context;
-        return 256u;
-    }
-
     static void NullEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
     {
         NullContext* context = (NullContext*)_context;

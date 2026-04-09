@@ -271,7 +271,7 @@ namespace dmGraphics
     };
 
     // Callback invoked for each resource binding in a program that matches the specified family.
-    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, uint32_t binding_element_count, void* user_data);
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
 
     // Iterate over all resource bindings for the given program that belong to the specified
     // binding family and invoke the supplied callback for each binding.
@@ -409,7 +409,6 @@ namespace dmGraphics
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
     void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
-    uint32_t            GetUniformBufferOffsetAlignment(HContext context);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

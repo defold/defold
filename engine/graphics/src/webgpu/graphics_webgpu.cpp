@@ -2006,16 +2006,6 @@ static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_
     delete ubo;
 }
 
-static uint32_t WebGPUGetUniformBufferOffsetAlignment(HContext _context)
-{
-    WebGPUContext* context = (WebGPUContext*) _context;
-#if defined(DM_GRAPHICS_WEBGPU2)
-    return context->m_DeviceLimits.minUniformBufferOffsetAlignment;
-#else
-    return context->m_DeviceLimits.limits.minUniformBufferOffsetAlignment;
-#endif
-}
-
 static HVertexBuffer WebGPUNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
 {
     TRACE_CALL;
