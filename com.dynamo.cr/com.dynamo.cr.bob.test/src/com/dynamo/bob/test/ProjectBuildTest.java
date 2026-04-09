@@ -48,6 +48,7 @@ import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.liveupdate.proto.Manifest;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
@@ -436,8 +437,9 @@ public class ProjectBuildTest {
     }
 
     private boolean hasResource(Manifest.ManifestData manifestData, String url) {
+        long urlHash = MurmurHash.hash64(url);
         for (Manifest.ResourceEntry entry : manifestData.getResourcesList()) {
-            if (url.equals(entry.getUrl())) {
+            if (url.equals(entry.getUrl()) || entry.getUrlHash() == urlHash) {
                 return true;
             }
         }
