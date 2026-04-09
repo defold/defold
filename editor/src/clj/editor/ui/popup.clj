@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.colors :as colors]
+            [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
@@ -92,7 +93,7 @@
           (set-value! settings-binding key val))))
     [label slider]))
 
-(defn toggle-setting [settings-binding key label-text acc-text] ;; TODO JOE: Make this private
+(defn- toggle-setting [settings-binding key label-text acc-text]
   (let [check-box (CheckBox.)
         label (Label. label-text)
         acc (Label. (or acc-text ""))]
@@ -212,9 +213,9 @@
   ^Point2D [^Parent container width]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
-(defn- setting-row [localization settings-binding popup {:keys [type key label min max accelerator]}]
-  (println label)
-  (let [label-text (when label (localization (localization/message label)))]
+(defn- setting-row [keymap localization settings-binding popup {:keys [type key label min max command]}]
+  (let [label-text (when label (localization (localization/message label)))
+        accelerator (if command (keymap/display-text keymap command "") "")]
     (case type
       :slider      (slider-setting settings-binding popup key label-text min max)
       :toggle      (toggle-setting settings-binding key label-text accelerator)
@@ -224,39 +225,48 @@
       :space       [(Region.)]
       :separator   [(Separator.)])))
 
-(defn- settings [localization settings-binding popup setting-descriptors include-reset-btn hidden-settings]
+(defn- settings [keymap localization settings-binding popup setting-descriptors include-reset-btn hidden-settings]
   (let [button-text (localization (localization/message "scene-popup.reset-defaults-button"))
         reset-btn (when include-reset-btn
-                    (reset-button localization settings-binding popup setting-descriptors hidden-settings button-text))]
-    (->> setting-descriptors
-         (remove (fn [{:keys [key]}] (contains? hidden-settings key)))
-         (reduce (fn [rows descriptor]
-                   (let [children (setting-row localization settings-binding popup descriptor)
-                         row (doto (HBox. (ui/node-array children))
-                               (.setAlignment Pos/CENTER))]
-                     (doseq [child children]
-                       (HBox/setHgrow child Priority/ALWAYS))
-                     (conj rows row)))
-                 (if include-reset-btn [reset-btn] [])))))
+                    (reset-button localization settings-binding popup setting-descriptors hidden-settings button-text))
+        visible-descriptors (remove (fn [{:keys [key]}] (contains? hidden-settings key)) setting-descriptors)
+        [rows controls]
+        (reduce (fn [[rows controls] descriptor]
+                  (let [key (:key descriptor)
+                        children (setting-row keymap localization settings-binding popup descriptor)
+                        row (doto (HBox. (ui/node-array children))
+                              (.setAlignment Pos/CENTER))]
+                    (doseq [child children]
+                      (HBox/setHgrow child Priority/ALWAYS))
+                    [(conj rows row) (cond-> controls key (assoc key children))]))
+                [(if include-reset-btn [reset-btn] []) {}]
+                visible-descriptors)]
+    [rows controls]))
 
 (defn show-settings!
-  ([^Parent owner localization settings-binding width setting-descriptors include-reset-btn]
-   (show-settings! owner localization settings-binding width setting-descriptors include-reset-btn nil))
-  ([^Parent owner localization settings-binding width setting-descriptors include-reset-btn hidden-settings]
+  ([^Parent owner keymap localization settings-binding width setting-descriptors include-reset-btn]
+   (show-settings! owner keymap localization settings-binding width setting-descriptors include-reset-btn nil))
+  ([^Parent owner keymap localization settings-binding width setting-descriptors include-reset-btn hidden-settings]
+   (show-settings! owner keymap localization settings-binding width setting-descriptors include-reset-btn hidden-settings nil))
+  ([^Parent owner keymap localization settings-binding width setting-descriptors include-reset-btn hidden-settings on-closed]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-     (.hide popup)
+     (do (.hide popup) nil)
      (let [region (StackPane.)
            popup (make-popup owner region)
+           [rows controls] (settings keymap localization settings-binding popup setting-descriptors include-reset-btn hidden-settings)
            anchor ^Point2D (pref-popup-position (.getParent owner) width)]
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))
-                             (doto (VBox. (ui/node-array (settings localization settings-binding popup setting-descriptors include-reset-btn hidden-settings)))
+                             (doto (VBox. (ui/node-array rows))
                                (.setFocusTraversable true)
                                (ensure-focus-traversable!)
                                (ui/add-style! "popup-settings"))])
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-         (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
-         (.show owner (.getX anchor) (.getY anchor)))))))
+         (ui/on-closed! (fn [e]
+                          (when on-closed (on-closed e))
+                          (ui/user-data! owner ::popup nil)))
+         (.show owner (.getX anchor) (.getY anchor)))
+       controls))))

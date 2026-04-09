@@ -34,7 +34,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private renderable-tag-toggles-info
-  (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :command :scene.visibility.toggle-filters}
+  (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :tag :visibility-filters-enabled? :command :scene.visibility.toggle-filters}
            {:type :space}
            {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :tag :collision-shape}
            {:type :toggle :label "scene-popup.scene-visibility.camera" :tag :camera}
@@ -343,12 +343,11 @@
                                      (ui/timer-stop! refresh-timer))})]
       (ui/timer-start! refresh-timer))))
 
-(defn show-settings! [app-view localization ^Parent owner scene-visibility]
+(defn show-settings! [app-view keymap localization ^Parent owner scene-visibility]
   (let [keymap (g/node-value app-view :keymap)
         setting-descriptors (mapv #(-> %
-                                       (assoc :key (:tag %)
-                                              :accelerator (keymap/display-text keymap (:command %) ""))
-                                       (dissoc :tag :command #_#_:always-enabled :appear-filtered))
+                                       (assoc :key (:tag %))
+                                       (dissoc :tag #_#_:always-enabled :appear-filtered))
                                   renderable-tag-toggles-info)
         scene-vis-binding (->SceneVisibilityBinding scene-visibility)
         update-fn (fn []
@@ -356,13 +355,14 @@
                           enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
                       ;; Update enable/disable state of tag toggle rows
                       ;; based on filters-enabled? flag
+                      ;; (filters-enabled-update-fn visibility-filters-enabled? true)
+                      ;; (update-tag-toggles filtered-tags visibility-filters-enabled?)
                       ))
         refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
-    (when (popup/show-settings! owner localization scene-vis-binding 230 setting-descriptors false
-                                #_{:show-reset-button false
-                                   :on-closed (fn [_] (ui/timer-stop! refresh-timer))})
-      (update-fn)
-      (ui/timer-start! refresh-timer))))
+    (update-fn)
+    (ui/timer-start! refresh-timer)
+    ;; TODO JOE: On close, we have to set the references to the UI controls to nil so the garbage collector doesn't hold on to them
+    (popup/show-settings! owner keymap localization scene-vis-binding 230 setting-descriptors false nil (fn [_] (ui/timer-stop! refresh-timer)))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
   (g/update-property! scene-visibility :filtered-renderable-tags (fn [tags]

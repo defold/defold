@@ -524,7 +524,7 @@
                            .getContent
                            (.lookup "#visibility-settings-graphic")
                            .getParent)]
-      (scene-visibility/show-settings! app-view localization btn scene-visibility)))
+      (scene-visibility/show-settings! app-view (g/node-value app-view :keymap) localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
     (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
                            .getContent
@@ -552,7 +552,7 @@
   (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
                             (get-settings-button "#show-grid-settings"))]
-      (grid/show-settings! btn app-view prefs localization)))
+      (grid/show-settings! btn app-view prefs (g/node-value app-view :keymap) localization)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-grid-settings" evaluation-context)))
 
@@ -560,7 +560,7 @@
   (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
                             (get-settings-button "#show-perspective-camera-settings"))]
-      (camera/show-settings! btn prefs localization)))
+      (camera/show-settings! btn prefs (g/node-value app-view :keymap) localization)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 

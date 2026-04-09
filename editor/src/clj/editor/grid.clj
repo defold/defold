@@ -272,13 +272,13 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defn show-settings! [^Parent owner app-view prefs localization]
+(defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         ignore-options (g/node-value grid :options)
         settings-descriptor [{:key :size :type :vec3-floats}
-                             {:key :active-plane :type :vec3-toggle :label "scene-popup.grid-plane"}
-                             {:key :color :type :color :label "scene-popup.color"}
-                             {:key :opacity :type :slider :label "scene-popup.opacity" :min 0.0 :max 1.0}]
+                             {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
+                             {:key :color :type :color :label "scene-popup.grid.color"}
+                             {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :grid] settings-descriptor ignore-options (fn [_] (invalidate-grids! app-view)))]
-    (popup/show-settings! owner localization prefs-binding 220 settings-descriptor true)))
+    (popup/show-settings! owner keymap localization prefs-binding 220 settings-descriptor true)))
