@@ -114,6 +114,15 @@
             }
         }
 
+        .toggle-button {
+            &:selected > #visibility-settings-graphic > #active-indicator {
+                -fx-stroke: -df-background-light;
+            }
+            &.filters-active > #visibility-settings-graphic > #active-indicator {
+                visibility: visible;
+            }
+        }
+
         .accelerator-label {
             -fx-alignment: center-right;
             -fx-text-fill: -df-text-dark;
@@ -176,14 +185,6 @@
 
                 &:focused {
                     -fx-border-color: -df-text;
-                }
-
-                &:selected > #visibility-settings-graphic > #active-indicator {
-                    -fx-stroke: -df-background-light;
-                }
-
-                &.filters-active > #visibility-settings-graphic > #active-indicator {
-                    visibility: visible;
                 }
             }
 

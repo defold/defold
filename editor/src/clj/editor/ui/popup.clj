@@ -114,8 +114,8 @@
                  (.setAlignment Pos/CENTER_LEFT)
                  (ui/add-style! "toggle-row")
                  (ui/on-click! (fn [_]
-                                 (let [value (ui/value check-box)]
-                                   (ui/value! check-box (not value))
+                                 (let [value (not (ui/value check-box))]
+                                   (ui/value! check-box value)
                                    (set-value! settings-binding key value))))
                  (ui/children! [label acc check-box]))]
       [hbox])))

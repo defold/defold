@@ -520,22 +520,11 @@
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view localization scene-visibility]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
+    (when-let [btn (scene-visibility/toggle-button app-view)]
       (scene-visibility/show-settings! app-view (g/node-value app-view :keymap) localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      ;; TODO: We have no mechanism for updating the style nor icon on
-      ;; on the toolbar button. For now we piggyback on the state
-      ;; update polling to set a style when the filters are active.
-      (if (scene-visibility/filters-appear-active? scene-visibility evaluation-context)
-        (ui/add-style! btn "filters-active")
-        (ui/remove-style! btn "filters-active"))
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
       (popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
