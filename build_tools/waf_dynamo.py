@@ -1451,7 +1451,28 @@ def run_tests(ctx, configfile = None, folders = None):
 
     # Check if we're in WIP mode
     if 'android' in ctx.env.PLATFORM:
-        if os.path.basename(os.getcwd()) not in ['dlib']:
+        if os.path.basename(os.getcwd()) not in [
+                 'dlib', 'ddf', 'platform', 'font', 'graphics', 'particle', 'lua',
+                 # 'hid',
+                 # 'input',
+                 # 'physics',
+                 # 'resource',
+                 # 'extension',
+                 # 'script',
+                 # 'render',
+                 # 'rig',
+                 # 'gameobject',
+                 # 'gui',
+                 # 'sound',
+                 # 'liveupdate',
+                 # 'crash',
+                 # 'gamesys',
+                 # 'tools',
+                 # 'record',
+                 # 'profiler',
+                 # 'engine',
+                 # 'sdk'
+                 ]:
             print("************************************************************")
             print("Android test support is underway. Skipping!")
             print("************************************************************")
