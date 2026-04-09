@@ -283,6 +283,36 @@
                (->pos-vtx (* 2 (count pair-pairs)) :static)
                pair-pairs))}))
 
+(defn light-cone-triangles
+  "Closed outer spotlight cone in unit space (apex at origin, base at z=-1 with
+  radius 1). Same convention as [[light-cone-lines]]; use with identical
+  `point_scale` when rendering."
+  []
+  (let [n light-cone-segments
+        side-tris (vec (for [k (range n)]
+                         (let [t0 (* 2.0 Math/PI (/ (double k) n))
+                               t1 (* 2.0 Math/PI (/ (double (mod (inc k) n)) n))]
+                           [[0.0 0.0 0.0]
+                            [(Math/cos t0) (Math/sin t0) -1.0]
+                            [(Math/cos t1) (Math/sin t1) -1.0]])))
+        cap-tris (vec (for [k (range n)]
+                        (let [t0 (* 2.0 Math/PI (/ (double k) n))
+                              t1 (* 2.0 Math/PI (/ (double (mod (inc k) n)) n))]
+                          [[0.0 0.0 -1.0]
+                           [(Math/cos t0) (Math/sin t0) -1.0]
+                           [(Math/cos t1) (Math/sin t1) -1.0]])))
+        all-tris (into side-tris cap-tris)
+        vert-count (* 3 3 (count all-tris))]
+    {:primitive-type GL2/GL_TRIANGLES
+     :vbuf (vtx/flip!
+             (reduce (fn [vbuf tri]
+                       (reduce (fn [vbuf [x y z]]
+                                 (pos-vtx-put! vbuf x y z 0.0))
+                               vbuf
+                               tri))
+                     (->pos-vtx vert-count :static)
+                     all-tris))}))
+
 (def ^:private shape-alpha 0.1)
 
 (def ^:private selected-shape-alpha 0.3)
@@ -328,7 +358,7 @@
                   (scene-picking/renderable-picking-id-uniform renderable)
 
                   (= :self-selected selected)
-                  (colors/alpha color selected-shape-alpha)
+                  (colors/alpha color (or (:preview-fill-alpha user-data) selected-shape-alpha))
 
                   (= :parent-selected selected)
                   (colors/alpha color parent-selected-shape-alpha)
