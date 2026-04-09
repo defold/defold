@@ -1047,6 +1047,9 @@ operation.paste = Colar
 operation.select = Selecionar
 operation.tile-map.add-layer = Adicionar Camada
 
+# Scene View Popups
+
+
 # Properties
 
 property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como "{id}" nos scripts de editor
