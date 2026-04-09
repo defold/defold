@@ -1043,6 +1043,9 @@ operation.paste = 粘贴
 operation.select = 选择
 operation.tile-map.add-layer = 添加图层
 
+# Scene View Popups
+
+
 # Properties
 
 property.tooltip = {help, select, none {} other {帮助：{help}\n\n}}在编辑器脚本中可作为"{id}"使用
