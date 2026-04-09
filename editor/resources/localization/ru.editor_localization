@@ -1051,6 +1051,9 @@ operation.paste = Вставить
 operation.select = Выделить
 operation.tile-map.add-layer = Добавить слой
 
+# Scene View Popups
+
+
 # Properties
 
 property.tooltip = {help, select, none {} other {{help}\n\n}}Свойство доступно как «{id}» в скриптах редактора
