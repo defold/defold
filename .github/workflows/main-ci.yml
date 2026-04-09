@@ -149,10 +149,12 @@ jobs:
           - platform: armv7-android
             skip_tests: true
             ndk_api: 19
+            emulator-port: 5554
           - platform: arm64-android
             skip_tests: false
             ndk_api: 21
-    runs-on: ubuntu-22.04
+            emulator-port: 5554
+    runs-on: macos-latest
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -165,22 +167,30 @@ jobs:
         name: 'Set up Android SDK',
         uses: defold/github-actions-common/.github/actions/android@android-sdk-action,
         with: {
-          ndk-version: '25.2.9519653',
-          sdk-version: '36',
-          build-tools-version: '36.1.0'
+          android-ndk: '25.2.9519653',
+          android-api-level: '36',
+          android-build-tools: '36.1.0'
         }
       },
-      { name: 'Install dependencies',
-        run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'List available AVD hardware profiles',
+        run: 'avdmanager list'
+      },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       { name: 'Enable KVM', if: matrix.platform == 'arm64-android', run: "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm" },
       {
         name: 'Build engine',
         if: matrix.platform == 'arm64-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         uses: reactivecircus/android-emulator-runner@v2,
+        env: {
+          ANDROID_AVD_HOME: '${{ runner.temp }}/android-avd',
+          ANDROID_EMULATOR_HOME: '${{ runner.temp }}/android-emulator-home'
+        },
         with: {
           api-level: 30,
           arch: arm64-v8a,
-          profile: pixel_7_pro,
+          avd-name: 'emulator-${{ github.run_id }}-${{ github.run_attempt }}',
+          emulator-port: '${{ matrix.emulator-port }}',
           script: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
         }
       },
