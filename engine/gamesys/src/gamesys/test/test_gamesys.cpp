@@ -1173,6 +1173,108 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
 }
 
+static dmhash_t GetHashProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, const dmGameObject::PropertyOptions* options = 0)
+{
+    dmGameObject::PropertyDesc desc;
+    dmGameObject::PropertyOptions default_options;
+    dmGameObject::PropertyResult result = dmGameObject::GetProperty(instance, comp_name, prop_name, options ? *options : default_options, desc);
+
+    EXPECT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    if (result != dmGameObject::PROPERTY_RESULT_OK)
+        return 0;
+
+    EXPECT_EQ(dmGameObject::PROPERTY_TYPE_HASH, desc.m_Variant.m_Type);
+    if (desc.m_Variant.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
+        return 0;
+
+    return desc.m_Variant.m_Hash;
+}
+
+static dmGameObject::PropertyResult SetHashProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t in_val, const dmGameObject::PropertyOptions* options = 0)
+{
+    dmGameObject::PropertyVar prop_var(in_val);
+    dmGameObject::PropertyOptions default_options;
+    return dmGameObject::SetProperty(instance, comp_name, prop_name, options ? *options : default_options, prop_var);
+}
+
+class GamesysErrorLogCapture;
+static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string);
+static GamesysErrorLogCapture* g_GamesysErrorLogCapture = 0;
+
+class GamesysErrorLogCapture
+{
+public:
+    GamesysErrorLogCapture()
+    {
+        assert(g_GamesysErrorLogCapture == 0);
+        g_GamesysErrorLogCapture = this;
+        dmLogRegisterListener(CaptureGamesysErrorLog);
+    }
+
+    ~GamesysErrorLogCapture()
+    {
+        dmLogUnregisterListener(CaptureGamesysErrorLog);
+        if (g_GamesysErrorLogCapture == this)
+            g_GamesysErrorLogCapture = 0;
+    }
+
+    void Append(const char* formatted_string)
+    {
+        uint32_t len = (uint32_t)strlen(formatted_string);
+        m_Output.OffsetCapacity(len + 1);
+        m_Output.PushArray(formatted_string, len);
+    }
+
+    bool Contains(const char* needle)
+    {
+        if (m_Output.Size() == 0 || m_Output[m_Output.Size() - 1] != '\0')
+        {
+            m_Output.OffsetCapacity(1);
+            m_Output.Push('\0');
+        }
+        return strstr(m_Output.Begin(), needle) != 0;
+    }
+
+private:
+    dmArray<char> m_Output;
+};
+
+static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string)
+{
+    if (severity < LOG_SEVERITY_ERROR || g_GamesysErrorLogCapture == 0 || strcmp(domain, "GAMESYS") != 0)
+        return;
+
+    if (strstr(formatted_string, "Log server started on port") != 0)
+        return;
+
+    g_GamesysErrorLogCapture->Append(formatted_string);
+}
+
+static void PostSpritePlayAnimation(dmGameObject::HCollection collection, dmhash_t go_id, dmhash_t component_id, dmhash_t animation_id, float offset, float playback_rate)
+{
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = component_id;
+
+    dmGameSystemDDF::PlayAnimation msg;
+    msg.m_Id = animation_id;
+    msg.m_Offset = offset;
+    msg.m_PlaybackRate = playback_rate;
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::PostDDF(&msg, &msg_url, &msg_url, (uintptr_t)go_id, 0, 0));
+}
+
+static void RenderCollection(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    dmRender::RenderListBegin(render_context);
+    dmGameObject::Render(collection);
+    dmRender::RenderListEnd(render_context);
+    dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    dmRender::ClearRenderObjects(render_context);
+}
+
 static dmGameSystem::LabelComponent* GetLabelComponent(dmGameObject::HInstance instance, dmhash_t component_id)
 {
     uint32_t component_type = 0;
@@ -1781,6 +1883,96 @@ TEST_F(SpriteTest, GetSetImagesByHash)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t animation_prop_id = dmHashString64("animation");
+    dmhash_t atlas_b = dmHashString64("/atlas/valid_64x64.t.texturesetc");
+    dmhash_t animation_b = dmHashString64("valid_png");
+    dmGameSystem::TextureSetResource* atlas_resource = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/atlas/valid_64x64.t.texturesetc", (void**) &atlas_resource));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image/get_set_image_by_hash_noscript.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::PropertyOptions tex1_options;
+    ASSERT_TRUE(dmGameObject::AddPropertyOptionsKey(&tex1_options, dmHashString64("tex1")));
+
+    {
+        GamesysErrorLogCapture log_capture;
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, atlas_b));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, atlas_b, &tex1_options));
+        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, animation_b, 0.0f, 1.0f);
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        ASSERT_EQ(atlas_b, GetHashProperty(go, sprite_comp_id, image_prop_id));
+        ASSERT_EQ(atlas_b, GetHashProperty(go, sprite_comp_id, image_prop_id, &tex1_options));
+        ASSERT_EQ(animation_b, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
+        ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
+    }
+
+    dmResource::Release(m_Factory, atlas_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, SetImageClearsInvalidAnimationIdWithoutLogging)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t animation_prop_id = dmHashString64("animation");
+    dmhash_t old_animation_id = dmHashString64("anim_loop_pingpong");
+    dmhash_t new_animation_id = dmHashString64("anim");
+    dmhash_t new_image_id = dmHashString64("/tile/valid.t.texturesetc");
+    dmGameSystem::TextureSetResource* image_resource = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &image_resource));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    {
+        GamesysErrorLogCapture log_capture;
+
+        PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, old_animation_id, 0.0f, 1.0f);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(old_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, new_image_id));
+        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        RenderCollection(m_RenderContext, m_Collection);
+        ASSERT_EQ((dmhash_t)0, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, new_animation_id, 0.0f, 1.0f);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+
+        ASSERT_FALSE(log_capture.Contains("Atlas doesn't contains animation"));
+        ASSERT_FALSE(log_capture.Contains("Unable to play animation"));
+    }
+
+    dmResource::Release(m_Factory, image_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(SpriteTest, ScaleAffectsWorldSize)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1861,7 +2053,6 @@ static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id,
     dmGameObject::GetProperty(go, component_id, property_id, property_opt, property_desc);
     return property_desc.m_Variant.m_Number;
 }
-
 
 TEST_F(CursorTest, GuiFlipbookCursor)
 {

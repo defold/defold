@@ -591,6 +591,21 @@ namespace dmGameSystem
         }
     }
 
+    static void ClearCurrentAnimation(SpriteComponent* component, TextureSetResource* texture_set)
+    {
+        component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
+        component->m_IsPlaying = 0;
+        component->m_CurrentAnimation = 0x0;
+        component->m_CurrentAnimationFrame = 0;
+
+        if (!texture_set || (uint16_t)texture_set->m_TextureSet->m_Animations.m_Count <= component->m_AnimationID)
+        {
+            component->m_AnimationID = 0;
+        }
+
+        component->m_AnimationReHash = 1;
+    }
+
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
         TextureSetResource* texture_set = GetFirstTextureSet(component);
@@ -632,11 +647,7 @@ namespace dmGameSystem
         }
         else
         {
-            component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
-            // TODO: Why stop the current animation? Shouldn't it continue playing the current animation?
-            component->m_IsPlaying = 0;
-            component->m_CurrentAnimation = 0x0;
-            component->m_CurrentAnimationFrame = 0;
+            ClearCurrentAnimation(component, texture_set);
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
@@ -2500,43 +2511,13 @@ namespace dmGameSystem
                 TextureSetResource* texture_set = GetFirstTextureSet(component);
                 dmhash_t current_animation = component->m_CurrentAnimation;
                 uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(current_animation) : 0;
-                if (!anim_id)
-                {
-                    DM_HASH_REVERSE_MEM(hash_ctx, 1024);
-                    // it means that new atlas doesn't contain animation with the same name as it played before
-                    const char* error_message = dmHashReverseSafe64Alloc(&hash_ctx, current_animation);
-                    dmHashTable64<uint32_t>::Iterator animation_iterator = texture_set->m_AnimationIds.GetIterator();
-                    if (animation_iterator.Next())
-                    {
-                        current_animation = animation_iterator.GetKey();
-                        anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
-
-                        const char* new_animation_name = dmHashReverseSafe64Alloc(&hash_ctx, current_animation);
-                        dmLogError("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name);
-                    }
-                    else
-                    {
-                        dmLogError("Atlas doesn't contains animation '%s'. No animation will be used", error_message);
-                    }
-                    // else anim_id still == 0
-                }
                 if (anim_id)
                 {
                     PlayAnimation(component, current_animation, GetCursor(component), component->m_PlaybackRate);
                 }
                 else
                 {
-                    component->m_AnimationReHash |= current_animation != 0x0 && component->m_CurrentAnimationFrame != 0;
-                    component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-                    component->m_IsPlaying = 0;
-                    component->m_CurrentAnimation = 0x0;
-                    component->m_CurrentAnimationFrame = 0;
-                    dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                    if ((uint16_t)texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID)
-                    {
-                        component->m_AnimationID = 0;
-                    }
-                    component->m_AnimationReHash = 1;
+                    ClearCurrentAnimation(component, texture_set);
                 }
             }
             return res;
