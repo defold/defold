@@ -2968,6 +2968,7 @@ static void LogFrameBufferError(GLenum status)
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
         GLint size = program_size;
+
         glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
         CHECK_GL_ERROR;
         glCompileShader(shader_id);
@@ -3006,7 +3007,8 @@ static void LogFrameBufferError(GLenum status)
 #endif
             if (error_buffer)
             {
-                dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nError: %s", type_str, log_str == 0 ? "Unknown" : log_str);
+                dmSnPrintf(error_buffer, error_buffer_size,
+                    "Unable to compile %s shader with source:%s\n----\nError: %s", type_str, (char*) program, log_str == 0 ? "Unknown" : log_str);
             }
             if (log_str)
             {
@@ -3114,6 +3116,45 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
+    // glGetUniformBlockIndex requires an array element for uniform block arrays, e.g. "lights[0]" for
+    // `uniform Light { ... } lights[4];` — the type name "Light" alone returns GL_INVALID_INDEX.
+    static GLuint GetOpenGLUniformBlockIndex(GLuint program_handle, const ShaderResourceBinding& res)
+    {
+        GLuint block_index = glGetUniformBlockIndex(program_handle, res.m_Name);
+        CHECK_GL_ERROR;
+        if (block_index != GL_INVALID_INDEX)
+        {
+            return block_index;
+        }
+
+        char indexed_name[256];
+        if (res.m_InstanceName != 0x0 && res.m_InstanceName[0] != '\0')
+        {
+            const int n = snprintf(indexed_name, sizeof(indexed_name), "%s[0]", res.m_InstanceName);
+            if (n > 0 && n < (int) sizeof(indexed_name))
+            {
+                block_index = glGetUniformBlockIndex(program_handle, indexed_name);
+                CHECK_GL_ERROR;
+                if (block_index != GL_INVALID_INDEX)
+                {
+                    return block_index;
+                }
+            }
+        }
+
+        if (res.m_ElementCount > 1 && res.m_Name != 0x0 && res.m_Name[0] != '\0')
+        {
+            const int n = snprintf(indexed_name, sizeof(indexed_name), "%s[0]", res.m_Name);
+            if (n > 0 && n < (int) sizeof(indexed_name))
+            {
+                block_index = glGetUniformBlockIndex(program_handle, indexed_name);
+                CHECK_GL_ERROR;
+            }
+        }
+
+        return block_index;
+    }
+
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
@@ -3129,8 +3170,7 @@ static void LogFrameBufferError(GLenum status)
             ShaderResourceBinding& res = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers[j];
 
             GLuint program_handle = GetGLHandle(context, program->m_Id);
-            GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
-            CHECK_GL_ERROR;
+            GLuint blockIndex = GetOpenGLUniformBlockIndex(program_handle, res);
 
             if (blockIndex == GL_INVALID_INDEX)
             {
@@ -3625,6 +3665,10 @@ static void LogFrameBufferError(GLenum status)
         {
         #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
             OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
+            if (!compute_shader)
+            {
+                return 0;
+            }
             if (!SetupComputeProgram(context, program, compute_shader))
             {
                 DeleteShader(context, compute_shader);
@@ -3638,7 +3682,17 @@ static void LogFrameBufferError(GLenum status)
         else
         {
             OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, error_buffer, error_buffer_size);
+            if (!vertex_shader)
+            {
+                return 0;
+            }
+
             OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, error_buffer, error_buffer_size);
+            if (!fragment_shader)
+            {
+                DeleteShader(context, vertex_shader);
+                return 0;
+            }
             if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader))
             {
                 DeleteShader(context, vertex_shader);

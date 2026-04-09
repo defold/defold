@@ -15,7 +15,6 @@
 (ns editor.light
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
