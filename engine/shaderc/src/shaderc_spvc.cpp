@@ -31,6 +31,28 @@ namespace dmShaderc
         dmLogError("Shaderc error: '%s'", error);
     }
 
+    // For literal-sized arrays, SPIRV-Cross stores the length in type->array[d] as the numeric value (see OpTypeArray parser).
+    // For non-literal (spec constant / specialization), it stores an SpvId to resolve via spvc_compiler_get_constant_handle.
+    static uint32_t GetTypeArrayLength(spvc_compiler compiler, spvc_type type, unsigned dimension)
+    {
+        if (spvc_type_get_num_array_dimensions(type) <= dimension)
+            return 0;
+
+        SpvId raw = spvc_type_get_array_dimension(type, dimension);
+        if (raw == 0)
+            return 0;
+
+        if (spvc_type_array_dimension_is_literal(type, dimension))
+            return (uint32_t) raw;
+
+        spvc_constant c = spvc_compiler_get_constant_handle(compiler, raw);
+        if (c != nullptr)
+            return spvc_constant_get_scalar_u32(c, 0, 0);
+
+        dmLogWarning("Could not resolve SPIR-V array length id %u (spec constant or unsupported)", (unsigned)raw);
+        return 0;
+    }
+
     static struct BaseTypeMapping
     {
         BaseType      m_BaseType;
@@ -131,7 +153,10 @@ namespace dmShaderc
         {IMAGE_STORAGE_TYPE_R64I, "R64I"},
     };
 
-    static uint32_t GetTypeIndex(ShaderReflection& reflection, spvc_compiler compiler, const char* type_name, spvc_type type)
+    // struct_member_parent_id: SPIR-V OpTypeStruct id that spvc_compiler_get_member_name() expects (same as
+    // spvc_reflected_resource::base_type_id for resource root types). Using spvc_type_get_base_type_id(type)
+    // (type->self) can differ and yield empty names for some blocks while offsets still resolve.
+    static uint32_t GetTypeIndex(ShaderReflection& reflection, spvc_compiler compiler, const char* type_name, spvc_type_id struct_member_parent_id, spvc_type type)
     {
         dmhash_t type_name_hash = dmHashString64(type_name);
         for (int i = 0; i < reflection.m_Types.Size(); ++i)
@@ -160,8 +185,6 @@ namespace dmShaderc
         ResourceMember* members = type_info->m_Members.Begin();
         memset(members, 0, sizeof(ResourceMember) * member_count);
 
-        const spvc_type_id struct_name_lookup_id = spvc_type_get_base_type_id(type);
-
         for (int i = 0; i < member_count; ++i)
         {
             spvc_type_id member_type_id    = spvc_type_get_member_type(type, i);
@@ -179,8 +202,7 @@ namespace dmShaderc
 
             ResourceMember& member    = members[i];
             member.m_Offset           = (uint32_t) member_offset;
-            // Member decorations live on the base struct type, not on qualified wrappers (see spvc_type_get_base_type_id).
-            member.m_Name             = spvc_compiler_get_member_name(compiler, struct_name_lookup_id, i);
+            member.m_Name             = spvc_compiler_get_member_name(compiler, struct_member_parent_id, i);
             member.m_NameHash         = dmHashString64(member.m_Name);
             member.m_Type.m_ArraySize = 1;
 
@@ -188,13 +210,16 @@ namespace dmShaderc
             if (num_array_dimensions > 0)
             {
                 member_type_id = spvc_type_get_base_type_id(member_type);
-                member.m_Type.m_ArraySize = spvc_type_get_array_dimension(member_type, 0);
+                member.m_Type.m_ArraySize = GetTypeArrayLength(compiler, member_type, 0);
+                if (member.m_Type.m_ArraySize == 0)
+                    member.m_Type.m_ArraySize = 1;
             }
 
             if (member_base_type == SPVC_BASETYPE_STRUCT)
             {
                 const char* name             = spvc_compiler_get_name(compiler, member_type_id);
-                member.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, name, member_type);
+                spvc_type   nested_type      = spvc_compiler_get_type_handle(compiler, member_type_id);
+                member.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, name, member_type_id, nested_type);
                 member.m_Type.m_UseTypeIndex = true;
             }
             else
@@ -245,29 +270,28 @@ namespace dmShaderc
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
 
-            // UBO/SSBO variables are OpTypePointer(Uniform|StorageBuffer, T). Peel once so array/struct queries see T.
-            SpvStorageClass sc = spvc_type_get_storage_class(type);
-            if (sc == SpvStorageClassUniform || sc == SpvStorageClassStorageBuffer)
-            {
-                type_id = spvc_type_get_base_type_id(type);
-                type    = spvc_compiler_get_type_handle(compiler, type_id);
-                base_type = spvc_type_get_basetype(type);
-            }
-
-            // Uniform/storage buffer: uniform Block { T x[N]; } or uniform T { } x[N] — outer type is an array; unwrap for struct layout.
+            // list[i].type_id is the variable's type (typically OpTypePointer to an OpTypeArray of block struct, or pointer to struct).
+            // SPIRV-Cross copies the pointee SPIRType into the pointer type, so array dimensions are visible on the pointer handle.
+            // Do NOT use spvc_type_get_base_type_id() to "peel" pointers: for OpTypeArray it returns the inner struct id directly
+            // (see SPIR-V: array.self = inner.self), which drops the array layer and loses lights[N].
+            spvc_type    outer_type  = type;
             resource.m_Type.m_ArraySize = 1;
-            unsigned num_resource_array_dims = spvc_type_get_num_array_dimensions(type);
+            unsigned num_resource_array_dims = spvc_type_get_num_array_dimensions(outer_type);
             if (num_resource_array_dims > 1)
             {
                 dmLogWarning("Unsupported top-level resource array dimensions: %u", num_resource_array_dims);
             }
             if (num_resource_array_dims > 0)
             {
-                resource.m_Type.m_ArraySize = spvc_type_get_array_dimension(type, 0);
-                type_id                     = spvc_type_get_base_type_id(type);
-                type                        = spvc_compiler_get_type_handle(compiler, type_id);
-                base_type                   = spvc_type_get_basetype(type);
+                resource.m_Type.m_ArraySize = GetTypeArrayLength(compiler, outer_type, 0);
+                if (resource.m_Type.m_ArraySize == 0)
+                    resource.m_Type.m_ArraySize = 1;
             }
+
+            // Inner block struct matches spvc_reflected_resource::base_type_id (pointers and arrays stripped).
+            type_id    = list[i].base_type_id;
+            type       = spvc_compiler_get_type_handle(compiler, type_id);
+            base_type  = spvc_type_get_basetype(type);
 
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
@@ -279,7 +303,7 @@ namespace dmShaderc
                 {
                     resource.m_BlockSize *= resource.m_Type.m_ArraySize;
                 }
-                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, type);
+                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, list[i].base_type_id, type);
                 resource.m_Type.m_UseTypeIndex = true;
             }
             else

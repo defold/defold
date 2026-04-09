@@ -98,7 +98,7 @@ def configure(conf):
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan:
             # JG: for now, we only support validation layers on macos for x86_64 archs. I'll fix this later when/if needed.
-            if architecture == 'x86_64':
+            if architecture == 'x86_64' or architecture == 'arm64':
                 conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
                 # Link with vulkan.dylib if the flag has been set (see graphics/vulkan/README.md) for more information
