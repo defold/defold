@@ -395,6 +395,10 @@ namespace dmGraphics
         uint32_t*                          m_DynamicOffsetBuffer;
         uint16_t                           m_DynamicOffsetBufferSize;
 
+        dmArray<VkWriteDescriptorSet>      m_ScratchWriteDescriptorSet;
+        dmArray<VkDescriptorImageInfo>     m_ScratchDescriptorImageInfo;
+        dmArray<VkDescriptorBufferInfo>    m_ScratchDescriptorBufferInfo;
+
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
         // Async process resources

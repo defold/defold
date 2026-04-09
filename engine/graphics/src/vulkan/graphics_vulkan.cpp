@@ -2456,11 +2456,17 @@ bail:
 
     static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment)
     {
-        // TODO: These needs to be dynamically allocated (use scratch buffers.)
-        const uint32_t max_write_descriptors = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
-        VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
-        VkDescriptorImageInfo vk_write_image_descriptors[max_write_descriptors];
-        VkDescriptorBufferInfo vk_write_buffer_descriptors[max_write_descriptors];
+        const uint32_t scratch_count = program->m_TotalResourcesCount;
+        if (context->m_ScratchWriteDescriptorSet.Capacity() < scratch_count)
+        {
+            context->m_ScratchWriteDescriptorSet.SetCapacity(scratch_count);
+            context->m_ScratchDescriptorImageInfo.SetCapacity(scratch_count);
+            context->m_ScratchDescriptorBufferInfo.SetCapacity(scratch_count);
+        }
+
+        VkWriteDescriptorSet* vk_write_descriptors = context->m_ScratchWriteDescriptorSet.Begin();
+        VkDescriptorImageInfo* vk_write_image_descriptors = context->m_ScratchDescriptorImageInfo.Begin();
+        VkDescriptorBufferInfo* vk_write_buffer_descriptors = context->m_ScratchDescriptorBufferInfo.Begin();
 
         uint16_t uniform_to_write_index = 0;
         uint16_t image_to_write_index   = 0;
