@@ -17,6 +17,9 @@
 
 namespace dmRender
 {
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
+
     static void CommitLightInstance(HRenderContext render_context, LightInstance* instance);
     static void CommitLightCount(HRenderContext render_context);
 
@@ -343,19 +346,90 @@ namespace dmRender
         }
     }
 
+    struct LightBufferBindingCallbackContext
+    {
+        RenderContext* m_Context;
+        bool           m_HasLightBuffer;
+        uint16_t       m_Set;
+        uint16_t       m_Binding;
+    };
+
+    static void LightBufferBindingCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* root_type, void* user_data)
+    {
+        LightBufferBindingCallbackContext* cb_ctx = (LightBufferBindingCallbackContext*) user_data;
+
+        if (cb_ctx->m_HasLightBuffer || root_type->m_NameHash != LIGHT_BUFFER_TYPE)
+        {
+            return;
+        }
+
+        uint32_t ubo_light_count = 0;
+        for (uint32_t i = 0; i < root_type->m_MemberCount; ++i)
+        {
+            if (root_type->m_Members[i].m_NameHash == LIGHT_MEMBER_TYPE)
+            {
+                ubo_light_count = root_type->m_Members[i].m_ElementCount;
+                break;
+            }
+        }
+
+        if (cb_ctx->m_Context->m_MaxLightCount != ubo_light_count)
+        {
+            dmLogOnceWarning("The size of the light buffer must match the project configuration. You should use the same size everywhere for the uniform buffer!");
+            return;
+        }
+
+        cb_ctx->m_HasLightBuffer = true;
+        cb_ctx->m_Set            = set;
+        cb_ctx->m_Binding        = binding;
+    }
+
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding)
+    {
+        LightBufferBindingCallbackContext cb_ctx;
+        cb_ctx.m_Context         = render_context;
+        cb_ctx.m_HasLightBuffer  = false;
+        cb_ctx.m_Set             = 0;
+        cb_ctx.m_Binding         = 0;
+
+        dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, LightBufferBindingCallback, &cb_ctx);
+
+        *out_has_light_buffer = cb_ctx.m_HasLightBuffer;
+        if (cb_ctx.m_HasLightBuffer)
+        {
+            *out_set     = cb_ctx.m_Set;
+            *out_binding = cb_ctx.m_Binding;
+        }
+    }
+
+    static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
+    {
+        if (IsLightBufferDirty(render_context))
+        {
+            WriteLightInstanceData(render_context);
+        }
+
+        dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
+                                        render_context->m_LightUniformBuffer,
+                                        light_buffer_set,
+                                        light_buffer_binding);
+    }
+
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material)
     {
-        if (material->m_HasLightBuffer)
+        if (!material->m_HasLightBuffer)
         {
-            if (IsLightBufferDirty(render_context))
-            {
-                WriteLightInstanceData(render_context);
-            }
-
-            dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
-                                            render_context->m_LightUniformBuffer,
-                                            material->m_LightBufferSet,
-                                            material->m_LightBufferBinding);
+            return;
         }
+        ApplyLightBufferForBinding(render_context, material->m_LightBufferSet, material->m_LightBufferBinding);
+    }
+
+    void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program)
+    {
+        if (!compute_program->m_HasLightBuffer)
+        {
+            return;
+        }
+        ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding);
     }
 }

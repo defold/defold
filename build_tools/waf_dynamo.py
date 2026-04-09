@@ -546,6 +546,13 @@ def default_flags(self):
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']
+            if Options.options.size_analyze:
+                # Keep source attribution outside the main wasm so size measurements
+                # still reflect the optimized binary while enabling deeper analysis.
+                flags += ['-gline-tables-only']
+                for flag in ['-gsource-map', '-gseparate-dwarf']:
+                    if flag not in linkflags:
+                        linkflags += [flag]
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
@@ -1822,6 +1829,9 @@ def detect(conf):
             if build_util.get_target_platform() == 'win32':
                 libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
 
+            bindirs_env = os.pathsep.join(bindirs)
+            os.environ['PATH'] = bindirs_env + os.pathsep + os.environ['PATH']
+            conf.environ['PATH'] = bindirs_env + os.pathsep + conf.environ['PATH']
             conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
             conf.env['INCLUDES'] = includes
             conf.env['LIBPATH']  = libdirs
@@ -2138,6 +2148,7 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--size-analyze', action='store_true', default=False, dest='size_analyze', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')

@@ -67,7 +67,7 @@ welcome.new-project.rive-project.description = This template uses the rive exten
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
 welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
-welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.title = Top-down Movement Tutorial
 welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components, and collections.
 welcome.new-project.movement-tutorial.title = Movement Tutorial
 welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
@@ -1050,6 +1050,17 @@ operation.drop = Drop
 operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
+
+# Scene View Popups
+
+scene-popup.reset-defaults-button = Reset to Defaults
+scene-popup.grid.plane = Plane
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacity
+scene-popup.camera.move-speed = Move Speed
+scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.invert-y = Invert Y
+scene-popup.camera.walking-mode = Walking Mode
 
 # Properties
 

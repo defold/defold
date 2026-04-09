@@ -81,6 +81,11 @@
 #define UNX_IFCHR 0020000  /* Unix character special   (not Amiga) */
 #define UNX_IFIFO 0010000  /* Unix fifo    (BCC, not MSC or Amiga) */
 
+// DEFOLD
+#if !defined(ZIP_INLINE)
+  #define ZIP_INLINE MZ_FORCEINLINE
+#endif
+
 #if ZIP_ENABLE_DEFLATE
 /*
  * Write function for in-memory delete mode. Behaves identically to
@@ -315,7 +320,7 @@ static char *zip_strrpl(const char *str, size_t n, char oldchar, char newchar) {
 #endif /* ZIP_ENABLE_DEFLATE */
 
 #if ZIP_ENABLE_INFLATE
-static inline int zip_strchr_match(const char *const str, size_t len, char c) {
+static ZIP_INLINE int zip_strchr_match(const char *const str, size_t len, char c) {
   size_t i;
   for (i = 0; i < len; ++i) {
     if (str[i] != c) {
@@ -522,7 +527,7 @@ out:
 
 #if ZIP_ENABLE_DEFLATE
 
-static inline void zip_archive_finalize(mz_zip_archive *pzip) {
+static ZIP_INLINE void zip_archive_finalize(mz_zip_archive *pzip) {
   mz_zip_writer_finalize_archive(pzip);
   zip_archive_truncate(pzip);
 }
