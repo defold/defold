@@ -190,6 +190,8 @@ jobs:
           arch: arm64-v8a,
           avd-name: 'emulator-${{ github.run_id }}-${{ github.run_attempt }}',
           emulator-port: '${{ matrix.emulator-port }}',
+          emulator-boot-timeout: 1200,
+          emulator-options: '-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -accel off',
           script: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
         }
       },
