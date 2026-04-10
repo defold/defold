@@ -218,9 +218,9 @@
 (defn settings-visible? [^Parent owner]
   (some? (ui/user-data owner ::popup)))
 
-(defn pref-popup-position
-  ^Point2D [^Parent container width]
-  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
+(defn- pref-popup-position
+  ^Point2D [^Parent container width x-offset]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
 (defn- setting-row [keymap localization settings-binding popup {:keys [type key label min max command]}]
   (let [label-text (when label (localization (localization/message label)))
@@ -253,17 +253,17 @@
     [rows controls]))
 
 (defn show-settings!
-  ([^Parent owner keymap localization settings-binding width setting-descriptors include-reset-btn]
-   (show-settings! owner keymap localization settings-binding width setting-descriptors include-reset-btn nil))
-  ([^Parent owner keymap localization settings-binding width setting-descriptors include-reset-btn hidden-settings]
-   (show-settings! owner keymap localization settings-binding width setting-descriptors include-reset-btn hidden-settings nil))
-  ([^Parent owner keymap localization settings-binding width setting-descriptors include-reset-btn hidden-settings on-closed]
+  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn]
+   (show-settings! owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn nil))
+  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn hidden-settings]
+   (show-settings! owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn hidden-settings nil))
+  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn hidden-settings on-closed]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [region (StackPane.)
            popup (make-popup owner region)
            [rows controls] (settings keymap localization settings-binding popup setting-descriptors include-reset-btn hidden-settings)
-           anchor ^Point2D (pref-popup-position (.getParent owner) width)]
+           anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)]
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)
                                (ui/add-style! "popup-shadow"))

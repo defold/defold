@@ -1207,4 +1207,4 @@
                              {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
                              {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
-    (popup/show-settings! owner keymap localization prefs-binding 250 settings-descriptor true)))
+    (popup/show-settings! owner keymap localization prefs-binding 250 0.0 settings-descriptor true)))
