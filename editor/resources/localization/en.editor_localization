@@ -1994,6 +1994,8 @@ form.label.project.profiler.sleep_between_server_updates = Server Sleep (ms)
 form.help.project.profiler.sleep_between_server_updates = Number of milliseconds to sleep between server updates
 form.label.project.profiler.performance_timeline_enabled = Performance Timeline
 form.help.project.profiler.performance_timeline_enabled = Enable reporting to the browser performance timeline
+form.label.project.profiler.max_sample_count = Max Sample Count
+form.help.project.profiler.max_sample_count = Maximum number of profiler samples recorded per thread and frame
 
 form.label.project.render = Render
 form.help.project.render = Render related settings
