@@ -406,7 +406,10 @@ namespace dmConnectionPool
             }
         }
 
-        dmSSLSocket::Delete(sslsocket);
+        if (sslsocket != dmSSLSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSSLSocket::Delete(sslsocket);
+        }
         if (delete_socket)
         {
             dmSocket::Delete(socket);
@@ -531,7 +534,10 @@ namespace dmConnectionPool
 
         // If commit succeeded, ownership was transferred to the pool slot and these locals were
         // invalidated above. Otherwise they still own the uncommitted handles and must clean up.
-        dmSSLSocket::Delete(sslsocket);
+        if (sslsocket != dmSSLSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSSLSocket::Delete(sslsocket);
+        }
         if (socket != dmSocket::INVALID_SOCKET_HANDLE)
         {
             dmSocket::Delete(socket);
