@@ -69,8 +69,7 @@ struct Sample
 // to avoid dynamic allocations or other setup issues
 static int32_atomic_t g_PropertyInitialized = 0;
 static const uint32_t g_MaxPropertyCount = 256;
-static const uint32_t g_DefaultMaxSampleCount = 4096;
-static uint32_t       g_MaxSampleCount = g_DefaultMaxSampleCount;
+static uint32_t       g_MaxSampleCount = 4096;
 static Property       g_Properties[g_MaxPropertyCount];
 static PropertyData   g_PropertyData[g_MaxPropertyCount];
 
@@ -981,8 +980,7 @@ static ProfileListener g_Listener = {};
 
 static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* params)
 {
-    int32_t max_sample_count = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.max_sample_count", g_DefaultMaxSampleCount);
-    g_MaxSampleCount = (uint32_t) max_sample_count;
+    g_MaxSampleCount = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.max_sample_count", g_MaxSampleCount);
 
     g_Listener.m_Create = CreateListener;
     g_Listener.m_Destroy = DestroyListener;
