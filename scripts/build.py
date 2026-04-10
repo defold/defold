@@ -21,6 +21,7 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
+import build_android
 import run
 import s3
 import sdk
@@ -1537,68 +1538,6 @@ class Configuration(object):
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
         self.upload_to_archive(sdk_sig_path, '%s/defoldsdk.sha256' % full_archive_path)
 
-    def _can_run_tests_android(self):
-        adb_candidates = []
-
-        adb_env = os.environ.get('ADB', None)
-        if adb_env:
-            adb_candidates.append(adb_env)
-
-        adb_path = shutil.which('adb')
-        if adb_path:
-            adb_candidates.append(adb_path)
-
-        for sdk_var in ('ANDROID_NDK_HOME', 'ANDROID_NDK_ROOT'):
-            sdk_root = os.environ.get(sdk_var, None)
-            if sdk_root:
-                adb_candidates.append(os.path.join(sdk_root, '..', 'platform-tools', 'adb'))
-
-        android_home = os.environ.get('ANDROID_HOME', None)
-        if android_home:
-            adb_candidates.append(os.path.join(android_home, 'platform-tools', 'adb'))
-
-        adb_candidates = [os.path.normpath(path) for path in adb_candidates if path]
-        adb_candidates = [path for path in adb_candidates if os.path.exists(path)]
-
-        if len(adb_candidates) == 0:
-            self._log('No adb found, skipping Android tests')
-            return False
-
-        adb = adb_candidates[0]
-        try:
-            result = subprocess.run([adb, 'devices'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
-        except OSError as e:
-            self._log('Failed to run adb (%s), skipping Android tests' % e)
-            return False
-
-        if result.returncode != 0:
-            self._log('adb devices failed, skipping Android tests')
-            if result.stdout:
-                self._log(result.stdout.strip())
-            return False
-
-        devices = []
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if not line or line.startswith('List of devices attached'):
-                continue
-
-            parts = line.split()
-            if len(parts) < 2:
-                continue
-
-            device_id = parts[0]
-            state = parts[1]
-            if state == 'device':
-                devices.append(device_id)
-
-        if len(devices) == 0:
-            self._log('No connected Android devices found, skipping Android tests')
-            return False
-
-        self._log('Found Android device(s): %s' % ', '.join(devices))
-        return True
-
     def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
@@ -1608,7 +1547,7 @@ class Configuration(object):
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
 
         if 'android' in self.target_platform:
-            if self._can_run_tests_android():
+            if build_android.can_run_tests_android(self._log):
                 android_tests = ['armv7-android', 'arm64-android']
                 supported_tests['x86_64-macos'].extend(android_tests)
                 supported_tests['arm64-macos'].extend(android_tests)
