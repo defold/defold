@@ -111,10 +111,10 @@ namespace dmLiveUpdate
             dmZip::CloseEntry(zip);
         }
         free((void*)entry_data);
-        return dmResource::RESULT_OK;
+        return result;
     }
 
-    dmResource::Result VerifyZipArchive(const char* path, const char* public_key_path)
+    dmResource::Result VerifyZipArchive(const char* path)
     {
         dmLogInfo("Verifying archive '%s'", path);
 
@@ -144,7 +144,7 @@ namespace dmLiveUpdate
             return dmResource::RESULT_IO_ERROR;
         }
 
-        result = dmResource::VerifyManifest(manifest, public_key_path);
+        result = dmResource::VerifyManifestSupportedEngineVersion(manifest);
         if (dmResource::RESULT_OK != result)
         {
             dmLogError("Manifest verification failed: %s", dmResource::ResultToString(result));

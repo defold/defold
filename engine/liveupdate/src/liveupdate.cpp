@@ -37,7 +37,7 @@
 #include <resource/resource_archive.h>
 #include <resource/resource_mounts.h>
 #include <resource/resource_manifest.h> // project id len
-#include <resource/resource_verify.h>   // VerifyManifest
+#include <resource/resource_verify.h>
 #include <resource/resource_util.h>     // BytesToHexString for debug printing
 #include <resource/providers/provider.h>
 
@@ -549,8 +549,7 @@ namespace dmLiveUpdate
         {
             if (job->m_Verify)
             {
-                const char* public_key_path = dmResource::GetPublicKeyPath(g_LiveUpdate.m_ResourceFactory);
-                result = dmResource::VerifyManifest(manifest, public_key_path);
+                result = dmResource::VerifyManifestSupportedEngineVersion(manifest);
                 if (result != dmResource::RESULT_OK)
                 {
                     dmLogError("Manifest verification failed. Manifest was not stored. %d %s", result, dmResource::ResultToString(result));
@@ -643,8 +642,7 @@ namespace dmLiveUpdate
     {
         if (job->m_Verify)
         {
-            const char* public_key_path = dmResource::GetPublicKeyPath(g_LiveUpdate.m_ResourceFactory);
-            dmResource::Result result = dmLiveUpdate::VerifyZipArchive(job->m_Path, public_key_path);
+            dmResource::Result result = dmLiveUpdate::VerifyZipArchive(job->m_Path);
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Zip archive verification failed. Archive was not stored. %d %s", result, dmResource::ResultToString(result));

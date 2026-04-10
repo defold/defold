@@ -16,7 +16,7 @@ package com.dynamo.bob.archive.test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -24,26 +24,16 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.spec.InvalidKeySpecException;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-
-import org.junit.After;
-import org.junit.Before;
+import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 
-import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
@@ -53,7 +43,6 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
-import org.apache.commons.io.FileUtils;
 
 public class ManifestTest {
 
@@ -61,29 +50,24 @@ public class ManifestTest {
 
         public final String projectIdentifier = "Defold test";
         public final String[] supportedEngineVersions = { "alpha", "beta", "gamma", "delta" };
-        public final String privateKeyFilepath = "test/private_rsa_1024_1.der";
-        public final String publicKeyFilepath = "test/public_rsa_1024_1.der";
         public final String[][] resources;
         public final ResourceGraph resourceGraph;
-        public final PublicKey publicKey;
 
         public ManifestBuilder manifestBuilder = new ManifestBuilder();
 
         public ManifestHeader manifestHeader = null;
         public ManifestData manifestData = null;
-        @SuppressWarnings("unused")
-		public ManifestFile manifestFile = null;
+        public ManifestData strippedManifestData = null;
+        public ManifestFile manifestFile = null;
         public byte[] manifest = null;
 
-        public ManifestInstance() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+        public ManifestInstance() throws IOException {
             this.resources = this.createResources();
             this.resourceGraph = this.createResourceGraph();
-            this.publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey(this.publicKeyFilepath, SignAlgorithm.SIGN_RSA);
             manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
             manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
             manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
             manifestBuilder.setProjectIdentifier(projectIdentifier);
-            manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
             manifestBuilder.setResourceGraph(this.resourceGraph);
 
             for (String supportedEngineVersion : this.supportedEngineVersions) {
@@ -92,11 +76,17 @@ public class ManifestTest {
 
             for (String[] entry : this.resources) {
                 byte[] data = entry[1].getBytes();
-                manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, ResourceEntryFlag.BUNDLED.getNumber());
+                ResourceNode node = this.resourceGraph.getResourceNodeFromPath(entry[0]);
+                int flags = ResourceEntryFlag.BUNDLED.getNumber();
+                if (node != null && !node.isInMainBundle()) {
+                    flags = ResourceEntryFlag.EXCLUDED.getNumber();
+                }
+                manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, flags);
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();
             this.manifestData = manifestBuilder.buildManifestData();
+            this.strippedManifestData = manifestBuilder.buildManifestData(true);
             this.manifestFile = manifestBuilder.buildManifestFile();
             this.manifest = manifestBuilder.buildManifest();
         }
@@ -125,55 +115,29 @@ public class ManifestTest {
             Project project = new Project(new DefaultFileSystem());
             ResourceGraph graph = new ResourceGraph(project);
 
-            /*
-            root
-            |
-            +--/main/main.collectionc
-               +--/main/main.goc
-               |  +--/main/main.scriptc
-               |
-               +--/main/shared_go.goc
-               |
-               +--/main/dynamic.collectionc
-               |  +--/main/dynamic.goc
-               |
-               +--/main/level1.collectionproxyc
-                  +--/main/level1.collectionc
-                     +--/main/dynamic.goc
-                     +--/main/level1.goc
-                     |  +--/main/level1.scriptc
-                     |  +--/main/shared_go.goc
-                     |
-                     +--/main/level2.collectionproxyc
-                        +--/main/level2.collectionc
-                            +--/main/dynamic.goc
-                            +--/main/level2.goc
-                            +--/main/level2.soundc
-            */
-
             ResourceNode root = graph.getRootNode();
-            ResourceNode main_collectionc = graph.add("/main/main.collectionc", root);
-            ResourceNode main_goc = graph.add("/main/main.goc", main_collectionc);
-            ResourceNode main_scriptc = graph.add("/main/main.scriptc", main_goc);
-            ResourceNode dynamic_collectionc = graph.add("/main/dynamic.collectionc", main_collectionc);
-            ResourceNode dynamic_goc = graph.add("/main/dynamic.goc", dynamic_collectionc);
-            ResourceNode shared_goc = graph.add("/main/shared_go.goc", main_collectionc);
+            ResourceNode mainCollection = graph.add("/main/main.collectionc", root);
+            ResourceNode mainGo = graph.add("/main/main.goc", mainCollection);
+            graph.add("/main/main.scriptc", mainGo);
+            ResourceNode dynamicCollection = graph.add("/main/dynamic.collectionc", mainCollection);
+            ResourceNode dynamicGo = graph.add("/main/dynamic.goc", dynamicCollection);
+            ResourceNode sharedGo = graph.add("/main/shared_go.goc", mainCollection);
 
-            ResourceNode level1_collectionproxyc = graph.add("/main/level1.collectionproxyc", main_goc);
-            ResourceNode level1_collectionc = graph.add("/main/level1.collectionc", level1_collectionproxyc);
-            level1_collectionproxyc.setType(ResourceNode.Type.ExcludedCollectionProxy);
-            level1_collectionc.setType(ResourceNode.Type.ExcludedCollection);
-            ResourceNode level1_goc = graph.add("/main/level1.goc", level1_collectionc);
-            ResourceNode level1_scriptc = graph.add("/main/level1.scriptc", level1_goc);
+            ResourceNode level1Proxy = graph.add("/main/level1.collectionproxyc", mainGo);
+            ResourceNode level1Collection = graph.add("/main/level1.collectionc", level1Proxy);
+            level1Proxy.setType(ResourceNode.Type.ExcludedCollectionProxy);
+            level1Collection.setType(ResourceNode.Type.ExcludedCollection);
+            ResourceNode level1Go = graph.add("/main/level1.goc", level1Collection);
+            graph.add("/main/level1.scriptc", level1Go);
 
-            ResourceNode level2_collectionproxyc = graph.add("/main/level2.collectionproxyc", level1_goc);
-            ResourceNode level2_collectionc = graph.add("/main/level2.collectionc", level2_collectionproxyc);
-            ResourceNode level2_goc = graph.add("/main/level2.goc", level2_collectionc);
-            ResourceNode level2_soundc = graph.add("/main/level2.soundc", level2_goc);
+            ResourceNode level2Proxy = graph.add("/main/level2.collectionproxyc", level1Go);
+            ResourceNode level2Collection = graph.add("/main/level2.collectionc", level2Proxy);
+            graph.add("/main/level2.goc", level2Collection);
+            graph.add("/main/level2.soundc", level2Collection);
 
-            graph.add(dynamic_goc, level1_collectionc);
-            graph.add(dynamic_goc, level2_collectionc);
-            graph.add(shared_goc,  level1_goc);
+            graph.add(dynamicGo, level1Collection);
+            graph.add(dynamicGo, level2Collection);
+            graph.add(sharedGo, level1Go);
 
             graph.findAllResourcesReferencedFromMainCollection();
             return graph;
@@ -183,25 +147,19 @@ public class ManifestTest {
             try {
                 return ManifestBuilder.CryptographicOperations.createHashDigest(projectIdentifier.getBytes(), HashAlgorithm.HASH_SHA1);
             } catch (Exception exception) {
-                System.out.println("TEST ERROR: Unable to create hash for project identifier!");
+                throw new RuntimeException("Unable to create hash for project identifier", exception);
             }
-
-            return null;
         }
 
         public HashDigest supportedEngineVersionHash(int index) {
-            HashDigest result = null;
             try {
                 HashDigest.Builder builder = HashDigest.newBuilder();
                 byte[] hash = ManifestBuilder.CryptographicOperations.hash(this.supportedEngineVersions[index].getBytes(), HashAlgorithm.HASH_SHA1);
-                ByteString content = ByteString.copyFrom(hash);
-                result = builder.setData(content).build();
+                return builder.setData(ByteString.copyFrom(hash)).build();
             } catch (Exception exception) {
-                System.out.println("TEST ERROR: Unable to create hash for engine version!");
+                throw new RuntimeException("Unable to create hash for engine version", exception);
             }
-            return result;
         }
-
     }
 
     private byte[] intArrayToByteArray(int[] array) {
@@ -211,17 +169,6 @@ public class ManifestTest {
         }
 
         return result;
-    }
-
-
-    @Before
-    public void setUp() throws Exception {
-
-    }
-
-    @After
-    public void tearDown() throws IOException {
-
     }
 
     @Test
@@ -265,140 +212,20 @@ public class ManifestTest {
     }
 
     @Test
-    public void testEncrypt_RSA() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
-        String data = "defold";
-        byte[] ciphertext = ManifestBuilder.CryptographicOperations.encrypt(data.getBytes(), SignAlgorithm.SIGN_RSA, privateKey);
-
-        assertNotNull(ciphertext);
-        assertEquals(128, ciphertext.length);
-    }
-
-    @Test
-    public void testDecrypt_RSA() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey("test/private_rsa_1024_1.der", SignAlgorithm.SIGN_RSA);
-        PublicKey publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey("test/public_rsa_1024_1.der", SignAlgorithm.SIGN_RSA);
-        String data = "defold";
-        byte[] ciphertext = ManifestBuilder.CryptographicOperations.encrypt(data.getBytes(), SignAlgorithm.SIGN_RSA, privateKey);
-        byte[] plaintext = ManifestBuilder.CryptographicOperations.decrypt(ciphertext, SignAlgorithm.SIGN_RSA, publicKey);
-
-        assertNotNull(ciphertext);
-        assertEquals(128, ciphertext.length);
-
-        assertNotNull(plaintext);
-        assertEquals(6, plaintext.length);
-
-        assertArrayEquals(data.getBytes(), plaintext);
-    }
-
-    @Test
-    public void testloadPrivateKey() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
-        assertNotNull(privateKey);
-    }
-
-    @Test(expected=NoSuchFileException.class)
-    public void testloadPrivateKey_InvalidFilepath() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        String filepath = "test/doesntexist.pkcs8";
-        ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
-    }
-
-    @Test(expected=InvalidKeySpecException.class)
-    public void testloadPrivateKey_InvalidKeyFormat() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        String filepath = "test/private_rsa_1024_3.pem";
-        ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, SignAlgorithm.SIGN_RSA);
-    }
-
-    @Test
-    public void testSign_MD5() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
-        HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_MD5;
-        SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
-        String data = "defold";
-
-        byte[] actual = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
-        assertNotNull(actual);
-        assertTrue(actual.length > 0);
-    }
-
-    @Test
-    public void testSign_SHA1() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
-        HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA1;
-        SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
-        String data = "defold";
-
-        byte[] actual = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
-        assertNotNull(actual);
-        assertTrue(actual.length > 0);
-    }
-
-    @Test
-    public void testSign_SHA256() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
-        HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA256;
-        SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
-        String data = "defold";
-
-        byte[] actual = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
-        assertNotNull(actual);
-        assertTrue(actual.length > 0);
-    }
-
-    @Test
-    public void testSign_SHA512() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
-        HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA512;
-        SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String filepath = "test/private_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(filepath, signAlgorithm);
-        String data = "defold";
-
-        byte[] actual = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
-        assertNotNull(actual);
-        assertTrue(actual.length > 0);
-    }
-
-    @Test
-    public void testSign_DecryptPublic() throws InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeySpecException, IOException {
-        HashAlgorithm hashAlgorithm = HashAlgorithm.HASH_SHA1;
-        SignAlgorithm signAlgorithm = SignAlgorithm.SIGN_RSA;
-        String privateKeyFilepath = "test/private_rsa_1024_1.der";
-        String publicKeyFilepath = "test/public_rsa_1024_1.der";
-        PrivateKey privateKey = ManifestBuilder.CryptographicOperations.loadPrivateKey(privateKeyFilepath, signAlgorithm);
-        PublicKey publicKey = ManifestBuilder.CryptographicOperations.loadPublicKey(publicKeyFilepath, signAlgorithm);
-        String data = "defold";
-
-        byte[] expected = ManifestBuilder.CryptographicOperations.hash(data.getBytes(), hashAlgorithm);
-        byte[] signature = ManifestBuilder.CryptographicOperations.sign(data.getBytes(), hashAlgorithm, signAlgorithm, privateKey);
-        byte[] actual = ManifestBuilder.CryptographicOperations.decrypt(signature, signAlgorithm, publicKey);
-
-        assertNotNull(expected);
-        assertNotNull(signature);
-        assertNotNull(actual);
-
-        assertArrayEquals(expected, actual);
-    }
-
-    @Test
-    public void testReadManifestFile() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public void testReadManifestFile() throws IOException {
         ManifestInstance instance = new ManifestInstance();
         ManifestFile manifestFile = instance.manifestBuilder.buildManifestFile();
 
-        File tmp_file = Files.createTempFile("test_tmp", "dmanifest").toFile();
-        FileOutputStream fouts = new FileOutputStream(tmp_file);
+        File tmpFile = Files.createTempFile("test_tmp", "dmanifest").toFile();
+        FileOutputStream fouts = new FileOutputStream(tmpFile);
         manifestFile.writeTo(fouts);
         fouts.close();
 
-        FileInputStream fins = new FileInputStream(tmp_file);
+        FileInputStream fins = new FileInputStream(tmpFile);
         ManifestFile manifestFile2 = ManifestFile.parseFrom(fins);
         fins.close();
 
-        assertEquals(true, manifestFile2.hasData());
+        assertTrue(manifestFile2.hasData());
         ManifestData data = ManifestData.parseFrom(manifestFile2.getData());
         ManifestHeader header = data.getHeader();
 
@@ -407,26 +234,45 @@ public class ManifestTest {
         assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
         assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());
         assertEquals(instance.projectIdentifierHash(), header.getProjectIdentifier());
+        assertTrue(manifestFile2.getSignature().isEmpty());
 
-        FileUtils.deleteQuietly(tmp_file);
+        FileUtils.deleteQuietly(tmpFile);
     }
 
     @Test
-    public void testBuildManifest_VerifySignature() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public void testBuildManifest_UnsignedSignature() throws IOException {
         ManifestInstance instance = new ManifestInstance();
 
         ManifestFile manifestFile = ManifestFile.parseFrom(instance.manifest);
-        byte[] expected = ManifestBuilder.CryptographicOperations.hash(manifestFile.getData().toByteArray(), HashAlgorithm.HASH_SHA1);
-        byte[] actual = ManifestBuilder.CryptographicOperations.decrypt(manifestFile.getSignature().toByteArray(), SignAlgorithm.SIGN_RSA, instance.publicKey);
-
-        assertNotNull(expected);
-        assertNotNull(actual);
-
-        assertArrayEquals(expected, actual);
+        assertTrue(manifestFile.getSignature().isEmpty());
     }
 
     @Test
-    public void testBuildManifest_ManifestHeader() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testBuildManifest_ManifestHashOutput() throws IOException, NoSuchAlgorithmException {
+        ManifestInstance instance = new ManifestInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder(true);
+        manifestBuilder.setProjectIdentifier(instance.projectIdentifier);
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+        manifestBuilder.setResourceGraph(instance.resourceGraph);
+        for (String version : instance.supportedEngineVersions) {
+            manifestBuilder.addSupportedEngineVersion(version);
+        }
+        for (String[] entry : instance.resources) {
+            byte[] data = entry[1].getBytes();
+            manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, ResourceEntryFlag.BUNDLED.getNumber());
+        }
+
+        ManifestFile manifestFile = manifestBuilder.buildManifestFile();
+        byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(manifestFile.getData().toByteArray(), HashAlgorithm.HASH_SHA1);
+
+        assertArrayEquals(expectedHash, manifestBuilder.getManifestDataHash());
+        assertTrue(manifestFile.getSignature().isEmpty());
+    }
+
+    @Test
+    public void testBuildManifest_ManifestHeader() throws IOException {
         ManifestInstance instance = new ManifestInstance();
         ManifestHeader header = instance.manifestHeader;
 
@@ -437,7 +283,7 @@ public class ManifestTest {
     }
 
     @Test
-    public void testBuildManifest_SupportedEngineVersions() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testBuildManifest_SupportedEngineVersions() throws IOException {
         ManifestInstance instance = new ManifestInstance();
         ManifestData data = instance.manifestData;
 
@@ -455,13 +301,12 @@ public class ManifestTest {
 
             assertTrue(foundMatch);
         }
-    }  
+    }
 
-    // Help function for debug that prints paths
     private void printDeps(ManifestData data, ResourceEntry searchFor) {
         for (int i = 0; i < data.getResourcesCount(); ++i) {
             ResourceEntry current = data.getResources(i);
-            for (long hash:searchFor.getDependantsList()) {
+            for (long hash : searchFor.getDependantsList()) {
                 if (hash == current.getUrlHash()) {
                     System.out.println(current.getUrl());
                 }
@@ -469,11 +314,29 @@ public class ManifestTest {
         }
     }
 
+    private ResourceEntry findResource(ManifestData data, String url) {
+        for (ResourceEntry entry : data.getResourcesList()) {
+            if (url.equals(entry.getUrl())) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    private int countExcludedResources(ManifestData data) {
+        int excluded = 0;
+        for (ResourceEntry entry : data.getResourcesList()) {
+            if ((entry.getFlags() & ResourceEntryFlag.EXCLUDED.getNumber()) != 0) {
+                excluded++;
+            }
+        }
+        return excluded;
+    }
+
     @Test
-    public void testCreateManifest_Resources() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testCreateManifest_Resources() throws IOException {
         ManifestInstance instance = new ManifestInstance();
         ManifestData data = instance.manifestData;
-        System.out.println(instance.resourceGraph.toJSON());
 
         assertEquals(instance.resources.length, data.getResourcesCount());
 
@@ -487,11 +350,49 @@ public class ManifestTest {
                 assertEquals(0, current.getDependantsCount());
             }
 
-            // Now we have dependencies in excluded collection proxies
             if (current.getUrl().equals("/main/level1.collectionc")) {
                 printDeps(data, current);
                 assertEquals(3, current.getDependantsCount());
             }
         }
+    }
+
+    @Test
+    public void testBuildManifest_FullManifestMatchesDefaultBehavior() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+
+        assertEquals(instance.manifestData, instance.manifestBuilder.buildManifestData(false));
+    }
+
+    @Test
+    public void testBuildManifest_StrippedManifestOmitsExcludedEntries() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+        ManifestData fullData = instance.manifestData;
+        ManifestData strippedData = instance.strippedManifestData;
+
+        assertEquals(instance.resources.length, fullData.getResourcesCount());
+        assertEquals(7, countExcludedResources(fullData));
+        assertEquals(6, strippedData.getResourcesCount());
+        assertEquals(0, countExcludedResources(strippedData));
+
+        assertFalse(findResource(strippedData, "/main/level1.collectionc") != null);
+        assertFalse(findResource(strippedData, "/main/level1.goc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.collectionproxyc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.collectionc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.goc") != null);
+        assertFalse(findResource(strippedData, "/main/level2.soundc") != null);
+
+        assertTrue(findResource(strippedData, "/main/main.collectionc") != null);
+        assertTrue(findResource(strippedData, "/main/level1.collectionproxyc") != null);
+    }
+
+    @Test
+    public void testBuildManifest_FullManifestRetainsExcludedDependencyMetadata() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+        ResourceEntry fullEntry = findResource(instance.manifestData, "/main/level1.collectionc");
+
+        assertTrue(fullEntry != null);
+        assertEquals(ResourceEntryFlag.EXCLUDED.getNumber(), fullEntry.getFlags());
+        assertEquals(3, fullEntry.getDependantsCount());
     }
 }

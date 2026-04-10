@@ -275,6 +275,7 @@ defold_min_version = 1.10.0
 
 [liveupdate]
 enabled = 1
+exclude_entries_from_main_manifest = 1
 settings = /liveupdate.settings
 mount_on_start = 0
 
