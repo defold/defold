@@ -155,7 +155,15 @@ def shutdown(self):
         configfile = waf_dynamo.create_test_server_config(self, port=0, ip=local_ip, config_name="unittest.cfg")
 
     try:
-        waf_dynamo.run_tests(test_context, configfile = configfile)
+        waf_dynamo.run_tests(test_context, configfile = configfile,
+                                folders = {
+                                    "src/test/archive_data": "src/test/archive_data",
+                                    "src/test/files": "src/test/files",
+                                    "src/test/mountfiles": "src/test/mountfiles",
+                                    "src/test/overrides": "src/test/overrides",
+                                    "src/test/zipfiles": "src/test/zipfiles",
+                                    "build/src/test": "build/src/test"
+                                    })
     finally:
         if configfile and os.path.exists(configfile):
             os.remove(configfile)
