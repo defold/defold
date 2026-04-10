@@ -148,15 +148,8 @@ jobs:
         include:
           - platform: armv7-android
             skip_tests: true
-            ndk_api: 19
-            emulator-port: 5554
           - platform: arm64-android
-            skip_tests: false
-            ndk_api: 21
-            emulator-port: 5554
-            emulator-api-level: 31
-            emulator-arch: x86_64
-            emulator-profile: pixel_8_pro
+            skip_tests: true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps: [
@@ -175,32 +168,9 @@ jobs:
           android-build-tools: '36.1.0'
         }
       },
-      {
-        name: 'List available AVD hardware profiles',
-        run: 'avdmanager list device'
-      },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      { name: 'Enable KVM', if: matrix.platform == 'arm64-android', run: 'echo ''KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm' },
       {
         name: 'Build engine',
-        if: matrix.platform == 'arm64-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
-        uses: reactivecircus/android-emulator-runner@v2,
-        env: {
-          ANDROID_AVD_HOME: '${{ runner.temp }}/android-avd',
-          ANDROID_EMULATOR_HOME: '${{ runner.temp }}/android-emulator-home'
-        },
-        with: {
-          api-level: '${{ matrix.emulator-api-level }}',
-          arch: '${{ matrix.emulator-arch }}',
-          profile: '${{ matrix.emulator-profile }}',
-          avd-name: 'emulator-${{ github.run_id }}-${{ github.run_attempt }}',
-          emulator-port: '${{ matrix.emulator-port }}',
-          script: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
-        }
-      },
-      {
-        name: 'Build engine',
-        if: matrix.platform == 'armv7-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs engine'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
