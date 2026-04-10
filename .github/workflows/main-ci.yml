@@ -154,7 +154,7 @@ jobs:
             skip_tests: false
             ndk_api: 21
             emulator-port: 5554
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -174,9 +174,10 @@ jobs:
       },
       {
         name: 'List available AVD hardware profiles',
-        run: 'avdmanager list'
+        run: 'avdmanager list device'
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Enable KVM', if: matrix.platform == 'arm64-android', run: 'echo ''KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm' },
       {
         name: 'Build engine',
         if: matrix.platform == 'arm64-android' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
@@ -188,10 +189,9 @@ jobs:
         with: {
           api-level: 30,
           arch: arm64-v8a,
+          profile: pixel_8_pro,
           avd-name: 'emulator-${{ github.run_id }}-${{ github.run_attempt }}',
           emulator-port: '${{ matrix.emulator-port }}',
-          emulator-boot-timeout: 1200,
-          emulator-options: '-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -accel off',
           script: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
         }
       },
