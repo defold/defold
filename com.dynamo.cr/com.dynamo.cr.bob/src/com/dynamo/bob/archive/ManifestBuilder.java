@@ -120,6 +120,7 @@ public class ManifestBuilder {
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private Set<String> supportedEngineVersions = new HashSet<String>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
+        // We need to make sure the entries are sorted properly in order to do the binary search.
         private int compare(byte[] left, byte[] right) {
             for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
                 int a = (left[i] & 0xff);
@@ -132,6 +133,8 @@ public class ManifestBuilder {
         }
 
         public int compare(ResourceEntry s1, ResourceEntry s2) {
+            // We want a set sorted on hashes, so we can do binary search at runtime.
+            // Compare on bytes here because Java does not have unsigned integral types.
             byte[] s1Bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s1.getUrlHash()).array();
             byte[] s2Bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s2.getUrlHash()).array();
             return compare(s1Bytes, s2Bytes);
@@ -217,6 +220,17 @@ public class ManifestBuilder {
     }
 
     public HashSet<ResourceNode> getAllDependants(ResourceNode node) throws IOException {
+        /* Once a candidate has been found the children, the children, and so
+           on are added to the list of dependants. If a CollectionProxy is
+           found that resource itself is added to the list of dependants, but
+           it is seen as a leaf and the Collection that it points to is ignored.
+
+           The reason children of a CollectionProxy are ignored is that they are
+           not required to load the parent Collection. This allows us to
+           exclude an entire Collection that is loaded through a CollectionProxy
+           and thus create a partial archive that has to be updated through
+           LiveUpdate before that CollectionProxy can be loaded.
+        */
         if (node == null) {
             return new HashSet<ResourceNode>();
         }
