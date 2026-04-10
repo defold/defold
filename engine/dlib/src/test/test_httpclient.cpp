@@ -1559,6 +1559,34 @@ static void ProxyCloseReusedDoesNotLeakPoolHandles(bool secure, int port, uint32
     dmHttpClient::ReopenConnectionPool();
 }
 
+struct ProxyShutdownThreadContext
+{
+    int32_atomic_t m_GotIt;
+};
+
+static void ProxyHandshakeShutdownThreadLocal(void *args)
+{
+    ProxyShutdownThreadContext* ctx = (ProxyShutdownThreadContext*)args;
+    while (!dmAtomicGet32(&ctx->m_GotIt))
+    {
+        if (dmHttpClient::GetNumPoolConnections() == 0)
+        {
+            dmTime::Sleep(1000);
+            continue;
+        }
+
+        // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
+        // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
+        dmTime::Sleep(200 * 1000);
+
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            dmAtomicStore32(&ctx->m_GotIt, 1);
+        } else {
+            break;
+        }
+    }
+}
+
 static void ProxyThreadedShutdownDuringHandshake(int port)
 {
     dmHttpClient::ShutdownConnectionPool();
@@ -1572,7 +1600,7 @@ static void ProxyThreadedShutdownDuringHandshake(int port)
     ProxyRequestHelper helper(url, proxy_url);
     ASSERT_TRUE(helper.IsValid());
 
-    ShutdownThreadContext ctx;
+    ProxyShutdownThreadContext ctx;
     ctx.m_GotIt = 0;
 
     dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_REQUEST_TIMEOUT, 15 * 1000000);
@@ -1581,7 +1609,7 @@ static void ProxyThreadedShutdownDuringHandshake(int port)
     dmHttpClient::Result r = dmHttpClient::RESULT_OK;
     for (int i = 0; i < 3; ++i)
     {
-        dmThread::Thread thr = dmThread::New(&ProxyHandshakeShutdownThread, 65536, &ctx, "cts-proxy-ssl");
+        dmThread::Thread thr = dmThread::New(&ProxyHandshakeShutdownThreadLocal, 65536, &ctx, "cts-proxy-ssl");
 
         uint64_t timestart = dmTime::GetMonotonicTime();
         r = helper.Get("/sleep/5000");
