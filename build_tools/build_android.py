@@ -1,7 +1,9 @@
+import argparse
 import configparser
 import os
 import shutil
 import subprocess
+import sys
 
 ANDROID_TEST_DEVICE_ROOT = '/data/local/tmp/unittest'
 
@@ -99,8 +101,8 @@ def get_reverse_port(cwd, configfile, log_fn = None):
     return port
 
 
-def can_run_tests_android(log_fn = None):
-    adb_candidates = _find_adb_candidates()
+def can_run_tests_android(log_fn = None, env = None):
+    adb_candidates = _find_adb_candidates(env)
 
     if len(adb_candidates) == 0:
         _log(log_fn, 'No adb found, skipping Android tests')
@@ -160,6 +162,20 @@ class AndroidTestRunner(object):
 
     def _log(self, message):
         _log(self._log_fn, message)
+
+    def _set_context(self, cwd, configfile = None):
+        self._library_name = get_library_name(cwd)
+        self._library_root = '%s/%s' % (self.device_root, self._library_name)
+        self._configfile = None
+        if configfile:
+            self._configfile = '%s/%s' % (self._library_root, 'unittest.cfg')
+
+    def _ensure_context(self, cwd = None, configfile = None):
+        if cwd:
+            self._set_context(cwd, configfile)
+
+        if not self._library_root:
+            raise RuntimeError('android-test: missing library root context, provide cwd or call prepare() first')
 
     def _run(self, args):
         cmd = self._adb + args
@@ -223,9 +239,7 @@ class AndroidTestRunner(object):
         self._prepared = True
         self._log('android-test: prepare cwd=%s configfile=%s' % (cwd, configfile))
 
-        self._library_name = get_library_name(cwd)
-        self._library_root = '%s/%s' % (self.device_root, self._library_name)
-        self._configfile = None
+        self._set_context(cwd, configfile)
         self._reverse_active = False
         self._reverse_port = get_reverse_port(cwd, configfile, self._log_fn)
 
@@ -265,12 +279,16 @@ class AndroidTestRunner(object):
         return 0
 
     def stop(self, cwd = None, configfile = None):
+        reverse_port = self._reverse_port
+        if cwd:
+            reverse_port = get_reverse_port(cwd, configfile, self._log_fn)
+
         self._log('android-test: stop cwd=%s configfile=%s prepared=%s' % (cwd, configfile, self._prepared))
         ret = 0
-        if self._reverse_active and self._reverse_port:
-            ret = self._run(['reverse', '--remove', 'tcp:%d' % self._reverse_port])
+        if reverse_port:
+            ret = self._run(['reverse', '--remove', 'tcp:%d' % reverse_port])
             if ret != 0:
-                self._log('android-test: failed to remove adb reverse for tcp:%d' % self._reverse_port)
+                self._log('android-test: failed to remove adb reverse for tcp:%d' % reverse_port)
 
         self._prepared = False
         self._configfile = None
@@ -280,7 +298,9 @@ class AndroidTestRunner(object):
         self._library_root = None
         return ret
 
-    def run_test(self, program):
+    def run_test(self, program, cwd = None, configfile = None):
+        self._ensure_context(cwd, configfile)
+
         device_program = os.path.basename(program)
         device_program_path = '%s/%s' % (self._library_root, device_program)
         self._log('android-test: push %s %s' % (program, device_program_path))
@@ -302,3 +322,79 @@ class AndroidTestRunner(object):
             cmd.append(relative_config)
 
         return self._run(cmd)
+
+
+def _parse_stage_args(stage_args):
+    if not stage_args:
+        return None
+
+    folders = {}
+    for source, target in stage_args:
+        folders[source] = target
+    return folders
+
+
+def _create_argument_parser():
+    parser = argparse.ArgumentParser(description = 'Android test helper utilities')
+    subparsers = parser.add_subparsers(dest = 'command', required = True)
+
+    parser_can_run = subparsers.add_parser('can-run-tests', help = 'Check if Android tests can run')
+    parser_can_run.add_argument('--adb', help = 'Path to adb executable')
+
+    parser_prepare = subparsers.add_parser('prepare', help = 'Prepare Android device test environment')
+    parser_prepare.add_argument('--cwd', required = True, help = 'Library working directory')
+    parser_prepare.add_argument('--config', help = 'Optional test config file path relative to cwd')
+    parser_prepare.add_argument('--adb', help = 'Path to adb executable')
+    parser_prepare.add_argument('--device-root', default = ANDROID_TEST_DEVICE_ROOT, help = 'Root folder on device for staged tests')
+    parser_prepare.add_argument('--stage', action = 'append', nargs = 2, metavar = ('SOURCE', 'TARGET'),
+        help = 'Stage SOURCE from cwd to TARGET under the library root on device')
+
+    parser_run_test = subparsers.add_parser('run-test', help = 'Run one Android test binary on device')
+    parser_run_test.add_argument('--cwd', required = True, help = 'Library working directory')
+    parser_run_test.add_argument('--program', required = True, help = 'Path to the built test program')
+    parser_run_test.add_argument('--config', help = 'Optional test config file path relative to cwd')
+    parser_run_test.add_argument('--adb', help = 'Path to adb executable')
+    parser_run_test.add_argument('--device-root', default = ANDROID_TEST_DEVICE_ROOT, help = 'Root folder on device for staged tests')
+
+    parser_stop = subparsers.add_parser('stop', help = 'Tear down Android device test environment')
+    parser_stop.add_argument('--cwd', required = True, help = 'Library working directory')
+    parser_stop.add_argument('--config', help = 'Optional test config file path relative to cwd')
+    parser_stop.add_argument('--adb', help = 'Path to adb executable')
+    parser_stop.add_argument('--device-root', default = ANDROID_TEST_DEVICE_ROOT, help = 'Root folder on device for staged tests')
+
+    return parser
+
+
+def main(argv = None):
+    parser = _create_argument_parser()
+    args = parser.parse_args(argv)
+
+    if args.command == 'can-run-tests':
+        env = None
+        if args.adb:
+            env = dict(os.environ)
+            env['ADB'] = args.adb
+        return 0 if can_run_tests_android(print, env = env) else 1
+
+    env = dict(os.environ)
+    if getattr(args, 'adb', None):
+        env['ADB'] = args.adb
+
+    runner = AndroidTestRunner(env = env, log_fn = print, device_root = args.device_root)
+
+    if args.command == 'prepare':
+        folders = _parse_stage_args(args.stage)
+        return runner.prepare(args.cwd, args.config, folders = folders)
+
+    if args.command == 'run-test':
+        return runner.run_test(args.program, cwd = args.cwd, configfile = args.config)
+
+    if args.command == 'stop':
+        return runner.stop(args.cwd, args.config)
+
+    parser.error('Unknown command: %s' % args.command)
+    return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main())

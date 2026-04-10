@@ -59,8 +59,7 @@ protected:
 
         dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
 
-        (void)result;
-        assert(dmDDF::RESULT_OK == result);
+        ASSERT_EQ(dmDDF::RESULT_OK, result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
         dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);

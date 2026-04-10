@@ -33,4 +33,4 @@ def build(bld):
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context)
+    waf_dynamo.run_tests(test_context, folders = {"src/test/data": "src/test/data"})
