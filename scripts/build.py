@@ -1459,7 +1459,7 @@ class Configuration(object):
         self.full_archive_path = full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
-        lib_dir = self.target_platform
+        lib_dir = self.build_utility.get_library_path()
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1473,6 +1473,14 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+
+        # upload mouse_capture lib on desktop platforms
+        if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
+            mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)
+            mouse_capture_lib = join(lib_dir, mouse_capture_name)
+            self._log(mouse_capture_lib)
+            self._log('%s/%s' % (full_archive_path, mouse_capture_name))
+            self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1532,7 +1540,7 @@ class Configuration(object):
             libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
-                lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+                lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
