@@ -154,6 +154,9 @@ jobs:
             skip_tests: false
             ndk_api: 21
             emulator-port: 5554
+            emulator-api-level: 30
+            emulator-arch: arm64-v8a
+            emulator-profile: pixel_8_pro
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps: [
@@ -187,9 +190,9 @@ jobs:
           ANDROID_EMULATOR_HOME: '${{ runner.temp }}/android-emulator-home'
         },
         with: {
-          api-level: 30,
-          arch: arm64-v8a,
-          profile: pixel_8_pro,
+          api-level: '${{ matrix.emulator-api-level }}',
+          arch: '${{ matrix.emulator-arch }}',
+          profile: '${{ matrix.emulator-profile }}',
           avd-name: 'emulator-${{ github.run_id }}-${{ github.run_attempt }}',
           emulator-port: '${{ matrix.emulator-port }}',
           script: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
