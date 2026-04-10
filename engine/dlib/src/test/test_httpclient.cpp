@@ -736,6 +736,29 @@ static void ShutdownThread(void *args)
     }
 }
 
+static void ProxyHandshakeShutdownThread(void *args)
+{
+    ShutdownThreadContext* ctx = (ShutdownThreadContext*)args;
+    while (!dmAtomicGet32(&ctx->m_GotIt))
+    {
+        if (dmHttpClient::GetNumPoolConnections() == 0)
+        {
+            dmTime::Sleep(1000);
+            continue;
+        }
+
+        // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
+        // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
+        dmTime::Sleep(200 * 1000);
+
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            dmAtomicStore32(&ctx->m_GotIt, 1);
+        } else {
+            break;
+        }
+    }
+}
+
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
     dmHttpClient::ShutdownConnectionPool();
@@ -1061,6 +1084,47 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
             ASSERT_TRUE(0);
         }
     }
+}
+
+// Covers the shutdown gap where the raw socket exists but the connection has not yet been
+// committed back into the pool. The same publication path is used for plain TCP connect and
+// the subsequent SSL handshake, but the handshake stall is easy to reproduce locally.
+TEST_P(dmHttpClientTestSSL, ClientThreadedShutdownDuringHandshake)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    ShutdownThreadContext ctx;
+    ctx.m_GotIt = 0;
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 10 * 1000000);
+
+    uint64_t elapsed = 0;
+    dmHttpClient::Result r = dmHttpClient::RESULT_OK;
+    for (int i = 0; i < 3; ++i)
+    {
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts-ssl");
+
+        uint64_t timestart = dmTime::GetMonotonicTime();
+        r = HttpGet("/sleep/5000");
+        elapsed = dmTime::GetMonotonicTime() - timestart;
+
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+
+        dmThread::Join(thr);
+
+        if (dmAtomicGet32(&ctx.m_GotIt))
+            break;
+
+        dmHttpClient::ReopenConnectionPool();
+    }
+
+    ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
+    ASSERT_LT(elapsed, 3 * 1000000ULL);
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    dmHttpClient::ReopenConnectionPool();
 }
 
 // Until we've figured out how to access the local server on windows from the device
@@ -1495,6 +1559,54 @@ static void ProxyCloseReusedDoesNotLeakPoolHandles(bool secure, int port, uint32
     dmHttpClient::ReopenConnectionPool();
 }
 
+static void ProxyThreadedShutdownDuringHandshake(int port)
+{
+    dmHttpClient::ShutdownConnectionPool();
+    dmHttpClient::ReopenConnectionPool();
+
+    char url[128];
+    char proxy_url[128];
+    MakeLocalUrl(url, sizeof(url), true, port);
+    MakeLocalProxyUrl(proxy_url, sizeof(proxy_url));
+
+    ProxyRequestHelper helper(url, proxy_url);
+    ASSERT_TRUE(helper.IsValid());
+
+    ShutdownThreadContext ctx;
+    ctx.m_GotIt = 0;
+
+    dmHttpClient::SetOptionInt(helper.GetClient(), dmHttpClient::OPTION_REQUEST_TIMEOUT, 15 * 1000000);
+
+    uint64_t elapsed = 0;
+    dmHttpClient::Result r = dmHttpClient::RESULT_OK;
+    for (int i = 0; i < 3; ++i)
+    {
+        dmThread::Thread thr = dmThread::New(&ProxyHandshakeShutdownThread, 65536, &ctx, "cts-proxy-ssl");
+
+        uint64_t timestart = dmTime::GetMonotonicTime();
+        r = helper.Get("/sleep/5000");
+        elapsed = dmTime::GetMonotonicTime() - timestart;
+
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_NE(dmSocket::RESULT_OK, dmHttpClient::GetLastSocketResult(helper.GetClient()));
+
+        dmThread::Join(thr);
+
+        if (dmAtomicGet32(&ctx.m_GotIt))
+            break;
+
+        dmHttpClient::ReopenConnectionPool();
+    }
+
+    ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
+    ASSERT_GT(elapsed, 100 * 1000ULL);
+    ASSERT_LT(elapsed, 3 * 1000000ULL);
+    ASSERT_EQ(0u, dmHttpClient::GetNumPoolConnections());
+
+    dmHttpClient::ReopenConnectionPool();
+}
+
 TEST(dmHttpClient, HostNotFound)
 {
     dmURI::Parts uri;
@@ -1560,6 +1672,12 @@ TEST(dmHttpClient, Proxy)
 TEST(dmHttpClient, ProxyHttps)
 {
     ProxyAddRequest(true, g_HttpPortSSL);
+}
+
+// Verifies that shutting down the pool interrupts the TLS handshake performed after an HTTP CONNECT proxy tunnel is established.
+TEST(dmHttpClient, ProxyHttpsThreadedShutdownDuringHandshake)
+{
+    ProxyThreadedShutdownDuringHandshake(g_HttpPortSSLTest);
 }
 
 // Verifies that a non-200 CONNECT response from the proxy is preserved as an HTTP error for HTTPS requests.
