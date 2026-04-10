@@ -84,7 +84,7 @@ def shutdown(self):
     serv = test_script_server.Server(port=PORT, ip=local_ip)
     serv.start()
     try:
-        waf_dynamo.run_tests(test_context, configfile = configfile)
+        waf_dynamo.run_tests(test_context, configfile = configfile, folders = {"build/src/test/scripts": "build/src/test/scripts"})
     finally:
         if serv:
             serv.stop()

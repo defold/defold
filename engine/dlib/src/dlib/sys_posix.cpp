@@ -160,6 +160,14 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        if (!app)
+        {
+            // For unit tests
+            dmSnPrintf(path, path_len, "/data/local/tmp", DM_HOSTFS);
+            return RESULT_OK;
+        }
+
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
         if (!env)
