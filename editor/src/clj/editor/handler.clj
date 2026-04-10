@@ -109,7 +109,8 @@
    ;;                               :locations [location]}}
    :registrations {}
    ;; menus: {location {registration [menu-item]}}
-   :menus {}})
+   :menus {}
+   :listeners {}})
 
 (defonce state-atom
   (atom empty-state))
@@ -290,6 +291,19 @@
 
 (defonce ^:dynamic *adapters* nil)
 
+(defn add-listener!
+  "Register a listener that fires after a handler runs for [command context].
+  listener-id should be unique per listener."
+  [listener-id command callback-fn]
+  (swap! state-atom assoc-in [:listeners command listener-id] callback-fn)
+  nil)
+
+(defn remove-listener!
+  "Remove a previously registered listener."
+  [listener-id command]
+  (swap! state-atom util/dissoc-in [[:listeners command listener-id]])
+  nil)
+
 (defonce/protocol SelectionProvider
   (selection [this evaluation-context])
   (succeeding-selection [this evaluation-context])
@@ -376,7 +390,10 @@
 
 (defn run [[handler command-context]]
   (analytics/track-screen! (ctx->screen-name command-context))
-  (invoke-fnk handler :run command-context nil))
+  (let [result (invoke-fnk handler :run command-context nil)]
+    (doseq [[_ callback-fn] (get-in @state-atom [:listeners (:command handler)])]
+      (callback-fn))
+    result))
 
 (defn state
   ([[handler command-context]]

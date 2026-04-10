@@ -16,6 +16,7 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.colors :as colors]
+            [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
@@ -93,7 +94,7 @@
           (set-value! settings-binding key val))))
     [label slider]))
 
-(defn- toggle-setting [settings-binding key label-text acc-text]
+(defn- toggle-setting [settings-binding popup key label-text command acc-text]
   (let [check-box (CheckBox.)
         label (Label. label-text)
         acc (Label. (or acc-text ""))]
@@ -110,6 +111,14 @@
     (when (os/is-mac-os?)
       (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
     (ui/add-style! acc "accelerator-label")
+    (when command
+      (let [listener-id [::toggle-setting key]]
+        (handler/add-listener! listener-id command
+          (fn []
+            (ui/value! check-box (get-value settings-binding key))))
+        (ui/on-closed! popup
+          (fn [_]
+            (handler/remove-listener! listener-id command)))))
     (let [hbox (doto (HBox.)
                  (.setAlignment Pos/CENTER_LEFT)
                  (ui/add-style! "toggle-row")
@@ -218,7 +227,7 @@
         accelerator (if command (keymap/display-text keymap command "") "")]
     (case type
       :slider      (slider-setting settings-binding popup key label-text min max)
-      :toggle      (toggle-setting settings-binding key label-text accelerator)
+      :toggle      (toggle-setting settings-binding popup key label-text command accelerator)
       :vec3-floats (vec3-floats-setting settings-binding key)
       :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
       :color       (color-setting settings-binding key label-text)

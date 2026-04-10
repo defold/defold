@@ -321,7 +321,7 @@
 (defn show-settings! [app-view keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (mapv #(-> %
                                        (assoc :key (:tag %))
-                                       (dissoc :tag #_#_:always-enabled :appear-filtered))
+                                       (dissoc :tag :always-enabled :appear-filtered))
                                   renderable-tag-toggles-info)
         scene-vis-binding (->SceneVisibilityBinding scene-visibility)
         controls (popup/show-settings! owner keymap localization scene-vis-binding 230 setting-descriptors false nil
@@ -354,21 +354,14 @@
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
     (g/update-property! scene-visibility :visibility-filters-enabled? not)
-    (g/with-auto-evaluation-context evaluation-context
-      (when-let [cb (:visibility-filter-check-box (g/node-value scene-visibility :ui-check-boxes evaluation-context))]
-        (ui/value! cb (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)))
-      (sync-filter-checkboxes! scene-visibility evaluation-context))))
+    (sync-filter-checkboxes! scene-visibility)))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
     (toggle-tag-visibility! scene-visibility :outline)
-    (g/with-auto-evaluation-context evaluation-context
-      (when-let [cb (:component-guide-check-box (g/node-value scene-visibility :ui-check-boxes evaluation-context))]
-        (let [visible (not (contains? (g/node-value scene-visibility :filtered-renderable-tags evaluation-context) :outline))]
-          (ui/value! cb visible)))
-      (sync-filter-checkboxes! scene-visibility evaluation-context))))
+    (sync-filter-checkboxes! scene-visibility)))
 
 (handler/defhandler :scene.visibility.toggle-grid :workbench
   (active? [app-view scene-visibility evaluation-context]
