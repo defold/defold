@@ -83,8 +83,10 @@ It is a CSV file, and is located in the project_id folder, which is the SHA1 has
 
 ### Missing resources
 
-Before a collection proxy is loaded, if may be that some content is missing.
-The developer will query the resource system using [collectionproxy.missing_resources()](https://defold.com/ref/stable/collectionproxy/#collectionproxy.missing_resources:collectionproxy)
+Before a collection proxy is loaded, it may be that some content is missing.
+The legacy single-resource liveupdate flow can query the resource system using [collectionproxy.missing_resources()](https://defold.com/ref/stable/collectionproxy/#collectionproxy.missing_resources:collectionproxy), but that API is deprecated.
+
+For archive/mount-based liveupdate flows, the normal approach is to mount the relevant archive before loading. If the developer needs to inspect the full excluded resource set for a collection proxy, they can use [collectionproxy.get_resources()](https://defold.com/ref/stable/collectionproxy/#collectionproxy.get_resources:collectionproxy).
 
 Using this list, the developer will determine which content to download and add to the resource system.
 
@@ -110,4 +112,3 @@ It would present other challenges with respect to max number of files in a folde
 For easier debugging liveupdate content, there is a define `DM_RESOURCE_DBG_LOG_LEVEL` in `resource_private.h` that toggles a logging macro `DM_RESOURCE_DBG_LOG(level, ...)`.
 
 It is also possible to print the contents of a `.dmanifest` by calling `<defold>/scripts/unpack_ddf.py /path/to/game.dmanifest`
-

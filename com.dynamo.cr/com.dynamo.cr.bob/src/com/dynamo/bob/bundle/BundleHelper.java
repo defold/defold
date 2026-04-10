@@ -98,8 +98,7 @@ public class BundleHelper {
         "game.projectc",
         "game.arci",
         "game.arcd",
-        "game.dmanifest",
-        "game.public.der"
+        "game.dmanifest"
     };
 
     public static void throwIfCanceled(ICanceled canceled) {

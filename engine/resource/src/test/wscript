@@ -201,7 +201,7 @@ def build(bld):
                 proto_gen_py = True,
                 target       = 'test_resource_archive',
                 source       = 'test_resource_archive.cpp',
-                embed_source = embed_source + 'resources.public resources.manifest_hash'.split())
+                embed_source = embed_source + 'resources.manifest_hash'.split())
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -209,7 +209,7 @@ def build(bld):
                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderZip', 'ResourceProviderArchive'],
                 target       = 'test_resource_mounts',
                 source       = 'test_resource_mounts.cpp',
-                embed_source = embed_source + 'resources.public resources.manifest_hash'.split())
+                embed_source = embed_source + 'resources.manifest_hash'.split())
 
     bld.program(features     = ['cxx', 'embed', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
