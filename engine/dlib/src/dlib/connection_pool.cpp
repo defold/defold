@@ -251,12 +251,12 @@ namespace dmConnectionPool
         return false;
     }
 
-    static bool PublishInProgressSocket(HPool pool, Connection* connection, dmSocket::Socket socket)
+    static bool PublishInProgressSocket(HPool pool, Connection* connection, dmSocket::Socket* socket)
     {
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
         if (connection->m_State == STATE_INUSE && !connection->m_WasShutdown)
         {
-            connection->m_Socket = socket;
+            connection->m_Socket = *socket;
             return true;
         }
         return false;
@@ -292,7 +292,7 @@ namespace dmConnectionPool
         // an in-flight TCP connect and a subsequent SSL handshake. If shutdown already claimed
         // the slot before we could publish, abort immediately instead of continuing with an
         // untracked socket.
-        if (!PublishInProgressSocket(pool, connection, *socket))
+        if (!PublishInProgressSocket(pool, connection, socket))
         {
             *sr = dmSocket::RESULT_CONNABORTED;
             CloseInProgressSocket(pool, connection, socket);
