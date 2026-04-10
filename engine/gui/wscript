@@ -58,4 +58,7 @@ def build(bld):
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context)
+    waf_dynamo.run_tests(test_context, folders = {
+                                            "build/src/test/once.particlefxc": "build/src/test/once.particlefxc",
+                                            "build/src/test/once_three_emitters.particlefxc": "build/src/test/once_three_emitters.particlefxc",
+                                            })
