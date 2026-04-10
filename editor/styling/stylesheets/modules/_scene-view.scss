@@ -118,7 +118,7 @@
             &:selected > #visibility-settings-graphic > #active-indicator {
                 -fx-stroke: -df-background-light;
             }
-            &.filters-active > #visibility-settings-graphic > #active-indicator {
+            &:filters-active > #visibility-settings-graphic > #active-indicator {
                 visibility: visible;
             }
         }

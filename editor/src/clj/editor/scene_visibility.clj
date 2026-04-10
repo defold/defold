@@ -27,8 +27,9 @@
             [schema.core :as s]
             [util.coll :as coll])
   (:import [javafx.geometry Point2D Pos]
+           [javafx.css PseudoClass]
            [javafx.scene Parent]
-           [javafx.scene.control CheckBox Label PopupControl Separator Tab]
+           [javafx.scene.control CheckBox Label PopupControl Separator Tab ToggleButton]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.stage PopupWindow$AnchorLocation]))
 
@@ -282,12 +283,12 @@
           .getParent))
 
 (defn sync-filter-button-style! [app-view scene-visibility evaluation-context]
-  (when-let [btn (toggle-button app-view)]
+  (when-let [btn ^ToggleButton (toggle-button app-view)]
     (if (and (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
              (some appear-filtered-renderable-tags
                    (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))
-      (ui/add-style! btn "filters-active")
-      (ui/remove-style! btn "filters-active"))))
+      (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") true)
+      (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") false))))
 
 (defn- sync-filter-checkboxes!
   ([scene-visibility]
