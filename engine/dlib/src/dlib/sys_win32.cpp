@@ -26,6 +26,7 @@
 #include <limits.h> // UINT_MAX
 
 #include "sys.h"
+#include "sys_internal.h"
 #include "log.h"
 #include "dstrings.h"
 #include "hash.h"
@@ -104,7 +105,7 @@ namespace dmSys
         return path;
     }
 
-    // Is a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
+    // If a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
     static bool MakePath_8_3(const wchar_t* wpath, wchar_t* out)
     {
         wchar_t tmp[MAX_PATH] = { 0 };
@@ -180,6 +181,22 @@ namespace dmSys
         return GetApplicationSupportPath(application_name, path, path_len);
     }
 
+    Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len)
+    {
+        if (dmStrlCpy(path, application_support_path, path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, "/", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        Result r =  Mkdir(path, 0755);
+        if (r == RESULT_EXIST)
+            return RESULT_OK;
+        else
+            return r;
+    }
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         wchar_t tmp_wpath[MAX_PATH];
@@ -191,33 +208,25 @@ namespace dmSys
                                      tmp_wpath)))
         {
             // Make any unicode directories into 8.3 format if necessary
-            wchar_t short_path[MAX_PATH];
-            MakePath_8_3(tmp_wpath, short_path);
+            wchar_t short_path[MAX_PATH] = { 0 };
+            if (!MakePath_8_3(tmp_wpath, short_path))
+                return RESULT_UNKNOWN;
 
-            int wlength = (int)wcslen(short_path);
-            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, NULL, 0, NULL, NULL);
+            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, -1, NULL, 0, NULL, NULL);
             if (size_needed == 0)
             {
                 dmLogError("Failed converting wchar_t -> char\n");
                 return RESULT_UNKNOWN;
             }
 
-            char* tmp_path = (char*)_alloca(size_needed + 1);
-            WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, tmp_path, size_needed, NULL, NULL);
-            tmp_path[size_needed] = 0;
+            char* tmp_path = (char*)_alloca(size_needed);
+            if (WideCharToMultiByte(CP_UTF8, 0, short_path, -1, tmp_path, size_needed, NULL, NULL) == 0)
+            {
+                dmLogError("Failed converting wchar_t -> char\n");
+                return RESULT_UNKNOWN;
+            }
 
-            if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, "/", path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, application_name, path_len) >= path_len)
-                return RESULT_INVAL;
-
-            Result r =  Mkdir(path, 0755);
-            if (r == RESULT_EXIST)
-                return RESULT_OK;
-            else
-                return r;
+            return GetApplicationSupportPath(tmp_path, application_name, path, path_len);
         }
         else
         {

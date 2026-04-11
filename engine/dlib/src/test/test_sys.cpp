@@ -18,6 +18,11 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#if defined(_WIN32)
+    #include <windows.h>
+    #include <wchar.h>
+#endif
+
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
 #include <dlib/sys_internal.h>
@@ -33,6 +38,25 @@
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
+
+#if defined(_WIN32)
+static bool WidePathToUtf8(const wchar_t* src, char* dst, int dst_len)
+{
+    return WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dst_len, NULL, NULL) > 0;
+}
+
+static void WriteWideDebugLine(const wchar_t* prefix, const wchar_t* value)
+{
+    HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (handle == INVALID_HANDLE_VALUE || handle == NULL)
+        return;
+
+    DWORD ignored = 0;
+    WriteConsoleW(handle, prefix, (DWORD)wcslen(prefix), &ignored, NULL);
+    WriteConsoleW(handle, value, (DWORD)wcslen(value), &ignored, NULL);
+    WriteConsoleW(handle, L"'\n", 2, &ignored, NULL);
+}
+#endif
 
 
 // Unit test helpers
@@ -158,6 +182,142 @@ TEST(dmSys, GetApplicationSupportPath)
     ASSERT_EQ(dmSys::RESULT_OK, result);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
 }
+
+#if 0
+TEST(dmSys, UnicodeParentPath)
+{
+    // Skip on systems where the ANSI code page is already UTF-8, since the
+    // narrow-path CRT calls may succeed there and not expose the bug.
+    if (GetACP() == CP_UTF8)
+    {
+        dmLogWarning("Skipping UnicodeParentPath test because the active ANSI code page is UTF-8 (CP_UTF8), which can mask the narrow Windows path conversion bug.");
+        SKIP();
+    }
+
+    // Create a unique temporary root directory using wide Win32 APIs so the
+    // test setup itself does not depend on ANSI code page behavior.
+    wchar_t temp_path[MAX_PATH];
+    DWORD temp_path_len = GetTempPathW(MAX_PATH, temp_path);
+    ASSERT_GT(temp_path_len, 0u);
+    ASSERT_LT(temp_path_len, (DWORD)MAX_PATH);
+
+    wchar_t test_root[MAX_PATH];
+    UINT unique_name_result = GetTempFileNameW(temp_path, L"dfs", 0, test_root);
+    ASSERT_NE(0u, unique_name_result);
+    ASSERT_TRUE(DeleteFileW(test_root) != 0);
+    ASSERT_TRUE(CreateDirectoryW(test_root, NULL) != 0);
+
+    // Add a Korean path component to simulate a Unicode username/AppData
+    // segment in the application support path.
+    wchar_t unicode_parent[MAX_PATH];
+    wcscpy_s(unicode_parent, MAX_PATH, test_root);
+    wcscat_s(unicode_parent, MAX_PATH, L"\\");
+    wcscat_s(unicode_parent, MAX_PATH, L"\xD64D\xAE38\xB3D9");
+    ASSERT_TRUE(CreateDirectoryW(unicode_parent, NULL) != 0);
+
+    // This is the child directory that dmSys::Mkdir() will try to create.
+    wchar_t unicode_child[MAX_PATH];
+    wcscpy_s(unicode_child, MAX_PATH, unicode_parent);
+    wcscat_s(unicode_child, MAX_PATH, L"\\testing");
+
+    // Convert the wide paths to UTF-8 to match what GetApplicationSupportPath()
+    // returns before the path is passed into the narrow dmSys filesystem APIs.
+    char utf8_parent[1024];
+    char utf8_child[1024];
+    ASSERT_TRUE(WidePathToUtf8(unicode_parent, utf8_parent, sizeof(utf8_parent)));
+    ASSERT_TRUE(WidePathToUtf8(unicode_child, utf8_child, sizeof(utf8_child)));
+
+    // These calls currently go through narrow CRT/Win32 APIs on Windows and
+    // are expected to fail before the Unicode path handling is fixed.
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::IsDir(utf8_parent));
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::Mkdir(utf8_child, 0777));
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::IsDir(utf8_child));
+
+    // Clean up with wide Win32 APIs so teardown still works even when the
+    // narrow dmSys path handling is broken.
+    RemoveDirectoryW(unicode_child);
+    RemoveDirectoryW(unicode_parent);
+    RemoveDirectoryW(test_root);
+}
+#endif
+
+#if defined(_WIN32)
+TEST(dmSys, GetApplicationSupportPathInternalUnicodeParentPath)
+{
+    // Skip on systems where the ANSI code page is already UTF-8, since the
+    // narrow-path CRT calls may succeed there and not expose the bug.
+    if (GetACP() == CP_UTF8)
+    {
+        dmLogWarning("Skipping GetApplicationSupportPathInternalUnicodeParentPath because the active ANSI code page is UTF-8 (CP_UTF8), which can mask the narrow Windows path conversion bug.");
+        SKIP();
+    }
+
+    // Create a unique temporary root directory using wide Win32 APIs so the
+    // test setup itself does not depend on ANSI code page behavior.
+    wchar_t temp_path[MAX_PATH];
+    DWORD temp_path_len = GetTempPathW(MAX_PATH, temp_path);
+    ASSERT_GT(temp_path_len, 0u);
+    ASSERT_LT(temp_path_len, (DWORD)MAX_PATH);
+
+    wchar_t test_root[MAX_PATH];
+    UINT unique_name_result = GetTempFileNameW(temp_path, L"dfs", 0, test_root);
+    ASSERT_NE(0u, unique_name_result);
+    ASSERT_TRUE(DeleteFileW(test_root) != 0);
+    ASSERT_TRUE(CreateDirectoryW(test_root, NULL) != 0);
+
+    // Add a Korean path component to simulate a Unicode username/AppData
+    // segment in the application support path.
+    wchar_t unicode_parent[MAX_PATH];
+    wcscpy_s(unicode_parent, MAX_PATH, test_root);
+    wcscat_s(unicode_parent, MAX_PATH, L"\\");
+    wcscat_s(unicode_parent, MAX_PATH, L"\xD64D\xAE38\xB3D9");
+    ASSERT_TRUE(CreateDirectoryW(unicode_parent, NULL) != 0);
+    WriteWideDebugLine(L"Created unicode parent (wchar_t): '", unicode_parent);
+
+    wchar_t short_parent[MAX_PATH];
+    DWORD short_parent_len = GetShortPathNameW(unicode_parent, short_parent, MAX_PATH);
+    ASSERT_GT(short_parent_len, 0u);
+    ASSERT_LT(short_parent_len, (DWORD)MAX_PATH);
+    WriteWideDebugLine(L"Expected 8.3 parent (wchar_t): '", short_parent);
+
+    // Convert the Unicode parent path to UTF-8 to match the internal value
+    // returned from the public GetApplicationSupportPath() implementation.
+    char utf8_parent[1024];
+    ASSERT_TRUE(WidePathToUtf8(unicode_parent, utf8_parent, sizeof(utf8_parent)));
+    dmLogWarning("Converted to utf8 (char): '%s'", utf8_parent);
+
+    char utf8_short_parent[1024];
+    ASSERT_TRUE(WidePathToUtf8(short_parent, utf8_short_parent, sizeof(utf8_short_parent)));
+    dmLogWarning("Expected 8.3 parent (char): '%s'", utf8_short_parent);
+
+    // Call the extracted internal helper directly so the test covers the
+    // narrow-path application support logic without depending on
+    // SHGetFolderPathW or 8.3 alias generation.
+    char expected_path[1024];
+    ASSERT_LT(dmStrlCpy(expected_path, utf8_short_parent, sizeof(expected_path)), sizeof(expected_path));
+    ASSERT_LT(dmStrlCat(expected_path, "/", sizeof(expected_path)), sizeof(expected_path));
+    ASSERT_LT(dmStrlCat(expected_path, "testing", sizeof(expected_path)), sizeof(expected_path));
+    dmLogWarning("Expected application support path (char): '%s'", expected_path);
+
+    char path[1024];
+    dmSys::Result result = dmSys::GetApplicationSupportPath(utf8_parent, "testing", path, sizeof(path));
+    EXPECT_EQ(dmSys::RESULT_OK, result);
+    if (result == dmSys::RESULT_OK)
+    {
+        EXPECT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
+        EXPECT_STREQ(expected_path, path);
+    }
+
+    // Clean up with wide Win32 APIs so teardown still works even when the
+    // narrow dmSys path handling is broken.
+    wchar_t unicode_child[MAX_PATH];
+    wcscpy_s(unicode_child, MAX_PATH, unicode_parent);
+    wcscat_s(unicode_child, MAX_PATH, L"\\testing");
+    RemoveDirectoryW(unicode_child);
+    RemoveDirectoryW(unicode_parent);
+    RemoveDirectoryW(test_root);
+}
+#endif
 
 #endif
 
