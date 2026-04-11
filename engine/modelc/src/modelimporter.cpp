@@ -96,6 +96,14 @@ static void DestroyMesh(Mesh* mesh)
     mesh->m_TexCoords0.SetCapacity(0);
     mesh->m_TexCoords1.SetCapacity(0);
     mesh->m_Indices.SetCapacity(0);
+    for (uint32_t i = 0; i < mesh->m_MorphTargets.Size(); ++i)
+    {
+        mesh->m_MorphTargets[i].m_Positions.SetCapacity(0);
+        mesh->m_MorphTargets[i].m_Normals.SetCapacity(0);
+        mesh->m_MorphTargets[i].m_Tangents.SetCapacity(0);
+    }
+    mesh->m_MorphTargets.SetCapacity(0);
+    mesh->m_MorphBaseWeights.SetCapacity(0);
     free((void*)mesh->m_Name);
 }
 
@@ -134,6 +142,9 @@ static void DestroyNodeAnimation(NodeAnimation* node_animation)
     node_animation->m_TranslationKeys.SetCapacity(0);
     node_animation->m_RotationKeys.SetCapacity(0);
     node_animation->m_ScaleKeys.SetCapacity(0);
+    node_animation->m_MorphWeightKeyTimes.SetCapacity(0);
+    node_animation->m_MorphWeightKeyValues.SetCapacity(0);
+    node_animation->m_MorphWeightDimensions = 0;
 }
 
 static void DestroyAnimation(Animation* animation)

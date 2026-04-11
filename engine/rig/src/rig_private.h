@@ -21,6 +21,13 @@
 
 namespace dmRig
 {
+    struct MorphWeightSlot
+    {
+        uint64_t m_ModelId;
+        uint32_t m_MorphCount;
+        uint32_t m_BufferOffset;
+    };
+
     struct RigPlayer
     {
         RigPlayer() : m_Animation(0x0),
@@ -77,6 +84,10 @@ namespace dmRig
         dmArray<IKAnimation>          m_IKAnimation;
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
+
+        dmArray<MorphWeightSlot>      m_MorphSlots;
+        dmArray<float>                m_MorphWeightsBuffer;
+        dmArray<float>                m_MorphScratch;
 
         const dmRigDDF::Model*        m_Model;      // Currently selected model
         uint32_t                      m_NumModels;

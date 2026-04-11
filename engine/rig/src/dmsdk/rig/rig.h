@@ -209,6 +209,8 @@ namespace dmRig
     bool IsValid(HRigInstance instance);
     uint32_t GetBoneCount(HRigInstance instance);
     uint32_t GetMaxBoneCount(HRigInstance instance);
+    /** Live morph weights for \a model_id (MeshSet Model id). Pointer valid until the next rig update. */
+    const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
     // Util function used to fill a bind pose array from skeleton data
