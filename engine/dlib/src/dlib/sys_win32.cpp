@@ -114,6 +114,31 @@ namespace dmSys
         return GetApplicationSupportPath(application_name, path, path_len);
     }
 
+    Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len)
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, application_support_path, -1, NULL, 0, NULL, NULL);
+        if (size_needed == 0)
+        {
+            dmLogError("Failed converting wchar_t -> char\n");
+            return RESULT_UNKNOWN;
+        }
+
+        char* tmp_path = (char*)_alloca(size_needed);
+        if (!tmp_path)
+        {
+            dmLogError("Failed to allocate %d bytes for string copy\n", size_needed);
+            return RESULT_UNKNOWN;
+        }
+
+        if (WideCharToMultiByte(CP_UTF8, 0, application_support_path, -1, tmp_path, size_needed, NULL, NULL) == 0)
+        {
+            dmLogError("Failed converting wchar_t -> char\n");
+            return RESULT_UNKNOWN;
+        }
+
+        return GetApplicationSupportPath(tmp_path, application_name, path, path_len);
+    }
+
     Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len)
     {
         if (dmStrlCpy(path, application_support_path, path_len) >= path_len)
@@ -140,27 +165,7 @@ namespace dmSys
                                      0,
                                      tmp_wpath)))
         {
-            int size_needed = WideCharToMultiByte(CP_UTF8, 0, tmp_wpath, -1, NULL, 0, NULL, NULL);
-            if (size_needed == 0)
-            {
-                dmLogError("Failed converting wchar_t -> char\n");
-                return RESULT_UNKNOWN;
-            }
-
-            char* tmp_path = (char*)_alloca(size_needed);
-            if (!tmp_path)
-            {
-                dmLogError("Failed to allocate %d bytes for strinc copy\n", size_needed);
-                return RESULT_UNKNOWN;
-            }
-
-            if (WideCharToMultiByte(CP_UTF8, 0, tmp_wpath, -1, tmp_path, size_needed, NULL, NULL) == 0)
-            {
-                dmLogError("Failed converting wchar_t -> char\n");
-                return RESULT_UNKNOWN;
-            }
-
-            return GetApplicationSupportPath(tmp_path, application_name, path, path_len);
+            return GetApplicationSupportPath(tmp_wpath, application_name, path, path_len);
         }
         else
         {

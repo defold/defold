@@ -27,7 +27,11 @@ namespace dmSys {
 
 #if defined(_WIN32)
     // Internal Windows helper used to test the path handling logic separately
-    // from the SHGetFolderPathW lookup and wchar_t-to-UTF-8 conversion.
+    // from the SHGetFolderPathW lookup.
+    Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len);
+
+    // Internal Windows helper used to test the narrow path handling logic
+    // separately from the SHGetFolderPathW lookup and wchar_t-to-char conversion.
     Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len);
 #endif
 }
