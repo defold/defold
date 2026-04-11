@@ -7785,6 +7785,16 @@ TEST_F(ModelTest, PlayAnimMissingAnimation)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ModelTest, BlendWeightsScript)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_blend_weights.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "blend_weights_script_done", 5));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // A single mesh with multiple materials that have different coordinate spaces
 // should generate the corresponding batch types. In this case the .gltf file
 // has two sub-meshes (RenderItems) with one world space material and one

@@ -147,13 +147,15 @@ namespace dmGameSystem
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
+        dmArray<float>                   m_BlendWeightsOverride;
         uint16_t                         m_ComponentIndex;
         uint8_t                          m_Enabled : 1;
         uint8_t                          m_DoRender : 1;
         uint8_t                          m_AddedToUpdate : 1;
         uint8_t                          m_ReHash : 1;
         uint8_t                          m_RequiresBindPoseCaching : 1;
-        uint8_t                          : 3;
+        uint8_t                          m_BlendWeightsOverrideActive : 1;
+        uint8_t                          : 2;
     };
 
     struct ModelSkinnedAnimationData
@@ -1196,6 +1198,8 @@ namespace dmGameSystem
         {
             dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
         }
+
+        component->m_BlendWeightsOverride.SetCapacity(0);
 
         if (component->m_RenderConstants){
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
@@ -2465,6 +2469,79 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+       static void ApplyBlendWeightsOverrideToRig(ModelComponent* component)
+    {
+        if (!component->m_RigInstance || !component->m_BlendWeightsOverrideActive)
+            return;
+        const float* w = component->m_BlendWeightsOverride.Begin();
+        const uint32_t n = component->m_BlendWeightsOverride.Size();
+        if (n == 0)
+            return;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& ri = component->m_RenderItems[i];
+            if (!ri.m_Mesh || ri.m_Mesh->m_MorphTargets.m_Count == 0)
+                continue;
+            dmRig::SetMorphWeights(component->m_RigInstance, ri.m_Model->m_Id, w, n);
+        }
+    }
+
+    void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
+    {
+        if (!component)
+            return;
+        if (count == 0 || weights == 0)
+        {
+            CompModelResetBlendWeights(component);
+            return;
+        }
+        if (component->m_BlendWeightsOverride.Capacity() < count)
+            component->m_BlendWeightsOverride.SetCapacity(count);
+        component->m_BlendWeightsOverride.SetSize(count);
+        memcpy(component->m_BlendWeightsOverride.Begin(), weights, count * sizeof(float));
+        component->m_BlendWeightsOverrideActive = 1;
+        ApplyBlendWeightsOverrideToRig(component);
+    }
+
+    void CompModelResetBlendWeights(ModelComponent* component)
+    {
+        if (!component)
+            return;
+        component->m_BlendWeightsOverrideActive = 0;
+        component->m_BlendWeightsOverride.SetSize(0);
+        if (component->m_RigInstance)
+        {
+            dmRig::RefreshMorphWeights(component->m_RigInstance);
+        }
+    }
+
+    bool CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count)
+    {
+        if (out_weights)
+            *out_weights = 0;
+        if (out_count)
+            *out_count = 0;
+        if (!component || !component->m_RigInstance)
+            return false;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& ri = component->m_RenderItems[i];
+            if (!ri.m_Mesh || ri.m_Mesh->m_MorphTargets.m_Count == 0)
+                continue;
+            uint32_t wc = 0;
+            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, ri.m_Model->m_Id, &wc);
+            if (w && wc > 0)
+            {
+                if (out_weights)
+                    *out_weights = w;
+                if (out_count)
+                    *out_count = wc;
+                return true;
+            }
+        }
+        return false;
+    }
+
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -2518,6 +2595,15 @@ namespace dmGameSystem
         }
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ModelComponent& component = *components[i];
+            if (component.m_BlendWeightsOverrideActive)
+            {
+                ApplyBlendWeightsOverrideToRig(&component);
+            }
+        }
 
         WritePoseMatricesToTexture(graphics_context, world);
 

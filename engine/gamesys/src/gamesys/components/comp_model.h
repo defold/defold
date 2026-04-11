@@ -62,6 +62,12 @@ namespace dmGameSystem
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
     bool                    CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out);
 
+    /** Script-driven morph weights: applied after rig animation each frame. Pass count0 to clear. */
+    void                    CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count);
+    void                    CompModelResetBlendWeights(ModelComponent* component);
+    /** First mesh in the model that has morph targets; false if none. */
+    bool                    CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count);
+
     uint32_t                CompModelGetMeshCount(ModelComponent* component);
     void                    CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max);
     void                    CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max);
