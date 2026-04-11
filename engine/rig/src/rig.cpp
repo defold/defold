@@ -453,9 +453,10 @@ namespace dmRig
             const dmRigDDF::Mesh* mesh_with_base = 0;
             for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
             {
-                if (model->m_Meshes[m].m_MorphBaseWeights.m_Count > 0)
+                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
+                if (mm.m_MorphBaseWeights.m_Data != 0x0 && mm.m_MorphBaseWeights.m_Count > 0)
                 {
-                    mesh_with_base = &model->m_Meshes[m];
+                    mesh_with_base = &mm;
                     break;
                 }
             }
@@ -479,6 +480,10 @@ namespace dmRig
         if (!mesh_set)
             return;
 
+        // Ignore corrupt / uninitialized counts (non-null m_Data with garbage m_Count is possible
+        // in tests or bad assets). Real meshes stay well below this bound.
+        static const uint32_t SANITY_MAX_MORPH_TARGETS = 8192u;
+
         // dmArray::Push requires capacity to be set first (no implicit growth).
         uint32_t slot_count = 0;
         uint32_t total_floats = 0;
@@ -489,7 +494,13 @@ namespace dmRig
             uint32_t mcount = 0;
             for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
             {
-                uint32_t c = model->m_Meshes[m].m_MorphTargets.m_Count;
+                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
+                uint32_t c = 0;
+                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0 &&
+                    mm.m_MorphTargets.m_Count <= SANITY_MAX_MORPH_TARGETS)
+                {
+                    c = mm.m_MorphTargets.m_Count;
+                }
                 mcount = dmMath::Max(mcount, c);
             }
             if (mcount == 0)
@@ -511,7 +522,13 @@ namespace dmRig
             uint32_t mcount = 0;
             for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
             {
-                uint32_t c = model->m_Meshes[m].m_MorphTargets.m_Count;
+                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
+                uint32_t c = 0;
+                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0 &&
+                    mm.m_MorphTargets.m_Count <= SANITY_MAX_MORPH_TARGETS)
+                {
+                    c = mm.m_MorphTargets.m_Count;
+                }
                 mcount = dmMath::Max(mcount, c);
             }
             if (mcount == 0)
@@ -569,7 +586,8 @@ namespace dmRig
             return;
 
         uint32_t mw_count = animation->m_MorphWeightTracks.m_Count;
-        if (mw_count == 0)
+        const dmRigDDF::MorphWeightTrack* mw_tracks = animation->m_MorphWeightTracks.m_Data;
+        if (mw_count == 0 || mw_tracks == 0x0)
             return;
 
         float duration = GetCursorDuration(player, animation);
@@ -578,7 +596,7 @@ namespace dmRig
 
         for (uint32_t ti = 0; ti < mw_count; ++ti)
         {
-            const dmRigDDF::MorphWeightTrack* track = &animation->m_MorphWeightTracks[ti];
+            const dmRigDDF::MorphWeightTrack* track = &mw_tracks[ti];
             int32_t slot_index = FindMorphSlotIndex(instance, track->m_ModelId);
             if (slot_index < 0)
                 continue;

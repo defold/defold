@@ -305,6 +305,11 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Weights.m_Data[13]     = 0.0f;
     mesh.m_Weights.m_Data[14]     = 0.0f;
     mesh.m_Weights.m_Data[15]     = 0.0f;
+
+    mesh.m_MorphTargets.m_Count = 0;
+    mesh.m_MorphTargets.m_Data = 0x0;
+    mesh.m_MorphBaseWeights.m_Count = 0;
+    mesh.m_MorphBaseWeights.m_Data = 0x0;
 }
 
 static void CalcWorldTransforms(dmRigDDF::Bone* bones, uint32_t bone_count)
@@ -661,7 +666,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
 
         // Bone animations
         uint32_t animation_count = 6;
-        animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
+        animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count]();
         animation_set->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = animation_set->m_Animations.m_Data[0];
         dmRigDDF::RigAnimation& anim1 = animation_set->m_Animations.m_Data[1];
@@ -884,14 +889,14 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
 
         // Meshes / skins
         mesh_set->m_Models.m_Count = 2;
-        mesh_set->m_Models.m_Data = new dmRigDDF::Model[mesh_set->m_Models.m_Count];
+        mesh_set->m_Models.m_Data = new dmRigDDF::Model[mesh_set->m_Models.m_Count]();
 
-        mesh_set->m_Models.m_Data[0].m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+        mesh_set->m_Models.m_Data[0].m_Meshes.m_Data = new dmRigDDF::Mesh[1]();
         mesh_set->m_Models.m_Data[0].m_Meshes.m_Count = 1;
         mesh_set->m_Models.m_Data[0].m_Id = dmHashString64("test");
         mesh_set->m_Models.m_Data[0].m_Local.SetIdentity();
 
-        mesh_set->m_Models.m_Data[1].m_Meshes.m_Data = new dmRigDDF::Mesh[2];
+        mesh_set->m_Models.m_Data[1].m_Meshes.m_Data = new dmRigDDF::Mesh[2]();
         mesh_set->m_Models.m_Data[1].m_Meshes.m_Count = 2;
         mesh_set->m_Models.m_Data[1].m_Id = dmHashString64("test2");
         mesh_set->m_Models.m_Data[1].m_Local.SetIdentity();
@@ -1971,18 +1976,17 @@ TEST(RigMorphWeights, InterpolatesAlongClip)
 
     dmRigDDF::MeshSet* mesh_set = new dmRigDDF::MeshSet();
     mesh_set->m_Models.m_Count = 1;
-    mesh_set->m_Models.m_Data = new dmRigDDF::Model[1];
+    mesh_set->m_Models.m_Data = new dmRigDDF::Model[1]();
     dmRigDDF::Model& model = mesh_set->m_Models.m_Data[0];
     model.m_Id = dmHashString64("morph_model");
     model.m_Local.SetIdentity();
     model.m_Meshes.m_Count = 1;
-    model.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+    model.m_Meshes.m_Data = new dmRigDDF::Mesh[1]();
     dmRigDDF::Mesh& mesh = model.m_Meshes.m_Data[0];
     mesh.m_AabbMin = Vector3(-1.0f, -1.0f, -1.0f);
     mesh.m_AabbMax = Vector3(1.0f, 1.0f, 1.0f);
     mesh.m_MorphTargets.m_Count = 1;
-    mesh.m_MorphTargets.m_Data = new dmRigDDF::MorphTarget[1];
-    memset(&mesh.m_MorphTargets.m_Data[0], 0, sizeof(dmRigDDF::MorphTarget));
+    mesh.m_MorphTargets.m_Data = new dmRigDDF::MorphTarget[1]();
 
     mesh_set->m_MaxBoneCount = 0;
     mesh_set->m_BoneList.m_Count = 0;
@@ -1990,7 +1994,7 @@ TEST(RigMorphWeights, InterpolatesAlongClip)
 
     dmRigDDF::AnimationSet* anim_set = new dmRigDDF::AnimationSet();
     anim_set->m_Animations.m_Count = 1;
-    anim_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[1];
+    anim_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[1]();
     dmRigDDF::RigAnimation& anim = anim_set->m_Animations.m_Data[0];
     anim.m_Id = dmHashString64("morph_only");
     anim.m_Duration = 1.0f;
@@ -1999,7 +2003,8 @@ TEST(RigMorphWeights, InterpolatesAlongClip)
     anim.m_Tracks.m_Data = 0;
     anim.m_EventTracks.m_Count = 0;
     anim.m_MorphWeightTracks.m_Count = 1;
-    anim.m_MorphWeightTracks.m_Data = new dmRigDDF::MorphWeightTrack[1];
+    anim.m_MorphWeightTracks.m_Data = new dmRigDDF::MorphWeightTrack[1]();
+
     dmRigDDF::MorphWeightTrack& mwt = anim.m_MorphWeightTracks.m_Data[0];
     mwt.m_ModelId = model.m_Id;
     mwt.m_MorphCount = 1;
