@@ -54,6 +54,15 @@
 
 namespace dmSys
 {
+    static bool Utf8ToWide(const char* path, wchar_t* out, uint32_t out_len)
+    {
+        int required = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+        if (required == 0 || required > (int)out_len)
+            return false;
+
+        return MultiByteToWideChar(CP_UTF8, 0, path, -1, out, required) != 0;
+    }
+
     char* GetEnv(const char* name)
     {
         return getenv(name);
@@ -71,7 +80,12 @@ namespace dmSys
 
     Result Rename(const char* dst_filename, const char* src_filename)
     {
-        bool rename_result = MoveFileExA(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+        wchar_t wdst_filename[MAX_PATH];
+        wchar_t wsrc_filename[MAX_PATH];
+        if (!Utf8ToWide(dst_filename, wdst_filename, MAX_PATH) || !Utf8ToWide(src_filename, wsrc_filename, MAX_PATH))
+            return RESULT_UNKNOWN;
+
+        bool rename_result = MoveFileExW(wsrc_filename, wdst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
         if (rename_result)
         {
             return RESULT_OK;
@@ -93,88 +107,7 @@ namespace dmSys
         return RESULT_NOENT;
     }
 
-
 #if !defined(DM_PLATFORM_VENDOR)
-
-    static const wchar_t* SkipSlashesW(const wchar_t* path)
-    {
-        while (*path && (*path == L'/' || *path == L'\\'))
-        {
-            ++path;
-        }
-        return path;
-    }
-
-    // If a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
-    static bool MakePath_8_3(const wchar_t* wpath, wchar_t* out)
-    {
-        wchar_t tmp[MAX_PATH] = { 0 };
-        dmPath::NormalizeW(wpath, tmp, MAX_PATH);
-        out[0] = L'\0';
-
-        int has_drive = 0;
-        wchar_t* cursor = tmp;
-        while (*cursor != L'\0')
-        {
-            if (!has_drive)
-            {
-                cursor = wcschr(cursor, L':');
-                if (!cursor)
-                {
-                    dmLogError("Failed to find drive in path: '%ls'\n", wpath);
-                    return false;
-                }
-                has_drive = 1;
-                cursor++; // Skip past the ':'"
-
-                // Copy the drive "C:"
-                wchar_t c = *cursor;
-                *cursor = L'\0';
-                wcscpy(out, tmp);
-
-                *cursor = c;
-                cursor = (wchar_t*)SkipSlashesW(cursor+1);
-                continue;
-            }
-
-            wchar_t* sep = wcschr(cursor, L'\\');
-            if (!sep)
-                sep = wcschr(cursor, L'/');
-
-            // Temporarily null terminate the string
-            if (sep)
-                *sep = L'\0';
-
-            // Create a version of the previously parsed path, and the latest (untransformed) directory name
-            wchar_t testpath[MAX_PATH] = { 0 };
-            wcscpy(testpath, out); // The previously path with 8.3 names
-            wcscat(testpath, L"/");
-            wcscat(testpath, cursor); // The last folder to test
-
-            WIN32_FIND_DATAW fd{0};
-            HANDLE h = FindFirstFileW( tmp, &fd );
-            if (h == INVALID_HANDLE_VALUE)
-            {
-                dmLogError("FindFirstFileW failed\n");
-                return false;
-            }
-
-            wcscat(out, L"/");
-            if (fd.cAlternateFileName[0] == L'\0')
-                wcscat(out, fd.cFileName);
-            else
-                wcscat(out, fd.cAlternateFileName);
-
-            if (sep)
-                *sep = L'/';
-            else
-                break;
-
-            cursor = sep + 1;
-        }
-
-        return true;
-    }
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -207,12 +140,7 @@ namespace dmSys
                                      0,
                                      tmp_wpath)))
         {
-            // Make any unicode directories into 8.3 format if necessary
-            wchar_t short_path[MAX_PATH] = { 0 };
-            if (!MakePath_8_3(tmp_wpath, short_path))
-                return RESULT_UNKNOWN;
-
-            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, -1, NULL, 0, NULL, NULL);
+            int size_needed = WideCharToMultiByte(CP_UTF8, 0, tmp_wpath, -1, NULL, 0, NULL, NULL);
             if (size_needed == 0)
             {
                 dmLogError("Failed converting wchar_t -> char\n");
@@ -220,7 +148,13 @@ namespace dmSys
             }
 
             char* tmp_path = (char*)_alloca(size_needed);
-            if (WideCharToMultiByte(CP_UTF8, 0, short_path, -1, tmp_path, size_needed, NULL, NULL) == 0)
+            if (!tmp_path)
+            {
+                dmLogError("Failed to allocate %d bytes for strinc copy\n", size_needed);
+                return RESULT_UNKNOWN;
+            }
+
+            if (WideCharToMultiByte(CP_UTF8, 0, tmp_wpath, -1, tmp_path, size_needed, NULL, NULL) == 0)
             {
                 dmLogError("Failed converting wchar_t -> char\n");
                 return RESULT_UNKNOWN;
@@ -354,14 +288,22 @@ namespace dmSys
 
     bool ResourceExists(const char* path)
     {
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return false;
+
         struct __stat64 file_stat;
-        return _stat64(path, &file_stat) == 0;
+        return _wstat64(wpath, &file_stat) == 0;
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
     {
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
         struct __stat64 file_stat;
-        if (_stat64(path, &file_stat) == 0) {
+        if (_wstat64(wpath, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -381,8 +323,12 @@ namespace dmSys
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
         struct __stat64 file_stat;
-        if (_stat64(path, &file_stat) == 0) {
+        if (_wstat64(wpath, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -397,7 +343,10 @@ namespace dmSys
                 return RESULT_INVAL;
             }
 
-            FILE* f = fopen(path, "rb");
+            FILE* f = _wfopen(wpath, L"rb");
+            if (!f)
+                return RESULT_NOENT;
+
             size_t nread = fread(buffer, 1, size_as_32b, f);
             fclose(f);
 
@@ -419,13 +368,17 @@ namespace dmSys
         if (buffer == 0 || size == 0)
             return RESULT_INVAL;
 
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
         struct __stat64 file_stat;
-        if (_stat64(path, &file_stat) == 0) {
+        if (_wstat64(wpath, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
 
-            FILE* f = fopen(path, "rb");
+            FILE* f = _wfopen(wpath, L"rb");
             if (!f)
             {
                 return RESULT_NOENT;
@@ -455,7 +408,11 @@ namespace dmSys
 
     Result Rmdir(const char* path)
     {
-        int ret = _rmdir(path);
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
+        int ret = _wrmdir(wpath);
         if (ret == 0)
             return RESULT_OK;
         else
@@ -464,7 +421,11 @@ namespace dmSys
 
     Result Mkdir(const char* path, uint32_t mode)
     {
-        int ret = _mkdir(path);
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
+        int ret = _wmkdir(wpath);
         if (ret == 0)
             return RESULT_OK;
         else
@@ -473,8 +434,12 @@ namespace dmSys
 
     Result IsDir(const char* path)
     {
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
         struct __stat64 path_stat;
-        int ret = _stat64(path, &path_stat);
+        int ret = _wstat64(wpath, &path_stat);
         if (ret != 0)
             return ErrnoToResult(errno);
         return path_stat.st_mode & S_IFDIR ? RESULT_OK : RESULT_UNKNOWN;
@@ -482,8 +447,12 @@ namespace dmSys
 
     bool Exists(const char* path)
     {
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return false;
+
         struct __stat64 path_stat;
-        int ret = _stat64(path, &path_stat);
+        int ret = _wstat64(wpath, &path_stat);
         return ret == 0;
     }
 
@@ -547,7 +516,11 @@ namespace dmSys
 
     Result Unlink(const char* path)
     {
-        int ret = _unlink(path);
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_UNKNOWN;
+
+        int ret = _wunlink(wpath);
         if (ret == 0)
             return RESULT_OK;
         else
@@ -556,8 +529,12 @@ namespace dmSys
 
     Result Stat(const char* path, StatInfo* stat_info)
     {
+        wchar_t wpath[MAX_PATH];
+        if (!Utf8ToWide(path, wpath, MAX_PATH))
+            return RESULT_NOENT;
+
         struct __stat64 info;
-        int ret = _stat64(path, &info);
+        int ret = _wstat64(wpath, &info);
         if (ret != 0)
             return RESULT_NOENT;
         stat_info->m_Size = info.st_size;
