@@ -60,19 +60,22 @@
 (def ^:private ^:const billboard-circle-segments 32)
 (def ^:private ^:const gizmo-target-pixels 44.0)
 ;; Screen-space half-extent (pixels) for the origin icon quad; world size = scale-factor * this (see camera preview mesh).
-(def ^:private ^:const origin-marker-pixels 5.0)
+(def ^:private ^:const origin-marker-pixels 8.0)
 
 ;; Brighter translucent volume when the light component is selected (see scene-shapes/render-triangles).
 (def ^:private ^:const preview-light-fill-alpha 0.48)
 
-(def ^:private light-icon "icons/64/Icons_21-Light.png")
+(def ^:private outline-icon "icons/64/Icons_21-Light.png")
+(def ^:private scene-icon "icons/scene/light_omni.png")
 
-(defonce ^:private light-icon-gpu-texture
+(def ^:private light-icon-gpu-texture
   (delay
-    (texture/image-texture ::editor-light-icon-64
-      (image-util/read-image (io/resource light-icon))
+    (texture/image-texture
+      ::light-scene-view-icon
+      (image-util/read-image (io/resource scene-icon))
       (merge texture/default-image-texture-params
-             {:min-filter gl/nearest :mag-filter gl/nearest}))))
+             {:min-filter gl/linear
+              :mag-filter gl/linear}))))
 
 ;; Property inspector and form choicebox: [value label] pairs (see editor.properties-view/make-control-view :choicebox).
 (def ^:private light-type-options
@@ -176,7 +179,7 @@
   {:node-id _node-id
    :node-outline-key "Light"
    :label (localization/message "resource.type.light")
-   :icon light-icon})
+   :icon outline-icon})
 
 (defn- unify-scale [renderable]
   (let [{:keys [^Quat4d world-rotation
@@ -764,7 +767,7 @@
     ;; without this, :source-value (disk) and :save-value (graph) disagree and
     ;; sparse-protobuf-test / dirty checks fail. Not for migrating legacy formats.
     :sanitize-fn canonicalize-light-read
-    :icon light-icon
+    :icon outline-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
     :view-types [:cljfx-form-view :text]
