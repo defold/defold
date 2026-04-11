@@ -41,6 +41,7 @@
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.diff :as diff]
+            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [java.nio.file.attribute PosixFilePermission]
@@ -325,6 +326,12 @@
           sprite-outline (decorated-outline resource-node [0 0])
           sprite-node-id (:node-id sprite-outline)]
       (reload-editor-scripts! project)
+      ;; This test project defines two commands with the same label:
+      ;; - an outline command available from Outline and Edit that changes
+      ;;   position and playback rate
+      ;; - a scene command available from Scene that changes scale
+
+      ;; Run the outline command from the Outline context menu:
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (eval-handler-contexts :outline [sprite-outline])
@@ -340,6 +347,24 @@
                 (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-node-id :position)))
         (is (= 2.5 (test-util/prop sprite-node-id :playback-rate))))
+      
+      ;; Reuse the same outline command from the Edit menu to verify that an
+      ;; outline selection query still works outside the Outline view:
+      (let [handler+context (handler/active
+                              (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                              (eval-handler-contexts :global [sprite-node-id])
+                              {})]
+        (is (some? handler+context))
+        (is (handler/enabled? handler+context))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
+        (is (= [3 3 3] (test-util/prop sprite-node-id :position)))
+        (is (= 4 (test-util/prop sprite-node-id :playback-rate))))
+      
+      ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
                               (eval-handler-contexts :global [sprite-node-id])
@@ -1305,15 +1330,15 @@ openapi route has 200 => true
     (reload-editor-scripts! project)
     (g/with-auto-evaluation-context ec
       (let [{:keys [rt]} (extensions/ext-state project ec)]
-        (->> (g/node-value project :nodes ec)
-             (map #(g/node-value % :node-outline ec))
-             (mapcat #(tree-seq :children :children %))
-             (mapcat (fn [outline]
-                       (->> [(g/node-value (:node-id outline) :_properties ec)]
-                            properties/coalesce
-                            :properties
-                            vals
-                            (map #(assoc % :outline outline)))))
+        (->> (g/node-value project :node-id+resources ec)
+             (e/map #(g/node-value (% 0) :node-outline ec))
+             (e/mapcat #(tree-seq :children :children %))
+             (e/mapcat (fn [outline]
+                         (->> [(g/node-value (:node-id outline) :_properties ec)]
+                              properties/coalesce
+                              :properties
+                              vals
+                              (e/map #(assoc % :outline outline)))))
              (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]

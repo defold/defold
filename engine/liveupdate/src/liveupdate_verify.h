@@ -20,7 +20,7 @@
 
 namespace dmLiveUpdate
 {
-    dmResource::Result VerifyZipArchive(const char* path, const char* public_key_path);
+    dmResource::Result VerifyZipArchive(const char* path);
 }
 
 #endif // DM_LIVEUPDATE_VERIFY_H

@@ -28,14 +28,12 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
 #include <dlib/path.h>
 #include <dlib/profile.h>
 #include <dlib/socket.h>
-#include <dlib/sslsocket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <platform/window.hpp>
@@ -72,6 +70,9 @@
 #if defined(__EMSCRIPTEN__)
     #include "engine_web.h"
 #endif
+
+#include <dlib/http_client.h>
+#include <dlib/sslsocket.h>
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -514,8 +515,10 @@ namespace dmEngine
         ScopedExtensionAppParams app_params(engine);
         dmExtension::AppFinalize(app_params);
 
+#if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
+#endif
 
         dmBuffer::DeleteContext();
 
@@ -1108,6 +1111,12 @@ namespace dmEngine
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
+        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+        {
+            graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
+            graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
+        }
+
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -1470,6 +1479,7 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("lightc"), engine->m_RenderContext);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)

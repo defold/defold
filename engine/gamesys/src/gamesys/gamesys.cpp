@@ -108,7 +108,15 @@ namespace dmGameSystem
         dmHashString64("texture4"),
         dmHashString64("texture5"),
         dmHashString64("texture6"),
-        dmHashString64("texture7")
+        dmHashString64("texture7"),
+        dmHashString64("texture8"),
+        dmHashString64("texture9"),
+        dmHashString64("texture10"),
+        dmHashString64("texture11"),
+        dmHashString64("texture12"),
+        dmHashString64("texture13"),
+        dmHashString64("texture14"),
+        dmHashString64("texture15"),
     };
     const dmhash_t PROP_TEXTURES    = dmHashString64("textures");
     const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
@@ -298,6 +306,8 @@ namespace dmGameSystem
                 0, CompCollectionFactoryGetProperty, 0,
                 0, 0,
                 0);
+
+        // prio: 1000 comp_light.cpp
 
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,

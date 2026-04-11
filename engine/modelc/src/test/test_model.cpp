@@ -58,6 +58,14 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         return 0;
     }
 
+    if (scene->m_LoadError && scene->m_LoadError[0])
+    {
+        dmLogError("%s", scene->m_LoadError);
+        dmModelImporter::DestroyScene(scene);
+        free(mem);
+        return 0;
+    }
+
     if (dmModelImporter::NeedsResolve(scene))
     {
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)

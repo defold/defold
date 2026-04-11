@@ -99,24 +99,6 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
-
-## Jacking into a REPL
-You can also use `M-x cider-jack-in` or launch the editor inside Cursive for debugging with breakpoints etc.
-
-First set the environment variable `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
-
-After you jacked in do the following to load and start the app;
-
-```
-user=> (dev)
-dev=> (go)
-```
-
-
-## Generating the docs
-Running `lein doc` will generate the codox to the target/docs directory.
-
-
 ## Bundling games and running in browser
 
 As a temporary solution, we use Bob (from Editor1) as the content pipeline for bundling and running in the browser. In order to setup Bob locally, you need to:

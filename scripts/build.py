@@ -121,6 +121,7 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
+    "bundletool-all",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
@@ -135,7 +136,7 @@ PACKAGES_ALL=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -154,7 +155,7 @@ PACKAGES_IOS_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -169,7 +170,7 @@ PACKAGES_IOS_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -192,11 +193,17 @@ PACKAGES_MACOS_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038",
-    "gltf-validator-2.0.0-dev.3.10"]
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "codesign_allocate",
+    "ogg-1.1.1",
+    "strip",
+    "strip_android-12.0.9",
+    "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -215,11 +222,17 @@ PACKAGES_MACOS_ARM64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038",
-    "gltf-validator-2.0.0-dev.3.10"]
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "codesign_allocate",
+    "ogg-1.1.1",
+    "strip",
+    "strip_android-12.0.9",
+    "zipalign"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -231,7 +244,7 @@ PACKAGES_WIN32=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -254,11 +267,16 @@ PACKAGES_WIN32_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038",
-    "gltf-validator-2.0.0-dev.3.10"]
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "ogg-1.1.1",
+    "strip_android-12.0.9",
+    "strip_android_aarch64-12.0.9",
+    "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -278,11 +296,17 @@ PACKAGES_LINUX_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038",
-    "gltf-validator-2.0.0-dev.3.10"]
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "apkc-0.1.0",
+    "ogg-1.1.1",
+    "strip_android-12.0.9",
+    "strip_android_aarch64-12.0.9",
+    "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -301,7 +325,7 @@ PACKAGES_LINUX_ARM64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038",
@@ -316,7 +340,7 @@ PACKAGES_ANDROID=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -331,7 +355,7 @@ PACKAGES_ANDROID_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -345,7 +369,7 @@ PACKAGES_EMSCRIPTEN=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -1435,7 +1459,7 @@ class Configuration(object):
         self.full_archive_path = full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
-        lib_dir = self.target_platform
+        lib_dir = self.build_utility.get_library_path()
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1449,6 +1473,14 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+
+        # upload mouse_capture lib on desktop platforms
+        if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
+            mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)
+            mouse_capture_lib = join(lib_dir, mouse_capture_name)
+            self._log(mouse_capture_lib)
+            self._log('%s/%s' % (full_archive_path, mouse_capture_name))
+            self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1508,7 +1540,7 @@ class Configuration(object):
             libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
-                lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+                lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
@@ -1691,15 +1723,22 @@ class Configuration(object):
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
 
+    def _run_bob_copy_script(self):
+        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
+
+        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
+        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
+
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
         sha1 = self._git_sha1()
-        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
-        else:
+        self._run_bob_copy_script()
+        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
@@ -1878,9 +1917,8 @@ class Configuration(object):
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
-        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
-        else:
+        self._run_bob_copy_script()
+        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
@@ -2198,19 +2236,11 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        # We handle the stable channel seperately, since we want it to point
-        # to the editor-dev release (which uses the latest stable engine).
-        editor_channel = None
-        if self.channel == "stable":
-            editor_channel = "editor-alpha"
-        else:
-            editor_channel = self.channel or "stable"
-
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
         bucket = s3.get_bucket(hostname)
 
-        editor_archive_path = urlparse(self.get_archive_path(editor_channel)).path
+        editor_archive_path = urlparse(self.get_archive_path(self.channel)).path
 
         release_sha1 = releases[0]['sha1']
 
@@ -2241,16 +2271,19 @@ class Configuration(object):
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
         # For example;
-        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
+        #   redirect: /editor2/channels/stable/Defold-x86_64-macos.dmg -> /archive/<sha1>/stable/Defold-x86_64-macos.dmg
         for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
-            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
+            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
+            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             obj = bucket.Object(key_name)
-            obj.copy_from(
-                CopySource={'Bucket': hostname, 'Key': key_name},
-                WebsiteRedirectLocation=redirect
-            )
+            try:
+                obj.copy_from(
+                    CopySource={'Bucket': hostname, 'Key': key_name},
+                    WebsiteRedirectLocation=redirect
+                )
+            except Exception:
+                bucket.put_object(Key=key_name, Body='0', WebsiteRedirectLocation=redirect)
 
     def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
@@ -2268,30 +2301,9 @@ class Configuration(object):
         return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
 
     def _get_github_release_body(self):
-        engine_channel = None
-        editor_channel = None
-        engine_sha1 = None
-        editor_sha1 = None
-        if self.channel in ('stable','beta'):
-            engine_sha1 = self._git_sha1()
-
-        elif self.channel in ('editor-alpha',):
-            engine_channel = 'stable'
-            editor_channel = self.channel
-            editor_sha1 = self._git_sha1()
-            engine_sha1 = self._git_sha1(self.version) # engine version
-
-        else:
-            engine_sha1 = self._git_sha1()
-            engine_channel = self.channel
-            editor_channel = self.channel
-
-        if not editor_sha1:
-            editor_sha1 = engine_sha1
-
+        sha1 = self._git_sha1()
         body  = "Defold version %s\n" % self.version
-        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
-        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "Channel=%s sha1: %s\n" % (self.channel, sha1)
         body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return body
 
@@ -2312,27 +2324,13 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         # Create or update the tag for engine releases
+        prerelease = self.channel in ('alpha', 'beta')
         tag_name = None
-        is_editor_branch = False
-        engine_channel = None
-        editor_channel = None
-        prerelease = True
         if self.channel in ('stable', 'beta', 'alpha'):
-            engine_channel = self.channel
-            editor_channel = self.channel
-            prerelease = self.channel in ('alpha', 'beta')
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        elif self.channel in ('editor-alpha',):
-            # We update the stable release with new editor builds
-            engine_channel = 'stable'
-            editor_channel = self.channel
-            prerelease = False
-            tag_name = self.compose_tag_name(self.version, engine_channel)
-            is_editor_branch = True
-
-        if tag_name is not None and not is_editor_branch:
+        if tag_name is not None:
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
@@ -2359,43 +2357,35 @@ class Configuration(object):
         if tag_name:
             # only allowed anyways with a github token
             body = self._get_github_release_body()
-            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
-            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+            release_name = 'v%s - %s' % (self.version, self.channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
 
         # Release to steam for stable only
-        # if tag_name and (self.channel == 'editor-alpha'):
+        # if tag_name and (self.channel == 'stable'):
         #     self.release_to_steam()
 
-    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
-    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=stable
+    # on a branch with the correct sha1 (e.g. beta or master)
     def release_to_github(self):
         engine_channel = None
-        release_sha1 = None
-        is_editor_branch = False
         prerelease = True
-        if self.channel in ('editor-alpha',):
-            engine_channel = 'stable'
-            is_editor_branch = True
+        release_sha1 = self._git_sha1(self.version) # engine version
+        if self.channel in ('stable', 'beta'):
             prerelease = False
-            release_sha1 = self._git_sha1()
-        else:
-            release_sha1 = self._git_sha1(self.version) # engine version
-            if self.channel in ('stable', 'beta'):
-                prerelease = False
 
         tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
 
-        if tag_name is not None and not is_editor_branch:
+        if tag_name is not None:
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
-            # e.g. editor-dev releases
+            # untagged releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         body = self._get_github_release_body()
         release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
 
-        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
 
     def get_editor_urls_from_s3(self, archive_path, tag_name):
         release = s3.get_single_release(archive_path, tag_name)
@@ -2418,20 +2408,18 @@ class Configuration(object):
 
     # Use with ./scripts/build.py release_to_steam --version=1.4.8
     def release_to_steam(self):
-        editor_channel = "editor-alpha"
-        engine_channel = "stable"
-        tag_name = self.compose_tag_name(self.version, engine_channel)
-        archive_path = self.get_archive_path(editor_channel)
+        channel = "stable"
+        tag_name = self.compose_tag_name(self.version, channel)
+        archive_path = self.get_archive_path(channel)
         urls = self.get_editor_urls_from_s3(archive_path, tag_name)
         release_to_steam.release(self, urls)
 
 
     # Use with ./scripts/build.py release_to_egs --version=1.4.8
     def release_to_egs(self):
-        editor_channel = "editor-alpha"
-        engine_channel = "stable"
-        tag_name = self.compose_tag_name(self.version, engine_channel)
-        archive_path = self.get_archive_path(editor_channel)
+        channel = "stable"
+        tag_name = self.compose_tag_name(self.version, channel)
+        archive_path = self.get_archive_path(channel)
         urls = self.get_editor_urls_from_s3(archive_path, tag_name)
         release_to_egs.release(self, urls, tag_name)
 
@@ -3020,10 +3008,17 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'If used, outputs verbose logging')
 
+    parser.add_option('--size-analyze', dest='size_analyze',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
+
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
     waf_options = list(filter(lambda x: x[:2] == '--', all_args))
+    if options.size_analyze:
+        waf_options.append('--size-analyze')
 
     if len(args) == 0:
         parser.error('No command specified')

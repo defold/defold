@@ -91,7 +91,8 @@
   {:pre [(contains? factory-types factory-type)
          (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
   (let [pb-class (:pb-type (get factory-types factory-type))
-        resolve-resource #(workspace/resolve-resource resource %)]
+        basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (into [(g/set-property self :factory-type factory-type)]
           (gu/set-properties-from-pb-map self pb-class any-factory-desc
             prototype (resolve-resource :prototype)

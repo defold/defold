@@ -424,8 +424,6 @@ const TestParam params_extension[] = {
 
 INSTANTIATE_TEST_CASE_P(ConfigfileExtension, ConfigfileExtension, jc_test_values_in(params_extension));
 
-
-
 static void Usage()
 {
     dmLogError("Usage: <exe> <config>");

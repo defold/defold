@@ -67,7 +67,7 @@ welcome.new-project.rive-project.description = This template uses the rive exten
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
 welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
-welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.title = Top-down Movement Tutorial
 welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components, and collections.
 welcome.new-project.movement-tutorial.title = Movement Tutorial
 welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
@@ -1051,6 +1051,17 @@ operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
 
+# Scene View Popups
+
+scene-popup.reset-defaults-button = Reset to Defaults
+scene-popup.grid.plane = Plane
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacity
+scene-popup.camera.move-speed = Move Speed
+scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.invert-y = Invert Y
+scene-popup.camera.walking-mode = Walking Mode
+
 # Properties
 
 property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}" in editor scripts
@@ -1899,6 +1910,10 @@ form.label.project.graphics.opengl_version_hint = OpenGL Version Hint
 form.help.project.graphics.opengl_version_hint = OpenGL context version hint. If a specific version is selected, this will be used as the minimum version required (does not apply to OpenGL ES). Defaults to OpenGL 3.3
 form.label.project.graphics.opengl_core_profile_hint = OpenGL Core Profile Hint
 form.help.project.graphics.opengl_core_profile_hint = Set the 'core' OpenGL profile hint when creating the context. The core profile removes deprecated OpenGL features such as immediate mode rendering. Does not apply to OpenGL ES.
+form.label.project.graphics.vulkan_version_major = Vulkan Version Major
+form.help.project.graphics.vulkan_version_major = Vulkan context major version hint. Only applies when using the Vulkan graphics backend.
+form.label.project.graphics.vulkan_version_minor = Vulkan Version Minor
+form.help.project.graphics.vulkan_version_minor = Vulkan context minor version hint. Only applies when using the Vulkan graphics backend.
 form.label.project.graphics.memory_size = Memory Size
 form.help.project.graphics.memory_size = How much memory the driver is allowed to use (MB)
 
@@ -2020,6 +2035,8 @@ form.label.project.liveupdate = Live Update
 form.help.project.liveupdate = Live Update settings
 form.label.project.liveupdate.enabled = Enabled
 form.help.project.liveupdate.enabled = Enables the use of live update
+form.label.project.liveupdate.exclude_entries_from_main_manifest = Strip Live Update Entries from Main Manifest
+form.help.project.liveupdate.exclude_entries_from_main_manifest = When enabled, liveupdate-only resources are omitted from the packaged game.dmanifest. The published liveupdate.game.dmanifest remains complete.
 form.label.project.liveupdate.settings = Settings
 form.help.project.liveupdate.settings = Live Update settings resource
 form.label.project.liveupdate.mount_on_start = Mount on Start
@@ -2164,10 +2181,10 @@ form.label.liveupdate.liveupdate.output-folder-name = Output Folder
 form.help.liveupdate.liveupdate.output-folder-name = Output folder name
 form.label.liveupdate.manifest = Manifest
 form.label.liveupdate.liveupdate.publickey = Public Key
-form.help.liveupdate.liveupdate.publickey = Public key for manifest signing
+form.help.liveupdate.liveupdate.publickey = This setting is deprecated. Manifest public keys are no longer used.
 form.title.liveupdate.liveupdate.publickey = Select Manifest Public Key
 form.label.liveupdate.liveupdate.privatekey = Private Key
-form.help.liveupdate.liveupdate.privatekey = Private key for manifest signing
+form.help.liveupdate.liveupdate.privatekey = This setting is deprecated. Manifest private keys are no longer used.
 form.title.liveupdate.liveupdate.privatekey = Select Manifest Private Key
 form.label.liveupdate.liveupdate.supported-versions = Supported Engine Versions
 form.help.liveupdate.liveupdate.supported-versions = List of supported engine versions
@@ -2264,9 +2281,10 @@ error.property-must-be-between = "{property}" must be between {min} and {max}.
 error.attribute-components-must-be-between = Components in vertex attribute "{attribute}" must be between {min} and {max}.
 error.vertex-attribute = Vertex attribute "{attribute}": {error}
 error.vertex-attribute-normalize-float-data-type = Vertex attribute "{attribute}" uses Normalize with Float data type.
-error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas.
+error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas. GLES 2.0 support must be excluded in game.project > Runtime > Shader settings
 error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right_size}\n{left} = {left_size}\n{top} = {top_size}\n{bottom} = {bottom_size}\n{front} = {front_size}\n{back} = {back_size}.
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
+error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
 error.blend-mode-add-alpha-replaced = "{old}" has been replaced by "{new}".

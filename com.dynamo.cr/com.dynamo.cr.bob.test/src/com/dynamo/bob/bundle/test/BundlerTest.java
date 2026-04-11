@@ -551,7 +551,6 @@ public class BundlerTest {
         if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
         {
                 expectedFiles.add("unnamed.exe");
-                expectedFiles.add("game.public.der");
                 expectedFiles.add("game.dmanifest");
                 expectedFiles.add("game.arci");
                 expectedFiles.add("game.arcd");
@@ -567,7 +566,6 @@ public class BundlerTest {
                 expectedFiles.add("archive/game0.arci");
                 expectedFiles.add("archive/game0.dmanifest");
                 expectedFiles.add("archive/game0.projectc");
-                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
         }
         else if (platform == Platform.JsWeb)
@@ -579,7 +577,6 @@ public class BundlerTest {
                 expectedFiles.add("archive/game0.arci");
                 expectedFiles.add("archive/game0.dmanifest");
                 expectedFiles.add("archive/game0.projectc");
-                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
         }
         else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android)
@@ -591,7 +588,6 @@ public class BundlerTest {
             expectedFiles.add("assets/game.arci");
             expectedFiles.add("assets/game.dmanifest");
             expectedFiles.add("assets/game.projectc");
-            expectedFiles.add("assets/game.public.der");
             expectedFiles.add("META-INF/MANIFEST.MF");
             expectedFiles.add("res/drawable-hdpi-v4/icon.png");
             expectedFiles.add("res/drawable-ldpi-v4/icon.png");
@@ -619,7 +615,6 @@ public class BundlerTest {
             expectedFiles.add("Payload/unnamed.app/game.arci");
             expectedFiles.add("Payload/unnamed.app/game.dmanifest");
             expectedFiles.add("Payload/unnamed.app/game.projectc");
-            expectedFiles.add("Payload/unnamed.app/game.public.der");
             expectedFiles.add("Payload/unnamed.app/AppIcon60x60@2x.png");
             expectedFiles.add("Payload/unnamed.app/AppIcon60x60@3x.png");
             expectedFiles.add("Payload/unnamed.app/AppIcon76x76@2x~ipad.png");
@@ -634,7 +629,6 @@ public class BundlerTest {
             expectedFiles.add("Contents/Resources/game.arci");
             expectedFiles.add("Contents/Resources/game.dmanifest");
             expectedFiles.add("Contents/Resources/game.projectc");
-            expectedFiles.add("Contents/Resources/game.public.der");
         }
         else if (platform == Platform.X86_64Linux)
         {
@@ -643,7 +637,6 @@ public class BundlerTest {
             expectedFiles.add("game.arci");
             expectedFiles.add("game.dmanifest");
             expectedFiles.add("game.projectc");
-            expectedFiles.add("game.public.der");
         }
         else if (platform == Platform.Arm64Linux)
         {
@@ -652,7 +645,6 @@ public class BundlerTest {
             expectedFiles.add("game.arci");
             expectedFiles.add("game.dmanifest");
             expectedFiles.add("game.projectc");
-            expectedFiles.add("game.public.der");
         }
         else
         {

@@ -258,7 +258,7 @@
       (g/set-property controller :handle nil)
       (g/set-property controller :initial-evaluation-context nil))))
 
-(defn handle-input [self action _user-data]
+(defn handle-input [self _input-state action _user-data]
   (let [^Point3d start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         handle (g/node-value self :handle)
@@ -353,6 +353,9 @@
                      action)
       action)))
 
+(defn- handle-input-fnk [a b c d]
+  (handle-input a b c d))
+
 (g/defnode CurveController
   (property handle g/Keyword)
   (property handle-data g/Any)
@@ -364,6 +367,7 @@
   (input sub-selection g/Any)
   (input curve-handle g/Any)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- pick-control-points [visible-curves picking-rect camera viewport]
@@ -404,25 +408,26 @@
           visible-curves)))
 
 (defn- pick-closest-curve [visible-curves ^Rect picking-rect camera viewport]
-  (let [p (let [p (camera/camera-unproject camera viewport (.x picking-rect) (.y picking-rect) 0.0)]
+  (let [picking-rect-point ^Point3d (types/Rect->Point3d picking-rect)
+        p (let [p (camera/camera-unproject camera viewport picking-rect-point)]
             (Point3d. (.x p) (.y p) 0.0))
         min-distance Double/MAX_VALUE
         curve (second
-                (reduce (fn [[min-dist closest-curve] {:keys [node-id property curve]}]
+                (reduce (fn [[^double min-dist closest-curve] {:keys [node-id property curve]}]
                           (let [s (-> (mapv second curve)
                                       (properties/->spline))
                                 cp (properties/spline-cp s (.x p))
                                 [x y] cp
                                 closest (Point3d. x y 0.0)
-                                dist (.distanceSquared p closest)]
+                                dist ^double (.distanceSquared p closest)]
                             (if (< dist min-dist)
                               [dist [node-id property closest]]
                               [min-dist closest-curve])))
                         [min-distance nil] visible-curves))
         [_ _ ^Point3d closest] curve
-        screen-p (and closest (camera/camera-project camera viewport closest))]
-    (when (and screen-p (< (.distanceSquared screen-p (Point3d. (.x picking-rect) (.y picking-rect) 0.0))
-                           (* selection/min-pick-size selection/min-pick-size)))
+        screen-p ^Point3d (and closest (camera/camera-project camera viewport closest))]
+    (when (and screen-p (< (.distanceSquared screen-p picking-rect-point)
+                           (* ^long selection/min-pick-size ^long selection/min-pick-size)))
       curve)))
 
 (g/defnk produce-picking-selection [visible-curves picking-rect camera viewport]
@@ -480,7 +485,7 @@
   (inherits scene/SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (types/->Region 0 0 0 0)))
+  (property viewport Region (default (Region. 0 0 0 0)))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
@@ -489,13 +494,14 @@
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
-  (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
+  ;; NOTE: Part of an interface SceneView calls during update-image-view!
+  (input update-tick-handlers Runnable :array)
   (input selected-node-properties g/Any)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array)
@@ -569,7 +575,7 @@
             viewport (g/node-value view :viewport)
             local-cam (g/node-value camera :local-camera)
             end-camera (camera/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
-        (scene/set-camera! camera local-cam end-camera animate?)))))
+        (camera/set-camera! camera local-cam end-camera animate?)))))
 
 (defn- camera-filter-fn [camera]
   (let [^Point3d p (:position camera)
@@ -633,16 +639,18 @@
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       background background/Background
-                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
+                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
+                                                                                      :movements-enabled #{:dolly :track}]
                                                       grid CurveGrid
                                                       rulers [rulers/Rulers]]
-                                   (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                                    (g/connect camera :_node-id view-id :camera-id)
                                    (g/connect grid :_node-id view-id :grid-id)
+                                   (g/connect camera :local-camera view-id :local-camera)
                                    (g/connect camera :camera view-id :camera)
                                    (g/connect camera :camera grid :camera)
                                    (g/connect camera :input-handler view-id :input-handlers)
+                                   (g/connect camera :update-tick-handler view-id :update-tick-handlers)
                                    (g/connect view-id :viewport camera :viewport)
                                    (g/connect grid :renderable view-id :aux-renderables)
                                    (g/connect background :_node-id view-id :background-id)
@@ -698,7 +706,7 @@
                    (let [this ^CheckBoxListCell this]
                      (proxy-super updateItem item empty)
                      (when (and item (not empty))
-                       (let [[r g b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
+                       (let [[^double r ^double g ^double b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
                          (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))))))))))))))
      node-id)))
 

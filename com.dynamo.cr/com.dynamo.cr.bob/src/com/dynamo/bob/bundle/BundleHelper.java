@@ -98,8 +98,7 @@ public class BundleHelper {
         "game.projectc",
         "game.arci",
         "game.arcd",
-        "game.dmanifest",
-        "game.public.der"
+        "game.dmanifest"
     };
 
     public static void throwIfCanceled(ICanceled canceled) {
@@ -286,6 +285,9 @@ public class BundleHelper {
         String exeName = BundleHelper.projectNameToBinaryName(title);
         this.templateProperties.put("exe-name", exeName);
         this.templateProperties.put("build-timestamp", String.valueOf(System.currentTimeMillis() / 1000));
+        if (Bob.VARIANT_RELEASE.equals(project.option("variant", Bob.VARIANT_RELEASE))) {
+            this.templateProperties.put("variant_release", Boolean.TRUE);
+        }
         IBundler bundler = getOrCreateBundler();
         bundler.updateManifestProperties(project, platform, this.projectProperties, this.propertiesMap, this.templateProperties);
     }

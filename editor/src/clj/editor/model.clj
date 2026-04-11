@@ -556,25 +556,26 @@
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
 (defn load-model [_project self resource {:keys [materials] :as model-desc}]
-  (concat
-    (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
+    (concat
       (gu/set-properties-from-pb-map self ModelProto$ModelDesc model-desc
         name :name
         default-animation :default-animation
         mesh (resolve-resource :mesh)
         skeleton (resolve-resource :skeleton)
         animations (resolve-resource :animations)
-        create-go-bones :create-go-bones))
-    (map-indexed
-      (fn [material-index {:keys [name material textures attributes]}]
-        (let [material (workspace/resolve-resource resource material)
-              textures (mapv (fn [{:keys [texture] :as texture-desc}]
-                               (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
-                             textures)
-              vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]
-          (create-material-binding-tx self name material material-index textures vertex-attribute-overrides)))
-      materials)
-    (g/callback-ec detect-and-flag-migrated! self model-desc)))
+        create-go-bones :create-go-bones)
+      (map-indexed
+        (fn [material-index {:keys [name material textures attributes]}]
+          (let [material (resolve-resource material)
+                textures (mapv (fn [{:keys [texture] :as texture-desc}]
+                                 (assoc texture-desc :texture (resolve-resource texture)))
+                               textures)
+                vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]
+            (create-material-binding-tx self name material material-index textures vertex-attribute-overrides)))
+        materials)
+      (g/callback-ec detect-and-flag-migrated! self model-desc))))
 
 (defn- sanitize-model [{:keys [material textures materials] :as model-desc}]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.

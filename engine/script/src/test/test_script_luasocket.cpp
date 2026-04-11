@@ -34,11 +34,17 @@ TEST_F(ScriptLuasocketTest, TestLuasocket)
 
     ASSERT_TRUE(RunFile(L, "test_luasocket.luac"));
 
+#if defined(__EMSCRIPTEN__)
+    const char *funcs[] = {
+        "test_html5_minimal", 0
+    };
+#else
     const char *funcs[] = {
         "test_bind", "test_getaddr",
         "test_udp", "test_tcp_clientserver",
         "test_udp_clientserver", "test_bind_error", 0
     };
+#endif
 
     for (int i=0;funcs[i];i++)
     {

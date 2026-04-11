@@ -26,7 +26,12 @@ public class ScriptBuilders {
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
     @BuilderParams(name = "Script", inExts = ".script", outExt = ".scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
-    public static class ScriptBuilder extends LuaBuilder {}
+    public static class ScriptBuilder extends LuaBuilder {
+        @Override
+        protected boolean allowGoProperties() {
+            return true;
+        }
+    }
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
     @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
