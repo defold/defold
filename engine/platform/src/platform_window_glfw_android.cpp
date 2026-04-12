@@ -22,6 +22,11 @@
 
 #include "platform_window_android.h"
 
+extern "C" {
+    extern void _glfwAndroidSetInputMethod(int);
+    extern void _glfwAndroidSetFullscreenParameters(int, int);
+}
+
 namespace dmPlatform
 {
     extern "C" int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom);
@@ -59,6 +64,16 @@ namespace dmPlatform
     android_app* GetAndroidApp()
     {
         return dmAndroid::GetAndroidApp();
+    }
+
+    void SetAndroidInputMethod(bool use_hidden_inputfield)
+    {
+        _glfwAndroidSetInputMethod((int)use_hidden_inputfield);
+    }
+
+    void SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout)
+    {
+        _glfwAndroidSetFullscreenParameters((int)immersive_mode, (int)display_cutout);
     }
 
     bool GetSafeAreaAndroid(HWindow window, WindowSafeArea* out)

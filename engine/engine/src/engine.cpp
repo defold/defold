@@ -36,7 +36,6 @@
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
-#include <platform/window.hpp>
 #include <dlib/time.h>
 #include <graphics/graphics.h>
 #include <extension/extension.hpp>
@@ -98,10 +97,7 @@ extern uint32_t      DEBUG_SPC_SIZE;
 // before the keyboard is brought up. This choice is stored as a
 // game.project config and used in dmEngine::Init(), passed along to
 // the GLFW Android implementation.
-extern "C" {
-    extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetFullscreenParameters(int, int);
-}
+#include <platform/platform_window_android.h>
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_Script);
@@ -1681,18 +1677,19 @@ namespace dmEngine
         {
             const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
 
-            int use_hidden_inputfield = 0;
+            bool use_hidden_inputfield = false;
             if (!strcmp(input_method, "HiddenInputField"))
-                use_hidden_inputfield = 1;
+                use_hidden_inputfield = true;
             else if (strcmp(input_method, "KeyEvents"))
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
 
-            _glfwAndroidSetInputMethod(use_hidden_inputfield);
+            dmPlatform::SetAndroidInputMethod(use_hidden_inputfield);
         }
         {
-            int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
-            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
+            bool immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0) != 0;
+            bool display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1) != 0;
+
+            dmPlatform::SetAndroidFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 
