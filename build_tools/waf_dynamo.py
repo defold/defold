@@ -478,7 +478,6 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti'])
 
         self.env.append_value('DEFINES', ['DM_NO_SYSTEM_FUNCTION', 'JC_TEST_USE_COLORS=1'])
-        self.env.append_value('DEFINES', ['DM_TEST_ANDROID_WIP']) # to make it clear if a test is disabled due to WIP
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
@@ -1448,35 +1447,6 @@ def run_tests(ctx, configfile = None, folders = None):
     if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
-
-    # Check if we're in WIP mode
-    if 'android' in ctx.env.PLATFORM:
-        if os.path.basename(os.getcwd()) not in [
-                 'dlib', 'ddf', 'platform', 'font', 'graphics', 'particle', 'lua',
-                 # 'hid',
-                 # 'input',
-                 # 'physics',
-                 # 'resource',
-                 # 'extension',
-                 # 'script',
-                 # 'render',
-                 # 'rig',
-                 # 'gameobject',
-                 # 'gui',
-                 # 'sound',
-                 # 'liveupdate',
-                 # 'crash',
-                 # 'gamesys',
-                 # 'tools',
-                 # 'record',
-                 # 'profiler',
-                 # 'engine',
-                 # 'sdk'
-                 ]:
-            print("************************************************************")
-            print("Android test support is underway. Skipping!")
-            print("************************************************************")
-            return
 
     harness = get_test_harness(ctx.env.PLATFORM)
     cwd = os.getcwd()

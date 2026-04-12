@@ -215,4 +215,6 @@ def build(bld):
 
 def shutdown(self):
     # unit tests disabled on win32 for now
-    waf_dynamo.run_tests(test_context)
+    waf_dynamo.run_tests(test_context, folders = {
+                                            "src/test/build/default": "src/test/build/default", # TODO: Make smaller (currently 42mb)
+                                            })
