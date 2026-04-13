@@ -814,7 +814,7 @@ namespace dmGameSystem
      *
      * @name model.get_blend_weights
      * @param url [type:string|hash|url] the model component
-     * @return weights [type:table] array of weight values (1-based indices), or empty table if the model has no morph targets
+     * @return weights [type:table] array of weight values, or empty table if the model has no morph targets
      * @examples
      *
      * ```lua
@@ -822,6 +822,10 @@ namespace dmGameSystem
      * for i = 1, #w do
      *   print(i, w[i])
      * end
+     * -- change the data in the table and then set the weights again
+     * w[1] = 0.75
+     * w[2] = 0.25
+     * model.set_blend_weights("#model", w)
      * ```
      */
     static int LuaModelComp_GetBlendWeights(lua_State* L)
@@ -838,7 +842,7 @@ namespace dmGameSystem
 
         const float* w = 0;
         uint32_t wc = 0;
-        if (!CompModelGetBlendWeights(component, &w, &wc) || !w || wc == 0)
+        if (!CompModelGetBlendWeights(component, &w, &wc))
         {
             lua_createtable(L, 0, 0);
             return 1;
@@ -863,7 +867,7 @@ namespace dmGameSystem
      *
      * @name model.set_blend_weights
      * @param url [type:string|hash|url] the model component
-     * @param weights [type:table|nil] optional; non-empty array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
+     * @param weights [type:table|nil] array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
      * @examples
      *
      * ```lua

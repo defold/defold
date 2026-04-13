@@ -294,10 +294,9 @@ namespace dmGameSystem
         if (width > max_tex_w || height > max_tex_h || width * height < max_count)
         {
             dmLogError(
-                "Morph target texture for '%s' would need at least %u texels in a %u x %u atlas (per mesh morph limits: %u x %u, GPU max %u). "
+                "Morph target texture for '%s' would need at least %d texels in a %d x %d atlas (per mesh morph target limits: %d x %d, GPU max %d). "
                 "Raise model.max_morph_target_texture_width/height in game.project or reduce mesh vertex count.",
-                filename ? filename : "?", (unsigned)max_count, (unsigned)width, (unsigned)height,
-                (unsigned)max_tex_w, (unsigned)max_tex_h, (unsigned)dmGraphics::GetMaxTextureSize(context));
+                filename, max_count, width, height, max_tex_w, max_tex_h, dmGraphics::GetMaxTextureSize(context));
             return 0;
         }
 
@@ -307,18 +306,8 @@ namespace dmGameSystem
         params.m_Height     = height;
         params.m_LayerCount = num_morph_targets * 3;
 
-        const uint32_t gpu_max = dmGraphics::GetMaxTextureSize(context);
-        if (width > gpu_max || height > gpu_max)
-        {
-            dmLogError(
-                "Morph target texture for '%s' is %u x %u but the GPU reports max texture size %u.",
-                filename ? filename : "?", (unsigned)width, (unsigned)height, (unsigned)gpu_max);
-            return 0;
-        }
-
         dmGraphics::HTexture tex = dmGraphics::NewTexture(context, params);
-        if (!tex)
-            return 0;
+        assert(tex);
 
         uint32_t slice_size = width * height * 4 * sizeof(float);
         uint32_t data_size = slice_size * num_morph_targets * 3;
@@ -333,6 +322,7 @@ namespace dmGameSystem
         set_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         set_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
 
+        // TODO: Perhaps we could organize/pack the data in the asset pipeline like this instead of doing it here?
         float* data_f = (float*)data;
         for (uint32_t i = 0; i < num_morph_targets; ++i)
         {

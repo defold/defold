@@ -118,6 +118,7 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
+        dmGraphics::HTexture        m_MorphTargetTexture;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
@@ -1032,6 +1033,7 @@ namespace dmGameSystem
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
+            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1555,16 +1557,6 @@ namespace dmGameSystem
         }
     }
 
-    static inline dmGraphics::HTexture GetMorphTargetTextureFromResource(const ModelComponent* component, const MeshRenderItem* render_item)
-    {
-        if (!component->m_Resource)
-            return 0;
-        const uint32_t ix = (uint32_t)(render_item - component->m_RenderItems.Begin());
-        if (ix >= component->m_Resource->m_Meshes.Size())
-            return 0;
-        return component->m_Resource->m_Meshes[ix].m_MorphTargetTexture;
-    }
-
     static inline bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
     {
         return render_item->m_Mesh->m_MorphTargets.m_Count > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
@@ -1613,7 +1605,7 @@ namespace dmGameSystem
                 dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
             return;
         }
-        ro->m_Textures[unit] = GetMorphTargetTextureFromResource(component, render_item);
+        ro->m_Textures[unit] = render_item->m_MorphTargetTexture;
 
         if (!ro->m_ConstantBuffer)
         {
@@ -2497,6 +2489,7 @@ namespace dmGameSystem
             return true;
         }
 
+        // 2. Check rig
         if (!component->m_RigInstance)
         {
             return false;
@@ -2506,6 +2499,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             MeshRenderItem& render_item = component->m_RenderItems[i];
+
+            // Not all render items might have morph targets
             if (render_item.m_Mesh->m_MorphTargets.m_Count == 0)
             {
                 continue;
