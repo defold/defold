@@ -51,8 +51,9 @@
     (when on-change-fn (on-change-fn v)))
   (reset-all! [_]
     (doseq [{:keys [key type]} setting-descriptors
-            :when (not (contains? hidden-settings key))
-            :let [prefs-path (into prefs-prefix key)]]
+            :when (and key (not (contains? hidden-settings key)))
+            :let [prefs-path (conj prefs-prefix key)]]
+      (println key prefs-path)
       (prefs/set! prefs prefs-path (:default (prefs/schema prefs prefs-path))))
     (when on-change-fn (on-change-fn nil))))
 
@@ -77,6 +78,9 @@
     (fn [_ _ _]
       (.setFocusTraversable node true))))
 
+(defn- wrap-in-hbox [children]
+  (HBox. (ui/node-array children)))
+
 (defn- slider-setting [settings-binding ^PopupControl popup key label-text range-min range-max]
   (let [value (get-value settings-binding key)
         slider (Slider. range-min range-max value)
@@ -92,7 +96,7 @@
       (fn [_observable _old-val new-val]
         (let [val (math/round-with-precision new-val 0.01)]
           (set-value! settings-binding key val))))
-    [label slider]))
+    (wrap-in-hbox [label slider])))
 
 (defn- toggle-setting [settings-binding popup key label-text command acc-text]
   (let [check-box (CheckBox.)
@@ -127,7 +131,7 @@
                                    (ui/value! check-box value)
                                    (set-value! settings-binding key value))))
                  (ui/children! [label acc check-box]))]
-      [hbox])))
+      hbox)))
 
 (defn- vec3-group
   [settings-binding key axis]
@@ -151,10 +155,10 @@
     [label text-field]))
 
 (defn- vec3-floats-setting [settings-binding key]
-  (into []
-    (comp (map (partial vec3-group settings-binding key))
-          (mapcat identity))
-    axes))
+  (wrap-in-hbox (into []
+                      (comp (map (partial vec3-group settings-binding key))
+                            (mapcat identity))
+                      axes)))
 
 ;; TODO: Rename this cause plane is too specific
 (defn- plane-toggle-button [settings-binding plane-group key plane]
@@ -177,7 +181,7 @@
                                            keyword)]
                       (set-value! settings-binding key active-plane))
                     (.setSelected old-value true))))
-    (concat [label] buttons)))
+    (wrap-in-hbox (concat [label] buttons))))
 
 (defn- color-setting [settings-binding key label-text]
   (let [text-field (TextField.)
@@ -193,27 +197,25 @@
                               (cancel-fn nil))))]
     (doto text-field
       (ui/text! color)
+      (ui/add-style! "color-setting-row")
       (ui/customize! update-fn cancel-fn)
       (ensure-focus-traversable!))
-    [label text-field]))
+    (wrap-in-hbox [label text-field])))
 
-(declare settings)
-
-(defn- reset-button [localization settings-binding ^PopupControl popup setting-descriptors hidden-settings button-text]
-  (let [button (doto (Button. button-text)
+(defn- reset-button [localization settings-binding on-reset-fn]
+  (let [button (doto (Button. (localization (localization/message "scene-popup.reset-defaults-button")))
                  (.setPrefWidth Double/MAX_VALUE))
         reset-fn
         (fn [^ActionEvent event]
           (let [target ^Node (.getTarget event)
                 parent (.getParent target)]
             (reset-all! settings-binding)
-            (doto parent
-              (ui/children! (ui/node-array (settings localization settings-binding popup setting-descriptors hidden-settings)))
-              (.requestFocus))))]
+            (on-reset-fn)))]
     (doto button
       (ui/on-action! reset-fn)
       (ensure-focus-traversable!))
-    button))
+    (doto (wrap-in-hbox [button])
+      (ui/add-style! "reset-button"))))
 
 (defn settings-visible? [^Parent owner]
   (some? (ui/user-data owner ::popup)))
@@ -231,38 +233,45 @@
       :vec3-floats (vec3-floats-setting settings-binding key)
       :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
       :color       (color-setting settings-binding key label-text)
-      :space       [(Region.)]
-      :separator   [(Separator.)])))
+      :space       (doto (wrap-in-hbox [(Region.)])
+                     (ui/add-style! "settings-divider-row"))
+      :separator   (doto (wrap-in-hbox [(Separator.)])
+                     (ui/add-style! "settings-divider-row")))))
 
-(defn- settings [keymap localization settings-binding popup setting-descriptors include-reset-btn hidden-settings]
-  (let [button-text (localization (localization/message "scene-popup.reset-defaults-button"))
-        reset-btn (when include-reset-btn
-                    (reset-button localization settings-binding popup setting-descriptors hidden-settings button-text))
-        visible-descriptors (remove (fn [{:keys [key]}] (contains? hidden-settings key)) setting-descriptors)
+(defn- settings [keymap localization settings-binding popup setting-descriptors hidden-settings]
+  (let [visible-descriptors (remove (fn [{:keys [key]}] (contains? hidden-settings key)) setting-descriptors)
         [rows controls]
         (reduce (fn [[rows controls] descriptor]
                   (let [key (:key descriptor)
-                        children (setting-row keymap localization settings-binding popup descriptor)
-                        row (doto (HBox. (ui/node-array children))
-                              (.setAlignment Pos/CENTER))]
-                    (doseq [child children]
-                      (HBox/setHgrow child Priority/ALWAYS))
+                        ;; NOTE: Reset button needs to redraw the UI so pass in all the deps
+                        row (if (= key :reset-all)
+                              (reset-button localization settings-binding
+                                            #(setting-row keymap localization settings-binding popup descriptor))
+                              (setting-row keymap localization settings-binding popup descriptor))
+                        children (.getChildren ^HBox row)]
+                    (when-let [style-class (:style-class descriptor)]
+                      (ui/add-style! row style-class))
+                    (let [first-child (first children)]
+                      (HBox/setHgrow first-child Priority/ALWAYS)
+                      (.setMaxWidth ^Region first-child Double/MAX_VALUE))
+                    (doseq [child (rest children)]
+                      (HBox/setHgrow child Priority/NEVER))
                     [(conj rows row) (cond-> controls key (assoc key children))]))
-                [(if include-reset-btn [reset-btn] []) {}]
+                [[] {}]
                 visible-descriptors)]
     [rows controls]))
 
 (defn show-settings!
-  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn]
-   (show-settings! owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn nil))
-  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn hidden-settings]
-   (show-settings! owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn hidden-settings nil))
-  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors include-reset-btn hidden-settings on-closed]
+  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors]
+   (show-settings! owner keymap localization settings-binding width x-offset setting-descriptors nil))
+  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors hidden-settings]
+   (show-settings! owner keymap localization settings-binding width x-offset setting-descriptors hidden-settings nil))
+  ([^Parent owner keymap localization settings-binding width x-offset setting-descriptors hidden-settings on-closed]
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [region (StackPane.)
            popup (make-popup owner region)
-           [rows controls] (settings keymap localization settings-binding popup setting-descriptors include-reset-btn hidden-settings)
+           [rows controls] (settings keymap localization settings-binding popup setting-descriptors hidden-settings)
            anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)]
        (.setPrefWidth region width)
        (ui/children! region [(doto (Region.)

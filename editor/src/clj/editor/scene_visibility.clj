@@ -37,22 +37,21 @@
 
 (def ^:private renderable-tag-toggles-info
   (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :tag :visibility-filters-enabled? :command :scene.visibility.toggle-filters :always-enabled true}
-           {:type :space}
-           {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :tag :collision-shape}
-           {:type :toggle :label "scene-popup.scene-visibility.camera" :tag :camera}
            #_{:label "scene-popup.scene-visibility.gui-elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
-           {:type :toggle :label "scene-popup.scene-visibility.gui-bounds" :tag :gui-bounds}
-           {:type :toggle :label "scene-popup.scene-visibility.gui-shapes" :tag :gui-shape}
-           {:type :toggle :label "scene-popup.scene-visibility.gui-particle-effects" :tag :gui-particlefx}
-           {:type :toggle :label "scene-popup.scene-visibility.gui-spine-scenes" :tag :gui-spine}
-           {:type :toggle :label "scene-popup.scene-visibility.gui-text" :tag :gui-text}
-           {:type :toggle :label "scene-popup.scene-visibility.models" :tag :model}
-           {:type :toggle :label "scene-popup.scene-visibility.particle-effects" :tag :particlefx}
-           {:type :toggle :label "scene-popup.scene-visibility.skeletons" :tag :skeleton}
-           {:type :toggle :label "scene-popup.scene-visibility.spine-scenes" :tag :spine}
-           {:type :toggle :label "scene-popup.scene-visibility.sprites" :tag :sprite}
-           {:type :toggle :label "scene-popup.scene-visibility.text" :tag :text}
-           {:type :toggle :label "scene-popup.scene-visibility.tile-maps" :tag :tilemap}
+           {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :tag :collision-shape :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.camera" :tag :camera :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-bounds" :tag :gui-bounds :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-shapes" :tag :gui-shape :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-particle-effects" :tag :gui-particlefx :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-spine-scenes" :tag :gui-spine :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.gui-text" :tag :gui-text :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.models" :tag :model :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.particle-effects" :tag :particlefx :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.skeletons" :tag :skeleton :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.spine-scenes" :tag :spine :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.sprites" :tag :sprite :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.text" :tag :text :style-class "compact-toggle"}
+           {:type :toggle :label "scene-popup.scene-visibility.tile-maps" :tag :tilemap :style-class "compact-toggle"}
            {:type :separator}
            {:type :toggle :label "scene-popup.scene-visibility.component-guides" :tag :outline :command :scene.visibility.toggle-component-guides :always-enabled true}]
 
@@ -315,9 +314,6 @@
     (sync-filter-checkboxes! scene-visibility))
   (reset-all! [_] nil))
 
-(defn- extract-popup-check-box [controls tag]
-  (last (.getChildren ^HBox (first (tag controls)))))
-
 (defn show-settings! [app-view keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (mapv #(-> %
                                        (assoc :key (:tag %))
@@ -328,17 +324,16 @@
         ;; cursor into the popup, JavaFX doesn't receive a mouse-move inside the scene view, so once you
         ;; enter the popup, the H_RESIZE cursor stays active. As a hack, just move the scene visibility to the left by
         ;; 13 pixels, that seems to be enough to allow the cursor to get reset.
-        controls (popup/show-settings! owner keymap localization scene-vis-binding 230 -13.0 setting-descriptors false nil
+        controls (popup/show-settings! owner keymap localization scene-vis-binding 230 -13.0 setting-descriptors nil
                                        (fn [_]
                                          (sync-filter-checkboxes! scene-visibility)
                                          ;; NOTE: On close, free the references to the GUI nodes
                                          (g/set-property! scene-visibility :ui-check-boxes nil)))]
-    ;; TODO JOE: Add this back in
-    ;; (ui/add-style! filters-enabled-control "first-entry")
     (when controls
+      (ui/add-style! (first (:visibility-filters-enabled? controls)) "first-entry")
       (g/update-property! scene-visibility :ui-check-boxes assoc
-                          :visibility-filter-check-box (extract-popup-check-box controls :visibility-filters-enabled?)
-                          :component-guide-check-box (extract-popup-check-box controls :outline)
+                          :visibility-filter-check-box (last (:visibility-filters-enabled? controls))
+                          :component-guide-check-box (last (:outline controls))
                           :filter-check-boxes (coll/into-> controls []
                                                 (keep (fn [[key entry]]
                                                         (when (contains? toggleable-filters key)

@@ -52,14 +52,14 @@
             }
 
             > .more-button {
-                -fx-max-width: 22px;
-                -fx-min-width: 22px;
+                -fx-max-width: 18px;
+                -fx-min-width: 18px;
                 -fx-pref-height: 30px;
                 -fx-background-radius: 0 15px 15px 0;
                 -fx-border-radius: 0 15px 15px 0;
                 -fx-background-color: transparent;
                 -fx-border-width: 0;
-                -fx-padding: 0 6px 0 0;
+                -fx-padding: 0 12px 0 0;
 
                 &:hover > .image-view {
                     -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
@@ -69,13 +69,6 @@
             &.active .more-button {
                 -fx-background-color: -df-background-light;
             }
-        }
-
-        .plane-toggle {
-            -fx-text-fill: -df-text;
-            -fx-background-radius: 0;
-            -fx-border-radius: 0;
-            -fx-pref-width: 58px;
         }
 
         #visibility-settings-graphic {
@@ -93,27 +86,6 @@
             }
         }
 
-        .visibility-toggles-list {
-            -fx-background-color: -df-component-dark;
-            -fx-background-radius: 4px;
-            -fx-padding: 0px 0px 7px 0px;
-
-            > .first-entry {
-                -fx-background-radius: 4px 4px 0px 0px;
-                -fx-padding: 10px 8px 10px 8px;
-                -fx-background-color: -df-component-dark;
-            }
-
-            > HBox {
-                -fx-padding: 3px 8px 3px 8px;
-            }
-
-            > Separator {
-                -fx-padding: 7px 0px;
-                -fx-background-color: -df-component-dark;
-            }
-        }
-
         .toggle-button {
             &:selected > #visibility-settings-graphic > #active-indicator {
                 -fx-stroke: -df-background-light;
@@ -123,35 +95,44 @@
             }
         }
 
-        .accelerator-label {
-            -fx-alignment: center-right;
-            -fx-text-fill: -df-text-dark;
-            -fx-padding: 0 5 0 5;
-        }
-
         .popup-settings {
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
-            -fx-padding: 0px 0px 7px 0px;
+            -fx-padding: 5px 12px 5px 12px;
 
             HBox {
-                -fx-padding: 3px 8px 3px 8px;
-                -fx-pref-height: 28px;
+                -fx-spacing: 5px;
+                -fx-pref-height: 38px;
                 -fx-alignment: center-left;
             }
 
-            Region {
-                -fx-padding: 1px !important;
+            HBox.settings-divider-row {
+                -fx-padding: 0px -12px;
+                -fx-pref-height: 5px;
             }
 
-            Separator {
-                -fx-padding: -10px 0px;
-                -fx-background-color: -df-component-dark;
+            .color-setting-row {
+                -fx-max-width: 107px;
             }
 
-            .label {
-                -fx-pref-width: 100px;
-                -fx-padding: 1px;
+            .compact-toggle {
+                -fx-pref-height: 27px;
+            }
+
+            .accelerator-label {
+                -fx-text-fill: -df-text-dark;
+                -fx-padding: 0 3px 0 0;
+            }
+
+            .plane-toggle {
+                -fx-text-fill: -df-text;
+                -fx-background-radius: 0;
+                -fx-border-radius: 0;
+                -fx-pref-width: 32px;
+            }
+
+            .first-entry {
+                -fx-padding: -15px 0px 0px 0px;
             }
 
             .text-input {
@@ -181,6 +162,11 @@
             .toggle-button {
                 &:selected {
                     -fx-text-fill: -df-text-selected;
+                    -fx-background-color: -df-background-light;
+                }
+
+                &:selected:hover {
+                    -fx-background-color: -df-background-light;
                 }
 
                 &:focused {
@@ -188,19 +174,22 @@
                 }
             }
 
-            .toggle-row {
-                -fx-spacing: 0px;
-
-                .slide-switch {
-                    -fx-padding: 0 0px 0 5px;
+            .reset-button {
+                -fx-padding: 0px;
+                Label {
+                    -fx-padding: 100px;
                 }
+            }
 
+            .toggle-row {
                 .slide-switch-label {
                     -fx-hgrow: ALWAYS;
+                    -fx-padding: 0;
                 }
             }
 
             .slider {
+                -fx-pref-width: 107px;
                 .track {
                     -fx-background-color: -df-background-light;
                     -fx-border-color: -df-component-light;
