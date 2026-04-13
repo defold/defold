@@ -426,7 +426,7 @@ namespace dmRig
         return -1;
     }
 
-    static void ResetMorphWeightsToBase(RigInstance* instance)
+    static void ResetMorphWeights(RigInstance* instance)
     {
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
         if (!mesh_set || instance->m_MorphSlots.Empty())
@@ -486,11 +486,11 @@ namespace dmRig
             return;
         }
 
-        // dmArray::Push requires capacity to be set first (no implicit growth).
         uint32_t slot_count = 0;
         uint32_t total_floats = 0;
         uint32_t max_morph = 0;
 
+        // Pass 1: count the number of morph slots and total number of floats
         for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
         {
             const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
@@ -498,12 +498,7 @@ namespace dmRig
             for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
             {
                 const dmRigDDF::Mesh& mm = model->m_Meshes[m];
-                uint32_t c = 0;
-                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0)
-                {
-                    c = mm.m_MorphTargets.m_Count;
-                }
-                mcount = dmMath::Max(mcount, c);
+                mcount = dmMath::Max(mcount, mm.m_MorphTargets.m_Count);
             }
             if (mcount == 0)
             {
@@ -519,8 +514,8 @@ namespace dmRig
             return;
         }
 
+        // Pass 2: create the morph weight slots
         instance->m_MorphSlots.SetCapacity(slot_count);
-
         uint32_t buffer_offset = 0;
         for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
         {
@@ -529,15 +524,13 @@ namespace dmRig
             for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
             {
                 const dmRigDDF::Mesh& mm = model->m_Meshes[m];
-                uint32_t c = 0;
-                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0)
-                {
-                    c = mm.m_MorphTargets.m_Count;
-                }
-                mcount = dmMath::Max(mcount, c);
+                mcount = dmMath::Max(mcount, mm.m_MorphTargets.m_Count);
             }
+
             if (mcount == 0)
+            {
                 continue;
+            }
 
             MorphWeightSlot slot;
             slot.m_ModelId = model->m_Id;
@@ -551,7 +544,7 @@ namespace dmRig
         instance->m_MorphWeightsBuffer.SetSize(total_floats);
         instance->m_MorphScratch.SetCapacity(max_morph);
         instance->m_MorphScratch.SetSize(max_morph);
-        ResetMorphWeightsToBase(instance);
+        ResetMorphWeights(instance);
     }
 
     static void SampleMorphWeightTrack(const dmRigDDF::MorphWeightTrack* track, float t, float sample_rate, float* out_weights)
@@ -588,26 +581,32 @@ namespace dmRig
         // No m_Playing check: UpdatePlayer may clear it when a ONCE clip ends in the same DoAnimate pass;
         // morph weights must still be sampled for that final frame (same as bone tracks).
         if (!animation || instance->m_MorphSlots.Empty())
+        {
             return;
+        }
 
         uint32_t mw_count = animation->m_MorphWeightTracks.m_Count;
         const dmRigDDF::MorphWeightTrack* mw_tracks = animation->m_MorphWeightTracks.m_Data;
-        if (mw_count == 0 || mw_tracks == 0x0)
-            return;
 
-        float duration = GetCursorDuration(player, animation);
-        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
+        float duration    = GetCursorDuration(player, animation);
+        float t           = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
         float sample_rate = animation->m_SampleRate;
 
         for (uint32_t ti = 0; ti < mw_count; ++ti)
         {
             const dmRigDDF::MorphWeightTrack* track = &mw_tracks[ti];
             int32_t slot_index = FindMorphSlotIndex(instance, track->m_ModelId);
+
             if (slot_index < 0)
+            {
                 continue;
+            }
+
             MorphWeightSlot& slot = instance->m_MorphSlots[slot_index];
             if (track->m_MorphCount != slot.m_MorphCount)
+            {
                 continue;
+            }
 
             SampleMorphWeightTrack(track, t, sample_rate, instance->m_MorphScratch.Begin());
             float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
@@ -786,7 +785,7 @@ namespace dmRig
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
         if (!instance->m_MorphSlots.Empty())
         {
-            ResetMorphWeightsToBase(instance);
+            ResetMorphWeights(instance);
         }
 
         if (!IsAnimating(instance))
@@ -1696,11 +1695,11 @@ namespace dmRig
 
     void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
     {
-        if (!instance || !weights || count == 0)
-            return;
         int32_t idx = FindMorphSlotIndex(instance, model_id);
         if (idx < 0)
+        {
             return;
+        }
         MorphWeightSlot& slot = instance->m_MorphSlots[idx];
         float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
         uint32_t n = dmMath::Min(count, slot.m_MorphCount);

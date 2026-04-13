@@ -21,6 +21,9 @@
 
 namespace dmRig
 {
+    /// One slot per MeshSet model that has morph targets. Maps a model id to a slice of
+    /// RigInstance::m_MorphWeightsBuffer (m_BufferOffset .. +m_MorphCount floats) where
+    /// animation and sampling read/write blend-shape weights for that model.
     struct MorphWeightSlot
     {
         uint64_t m_ModelId;

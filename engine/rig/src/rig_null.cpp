@@ -152,8 +152,6 @@ namespace dmRig
 
     const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count)
     {
-        if (out_count)
-            *out_count = 0;
         return 0x0;
     }
 
