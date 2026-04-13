@@ -1982,6 +1982,8 @@ form.label.project.profiler.sleep_between_server_updates = Пауза серве
 form.help.project.profiler.sleep_between_server_updates = Пауза в миллисекундах между обновлениями сервера профайлера
 form.label.project.profiler.performance_timeline_enabled = Веб-таймлайн
 form.help.project.profiler.performance_timeline_enabled = Включить вывод данных в браузерный Performance Timeline
+form.label.project.profiler.max_sample_count = Макс. число сэмплов
+form.help.project.profiler.max_sample_count = Максимальное число сэмплов профайлера, записываемых на поток и кадр
 
 form.label.project.render = Рендер
 form.help.project.render = Настройки рендера

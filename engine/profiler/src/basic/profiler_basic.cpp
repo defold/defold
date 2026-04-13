@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/extension/extension.h>
 #include "../profiler_private.h"
 
@@ -68,7 +69,7 @@ struct Sample
 // to avoid dynamic allocations or other setup issues
 static int32_atomic_t g_PropertyInitialized = 0;
 static const uint32_t g_MaxPropertyCount = 256;
-static const uint32_t g_MaxSampleCount = 4096;
+static uint32_t       g_MaxSampleCount = 4096;
 static Property       g_Properties[g_MaxPropertyCount];
 static PropertyData   g_PropertyData[g_MaxPropertyCount];
 
@@ -979,6 +980,8 @@ static ProfileListener g_Listener = {};
 
 static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* params)
 {
+    g_MaxSampleCount = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.max_sample_count", g_MaxSampleCount);
+
     g_Listener.m_Create = CreateListener;
     g_Listener.m_Destroy = DestroyListener;
     g_Listener.m_SetThreadName = SetThreadName;
