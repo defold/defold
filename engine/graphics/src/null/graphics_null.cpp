@@ -172,6 +172,7 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
 
         if (context->m_AsyncProcessingSupport)
         {

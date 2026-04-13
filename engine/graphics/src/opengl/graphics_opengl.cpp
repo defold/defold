@@ -1130,6 +1130,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
             case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
             case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
+            case CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX: return context->m_BlendEquationMinMaxSupport;
             case CONTEXT_FEATURE_VSYNC:
                 break;
         }
@@ -1832,6 +1833,18 @@ static void LogFrameBufferError(GLenum status)
 
         #undef COMPUTE_VERSION_NEEDED
     #endif
+
+        // GL_MIN/GL_MAX blend equations are core in GLES3+ and desktop GL.
+        // On GLES2/WebGL1 they require EXT_blend_minmax.
+        if (context->m_IsGles3Version)
+        {
+            context->m_BlendEquationMinMaxSupport = 1;
+        }
+        else if (OpenGLIsExtensionSupported(_context, "GL_EXT_blend_minmax") ||
+                 OpenGLIsExtensionSupported(_context, "EXT_blend_minmax"))
+        {
+            context->m_BlendEquationMinMaxSupport = 1;
+        }
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {

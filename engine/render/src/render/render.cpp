@@ -475,12 +475,8 @@ namespace dmRender
         {
             ps_now.m_BlendSrcFactor      = ro->m_SourceBlendFactor;
             ps_now.m_BlendDstFactor      = ro->m_DestinationBlendFactor;
-            // Use same factors for alpha as color by default (backwards compat).
-            // Component code can set separate alpha factors explicitly if needed.
             ps_now.m_BlendSrcFactorAlpha = ro->m_SourceBlendFactor;
             ps_now.m_BlendDstFactorAlpha = ro->m_DestinationBlendFactor;
-            ps_now.m_BlendEquationColor  = dmGraphics::BLEND_EQUATION_ADD;
-            ps_now.m_BlendEquationAlpha  = dmGraphics::BLEND_EQUATION_ADD;
         }
 
         if (ro->m_SetFaceWinding)
