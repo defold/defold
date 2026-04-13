@@ -524,7 +524,6 @@
     :mtx-world :semantic-type-world-matrix
     :mtx-normal :semantic-type-normal-matrix
     :texture-transform-2d :semantic-type-texture-transform-2d
-    :morph-weights :semantic-type-morph-weights
     :semantic-type-none))
 
 (defn infer-normalize

@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
+
 #include <dmsdk/dlib/atomic.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
@@ -1374,7 +1375,7 @@ namespace dmGraphics
             }
 
             const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
-            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, binding->m_Res->m_ElementCount, user_data);
         }
     }
 

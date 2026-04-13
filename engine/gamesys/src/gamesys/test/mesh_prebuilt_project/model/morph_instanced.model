@@ -1,3 +1,0 @@
-name: "morph_instanced"
-mesh: "/model/morph_weights_anim.gltf"
-material: "/material/morph_instanced_test.material"

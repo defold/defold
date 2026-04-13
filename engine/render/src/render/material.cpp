@@ -133,14 +133,6 @@ namespace dmRender
             info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D;
             info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
         }
-        else if (name_hash == VERTEX_STREAM_MORPH_WEIGHTS)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_WEIGHTS;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
-        }
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
@@ -624,21 +616,6 @@ namespace dmRender
     bool GetMaterialHasMorphTargetsSampler(HMaterial material)
     {
         return material->m_HasMorphTargetsSampler;
-    }
-
-    bool GetMaterialUsesInstanceMorphWeights(HMaterial material)
-    {
-        const uint32_t n = material->m_VertexAttributeInfos.Size();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            const dmGraphics::VertexAttributeInfo& a = material->m_VertexAttributeInfos[i];
-            if (a.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE &&
-                a.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_WEIGHTS)
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)

@@ -50,9 +50,5 @@ embedded_instances {
   "  id: \"morph_blend_weights\"\n"
   "  component: \"/model/morph_blend_weights.model\"\n"
   "}\n"
-  "components {\n"
-  "  id: \"morph_instanced\"\n"
-  "  component: \"/model/morph_instanced.model\"\n"
-  "}\n"
   ""
 }

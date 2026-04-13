@@ -71,7 +71,6 @@ message VertexAttribute
         SEMANTIC_TYPE_BONE_WEIGHTS         = 10;
         SEMANTIC_TYPE_BONE_INDICES         = 11;
         SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D = 12;
-        SEMANTIC_TYPE_MORPH_WEIGHTS       = 13;
     }
 
     message LongValues
