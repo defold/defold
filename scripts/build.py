@@ -518,6 +518,7 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 test_device = None,
                  keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
@@ -567,6 +568,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.test_device = test_device
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
@@ -1547,7 +1549,11 @@ class Configuration(object):
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
 
         if 'android' in self.target_platform:
-            if build_android.can_run_tests_android(self._log):
+            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device)
+            if self.test_device and not can_run_android_tests:
+                self.fatal("Requested Android test device '%s' is not available" % self.test_device)
+
+            if can_run_android_tests:
                 android_tests = ['armv7-android', 'arm64-android']
                 supported_tests['x86_64-macos'].extend(android_tests)
                 supported_tests['arm64-macos'].extend(android_tests)
@@ -2873,6 +2879,9 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
+        if self.test_device:
+            env['ANDROID_SERIAL'] = self.test_device
+
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
@@ -2924,6 +2933,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--test-device', dest='test_device',
+                      default = None,
+                      help = 'Android device serial to target when running Android tests')
 
     parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
                     action = 'store_true',
@@ -3080,6 +3093,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      test_device = options.test_device,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,

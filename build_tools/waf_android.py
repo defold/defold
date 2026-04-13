@@ -13,7 +13,8 @@ class AndroidTestHarness(TestHarness):
     def _create_runner(self, env):
         proc_env = self._proc_env(env)
         adb = Utils.to_list(env['ADB']) if 'ADB' in env else None
-        return build_android.AndroidTestRunner(env = proc_env, adb = adb, log_fn = Logs.info)
+        device = proc_env.get('ANDROID_SERIAL', None)
+        return build_android.AndroidTestRunner(env = proc_env, adb = adb, log_fn = Logs.info, device = device)
 
     def _get_runner(self, env):
         if self._runner is None:
