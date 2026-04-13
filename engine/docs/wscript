@@ -15,25 +15,43 @@ import waf_dynamo
 import TestContext
 
 test_context = None
+files_lookup = []
+target_formats = [ "sdoc", "json", "script_api", "lua"]
 
 def init(ctx):
     global test_context
+
     if 'build' in waflib.Options.commands:
         test_context = TestContext.create_test_context()
 
 def configure(conf):
-    conf.recurse('src')
+    conf.env['SCRIPT_DOC'] = os.path.abspath('script_doc.py')
     pass
 
 def clean(conf):
-    # Clean up src
-    files = os.listdir('src')
-    for filename in fnmatch.filter(files, '*.apidoc_'):
-        os.remove(os.path.join('src', filename))
+    global target_formats
+
+    files = os.listdir('build')
+    for filename in fnmatch.filter(files, '*.apidoc'):
+        os.remove(os.path.join('build', filename))
+    for target_format in target_formats:
+        for filename in fnmatch.filter(files, '*.%s' % target_format):
+            os.remove(os.path.join('build', filename))
+
+def install_file(task):
+    src = task.inputs[0].abspath()
+    if os.path.getsize(src) > 0:
+        tgt = "%s/share/doc/" % task.env["PREFIX"]
+        os.makedirs(tgt, exist_ok = True)
+        cmd = 'cp %s %s' % (src, tgt)
+        return task.exec_command(cmd)
 
 #   Extract api docs from source files and store the raw text in .apidoc
-#   files per file for later collation into .json and .sdoc files.
+#   files per file for later collation into .json, .sdoc etc.
 def apidoc_extract_task(bld, root, paths):
+    global files_lookup
+    global target_formats
+
     all_docs = {}
 
     defold_root = os.path.abspath(os.path.join(bld.top_dir, "..", ".."))
@@ -153,48 +171,53 @@ def apidoc_extract_task(bld, root, paths):
 
         return elements
 
-    def extract_docs(bld, root, src):
+    def extract_docs(root, files):
         docs = defaultdict(list)
         # Gather data
-        for s in src:
-            key = _keyfrompath(s, root)
-            elements = _parse_source(s)
+        for file in files:
+            key = _keyfrompath(file, root)
+            elements = _parse_source(file)
             for k,v in elements.items():
                 docs[key] = docs[key] + v
         all_docs.update(docs)
-        return docs
+        return docs.keys()
 
-    def write_docs(task):
-        for o in task.outputs:
-            name = os.path.splitext(o.name)[0] # remove .apidoc
-            docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
-                out_f.write('\n'.join(docs))
+    def write_doc(task):
+        output = task.outputs[0]
+        namespace_key = os.path.splitext(output.name)[0]
+        docs = all_docs[namespace_key]
+        with open(str(output.get_bld()), 'w+', encoding='utf-8') as out_f:
+            out_f.write('\n'.join(docs))
 
     if not getattr(Options.options, 'skip_apidocs', False):
         # paths can be both files and folders
         # we need to expand to a full list of source files to extract docs from
-        src = []
+        # exclude already processed files
+        files = []
         for path in paths:
             fullpath = os.path.join(root, path)
-            if os.path.isfile(fullpath):
-                src.append(fullpath)
-            else:
-                src.extend(_findfiles(fullpath))
+            files_to_check = [fullpath] if os.path.isfile(fullpath) else _findfiles(fullpath)
+            for file in files_to_check:
+                if file not in files_lookup:
+                    files.append(file)
+                    files_lookup.append(file)
 
-        docs = extract_docs(bld, root, src)
-        target = []
-        for key in docs.keys():
-            target.append(key + '.apidoc')
-        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
+        filename_keys = extract_docs(root, files)
+        for filename_key in filename_keys:
+            apidoc = filename_key + '.apidoc'
+            
+            # write merged extracted docs to build/foo.apidoc
+            bld(source = [], target = apidoc, rule = write_doc)
+            
+            # convert .apidoc to target formats and install to dynamo_home
+            for target_format in target_formats:
+                target_file = '%s_doc.%s' % (filename_key, target_format)
+                bld(source = apidoc, target = target_file, rule = ('python ${SCRIPT_DOC} -t %s ${SRC} ${TGT}') % target_format)
+                bld(source = target_file, rule = install_file)
 
 
 def build(bld):
     global test_context
-    # Clean up src
-    files = os.listdir('src')
-    for filename in fnmatch.filter(files, '*.apidoc_'):
-        os.remove(os.path.join('src', filename))
 
     apidoc_extract_task(bld, "../crash/src/",                   ["script_crash.cpp"])
     apidoc_extract_task(bld, "../ddf/src/",                     ["dmsdk"])
@@ -217,7 +240,7 @@ def build(bld):
     apidoc_extract_task(bld, "../gui/src/",                     ["gui_script.cpp"])
     apidoc_extract_task(bld, "../gui/src/",                     ["dmsdk"])
     apidoc_extract_task(bld, "../hid/src/",                     ["dmsdk"])
-    apidoc_extract_task(bld, "../liveupdate/src/",              ["liveupdate.h"])
+    apidoc_extract_task(bld, "../liveupdate/",                  ["src"])
     apidoc_extract_task(bld, "../lua/src/",                     [""])
     apidoc_extract_task(bld, "../lua/src/",                     ["dmsdk"])
     apidoc_extract_task(bld, "../lua/src/",                     ["cs/dmsdk"])
@@ -229,25 +252,17 @@ def build(bld):
     apidoc_extract_task(bld, "../render/src/",                  ["dmsdk"])
     apidoc_extract_task(bld, "../resource/src/",                ["dmsdk"])
     apidoc_extract_task(bld, "../rig/src/",                     ["dmsdk"])
-    apidoc_extract_task(bld, "../script/",                      ["src"])
     apidoc_extract_task(bld, "../script/src/",                  ["dmsdk"])
     apidoc_extract_task(bld, "../script/src/",                  ["luasocket"])
     apidoc_extract_task(bld, "../script/src/",                  ["script"])
+    apidoc_extract_task(bld, "../script/",                      ["src"])
     apidoc_extract_task(bld, "../sdk/src/",                     ["dmsdk"])
     apidoc_extract_task(bld, "../sdk/src/",                     ["cs/dmsdk"])
     apidoc_extract_task(bld, "../sound/src/",                   ["dmsdk"])
 
-    # Find all the generated .apidoc files in build/ and copy them to src/
-    for root, dirs, files in os.walk('build'):
-        for filename in fnmatch.filter(files, '*.apidoc'):
-            shutil.copy(os.path.join(root, filename), os.path.join("src", filename))
-
-    # Convert all src/*.apidoc files into their final formats (json, sdoc, md etc)
-    bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 
 def options(opt):
-    opt.recurse('src')
     opt.load('waf_dynamo')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
 
@@ -255,8 +270,6 @@ def shutdown(self):
     if not TestContext.is_valid(test_context):
         return
     if not getattr(waflib.Options.options, 'skip_tests', False):
-        python_path = os.environ.get('PYTHONPATH', '')
-        os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/src' + os.pathsep + python_path
-        ret = os.system('python %s' % 'src/test/test_script_doc.py')
+        ret = os.system('python %s' % 'test_script_doc.py')
         if ret != 0:
             sys.exit(1)

@@ -256,6 +256,7 @@ sub_step_count = 3
 track_cpu = 1
 sleep_between_server_updates = 10
 performance_timeline_enabled = 0
+max_sample_count = 8192
 enabled = 1
 
 [render]
@@ -275,6 +276,7 @@ defold_min_version = 1.10.0
 
 [liveupdate]
 enabled = 1
+exclude_entries_from_main_manifest = 1
 settings = /liveupdate.settings
 mount_on_start = 0
 

@@ -756,7 +756,7 @@ if __name__ == '__main__':
             doc_str += f.read()
 
     output_file = args[-1]
-    if options.type == 'protobuf':
+    if options.type == 'protobuf' or options.type == 'sdoc':
         to_protobuf(doc_str, output_file)
     elif options.type == 'json':
         to_json(doc_str, output_file)

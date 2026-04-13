@@ -18,6 +18,11 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#if defined(_WIN32)
+    #include <Windows.h>
+    #include <wchar.h>
+#endif
+
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
 #include <dlib/sys_internal.h>
@@ -34,8 +39,75 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Re
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
 
-int g_Argc;
-char** g_Argv;
+int     g_Argc = 0;
+char**  g_Argv = 0;
+
+#if defined(_WIN32)
+static bool WidePathToUtf8(const wchar_t* src, char* dst, int dst_len)
+{
+    return WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dst_len, NULL, NULL) > 0;
+}
+
+static bool WideToCodePage(UINT code_page, const wchar_t* src, char* dst, int dst_len)
+{
+    BOOL used_default = FALSE;
+    return WideCharToMultiByte(code_page, WC_NO_BEST_FIT_CHARS, src, -1, dst, dst_len, NULL, &used_default) > 0 && !used_default;
+}
+
+static bool CodePageToWide(UINT code_page, const char* src, wchar_t* dst, int dst_len)
+{
+    return MultiByteToWideChar(code_page, 0, src, -1, dst, dst_len) > 0;
+}
+
+static bool FindAnsiRoundtripSample(wchar_t* sample, uint32_t sample_len)
+{
+    const wchar_t* candidates[] =
+    {
+        L"\x00E9", // e acute
+        L"\x00F6", // o diaeresis
+        L"\x00DF", // sharp s
+        L"\x0416", // Cyrillic
+        L"\x3042", // Japanese Hiragana
+        L"\x65E5", // CJK
+        L"\xD55C", // Korean
+    };
+
+    char acp[16];
+    char utf8[16];
+    wchar_t roundtrip[16];
+
+    for (uint32_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
+    {
+        if (!WideToCodePage(CP_ACP, candidates[i], acp, sizeof(acp)))
+            continue;
+        if (!WidePathToUtf8(candidates[i], utf8, sizeof(utf8)))
+            continue;
+        if (strcmp(acp, utf8) == 0)
+            continue;
+        if (!CodePageToWide(CP_ACP, acp, roundtrip, sizeof(roundtrip) / sizeof(roundtrip[0])))
+            continue;
+        if (wcscmp(roundtrip, candidates[i]) != 0)
+            continue;
+
+        wcscpy_s(sample, sample_len, candidates[i]);
+        return true;
+    }
+
+    return false;
+}
+
+static void WriteWideDebugLine(const wchar_t* prefix, const wchar_t* value)
+{
+    HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (handle == INVALID_HANDLE_VALUE || handle == NULL)
+        return;
+
+    DWORD ignored = 0;
+    WriteConsoleW(handle, prefix, (DWORD)wcslen(prefix), &ignored, NULL);
+    WriteConsoleW(handle, value, (DWORD)wcslen(value), &ignored, NULL);
+    WriteConsoleW(handle, L"'\n", 2, &ignored, NULL);
+}
+#endif
 
 // Unit test helpers
 TEST(dmTestUtil, MakeHostPath)
@@ -170,6 +242,161 @@ TEST(dmSys, GetApplicationSupportPath)
     ASSERT_EQ(dmSys::RESULT_OK, result);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
 }
+
+#if defined(_WIN32)
+TEST(dmSys, GetApplicationSupportPathInternalWideRootSupportsNarrowStdio)
+{
+    // Skip on systems where the ANSI code page is already UTF-8, since the
+    // narrow-path CRT calls may succeed there and not expose the bug.
+    if (GetACP() == CP_UTF8)
+    {
+        dmLogWarning("Skipping GetApplicationSupportPathInternalWideRootSupportsNarrowStdio because the active ANSI code page is UTF-8 (CP_UTF8), which masks the ANSI/UTF-8 path mismatch regression.");
+        SKIP();
+    }
+
+    wchar_t sample[16];
+    if (!FindAnsiRoundtripSample(sample, sizeof(sample) / sizeof(sample[0])))
+    {
+        dmLogWarning("Skipping GetApplicationSupportPathInternalWideRootSupportsNarrowStdio because no non-ASCII sample character roundtrips through the active ANSI code page.");
+        SKIP();
+    }
+
+    wchar_t temp_path[MAX_PATH];
+    DWORD temp_path_len = GetTempPathW(MAX_PATH, temp_path);
+    ASSERT_GT(temp_path_len, 0u);
+    ASSERT_LT(temp_path_len, (DWORD)MAX_PATH);
+
+    wchar_t test_root[MAX_PATH];
+    UINT unique_name_result = GetTempFileNameW(temp_path, L"dfs", 0, test_root);
+    ASSERT_NE(0u, unique_name_result);
+    ASSERT_TRUE(DeleteFileW(test_root) != 0);
+    ASSERT_TRUE(CreateDirectoryW(test_root, NULL) != 0);
+
+    wchar_t unicode_parent[MAX_PATH];
+    wcscpy_s(unicode_parent, MAX_PATH, test_root);
+    wcscat_s(unicode_parent, MAX_PATH, L"\\");
+    wcscat_s(unicode_parent, MAX_PATH, L"support_");
+    wcscat_s(unicode_parent, MAX_PATH, sample);
+    wcscat_s(unicode_parent, MAX_PATH, L"_root");
+    ASSERT_TRUE(CreateDirectoryW(unicode_parent, NULL) != 0);
+    WriteWideDebugLine(L"Created unicode parent (wchar_t): '", unicode_parent);
+
+    wchar_t short_parent[MAX_PATH];
+    DWORD short_parent_len = GetShortPathNameW(unicode_parent, short_parent, MAX_PATH);
+    if (short_parent_len > 0 && short_parent_len < (DWORD)MAX_PATH)
+    {
+        WriteWideDebugLine(L"Expected 8.3 parent (wchar_t): '", short_parent);
+
+        char utf8_short_parent[1024];
+        ASSERT_TRUE(WidePathToUtf8(short_parent, utf8_short_parent, sizeof(utf8_short_parent)));
+        dmLogWarning("Expected 8.3 parent (char): '%s'", utf8_short_parent);
+    }
+    else
+    {
+        dmLogWarning("GetShortPathNameW did not return a short path for the synthetic application-support directory.");
+    }
+
+    char path[1024];
+    dmSys::Result result = dmSys::GetApplicationSupportPath(unicode_parent, "testing", path, sizeof(path));
+    EXPECT_EQ(dmSys::RESULT_OK, result);
+    if (result == dmSys::RESULT_OK)
+    {
+        dmLogWarning("Application support path (char): '%s'", path);
+
+        char file_path[1024];
+        ASSERT_LT(dmStrlCpy(file_path, path, sizeof(file_path)), sizeof(file_path));
+        ASSERT_LT(dmStrlCat(file_path, "/narrow_stdio.bin", sizeof(file_path)), sizeof(file_path));
+        dmLogWarning("Attempting narrow fopen on: '%s'", file_path);
+
+        FILE* f = fopen(file_path, "wb");
+        EXPECT_NE((FILE*)0, f);
+        if (f)
+        {
+            const char payload[] = "ok";
+            fwrite(payload, 1, sizeof(payload), f);
+            fclose(f);
+        }
+    }
+
+    wchar_t unicode_file[MAX_PATH];
+    wcscpy_s(unicode_file, MAX_PATH, unicode_parent);
+    wcscat_s(unicode_file, MAX_PATH, L"\\testing\\narrow_stdio.bin");
+    DeleteFileW(unicode_file);
+
+    wchar_t unicode_child[MAX_PATH];
+    wcscpy_s(unicode_child, MAX_PATH, unicode_parent);
+    wcscat_s(unicode_child, MAX_PATH, L"\\testing");
+    RemoveDirectoryW(unicode_child);
+    RemoveDirectoryW(unicode_parent);
+    RemoveDirectoryW(test_root);
+}
+
+TEST(dmSys, ResourceFunctionsAcceptAnsiCodePagePaths)
+{
+    if (GetACP() == CP_UTF8)
+    {
+        dmLogWarning("Skipping ResourceFunctionsAcceptAnsiCodePagePaths because the active ANSI code page is UTF-8 (CP_UTF8), which masks the ANSI/UTF-8 path mismatch regression.");
+        SKIP();
+    }
+
+    wchar_t sample[16];
+    if (!FindAnsiRoundtripSample(sample, sizeof(sample) / sizeof(sample[0])))
+    {
+        dmLogWarning("Skipping ResourceFunctionsAcceptAnsiCodePagePaths because no non-ASCII sample character roundtrips through the active ANSI code page.");
+        SKIP();
+    }
+
+    wchar_t temp_path[MAX_PATH];
+    DWORD temp_path_len = GetTempPathW(MAX_PATH, temp_path);
+    ASSERT_GT(temp_path_len, 0u);
+    ASSERT_LT(temp_path_len, (DWORD)MAX_PATH);
+
+    wchar_t test_root[MAX_PATH];
+    UINT unique_name_result = GetTempFileNameW(temp_path, L"dfs", 0, test_root);
+    ASSERT_NE(0u, unique_name_result);
+    ASSERT_TRUE(DeleteFileW(test_root) != 0);
+    ASSERT_TRUE(CreateDirectoryW(test_root, NULL) != 0);
+
+    wchar_t unicode_parent[MAX_PATH];
+    wcscpy_s(unicode_parent, MAX_PATH, test_root);
+    wcscat_s(unicode_parent, MAX_PATH, L"\\");
+    wcscat_s(unicode_parent, MAX_PATH, L"resource_");
+    wcscat_s(unicode_parent, MAX_PATH, sample);
+    ASSERT_TRUE(CreateDirectoryW(unicode_parent, NULL) != 0);
+    WriteWideDebugLine(L"Created resource parent (wchar_t): '", unicode_parent);
+
+    wchar_t unicode_file[MAX_PATH];
+    wcscpy_s(unicode_file, MAX_PATH, unicode_parent);
+    wcscat_s(unicode_file, MAX_PATH, L"\\payload.bin");
+
+    const char payload[] = "payload";
+    FILE* wf = _wfopen(unicode_file, L"wb");
+    ASSERT_NE((FILE*)0, wf);
+    fwrite(payload, 1, sizeof(payload), wf);
+    fclose(wf);
+
+    char acp_file_path[1024];
+    ASSERT_TRUE(WideToCodePage(CP_ACP, unicode_file, acp_file_path, sizeof(acp_file_path)));
+    dmLogWarning("ACP resource path (char): '%s'", acp_file_path);
+
+    EXPECT_TRUE(dmSys::ResourceExists(acp_file_path));
+
+    uint32_t resource_size = 0;
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::ResourceSize(acp_file_path, &resource_size));
+    EXPECT_EQ((uint32_t)sizeof(payload), resource_size);
+
+    char buffer[32];
+    memset(buffer, 0, sizeof(buffer));
+    uint32_t loaded_size = 0;
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::LoadResource(acp_file_path, buffer, sizeof(buffer), &loaded_size));
+    EXPECT_EQ((uint32_t)sizeof(payload), loaded_size);
+    EXPECT_EQ(0, memcmp(payload, buffer, sizeof(payload)));
+
+    DeleteFileW(unicode_file);
+    RemoveDirectoryW(unicode_parent);
+    RemoveDirectoryW(test_root);
+}
+#endif
 
 #endif
 

@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
@@ -92,7 +92,7 @@ jobs:
     runs-on: macOS-14 # Apple Silicon (M1)
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
@@ -131,7 +131,7 @@ jobs:
     runs-on: macos-15-intel # Last Intel runner on GitHub Actions
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
@@ -170,7 +170,7 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10

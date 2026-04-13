@@ -28,6 +28,9 @@ import log
 import run
 import re
 import platform
+import json
+import shutil
+import subprocess
 from collections import defaultdict
 
 DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dynamo_home'))
@@ -153,6 +156,14 @@ def _get_version_major_prefix(version):
     if match:
         return match.group(1)
     return version
+
+def _sort_version_strings(values):
+    def _normalize_version(s):
+        if '-ext' in s:
+            s = re.sub(r'-ext\d+$', '', s)
+        return s
+
+    return sorted(values, key=lambda x: tuple(int(token) for token in _normalize_version(x).split('.')), reverse=True)
 
 def _get_host_exe_suffix():
     if sys.platform == 'win32':
@@ -391,10 +402,312 @@ def get_local_compiler_version():
 # Windows
 
 windows_info = None
+windows_info_error = None
+windows_info_trace = None
 
 def _fatal(msg):
     print("sdk.py: %s" % msg)
     sys.exit(1)
+
+def _run_windows_command(args):
+    try:
+        process = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace', check=True)
+        return process.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+def _get_local_vswhere_installations():
+    vswhere_path = _get_local_vswhere_path()
+    if not vswhere_path:
+        return []
+
+    output = _run_windows_command([
+        vswhere_path,
+        '-utf8',
+        '-products', '*',
+        '-format', 'json',
+    ])
+    if not output:
+        return []
+
+    try:
+        installations = json.loads(output)
+    except ValueError:
+        return []
+
+    if not isinstance(installations, list):
+        return []
+
+    def _version_key(installation):
+        version = installation.get('installationVersion', '')
+        if not version:
+            return ()
+        return tuple(int(token) for token in version.split('.'))
+
+    return sorted(installations, key=_version_key, reverse=True)
+
+def _get_common_visual_studio_roots():
+    roots = []
+    for base in filter(None, [os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)')]):
+        for year in ('2022', '2019', '2017'):
+            for edition in ('BuildTools', 'Community', 'Professional', 'Enterprise'):
+                installation_root = os.path.join(base, 'Microsoft Visual Studio', year, edition)
+                if os.path.exists(installation_root):
+                    roots.append(os.path.normpath(installation_root))
+
+    deduped = []
+    for root in roots:
+        if root not in deduped:
+            deduped.append(root)
+    return deduped
+
+def _get_local_vswhere_path():
+    candidates = []
+
+    program_files_x86 = os.environ.get('ProgramFiles(x86)')
+    if program_files_x86:
+        candidates.append(os.path.join(program_files_x86, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe'))
+
+    program_files = os.environ.get('ProgramFiles')
+    if program_files:
+        candidates.append(os.path.join(program_files, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe'))
+
+    which = shutil.which('vswhere.exe') or shutil.which('vswhere')
+    if which:
+        candidates.append(which)
+
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return os.path.normpath(candidate)
+    return None
+
+def _get_windows_sdk_root():
+    for key in ('WindowsSdkDir', 'WindowsSDKDir'):
+        value = os.environ.get(key)
+        if value and os.path.exists(value):
+            return os.path.normpath(value)
+
+    try:
+        import winreg
+
+        access_modes = [0]
+        for access_name in ('KEY_WOW64_32KEY', 'KEY_WOW64_64KEY'):
+            access_mode = getattr(winreg, access_name, None)
+            if access_mode is not None:
+                access_modes.append(access_mode)
+
+        for access_mode in access_modes:
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows Kits\Installed Roots', 0, winreg.KEY_READ | access_mode)
+                value = winreg.QueryValueEx(key, 'KitsRoot10')[0]
+                key.Close()
+                if value and os.path.exists(value):
+                    return os.path.normpath(value)
+            except OSError:
+                pass
+    except ImportError:
+        pass
+
+    program_files_x86 = os.environ.get('ProgramFiles(x86)')
+    if program_files_x86:
+        candidate = os.path.join(program_files_x86, 'Windows Kits', '10')
+        if os.path.exists(candidate):
+            return os.path.normpath(candidate)
+
+    program_files = os.environ.get('ProgramFiles')
+    if program_files:
+        candidate = os.path.join(program_files, 'Windows Kits', '10')
+        if os.path.exists(candidate):
+            return os.path.normpath(candidate)
+
+    return None
+
+def _get_windows_sdk_version(sdk_root):
+    include_root = os.path.join(sdk_root, 'Include')
+    if not os.path.isdir(include_root):
+        return None
+
+    versions = []
+    for version in os.listdir(include_root):
+        version_root = os.path.join(include_root, version)
+        if not os.path.isdir(version_root):
+            continue
+        if not re.match(r'^\d+(\.\d+)+$', version):
+            continue
+
+        required_paths = [
+            os.path.join(version_root, 'ucrt'),
+            os.path.join(version_root, 'winrt'),
+            os.path.join(version_root, 'um'),
+            os.path.join(version_root, 'shared'),
+            os.path.join(sdk_root, 'Lib', version, 'ucrt'),
+            os.path.join(sdk_root, 'Lib', version, 'um'),
+            os.path.join(sdk_root, 'bin', version),
+        ]
+        if all(os.path.exists(path) for path in required_paths):
+            versions.append(version)
+
+    if not versions:
+        return None
+
+    env_version = os.environ.get('WindowsSdkVersion') or os.environ.get('UCRTVersion')
+    if env_version:
+        env_version = env_version.rstrip('\\/')
+        if env_version in versions:
+            return env_version
+
+    return _sort_version_strings(versions)[0]
+
+def _get_windows_msvc_root(installation_root):
+    msvc_root = os.path.join(installation_root, 'VC', 'Tools', 'MSVC')
+    if not os.path.isdir(msvc_root):
+        return None, None
+
+    versions = [version for version in os.listdir(msvc_root)
+                if os.path.isdir(os.path.join(msvc_root, version)) and re.match(r'^\d+(\.\d+)+$', version)]
+    if not versions:
+        return None, None
+
+    for version in _sort_version_strings(versions):
+        vs_root = os.path.join(msvc_root, version)
+        required_paths = [
+            os.path.join(vs_root, 'include'),
+            os.path.join(vs_root, 'lib'),
+            os.path.join(vs_root, 'bin'),
+        ]
+        if all(os.path.exists(path) for path in required_paths):
+            return os.path.normpath(vs_root), version
+
+    return None, None
+
+def _get_windows_llvm_bin_dir(installation_root):
+    llvm_bin_dir = os.path.join(installation_root, 'VC', 'Tools', 'Llvm', 'bin')
+    clang = os.path.join(llvm_bin_dir, 'clang.exe')
+    clangpp = os.path.join(llvm_bin_dir, 'clang++.exe')
+    if os.path.isdir(llvm_bin_dir) and os.path.exists(clang) and os.path.exists(clangpp):
+        return os.path.normpath(llvm_bin_dir)
+    return None
+
+def _log_windows_detection_trace(verbose):
+    global windows_info_trace
+
+    if not verbose or windows_info_trace is None:
+        return
+
+    trace = windows_info_trace
+    log_verbose(verbose, f"  vswhere.exe: {trace.get('vswhere_path')}")
+
+    installations = trace.get('vswhere_installations', [])
+    if installations:
+        log_verbose(verbose, "  vswhere installations:")
+        for installation_root in installations:
+            log_verbose(verbose, f"    {installation_root}")
+    else:
+        log_verbose(verbose, "  vswhere installations: none")
+
+    candidate_roots = trace.get('candidate_roots', [])
+    if candidate_roots:
+        log_verbose(verbose, "  Visual Studio candidate roots:")
+        for installation_root in candidate_roots:
+            log_verbose(verbose, f"    {installation_root}")
+    else:
+        log_verbose(verbose, "  Visual Studio candidate roots: none")
+
+    log_verbose(verbose, f"  Selected Visual Studio installation: {trace.get('installation_root')}")
+    log_verbose(verbose, f"  Selected MSVC root: {trace.get('vs_root')}")
+    log_verbose(verbose, f"  Selected MSVC version: {trace.get('vs_version')}")
+    log_verbose(verbose, f"  Visual Studio LLVM bin dir: {trace.get('llvm_bin_dir')}")
+    log_verbose(verbose, f"  Windows SDK root: {trace.get('sdk_root')}")
+    log_verbose(verbose, f"  Windows SDK version: {trace.get('sdk_version')}")
+
+def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
+    global windows_info
+    global windows_info_error
+    global windows_info_trace
+
+    if windows_info is not None:
+        _log_windows_detection_trace(verbose)
+        return windows_info, None
+
+    if windows_info_error is not None:
+        _log_windows_detection_trace(verbose)
+        return None, windows_info_error
+
+    if sys.platform != 'win32':
+        windows_info_error = 'Local Visual Studio detection is only supported on Windows.'
+        windows_info_trace = {
+            'vswhere_path': None,
+            'vswhere_installations': [],
+            'candidate_roots': [],
+            'vs_root': None,
+            'vs_version': None,
+            'sdk_root': None,
+            'sdk_version': None,
+        }
+        _log_windows_detection_trace(verbose)
+        return None, windows_info_error
+
+    vswhere_path = _get_local_vswhere_path()
+    vswhere_installations = []
+    installation_roots = []
+    for installation in _get_local_vswhere_installations():
+        installation_root = installation.get('installationPath')
+        if installation_root:
+            installation_root = os.path.normpath(installation_root)
+            vswhere_installations.append(installation_root)
+            installation_roots.append(installation_root)
+
+    for installation_root in _get_common_visual_studio_roots():
+        if installation_root not in installation_roots:
+            installation_roots.append(installation_root)
+
+    selected_installation_root = None
+    vs_root = None
+    vs_version = None
+    for installation_root in installation_roots:
+        vs_root, vs_version = _get_windows_msvc_root(installation_root)
+        if vs_root:
+            selected_installation_root = installation_root
+            break
+
+    sdk_root = _get_windows_sdk_root()
+    sdk_version = _get_windows_sdk_version(sdk_root) if sdk_root else None
+    llvm_bin_dir = _get_windows_llvm_bin_dir(selected_installation_root) if selected_installation_root else None
+
+    windows_info_trace = {
+        'vswhere_path': vswhere_path,
+        'vswhere_installations': vswhere_installations,
+        'candidate_roots': installation_roots,
+        'installation_root': selected_installation_root,
+        'vs_root': vs_root,
+        'vs_version': vs_version,
+        'llvm_bin_dir': llvm_bin_dir,
+        'sdk_root': sdk_root,
+        'sdk_version': sdk_version,
+    }
+    _log_windows_detection_trace(verbose)
+
+    errors = []
+    if not installation_roots:
+        errors.append('Visual Studio was not found. Install Visual Studio Community or Build Tools with Desktop development with C++.')
+    elif not vs_root:
+        errors.append('Visual Studio was found, but the MSVC C++ toolchain is missing. Install the MSVC build tools component.')
+
+    if not sdk_root:
+        errors.append('Windows Kits 10 was not found. Install the Windows 10 SDK component.')
+    elif not sdk_version:
+        errors.append(f"Windows Kits 10 was found at '{sdk_root}', but no usable SDK version was found under Include/Lib/bin.")
+
+    if errors:
+        windows_info_error = '\n'.join(errors)
+        return None, windows_info_error
+
+    windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir)
+    return windows_info, None
+
+def win_locale_vswhere(platform='x86_64-win32'):
+    info, _ = _detect_windows_local_sdk(platform)
+    return info
 
 def get_windows_include_dirs(vs_root, sdk_includes_root):
     includes = [os.path.join(vs_root,'include'),
@@ -422,9 +735,12 @@ def get_windows_lib_dirs(vs_root, sdk_libs_root, arch):
 
     return ','.join(libdirs)
 
-def get_windows_bin_dirs(vs_root, sdk_bin_root, arch):
+def get_windows_bin_dirs(vs_root, sdk_bin_root, arch, extra_bin_dirs=None):
     bindirs = [ os.path.join(vs_root,'bin', 'Host%s'%arch, arch),
                 os.path.join(sdk_bin_root, arch)]
+
+    if extra_bin_dirs:
+        bindirs.extend(extra_bin_dirs)
 
     for x in bindirs:
         if not os.path.exists(x):
@@ -432,7 +748,7 @@ def get_windows_bin_dirs(vs_root, sdk_bin_root, arch):
 
     return ','.join(bindirs)
 
-def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform):
+def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir=None):
     arch = 'x64'
     if platform == 'win32':
         arch = 'x86'
@@ -443,7 +759,10 @@ def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform):
 
     includes = get_windows_include_dirs(vs_root, sdk_includes_root)
     lib_paths = get_windows_lib_dirs(vs_root, sdk_libs_root, arch)
-    bin_paths = get_windows_bin_dirs(vs_root, sdk_bin_root, arch)
+    extra_bin_dirs = []
+    if llvm_bin_dir:
+        extra_bin_dirs.append(llvm_bin_dir)
+    bin_paths = get_windows_bin_dirs(vs_root, sdk_bin_root, arch, extra_bin_dirs)
 
     info = {}
     info['sdk_root'] = sdk_root
@@ -451,40 +770,15 @@ def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform):
     info['includes'] = includes
     info['lib_paths'] = lib_paths
     info['bin_paths'] = bin_paths
+    info['llvm_bin_dir'] = llvm_bin_dir
     info['vs_root'] = vs_root
     info['vs_version'] = vs_version
     return info
 
 
 def get_windows_local_sdk_info(platform):
-    global windows_info
-
-    if windows_info is not None:
-        return windows_info
-
-    if sys.platform != 'win32':
-        # we cannot currently use vswhere.exe on this platform
-        # todo: check using `wine`
-        return None
-
-    vswhere_path = '%s/scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DEFOLD_HOME', '.')
-    if not os.path.exists(vswhere_path):
-        vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
-        vswhere_path = os.path.normpath(vswhere_path)
-        if not os.path.exists(vswhere_path):
-            print ("Couldn't find executable '%s'" % vswhere_path)
-            return None
-
-    sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip() # C:\Program Files (x86)\Windows Kits\10\
-    sdk_version = run.shell_command('%s --sdk_version' % vswhere_path).strip()
-    includes = run.shell_command('%s --includes' % vswhere_path).strip()
-    lib_paths = run.shell_command('%s --lib_paths' % vswhere_path).strip()
-    bin_paths = run.shell_command('%s --bin_paths' % vswhere_path).strip()
-    vs_root = run.shell_command('%s --vs_root' % vswhere_path).strip()
-    vs_version = run.shell_command('%s --vs_version' % vswhere_path).strip()
-
-    windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform)
-    return windows_info
+    info, _ = _detect_windows_local_sdk(platform)
+    return info
 
 
 def get_windows_packaged_sdk_info(sdkdir, platform):
@@ -662,9 +956,9 @@ def check_local_sdk(platform, verbose=False):
             raise SDKException(f"Failed to find XCode version")
 
     elif platform in ('win32', 'x86_64-win32'):
-        info = get_windows_local_sdk_info(platform)
+        info, error = _detect_windows_local_sdk(platform, verbose)
         if info is None:
-            raise SDKException(f"Failed to find Visual Studio")
+            raise SDKException(error)
 
     elif platform in ('armv7-android', 'arm64-android'):
         path = get_android_local_sdk_path()
