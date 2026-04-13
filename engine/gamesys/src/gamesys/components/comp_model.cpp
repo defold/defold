@@ -118,7 +118,6 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
-        dmGraphics::HTexture        m_MorphTargetTexture;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
@@ -554,12 +553,6 @@ namespace dmGameSystem
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
-
-        if (item.m_Mesh->m_MorphTargets.m_Count > 0)
-        {
-            const void* cid = component;
-            dmHashUpdateBuffer32(state, &cid, sizeof(cid));
-        }
 
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
@@ -1039,7 +1032,6 @@ namespace dmGameSystem
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
-            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1563,6 +1555,16 @@ namespace dmGameSystem
         }
     }
 
+    static inline dmGraphics::HTexture GetMorphTargetTextureFromResource(const ModelComponent* component, const MeshRenderItem* render_item)
+    {
+        if (!component->m_Resource)
+            return 0;
+        const uint32_t ix = (uint32_t)(render_item - component->m_RenderItems.Begin());
+        if (ix >= component->m_Resource->m_Meshes.Size())
+            return 0;
+        return component->m_Resource->m_Meshes[ix].m_MorphTargetTexture;
+    }
+
     static inline bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
     {
         return render_item->m_Mesh->m_MorphTargets.m_Count > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
@@ -1611,7 +1613,7 @@ namespace dmGameSystem
                 dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
             return;
         }
-        ro->m_Textures[unit] = render_item->m_MorphTargetTexture;
+        ro->m_Textures[unit] = GetMorphTargetTextureFromResource(component, render_item);
 
         if (!ro->m_ConstantBuffer)
         {
@@ -1670,7 +1672,26 @@ namespace dmGameSystem
         return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_InstanceVertexDeclarationSkinned : world->m_InstanceVertexDeclaration;
     }
 
-    static HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world);
+    static HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world)
+    {
+        if (world->m_ScratchConstantBuffers.Size() == world->m_ScratchConstantBuffersCount)
+        {
+            world->m_ScratchConstantBuffers.OffsetCapacity(8);
+            uint32_t size_now = world->m_ScratchConstantBuffers.Size();
+            world->m_ScratchConstantBuffers.SetSize(world->m_ScratchConstantBuffers.Capacity());
+            memset(&world->m_ScratchConstantBuffers[size_now], 0, sizeof(HComponentRenderConstants) * 8);
+        }
+
+        HComponentRenderConstants constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
+        if (constants == 0)
+        {
+            world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount] = dmGameSystem::CreateRenderConstants();
+            constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
+        }
+
+        world->m_ScratchConstantBuffersCount++;
+        return constants;
+    }
 
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
@@ -1884,28 +1905,6 @@ namespace dmGameSystem
             render_item->m_Buffers->m_LastUsedFrame = world->m_CurrentFrameTick;
         }
         world->m_StatisticsVertexCount += ro.m_VertexCount;
-    }
-
-
-    static inline HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world)
-    {
-        if (world->m_ScratchConstantBuffers.Size() == world->m_ScratchConstantBuffersCount)
-        {
-            world->m_ScratchConstantBuffers.OffsetCapacity(8);
-            uint32_t size_now = world->m_ScratchConstantBuffers.Size();
-            world->m_ScratchConstantBuffers.SetSize(world->m_ScratchConstantBuffers.Capacity());
-            memset(&world->m_ScratchConstantBuffers[size_now], 0, sizeof(HComponentRenderConstants) * 8);
-        }
-
-        HComponentRenderConstants constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
-        if (constants == 0)
-        {
-            world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount] = dmGameSystem::CreateRenderConstants();
-            constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
-        }
-
-        world->m_ScratchConstantBuffersCount++;
-        return constants;
     }
 
     static void RenderBatchLocalVSUninstanced(ModelWorld* world, dmRender::HRenderContext render_context,

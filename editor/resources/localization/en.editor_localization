@@ -1778,6 +1778,10 @@ form.label.project.model.max_bone_matrix_texture_width = Max Bone Matrix Tex Wid
 form.help.project.model.max_bone_matrix_texture_width = Max width of the bone matrix texture, 1024 by default
 form.label.project.model.max_bone_matrix_texture_height = Max Bone Matrix Tex Height
 form.help.project.model.max_bone_matrix_texture_height = Max height of the bone matrix texture, 1024 by default
+form.label.project.model.max_morph_target_texture_width = Max Morph Target Tex Width
+form.help.project.model.max_morph_target_texture_width = Max width of each mesh morph-target delta atlas, 1024 by default (capped by GPU max texture size)
+form.label.project.model.max_morph_target_texture_height = Max Morph Target Tex Height
+form.help.project.model.max_morph_target_texture_height = Max height of each mesh morph-target delta atlas, 1024 by default (capped by GPU max texture size)
 
 form.label.project.particle_fx = ParticleFX
 form.help.project.particle_fx = ParticleFX related settings

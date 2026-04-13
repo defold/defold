@@ -129,10 +129,6 @@ namespace dmGameSystem
 
     bool CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count)
     {
-        if (out_weights)
-            *out_weights = 0;
-        if (out_count)
-            *out_count = 0;
         return false;
     }
 

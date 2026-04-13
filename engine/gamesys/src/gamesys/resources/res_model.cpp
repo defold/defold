@@ -19,6 +19,7 @@
 #include "res_render_target.h"
 
 #include "gamesys_private.h"
+#include "gamesys.h"
 
 #include <gamesys/model_ddf.h>
 
@@ -31,8 +32,6 @@
 #include <dmsdk/dlib/transform.h>
 #include <rig/rig.h>
 #include <algorithm> // std::sort
-#include <cstring>
-#include <cstdlib>
 
 namespace dmGameSystem
 {
@@ -240,6 +239,17 @@ namespace dmGameSystem
         }
     }
 
+    static void GetMorphTargetTextureMaxDims(dmGraphics::HContext graphics_context, ModelContext* model_ctx, uint32_t* out_w, uint32_t* out_h)
+    {
+        uint32_t gpu_max = dmGraphics::GetMaxTextureSize(graphics_context);
+        if (gpu_max == 0)
+            gpu_max = 1;
+        uint32_t cfg_w = dmMath::Max(1u, (uint32_t) model_ctx->m_MaxMorphTargetTextureWidth);
+        uint32_t cfg_h = dmMath::Max(1u, (uint32_t) model_ctx->m_MaxMorphTargetTextureHeight);
+        *out_w = dmMath::Min(cfg_w, gpu_max);
+        *out_h = dmMath::Min(cfg_h, gpu_max);
+    }
+
     static void ComputeMorphTextureSize(uint32_t vertex_count, uint32_t max_w, uint32_t max_h, uint32_t* out_w, uint32_t* out_h)
     {
         uint32_t w = 1;
@@ -255,7 +265,8 @@ namespace dmGameSystem
         *out_h = h;
     }
 
-    static dmGraphics::HTexture CreateMorphTargetTexture(dmGraphics::HContext context, const dmRigDDF::Mesh* ddf_mesh)
+    static dmGraphics::HTexture CreateMorphTargetTexture(dmGraphics::HContext context, const dmRigDDF::Mesh* ddf_mesh,
+        const char* filename, uint32_t max_tex_w, uint32_t max_tex_h)
     {
         uint32_t num_morph_targets = ddf_mesh->m_MorphTargets.m_Count;
         assert(num_morph_targets != 0);
@@ -279,13 +290,31 @@ namespace dmGameSystem
 
         uint32_t width;
         uint32_t height;
-        ComputeMorphTextureSize(max_count, 2048, 2048, &width, &height);
+        ComputeMorphTextureSize(max_count, max_tex_w, max_tex_h, &width, &height);
+        if (width > max_tex_w || height > max_tex_h || width * height < max_count)
+        {
+            dmLogError(
+                "Morph target texture for '%s' would need at least %u texels in a %u x %u atlas (per mesh morph limits: %u x %u, GPU max %u). "
+                "Raise model.max_morph_target_texture_width/height in game.project or reduce mesh vertex count.",
+                filename ? filename : "?", (unsigned)max_count, (unsigned)width, (unsigned)height,
+                (unsigned)max_tex_w, (unsigned)max_tex_h, (unsigned)dmGraphics::GetMaxTextureSize(context));
+            return 0;
+        }
 
         dmGraphics::TextureCreationParams params;
         params.m_Type       = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
         params.m_Width      = width;
         params.m_Height     = height;
         params.m_LayerCount = num_morph_targets * 3;
+
+        const uint32_t gpu_max = dmGraphics::GetMaxTextureSize(context);
+        if (width > gpu_max || height > gpu_max)
+        {
+            dmLogError(
+                "Morph target texture for '%s' is %u x %u but the GPU reports max texture size %u.",
+                filename ? filename : "?", (unsigned)width, (unsigned)height, (unsigned)gpu_max);
+            return 0;
+        }
 
         dmGraphics::HTexture tex = dmGraphics::NewTexture(context, params);
         if (!tex)
@@ -365,16 +394,22 @@ namespace dmGameSystem
         return tex;
     }
 
-    static void CreateMorphTargetTextures(dmGraphics::HContext context, ModelResource* resource)
+    static bool CreateMorphTargetTextures(dmGraphics::HContext context, ModelResource* resource, const char* filename,
+        uint32_t max_tex_w, uint32_t max_tex_h)
     {
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];
             if (info.m_Mesh->m_MorphTargets.m_Count > 0)
             {
-                info.m_MorphTargetTexture = CreateMorphTargetTexture(context, info.m_Mesh);
+                info.m_MorphTargetTexture = CreateMorphTargetTexture(context, info.m_Mesh, filename, max_tex_w, max_tex_h);
+                if (!info.m_MorphTargetTexture)
+                {
+                    return false;
+                }
             }
         }
+        return true;
     }
 
     static bool AreAllMaterialsWorldSpace(const ModelResource* resource)
@@ -409,7 +444,8 @@ namespace dmGameSystem
         std::sort(textures, textures + num_textures, pred);
     }
 
-    dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename)
+    dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename,
+        uint32_t max_morph_tex_w, uint32_t max_morph_tex_h)
     {
         dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
         if (result != dmResource::RESULT_OK)
@@ -418,7 +454,11 @@ namespace dmGameSystem
         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         FlattenMeshes(resource, mesh_set);
         CreateBuffers(context, resource);
-        CreateMorphTargetTextures(context, resource);
+        if (!CreateMorphTargetTextures(context, resource, filename, max_morph_tex_w, max_morph_tex_h))
+        {
+            ReleaseResources(context, factory, resource);
+            return dmResource::RESULT_OUT_OF_RESOURCES;
+        }
 
         uint32_t material_count = dmMath::Max(resource->m_Model->m_Materials.m_Count, mesh_set->m_Materials.m_Count);
         resource->m_Materials.SetCapacity(material_count);
@@ -595,17 +635,22 @@ namespace dmGameSystem
 
     dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams* params)
     {
+        ModelContext* model_ctx = (ModelContext*) params->m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(model_ctx->m_RenderContext);
+        uint32_t max_morph_w, max_morph_h;
+        GetMorphTargetTextureMaxDims(graphics_context, model_ctx, &max_morph_w, &max_morph_h);
+
         ModelResource* model_resource = new ModelResource();
         memset(model_resource, 0, sizeof(ModelResource));
         model_resource->m_Model = (dmModelDDF::Model*) params->m_PreloadData;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource, params->m_Filename);
+        dmResource::Result r = AcquireResources(graphics_context, params->m_Factory, model_resource, params->m_Filename, max_morph_w, max_morph_h);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, model_resource);
         }
         else
         {
-            ReleaseResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource);
+            ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
             delete model_resource;
         }
         return r;
@@ -614,7 +659,7 @@ namespace dmGameSystem
     dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params)
     {
         ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
-        ReleaseResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource);
+        ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
         delete model_resource;
         return dmResource::RESULT_OK;
     }
@@ -627,9 +672,14 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_DDF_ERROR;
         }
+        ModelContext* model_ctx = (ModelContext*) params->m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(model_ctx->m_RenderContext);
+        uint32_t max_morph_w, max_morph_h;
+        GetMorphTargetTextureMaxDims(graphics_context, model_ctx, &max_morph_w, &max_morph_h);
+
         ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
-        ReleaseResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource);
+        ReleaseResources(graphics_context, params->m_Factory, model_resource);
         model_resource->m_Model = ddf;
-        return AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource, params->m_Filename);
+        return AcquireResources(graphics_context, params->m_Factory, model_resource, params->m_Filename, max_morph_w, max_morph_h);
     }
 }
