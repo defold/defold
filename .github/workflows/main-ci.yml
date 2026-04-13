@@ -160,7 +160,7 @@ jobs:
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       {
         name: 'Set up Android SDK',
-        uses: defold/github-actions-common/.github/actions/android@main,
+        uses: defold/github-actions-common/.github/actions/android@master,
         with: {
           android-ndk: '25.2.9519653',
           android-api-level: '36',
