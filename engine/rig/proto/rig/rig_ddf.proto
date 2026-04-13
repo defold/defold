@@ -235,9 +235,9 @@ message EventTrack
 
 message MorphWeightTrack
 {
-    required uint64 model_id = 1;
-    required uint32 morph_count = 2;
-    repeated float weights = 3;
+    required uint64 model_id = 1;    // MeshSet Model id (name hash) whose morph targets this track samples
+    required uint32 morph_count = 2; // Morph weights per time sample; stride when indexing weights (must match mesh morph count at runtime)
+    repeated float weights = 3;      // Packed samples: morph_count floats per pose
 }
 
 message RigAnimation

@@ -35,14 +35,25 @@ function init(self)
 	assert_near(w2[1], 0.25)
 	assert_near(w2[2], 0.75)
 
-	model.set_blend_weights("#morph", {})
+	model.set_blend_weights("#morph")
 	local w3 = model.get_blend_weights("#morph")
 	assert_fn(#w3 == 2, "expected 2 morph weights after reset")
 	assert_near(w3[1], 0.0)
 	assert_near(w3[2], 0.0)
 
+	model.set_blend_weights("#morph", { 0.25, 0.75 })
+	model.set_blend_weights("#morph", nil)
+	local w4 = model.get_blend_weights("#morph")
+	assert_fn(#w4 == 2, "expected 2 morph weights after nil reset")
+	assert_near(w4[1], 0.0)
+	assert_near(w4[2], 0.0)
+
 	assert_error(function()
 		model.set_blend_weights("#morph", { 1, "bad" })
+	end)
+
+	assert_error(function()
+		model.set_blend_weights("#morph", {})
 	end)
 
 	blend_weights_script_done = true

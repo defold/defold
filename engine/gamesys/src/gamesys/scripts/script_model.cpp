@@ -858,16 +858,19 @@ namespace dmGameSystem
      * At most as many weights are applied as each mesh has morph targets; extra entries in the table are ignored.
      * Missing weights leave the tail zero-filled for meshes with more targets than entries.
      *
-     * The override is re-applied every frame after animations run, until cleared with an empty table.
+     * The override is re-applied every frame after animations run, until cleared by omitting `weights` or passing `nil`.
+     * To reset the weights, use `model.set_blend_weights(url)` or `model.set_blend_weights(url, nil)`.
      *
      * @name model.set_blend_weights
      * @param url [type:string|hash|url] the model component
-     * @param weights [type:table] array of weight values (1-based indices); use `{}` to clear the override and return morphs to animation only
+     * @param weights [type:table|nil] optional; non-empty array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
      * @examples
      *
      * ```lua
+     * -- set the weights for the first 4 morph targets
      * model.set_blend_weights("#model", { 0, 1, 0.5, 0 })
-     * model.set_blend_weights("#model", {}) -- clear script override
+     * -- clear the override, animation will continue if the weights are driven by an animation
+     * model.set_blend_weights("#model") -- clear script override
      * ```
      */
     static int LuaModelComp_SetBlendWeights(lua_State* L)
@@ -882,12 +885,17 @@ namespace dmGameSystem
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
         }
 
+        if (lua_gettop(L) < 2 || lua_isnil(L, 2))
+        {
+            CompModelResetBlendWeights(component);
+            return 0;
+        }
+
         luaL_checktype(L, 2, LUA_TTABLE);
         const size_t len = lua_objlen(L, 2);
         if (len == 0)
         {
-            CompModelResetBlendWeights(component);
-            return 0;
+            return luaL_error(L, "blend weights table must not be empty (use model.set_blend_weights without weights or pass nil to reset)");
         }
 
         dmArray<float> buffer;

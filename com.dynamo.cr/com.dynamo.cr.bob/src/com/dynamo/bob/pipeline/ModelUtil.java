@@ -211,9 +211,6 @@ public class ModelUtil {
     }
 
     private static void copyKeys(Modelimporter.KeyFrame keys[], int componentSize, List<RigUtil.AnimationKey> outKeys) {
-        if (keys == null) {
-            return;
-        }
         for (Modelimporter.KeyFrame key : keys) {
             RigUtil.AnimationKey outKey = createKey(key.time, false, componentSize);
 
@@ -225,13 +222,9 @@ public class ModelUtil {
         }
     }
 
-    private static void sampleMorphWeightTrack(Rig.RigAnimation.Builder animBuilder, Modelimporter.NodeAnimation nodeAnimation,
-                                               String modelName, double duration, double startTime, double sampleRate) {
-        if (nodeAnimation.morphWeightDimensions <= 0 || nodeAnimation.morphWeightKeyTimes == null ||
-            nodeAnimation.morphWeightKeyValues == null || nodeAnimation.morphWeightKeyTimes.length == 0) {
-            return;
-        }
+    private static void sampleMorphWeightTrack(Rig.MorphWeightTrack.Builder weightTrackBuilder, Modelimporter.NodeAnimation nodeAnimation, double duration, double startTime, double sampleRate, double spf) {
         int dim = nodeAnimation.morphWeightDimensions;
+
         RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
         for (int k = 0; k < nodeAnimation.morphWeightKeyTimes.length; ++k) {
             RigUtil.AnimationKey outKey = createKey(nodeAnimation.morphWeightKeyTimes[k], false, dim);
@@ -241,26 +234,22 @@ public class ModelUtil {
             }
             sparseTrack.keys.add(outKey);
         }
-        double spf = 1.0 / sampleRate;
-        Rig.MorphWeightTrack.Builder mw = Rig.MorphWeightTrack.newBuilder();
-        mw.setModelId(MurmurHash.hash64(modelName));
-        mw.setMorphCount(dim);
-        RigUtil.MorphWeightsBuilder wb = new RigUtil.MorphWeightsBuilder(mw, dim);
+        RigUtil.MorphWeightsBuilder wb = new RigUtil.MorphWeightsBuilder(weightTrackBuilder, dim);
         RigUtil.sampleTrack(sparseTrack, wb, startTime, duration, sampleRate, spf, true);
-        animBuilder.addMorphWeightTracks(mw.build());
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, Modelimporter.NodeAnimation nodeAnimation,
-                                                    String bone_name, double duration, double startTime, double sampleRate) {
+                                                    String nodeName, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         boolean hasTranslation = nodeAnimation.translationKeys != null && nodeAnimation.translationKeys.length > 0;
         boolean hasRotation = nodeAnimation.rotationKeys != null && nodeAnimation.rotationKeys.length > 0;
         boolean hasScale = nodeAnimation.scaleKeys != null && nodeAnimation.scaleKeys.length > 0;
+        boolean hasMorphWeight = nodeAnimation.morphWeightKeyTimes != null && nodeAnimation.morphWeightKeyTimes.length > 0;
 
         if (hasTranslation || hasRotation || hasScale) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneId(MurmurHash.hash64(bone_name));
+            animTrackBuilder.setBoneId(MurmurHash.hash64(nodeName));
 
             {
                 RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
@@ -286,7 +275,15 @@ public class ModelUtil {
             animBuilder.addTracks(animTrackBuilder.build());
         }
 
-        sampleMorphWeightTrack(animBuilder, nodeAnimation, bone_name, duration, startTime, sampleRate);
+        if (hasMorphWeight) {
+            Rig.MorphWeightTrack.Builder weightTrackBuilder = Rig.MorphWeightTrack.newBuilder();
+            weightTrackBuilder.setModelId(MurmurHash.hash64(nodeName));
+            weightTrackBuilder.setMorphCount(nodeAnimation.morphWeightDimensions);
+
+            sampleMorphWeightTrack(weightTrackBuilder, nodeAnimation, duration, startTime, sampleRate, spf);
+
+            animBuilder.addMorphWeightTracks(weightTrackBuilder.build());
+        }
     }
 
     public static void loadAnimations(byte[] content, String suffix, Modelimporter.Options options, ModelImporterJni.DataResolver dataResolver,
@@ -354,10 +351,10 @@ public class ModelUtil {
             // TODO: add the start time to the Animation struct!
             for (Modelimporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
-                boolean has_keys =  (nodeAnimation.translationKeys != null && nodeAnimation.translationKeys.length > 0) ||
-                                    (nodeAnimation.rotationKeys != null && nodeAnimation.rotationKeys.length > 0) ||
-                                    (nodeAnimation.scaleKeys != null && nodeAnimation.scaleKeys.length > 0) ||
-                                    (nodeAnimation.morphWeightKeyTimes != null && nodeAnimation.morphWeightKeyTimes.length > 0);
+                boolean has_keys =  nodeAnimation.translationKeys.length > 0 ||
+                                    nodeAnimation.rotationKeys.length > 0 ||
+                                    nodeAnimation.scaleKeys.length > 0 ||
+                                    nodeAnimation.morphWeightKeyTimes.length > 0;
 
                 if (!has_keys) {
                     System.err.printf("Animation %s contains no keys for node %s\n", animation.name, nodeAnimation.node.name);
@@ -712,17 +709,17 @@ public class ModelUtil {
         if (inMesh.texCoords1 != null) {
             copyFloatArray(inMesh.texCoords1, inIndex, outMesh.texCoords1, outIndex, inMesh.texCoords1NumComponents);
         }
-        if (inMesh.morphTargets != null && outMesh.morphTargets != null) {
+        if (inMesh.morphTargets != null) {
             for (int m = 0; m < inMesh.morphTargets.length; ++m) {
                 MorphTarget si = inMesh.morphTargets[m];
                 MorphTarget di = outMesh.morphTargets[m];
-                if (si.positions != null && di.positions != null) {
+                if (si.positions != null) {
                     copyFloatArray(si.positions, inIndex, di.positions, outIndex, 3);
                 }
-                if (si.normals != null && di.normals != null) {
+                if (si.normals != null) {
                     copyFloatArray(si.normals, inIndex, di.normals, outIndex, 3);
                 }
-                if (si.tangents != null && di.tangents != null) {
+                if (si.tangents != null) {
                     copyFloatArray(si.tangents, inIndex, di.tangents, outIndex, 4);
                 }
             }

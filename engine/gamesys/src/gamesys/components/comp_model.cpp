@@ -147,6 +147,7 @@ namespace dmGameSystem
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
+        /// Script morph weights; applied in ApplyMorphToRenderObject only (rig buffer stays animation-sampled).
         dmArray<float>                   m_BlendWeightsOverride;
         uint16_t                         m_ComponentIndex;
         uint8_t                          m_Enabled : 1;
@@ -1199,8 +1200,6 @@ namespace dmGameSystem
             dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
         }
 
-        component->m_BlendWeightsOverride.SetCapacity(0);
-
         if (component->m_RenderConstants){
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
         }
@@ -1622,7 +1621,12 @@ namespace dmGameSystem
 
         uint32_t wcount = 0;
         const float* w = 0;
-        if (component && component->m_RigInstance)
+        if (component && component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
+        {
+            w = component->m_BlendWeightsOverride.Begin();
+            wcount = component->m_BlendWeightsOverride.Size();
+        }
+        else if (component && component->m_RigInstance)
         {
             w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
         }
@@ -2469,38 +2473,20 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-       static void ApplyBlendWeightsOverrideToRig(ModelComponent* component)
-    {
-        if (!component->m_RigInstance || !component->m_BlendWeightsOverrideActive)
-            return;
-        const float* w = component->m_BlendWeightsOverride.Begin();
-        const uint32_t n = component->m_BlendWeightsOverride.Size();
-        if (n == 0)
-            return;
-        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
-        {
-            MeshRenderItem& ri = component->m_RenderItems[i];
-            if (!ri.m_Mesh || ri.m_Mesh->m_MorphTargets.m_Count == 0)
-                continue;
-            dmRig::SetMorphWeights(component->m_RigInstance, ri.m_Model->m_Id, w, n);
-        }
-    }
-
     void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
     {
-        if (!component)
-            return;
         if (count == 0 || weights == 0)
         {
             CompModelResetBlendWeights(component);
             return;
         }
         if (component->m_BlendWeightsOverride.Capacity() < count)
+        {
             component->m_BlendWeightsOverride.SetCapacity(count);
+        }
         component->m_BlendWeightsOverride.SetSize(count);
         memcpy(component->m_BlendWeightsOverride.Begin(), weights, count * sizeof(float));
         component->m_BlendWeightsOverrideActive = 1;
-        ApplyBlendWeightsOverrideToRig(component);
     }
 
     void CompModelResetBlendWeights(ModelComponent* component)
@@ -2521,7 +2507,24 @@ namespace dmGameSystem
             *out_weights = 0;
         if (out_count)
             *out_count = 0;
-        if (!component || !component->m_RigInstance)
+        if (!component)
+            return false;
+        if (component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
+        {
+            for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+            {
+                MeshRenderItem& ri = component->m_RenderItems[i];
+                if (!ri.m_Mesh || ri.m_Mesh->m_MorphTargets.m_Count == 0)
+                    continue;
+                if (out_weights)
+                    *out_weights = component->m_BlendWeightsOverride.Begin();
+                if (out_count)
+                    *out_count = component->m_BlendWeightsOverride.Size();
+                return true;
+            }
+            return false;
+        }
+        if (!component->m_RigInstance)
             return false;
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
         {
@@ -2595,15 +2598,6 @@ namespace dmGameSystem
         }
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
-
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            ModelComponent& component = *components[i];
-            if (component.m_BlendWeightsOverrideActive)
-            {
-                ApplyBlendWeightsOverrideToRig(&component);
-            }
-        }
 
         WritePoseMatricesToTexture(graphics_context, world);
 

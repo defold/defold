@@ -419,7 +419,9 @@ namespace dmRig
         for (uint32_t i = 0; i < instance->m_MorphSlots.Size(); ++i)
         {
             if (instance->m_MorphSlots[i].m_ModelId == model_id)
+            {
                 return (int32_t)i;
+            }
         }
         return -1;
     }
@@ -428,7 +430,9 @@ namespace dmRig
     {
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
         if (!mesh_set || instance->m_MorphSlots.Empty())
+        {
             return;
+        }
 
         for (uint32_t si = 0; si < instance->m_MorphSlots.Size(); ++si)
         {
@@ -478,16 +482,15 @@ namespace dmRig
     {
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
         if (!mesh_set)
+        {
             return;
-
-        // Ignore corrupt / uninitialized counts (non-null m_Data with garbage m_Count is possible
-        // in tests or bad assets). Real meshes stay well below this bound.
-        static const uint32_t SANITY_MAX_MORPH_TARGETS = 8192u;
+        }
 
         // dmArray::Push requires capacity to be set first (no implicit growth).
         uint32_t slot_count = 0;
         uint32_t total_floats = 0;
         uint32_t max_morph = 0;
+
         for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
         {
             const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
@@ -496,22 +499,25 @@ namespace dmRig
             {
                 const dmRigDDF::Mesh& mm = model->m_Meshes[m];
                 uint32_t c = 0;
-                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0 &&
-                    mm.m_MorphTargets.m_Count <= SANITY_MAX_MORPH_TARGETS)
+                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0)
                 {
                     c = mm.m_MorphTargets.m_Count;
                 }
                 mcount = dmMath::Max(mcount, c);
             }
             if (mcount == 0)
+            {
                 continue;
+            }
             slot_count++;
             total_floats += mcount;
             max_morph = dmMath::Max(max_morph, mcount);
         }
 
         if (slot_count == 0 || total_floats == 0)
+        {
             return;
+        }
 
         instance->m_MorphSlots.SetCapacity(slot_count);
 
@@ -524,8 +530,7 @@ namespace dmRig
             {
                 const dmRigDDF::Mesh& mm = model->m_Meshes[m];
                 uint32_t c = 0;
-                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0 &&
-                    mm.m_MorphTargets.m_Count <= SANITY_MAX_MORPH_TARGETS)
+                if (mm.m_MorphTargets.m_Data != 0x0 && mm.m_MorphTargets.m_Count > 0)
                 {
                     c = mm.m_MorphTargets.m_Count;
                 }
@@ -1675,13 +1680,15 @@ namespace dmRig
 
     const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count)
     {
-        if (out_count)
-            *out_count = 0;
-        if (!instance || !out_count)
+        if (instance == 0x0)
+        {
             return 0x0;
+        }
         int32_t idx = FindMorphSlotIndex(instance, model_id);
         if (idx < 0)
+        {
             return 0x0;
+        }
         const MorphWeightSlot& slot = instance->m_MorphSlots[idx];
         *out_count = slot.m_MorphCount;
         return instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;

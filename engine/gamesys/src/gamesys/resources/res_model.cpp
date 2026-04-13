@@ -257,10 +257,9 @@ namespace dmGameSystem
 
     static dmGraphics::HTexture CreateMorphTargetTexture(dmGraphics::HContext context, const dmRigDDF::Mesh* ddf_mesh)
     {
-        if (ddf_mesh->m_MorphTargets.m_Count == 0)
-            return 0;
-
         uint32_t num_morph_targets = ddf_mesh->m_MorphTargets.m_Count;
+        assert(num_morph_targets != 0);
+
         uint32_t max_count = 0;
         uint32_t base_vertex_count = ddf_mesh->m_Positions.m_Count / 3;
 
