@@ -473,9 +473,6 @@ public class Bob {
                 opt(null, "resource-cache-remote-user", ONE, "Username to authenticate access to the remote resource cache"),
                 opt(null, "resource-cache-remote-pass", ONE, "Password/token to authenticate access to the remote resource cache"),
 
-                opt(null, "manifest-private-key", ONE, "Private key to use when signing manifest and archive"),
-                opt(null, "manifest-public-key", ONE, "Public key to use when signing manifest and archive"),
-
                 opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use"),
 
                 // experimental features

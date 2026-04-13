@@ -4617,9 +4617,9 @@ static void LogFrameBufferError(GLenum status)
         }
         free(gl_texture_ids);
 
-        OpenGLTexture* tex    = new OpenGLTexture();
+        OpenGLTexture* tex           = new OpenGLTexture();
         tex->m_Base.m_Type           = texture_type;
-        tex->m_TextureIds     = static_ids;
+        tex->m_TextureIds            = static_ids;
         tex->m_Base.m_Width          = params.m_Width;
         tex->m_Base.m_Height         = params.m_Height;
         tex->m_Base.m_Depth          = params.m_Depth;
@@ -4929,15 +4929,12 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
+        SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+
         for (int i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
         {
             glBindTexture(type, GetGLHandle(context, tex->m_TextureIds[i]));
             CHECK_GL_ERROR;
-
-            if (!params.m_SubUpdate)
-            {
-                SetTextureParams(_context, texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
-            }
 
             switch (params.m_Format)
             {

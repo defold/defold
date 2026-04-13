@@ -104,8 +104,6 @@ struct ResourceFactory
 
     dmURI::Parts                                 m_UriParts;
 
-    const char*                                  m_PublicKeyPath; // path to game.public.der
-
     dmArray<char>                                m_Buffer;
 
     // Resource manifest
@@ -130,9 +128,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
 const char* BUNDLE_INDEX_FILENAME               = "game.arci";
 const char* BUNDLE_DATA_FILENAME                = "game.arcd";
-const char* BUNDLE_PUBLIC_KEY_FILENAME          = "game.public.der";
-
-
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
 
@@ -237,13 +232,12 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         const char* m_Scheme;
         const char* m_ProviderType;
-        bool        m_CheckPublicKey;
     } type_pairs[] = {
-        {"http", "http", false},
-        {"https", "http", false},
-        {"archive", "archive", true},
-        {"dmanif", "archive", true},
-        {"file", "file", true},
+        {"http", "http"},
+        {"https", "http"},
+        {"archive", "archive"},
+        {"dmanif", "archive"},
+        {"file", "file"},
     };
 
     dmResourceProvider::ArchiveLoaderParams archive_loader_params;
@@ -291,26 +285,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             {
                 // We want access to this later on (mostly for liveupdate, that wants the app ID to use as a folder name for liveupdate content)
                 factory->m_BaseArchiveMount = archive;
-            }
-
-            if (type_pairs[i].m_CheckPublicKey)
-            {
-                size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
-                char* app_path = (char*)alloca(manifest_path_len+1);
-                dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
-                char* app_path_end = strrchr(app_path, '/');
-                if (app_path_end)
-                    *app_path_end = 0;
-                else
-                    app_path[0] = 0; // it only contained a filename
-
-                char public_key_path[DMPATH_MAX_PATH];
-                dmPath::Concat(app_path, BUNDLE_PUBLIC_KEY_FILENAME, public_key_path, DMPATH_MAX_PATH);
-
-                if (dmSys::ResourceExists(public_key_path))
-                {
-                    factory->m_PublicKeyPath = strdup(public_key_path);
-                }
             }
             break;
         }
@@ -415,7 +389,6 @@ void DeleteFactory(HFactory factory)
         factory->m_Resources->Iterate<>(&ResourceIteratorCallback, (void*)0);
     }
 
-    free((void*)factory->m_PublicKeyPath);
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     if (factory->m_ResourceHashToFilename)
@@ -624,11 +597,6 @@ dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGe
     params.m_Recursive              = _params->m_Recursive;
     params.m_IncludeRequestedUrl    = _params->m_IncludeRequestedUrl;
     return dmResourceMounts::GetDependencies(factory->m_Mounts, &params, ResourceDependencyCallback, &ctx);
-}
-
-const char* GetPublicKeyPath(HFactory factory)
-{
-    return factory->m_PublicKeyPath;
 }
 
 dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
