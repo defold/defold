@@ -20,7 +20,7 @@ namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HProgram* program)
     {
-        char error_buffer[1024*4] = {};
+        char error_buffer[1024] = {};
         dmGraphics::HProgram prog = dmGraphics::NewProgram(context, ddf, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {

@@ -58,12 +58,9 @@
 (def ^:private light-icon-shader shaders/basic-texture-color-world-space)
 
 (def ^:private ^:const billboard-circle-segments 32)
-(def ^:private ^:const gizmo-target-pixels 44.0)
+(def ^:private ^:const gizmo-target-pixels 100.0)
 ;; Screen-space half-extent (pixels) for the origin icon quad; world size = scale-factor * this (see camera preview mesh).
 (def ^:private ^:const origin-marker-pixels 8.0)
-
-;; Brighter translucent volume when the light component is selected (see scene-shapes/render-triangles).
-(def ^:private ^:const preview-light-fill-alpha 0.48)
 
 (def ^:private outline-icon "icons/64/Icons_21-Light.png")
 (def ^:private scene-icon "icons/scene/light_omni.png")
@@ -285,6 +282,42 @@
         (conj! [brx bry brz 1.0 0.0 cr cg cb ca])
         (conj! [blx bly blz 0.0 0.0 cr cg cb ca]))))
 
+(defn- fill-solid-billboard-quad!
+  [vbuf ^Vector3d c ^Vector3d right ^Vector3d up h cr cg cb ca]
+  (let [h (double h)
+        cr (double cr)
+        cg (double cg)
+        cb (double cb)
+        ca (double ca)
+        rx (* h (.x right))
+        ry (* h (.y right))
+        rz (* h (.z right))
+        ux (* h (.x up))
+        uy (* h (.y up))
+        uz (* h (.z up))
+        cx (.x c)
+        cy (.y c)
+        cz (.z c)
+        blx (- cx rx ux)
+        bly (- cy ry uy)
+        blz (- cz rz uz)
+        tlx (+ (- cx rx) ux)
+        tly (+ (- cy ry) uy)
+        tlz (+ (- cz rz) uz)
+        trx (+ cx rx ux)
+        try_ (+ cy ry uy)
+        trz (+ cz rz uz)
+        brx (- (+ cx rx) ux)
+        bry (- (+ cy ry) uy)
+        brz (- (+ cz rz) uz)]
+    (-> vbuf
+        (conj-line-vertex! blx bly blz cr cg cb ca)
+        (conj-line-vertex! tlx tly tlz cr cg cb ca)
+        (conj-line-vertex! trx try_ trz cr cg cb ca)
+        (conj-line-vertex! trx try_ trz cr cg cb ca)
+        (conj-line-vertex! brx bry brz cr cg cb ca)
+        (conj-line-vertex! blx bly blz cr cg cb ca))))
+
 ;; Same mesh as scene-tools/move-arrow-vertex-groups (translation move-x/y/z): cone + shaft along +X, length ~100 units.
 (def ^:private directional-arrow-vertex-groups (scene-tools/move-arrow-vertex-groups))
 
@@ -379,6 +412,9 @@
       [(nth c 0) (nth c 1) (nth c 2)])
     [(nth colors/outline-color 0) (nth colors/outline-color 1) (nth colors/outline-color 2)]))
 
+(defn- light-gizmo-selected? [renderable]
+  (#{:self-selected :parent-selected} (:selected renderable)))
+
 (defn- light-rgb [user-data]
   (or (:light-rgb user-data)
       (let [c (:color user-data)]
@@ -415,6 +451,32 @@
             (gl/gl-disable gl GL/GL_BLEND)
             (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)))))))
 
+(defn- render-origin-markers-selection [^GL2 gl render-args renderables n]
+  (assert (= pass/selection (:pass render-args)))
+  (let [n (long n)
+        camera (:camera render-args)
+        vbuf (persistent!
+               (reduce (fn [vbuf ri]
+                         (let [renderable (nth renderables ri)
+                               ^floats pc (scene-picking/picking-id->float-array (long (:picking-id renderable)))
+                               cr (aget pc 0)
+                               cg (aget pc 1)
+                               cb (aget pc 2)
+                               ca (aget pc 3)
+                               ^Vector3d world-translation (:world-translation renderable)
+                               sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
+                               h (* 2.0 (double sf) (double origin-marker-pixels))]
+                           (if-some [axes (billboard-axes world-translation camera)]
+                             (let [[^Vector3d right ^Vector3d up _] axes]
+                               (fill-solid-billboard-quad! vbuf world-translation right up h cr cg cb ca))
+                             vbuf)))
+                       (->color-vtx (* n 6))
+                       (range n)))]
+    (when (pos? (count vbuf))
+      (let [vb (vtx/use-with ::light-origin-selection-quad vbuf outline-shader)]
+        (gl/with-gl-bindings gl render-args [outline-shader vb]
+          (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))))))
+
 (defn- render-point-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
   (let [n (long n)
@@ -422,7 +484,7 @@
         vbuf (persistent!
                (reduce (fn [vbuf ri]
                          (let [renderable (nth renderables ri)]
-                           (if (= :self-selected (:selected renderable))
+                          (if (light-gizmo-selected? renderable)
                              (let [{:keys [color range]} (:user-data renderable)
                                    [cr cg cb] (outline-rgb-for-light renderable color)
                                    ^Vector3d world-translation (:world-translation renderable)
@@ -448,11 +510,9 @@
 
 (defn- render-point-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
-        r0 (first renderables)
-        show-vis (and (= pass/transparent pass) (= :self-selected (:selected r0)))
         show-pick (= pass/selection pass)]
-    (when (or show-vis show-pick)
-      (scene-shapes/render-triangles gl render-args renderables n))))
+    (when show-pick
+      (render-origin-markers-selection gl render-args renderables n))))
 
 (defn- fill-directional-move-arrow-tris-only!
   ([vbuf-tris ^Vector3d p ^Vector3d d-world cr cg cb total-len]
@@ -477,17 +537,29 @@
         (let [^Vector3d w (transform-local-arrow-point R p s (double (nth v 0)) (double (nth v 1)) (double (nth v 2)))]
           (conj-line-vertex! vbuf-lines (.x w) (.y w) (.z w) cr cg cb))))))
 
-(defn- directional-gizmo-selected? [renderable]
-  (#{:self-selected :parent-selected} (:selected renderable)))
-
 (defn- render-directional-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
   (let [n (long n)
         camera (:camera render-args)
+        vbuf-tris (persistent!
+                    (reduce (fn [vbuf ri]
+                              (let [renderable (nth renderables ri)]
+                                (if (light-gizmo-selected? renderable)
+                                  (let [{:keys [color direction]} (:user-data renderable)
+                                        [cr cg cb] (outline-rgb-for-light renderable color)
+                                        ^Vector3d p (:world-translation renderable)
+                                        d (world-dir-from-light renderable direction)
+                                        sf (scene-tools/scale-factor camera (:viewport render-args) p)
+                                        total-len (* (double sf) gizmo-target-pixels)]
+                                    (fill-directional-move-arrow-tris-only! vbuf p d cr cg cb total-len)
+                                    vbuf)
+                                  vbuf)))
+                            (->color-vtx (* (long n) (long directional-arrow-tri-vert-count)))
+                            (range n)))
         vbuf-lines (persistent!
                       (reduce (fn [vbuf ri]
                                 (let [renderable (nth renderables ri)]
-                                  (if (directional-gizmo-selected? renderable)
+                                  (if (light-gizmo-selected? renderable)
                                     (let [{:keys [color direction]} (:user-data renderable)
                                           [cr cg cb] (outline-rgb-for-light renderable color)
                                           ^Vector3d p (:world-translation renderable)
@@ -499,10 +571,19 @@
                                     vbuf)))
                               (->color-vtx (* (long n) (long directional-arrow-line-vert-count)))
                               (range n)))]
-    (when (pos? (count vbuf-lines))
+    (when (or (pos? (count vbuf-tris))
+              (pos? (count vbuf-lines)))
       (gl/gl-enable gl GL/GL_DEPTH_TEST)
       (.glDepthMask gl false)
       (try
+        (when (pos? (count vbuf-tris))
+          (let [vb (vtx/use-with ::light-directional-gizmo-tris vbuf-tris outline-shader)]
+            (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+            (try
+              (gl/with-gl-bindings gl render-args [outline-shader vb]
+                (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf-tris)))
+              (finally
+                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)))))
         (let [vb (vtx/use-with ::light-directional-gizmo-lines vbuf-lines outline-shader)]
           (gl/with-gl-bindings gl render-args [outline-shader vb]
             (.glDrawArrays gl GL/GL_LINES 0 (count vbuf-lines))))
@@ -512,45 +593,21 @@
 
 (defn- render-directional-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
-        r0 (first renderables)
-        show-vis (and (= pass/transparent pass) (directional-gizmo-selected? r0))
         show-pick (= pass/selection pass)]
-    (when (or show-vis show-pick)
-      (let [camera (:camera render-args)
-            [cr cg cb ca] (if show-pick
-                            (let [^floats pc (scene-picking/picking-id->float-array (long (:picking-id r0)))]
-                              [(aget pc 0) (aget pc 1) (aget pc 2) (aget pc 3)])
-                            (let [[lr lg lb] (light-rgb (:user-data r0))]
-                              [lr lg lb (double preview-light-fill-alpha)]))]
-        (doseq [renderable renderables]
-          (let [vbuf (persistent!
-                       (reduce (fn [vbuf _]
-                                 (let [{:keys [direction]} (:user-data renderable)
-                                       ^Vector3d p (:world-translation renderable)
-                                       d (world-dir-from-light renderable direction)
-                                       sf (scene-tools/scale-factor camera (:viewport render-args) p)
-                                       total-len (* (double sf) gizmo-target-pixels)]
-                                   (fill-directional-move-arrow-tris-only! vbuf p d cr cg cb total-len ca)
-                                   vbuf))
-                               (->color-vtx (long directional-arrow-tri-vert-count))
-                               [0]))
-                vb (vtx/use-with ::light-directional-volume-tris vbuf outline-shader)]
-            (gl/with-gl-bindings gl render-args [outline-shader vb]
-              (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))))))))
+    (when show-pick
+      (render-origin-markers-selection gl render-args renderables n))))
 
 (defn- render-spot-outline [^GL2 gl render-args renderables n]
   (assert (= pass/outline (:pass render-args)))
-  (when (= :self-selected (:selected (first renderables)))
+  (when (light-gizmo-selected? (first renderables))
     (render-light-gizmo-lines gl render-args renderables n))
   (render-origin-markers-billboard gl render-args renderables n))
 
 (defn- render-spot-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
-        r0 (first renderables)
-        show-vis (and (= pass/transparent pass) (= :self-selected (:selected r0)))
         show-pick (= pass/selection pass)]
-    (when (or show-vis show-pick)
-      (scene-shapes/render-triangles gl render-args renderables n))))
+    (when show-pick
+      (render-origin-markers-selection gl render-args renderables n))))
 
 (def ^:private render-point-outline-scaled (wrap-uniform-scale render-point-outline))
 (def ^:private render-point-volume-scaled (wrap-uniform-scale render-point-volume))
@@ -586,7 +643,6 @@
                      :range range
                      :point-scale ps
                      :double-sided true
-                     :preview-fill-alpha preview-light-fill-alpha
                      :geometry scene-shapes/capsule-triangles)
             out-ud (assoc base-user-data :range range)]
         {:node-id _node-id
