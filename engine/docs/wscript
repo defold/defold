@@ -209,10 +209,10 @@ def apidoc_extract_task(bld, root, paths):
             # write merged extracted docs to build/foo.apidoc
             bld(source = [], target = apidoc, rule = write_doc)
             
-            # convert .apidoc to to target formats and install to dynamo_home
+            # convert .apidoc to target formats and install to dynamo_home
             for target_format in target_formats:
                 target_file = '%s_doc.%s' % (filename_key, target_format)
-                bld(source = apidoc, target = target_file, rule = 'python ${SCRIPT_DOC} ${SRC} ${TGT}')
+                bld(source = apidoc, target = target_file, rule = ('python ${SCRIPT_DOC} -t %s ${SRC} ${TGT}') % target_format)
                 bld(source = target_file, rule = install_file)
 
 
