@@ -1979,6 +1979,8 @@ static dmRigDDF::MeshSet* NewMorphMeshSet(uint64_t model_id, uint32_t morph_coun
     model.m_Meshes.m_Count = 1;
     model.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
     dmRigDDF::Mesh& mesh = model.m_Meshes.m_Data[0];
+    memset(&mesh, 0, sizeof(mesh));
+
     mesh.m_AabbMin = Vector3(-1.0f, -1.0f, -1.0f);
     mesh.m_AabbMax = Vector3(1.0f, 1.0f, 1.0f);
     mesh.m_MorphTargets.m_Count = morph_count;
