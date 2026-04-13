@@ -63,16 +63,19 @@
 (def ^:private ^:const origin-marker-pixels 8.0)
 
 (def ^:private outline-icon "icons/64/Icons_21-Light.png")
-(def ^:private scene-icon "icons/scene/light_omni.png")
 
-(def ^:private light-icon-gpu-texture
+(defn- make-icon-gpu-texture-delay [request-id icon-resource-pathname]
   (delay
     (texture/image-texture
-      ::light-scene-view-icon
-      (image-util/read-image (io/resource scene-icon))
+      request-id
+      (image-util/read-image (io/resource icon-resource-pathname))
       (merge texture/default-image-texture-params
              {:min-filter gl/linear
               :mag-filter gl/linear}))))
+
+(def ^:private icon-omni-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-omni-gpu-texture "icons/scene/light_omni.png"))
+(def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
+(def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
 
 ;; Property inspector and form choicebox: [value label] pairs (see editor.properties-view/make-control-view :choicebox).
 (def ^:private light-type-options
@@ -420,9 +423,9 @@
       (let [c (:color user-data)]
         [(double (nth c 0 1.0)) (double (nth c 1 1.0)) (double (nth c 2 1.0))])))
 
-(defn- render-origin-markers-billboard [^GL2 gl render-args renderables n]
+(defn- render-origin-markers-billboard [^GL2 gl render-args renderables icon-gpu-texture]
   (assert (= pass/outline (:pass render-args)))
-  (let [n (long n)
+  (let [n (count renderables)
         camera (:camera render-args)
         vbuf (persistent!
                (reduce (fn [vbuf ri]
@@ -438,14 +441,13 @@
                        (->tex-color-vtx (* n 6))
                        (range n)))]
     (when (pos? (count vbuf))
-      (let [vb (vtx/use-with ::light-origin-icon vbuf light-icon-shader)
-            gpu-tex @light-icon-gpu-texture]
+      (let [vb (vtx/use-with ::light-origin-icon vbuf light-icon-shader)]
         (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
         (gl/gl-enable gl GL/GL_BLEND)
         (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
         (try
-          (gl/with-gl-bindings gl render-args [light-icon-shader vb gpu-tex]
-            (shader/set-samplers-by-index light-icon-shader gl 0 (:texture-units gpu-tex))
+          (gl/with-gl-bindings gl render-args [light-icon-shader vb icon-gpu-texture]
+            (shader/set-samplers-by-index light-icon-shader gl 0 (:texture-units icon-gpu-texture))
             (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))
           (finally
             (gl/gl-disable gl GL/GL_BLEND)
@@ -506,7 +508,7 @@
             (.glDrawArrays gl GL/GL_LINES 0 (count vbuf))))
         (finally
           (gl/gl-disable gl GL/GL_DEPTH_TEST))))
-    (render-origin-markers-billboard gl render-args renderables n)))
+    (render-origin-markers-billboard gl render-args renderables @icon-omni-gpu-texture-delay)))
 
 (defn- render-point-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
@@ -589,7 +591,7 @@
             (.glDrawArrays gl GL/GL_LINES 0 (count vbuf-lines))))
         (finally
           (gl/gl-disable gl GL/GL_DEPTH_TEST))))
-    (render-origin-markers-billboard gl render-args renderables n)))
+    (render-origin-markers-billboard gl render-args renderables @icon-sun-gpu-texture-delay)))
 
 (defn- render-directional-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
@@ -601,7 +603,7 @@
   (assert (= pass/outline (:pass render-args)))
   (when (light-gizmo-selected? (first renderables))
     (render-light-gizmo-lines gl render-args renderables n))
-  (render-origin-markers-billboard gl render-args renderables n))
+  (render-origin-markers-billboard gl render-args renderables @icon-spot-gpu-texture-delay))
 
 (defn- render-spot-volume [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)
