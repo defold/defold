@@ -808,6 +808,18 @@ namespace dmGameSystem
 
     static const uint32_t MAX_MORPH_WEIGHT_INSTANCE_VEC4 = 8;
 
+    static void FillMorphWeightsVector4Slots(const float* weights, uint32_t weight_count, dmVMath::Vector4* out, uint32_t num_vec4_slots)
+    {
+        for (uint32_t s = 0; s < num_vec4_slots; ++s)
+        {
+            const uint32_t base = s * 4;
+            out[s].setX(base + 0 < weight_count ? weights[base + 0] : 0.0f);
+            out[s].setY(base + 1 < weight_count ? weights[base + 1] : 0.0f);
+            out[s].setZ(base + 2 < weight_count ? weights[base + 2] : 0.0f);
+            out[s].setW(base + 3 < weight_count ? weights[base + 3] : 0.0f);
+        }
+    }
+
     static void PrepareMorphInstanceWeightStreams(MeshRenderItem* render_item, uint32_t morph_vec4_slots,
         dmVMath::Vector4* packed, const float** channel_ptrs)
     {
@@ -1610,18 +1622,6 @@ namespace dmGameSystem
             }
         }
         return -1;
-    }
-
-    static void FillMorphWeightsVector4Slots(const float* weights, uint32_t weight_count, dmVMath::Vector4* out, uint32_t num_vec4_slots)
-    {
-        for (uint32_t s = 0; s < num_vec4_slots; ++s)
-        {
-            const uint32_t base = s * 4;
-            out[s].setX(base + 0 < weight_count ? weights[base + 0] : 0.0f);
-            out[s].setY(base + 1 < weight_count ? weights[base + 1] : 0.0f);
-            out[s].setZ(base + 2 < weight_count ? weights[base + 2] : 0.0f);
-            out[s].setW(base + 3 < weight_count ? weights[base + 3] : 0.0f);
-        }
     }
 
     static bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
