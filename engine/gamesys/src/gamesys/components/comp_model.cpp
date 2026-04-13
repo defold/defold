@@ -1099,7 +1099,7 @@ namespace dmGameSystem
         }
         else if (rig_resource->m_AnimationSetRes)
         {
-            dmLogWarning("Model has animations but no skeleton set (e.g. morph-only clips still use the animation set).");
+            dmLogWarning("Model has animations but no skeleton set. Only morph target animations will be used.");
         }
         create_params.m_AnimationSet = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_MeshSet      = rig_resource->m_MeshSetRes->m_MeshSet;
