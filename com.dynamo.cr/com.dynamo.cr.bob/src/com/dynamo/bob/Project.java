@@ -1982,7 +1982,16 @@ public class Project {
                 Future<Void> future = executor.submit(() -> {
                     try (var downloadProgress = split.subtask()) {
                         TimeProfiler.start("Lib %2d", index);
-                        downloadProgress.message(new IProgress.Message.DownloadingArchive(URI.create(url.toString())));
+                        URI progressUri;
+                        String basicAuthData = null;
+                        try {
+                            URI uri = new URI(url.toString());
+                            progressUri = new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(), null, uri.getFragment());
+                            basicAuthData = uri.getUserInfo();
+                        } catch (URISyntaxException e1) {
+                            progressUri = URI.create(url.getProtocol() + "://" + url.getHost() + url.getPath());
+                        }
+                        downloadProgress.message(new IProgress.Message.DownloadingArchive(progressUri));
                         BundleHelper.throwIfCanceled(progress);
 
                         TimeProfiler.addData("url", url.toString());
@@ -1999,15 +2008,6 @@ public class Project {
                                 etag = String.format("\"%s\"", etag); // fixing broken etag
                                 connection.addRequestProperty("If-None-Match", etag);
                             }
-                        }
-
-                        // Check if URL contains basic auth credentials
-                        String basicAuthData = null;
-                        try {
-                            URI uri = new URI(url.toString());
-                            basicAuthData = uri.getUserInfo();
-                        } catch (URISyntaxException e1) {
-                            // Ignored, could not get URI and basic auth data from URL.
                         }
 
                         // Check if basic auth password is a token that should be replaced with

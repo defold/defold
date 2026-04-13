@@ -20,6 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ import org.junit.Test;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.IProgress;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
@@ -60,6 +62,14 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 
 public class ProjectTest {
+    private static final class RecordingReporter implements Progress.Reporter {
+        private final List<IProgress.Message> messages = new ArrayList<>();
+
+        @Override
+        public void report(IProgress.Message message, double fraction) {
+            messages.add(message);
+        }
+    }
 
     private class MockProject extends Project {
         public HashMap<String,String> env;
@@ -197,6 +207,34 @@ public class ProjectTest {
         assertEquals(filenames.size(), _304Count.get());
 
         System.out.printf("testResolve end");
+    }
+
+    @Test
+    public void testResolveProgressSanitizesCredentialUrls() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        URI originalUri = null;
+        for (URL url : libraryUrls) {
+            URI uri = url.toURI();
+            if ("user:secret".equals(uri.getUserInfo()) && "/test_lib5.zip".equals(uri.getPath())) {
+                originalUri = uri;
+                break;
+            }
+        }
+
+        this.project.resolveLibUrls(new Progress(reporter));
+
+        URI progressUri = null;
+        for (IProgress.Message message : reporter.messages) {
+            if (message instanceof IProgress.Message.DownloadingArchive(URI uri)) {
+                if ("localhost".equals(uri.getHost()) && "/test_lib5.zip".equals(uri.getPath())) {
+                    progressUri = uri;
+                    break;
+                }
+            }
+        }
+
+        assertEquals(new URI("http://user:secret@localhost:8081/test_lib5.zip"), originalUri);
+        assertEquals(new URI("http://localhost:8081/test_lib5.zip"), progressUri);
     }
 
     @Test

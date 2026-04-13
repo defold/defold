@@ -111,7 +111,7 @@ public final class Progress implements IProgress {
 
     @Override
     public ISplit split(long parts) {
-        return new Split(this, Rational.ONE, parts);
+        return new Split(this, parts);
     }
 
     @Override
@@ -119,7 +119,7 @@ public final class Progress implements IProgress {
         return reporter.isCanceled();
     }
 
-    private Rational complete(Rational requestedCapacity) {
+    private Rational consume(Rational requestedCapacity) {
         var transition = updateState(state, currentState -> currentState.consume(requestedCapacity));
         if (transition.changed()) {
             report(transition.newState());
@@ -133,22 +133,21 @@ public final class Progress implements IProgress {
 
     private static Rational consume(IProgress progress, Rational requestedCapacity) {
         return switch (progress) {
-            case Progress parent -> parent.complete(requestedCapacity);
+            case Progress parent -> parent.consume(requestedCapacity);
             case SubProgress parent -> parent.consume(requestedCapacity, false);
             default -> throw new IllegalStateException("Unsupported progress parent");
         };
     }
 
-    private record Split(IProgress parent, Rational totalCapacity, long parts) implements ISplit {
-        private Split(IProgress parent, Rational totalCapacity, long parts) {
+    private record Split(IProgress parent, long parts) implements ISplit {
+        private Split(IProgress parent, long parts) {
             this.parent = parent;
-            this.totalCapacity = totalCapacity;
             this.parts = Math.max(0L, parts);
         }
 
         @Override
         public void worked(long requestedParts) {
-            consume(capacityForParts(requestedParts));
+            Progress.consume(parent, capacityForParts(requestedParts));
         }
 
         @Override
@@ -156,11 +155,12 @@ public final class Progress implements IProgress {
             return new SubProgress(parent,  capacityForParts(requestedParts));
         }
 
-        private void consume(Rational requestedCapacity) {
-            Progress.consume(parent, requestedCapacity);
-        }
-
         private Rational capacityForParts(long requestedParts) {
+            var totalCapacity = switch (parent) {
+                case Progress _ -> Rational.ONE;
+                case SubProgress subProgress -> subProgress.totalCapacity;
+                default -> throw new IllegalStateException("Unsupported progress parent");
+            };
             if (requestedParts <= 0L || parts <= 0L || totalCapacity.isZero()) {
                 return Rational.ZERO;
             }
@@ -194,7 +194,7 @@ public final class Progress implements IProgress {
 
         @Override
         public ISplit split(long parts) {
-            return new Split(this, totalCapacity, parts);
+            return new Split(this, parts);
         }
 
         @Override
