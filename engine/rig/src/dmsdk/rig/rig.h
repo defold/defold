@@ -213,8 +213,6 @@ namespace dmRig
     const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count);
     /** Copy up to slot_count weights into the morph buffer for \a model_id; remaining slots are zeroed. */
     void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count);
-    /** Re-sample morph weights from mesh defaults and the current animation cursor (if playing), without advancing playback. */
-    void RefreshMorphWeights(HRigInstance instance);
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2);
 
     // Util function used to fill a bind pose array from skeleton data

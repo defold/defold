@@ -159,7 +159,4 @@ namespace dmRig
 
     void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
     { }
-
-    void RefreshMorphWeights(HRigInstance instance)
-    { }
 }

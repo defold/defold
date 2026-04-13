@@ -147,7 +147,7 @@ namespace dmGameSystem
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
-        /// Script morph weights; applied in ApplyMorphToRenderObject only (rig buffer stays animation-sampled).
+        /// Script morph weights - applied in ApplyMorphToRenderObject.
         dmArray<float>                   m_BlendWeightsOverride;
         uint16_t                         m_ComponentIndex;
         uint8_t                          m_Enabled : 1;
@@ -1563,10 +1563,9 @@ namespace dmGameSystem
         }
     }
 
-    static bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
+    static inline bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
     {
-        return render_item && render_item->m_MorphTargetTexture && render_item->m_Mesh->m_MorphTargets.m_Count > 0
-            && dmRender::GetMaterialHasMorphTargetsSampler(material);
+        return render_item->m_Mesh->m_MorphTargets.m_Count > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
     }
 
     static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
@@ -1603,10 +1602,10 @@ namespace dmGameSystem
                 dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
             return;
         }
-        if (!dmRender::SetMaterialSampler(material,
-                dmRender::SAMPLER_MORPH_TARGETS, (uint32_t)unit,
-                dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
+
+        if (!dmRender::SetMaterialSampler(material, dmRender::SAMPLER_MORPH_TARGETS, (uint32_t) unit,
+            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
         {
             dmLogOnceError("Unable to bind morph_targets texture for component '%s', does the material declare sampler 'morph_targets'?",
                 dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
@@ -1621,18 +1620,20 @@ namespace dmGameSystem
 
         uint32_t wcount = 0;
         const float* w = 0;
-        if (component && component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
+        if (component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
         {
             w = component->m_BlendWeightsOverride.Begin();
             wcount = component->m_BlendWeightsOverride.Size();
         }
-        else if (component && component->m_RigInstance)
+        else if (component->m_RigInstance)
         {
             w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
         }
-        const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
-        if ((!w || wcount == 0) && mesh->m_MorphBaseWeights.m_Count > 0)
+
+        // Fallback to base weights (written DDF data)
+        if (!w || wcount == 0)
         {
+            const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
             w = mesh->m_MorphBaseWeights.m_Data;
             wcount = mesh->m_MorphBaseWeights.m_Count;
         }
@@ -1643,14 +1644,8 @@ namespace dmGameSystem
             scratch.SetCapacity(shader_vec4_slots);
         }
         scratch.SetSize(shader_vec4_slots);
-        if (w && wcount > 0)
-        {
-            FillMorphWeightsVector4Slots(w, wcount, scratch.Begin(), shader_vec4_slots);
-        }
-        else
-        {
-            memset(scratch.Begin(), 0, shader_vec4_slots * sizeof(dmVMath::Vector4));
-        }
+        FillMorphWeightsVector4Slots(w, wcount, scratch.Begin(), shader_vec4_slots);
+
         dmRender::SetNamedConstant(ro->m_ConstantBuffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, scratch.Begin(), shader_vec4_slots);
     }
 
@@ -1789,7 +1784,7 @@ namespace dmGameSystem
                             &material_infos,
                             attribute_infos,
                             GetRenderMaterialCoordinateSpace(render_material));
-                
+
                 if (instance_render_item->m_DynamicVertexAttributesDirty)
                 {
                     SetMeshAttributeRenderData(world, component,
@@ -1975,7 +1970,7 @@ namespace dmGameSystem
                         component->m_Resource->m_Materials[material_index].m_Attributes,
                         component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
-                
+
                 if (render_item->m_DynamicVertexAttributesDirty)
                 {
                     SetMeshAttributeRenderData(world, component,
@@ -2387,7 +2382,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pose_matrix_count; ++i)
         {
             const dmVMath::Matrix4& matrix = pose_matrix_read_ptr[i];
-            
+
             // Store the first 3 columns as Vector4 (RGBA format)
             // Each matrix takes 3 pixels: [col0, col1, col2]
             // The translation is in column 3, and we reconstruct the 4th column as (0,0,0,1)
@@ -2475,11 +2470,6 @@ namespace dmGameSystem
 
     void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
     {
-        if (count == 0 || weights == 0)
-        {
-            CompModelResetBlendWeights(component);
-            return;
-        }
         if (component->m_BlendWeightsOverride.Capacity() < count)
         {
             component->m_BlendWeightsOverride.SetCapacity(count);
@@ -2495,50 +2485,39 @@ namespace dmGameSystem
             return;
         component->m_BlendWeightsOverrideActive = 0;
         component->m_BlendWeightsOverride.SetSize(0);
-        if (component->m_RigInstance)
-        {
-            dmRig::RefreshMorphWeights(component->m_RigInstance);
-        }
     }
 
+    // If true, out_weights and out_count are written
     bool CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count)
     {
-        if (out_weights)
-            *out_weights = 0;
-        if (out_count)
-            *out_count = 0;
-        if (!component)
-            return false;
-        if (component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
+        // 1. Check overrides first
+        if (component->m_BlendWeightsOverrideActive)
         {
-            for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
-            {
-                MeshRenderItem& ri = component->m_RenderItems[i];
-                if (!ri.m_Mesh || ri.m_Mesh->m_MorphTargets.m_Count == 0)
-                    continue;
-                if (out_weights)
-                    *out_weights = component->m_BlendWeightsOverride.Begin();
-                if (out_count)
-                    *out_count = component->m_BlendWeightsOverride.Size();
-                return true;
-            }
+            *out_weights = component->m_BlendWeightsOverride.Begin();
+            *out_count = component->m_BlendWeightsOverride.Size();
+            return true;
+        }
+
+        if (!component->m_RigInstance)
+        {
             return false;
         }
-        if (!component->m_RigInstance)
-            return false;
-        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+
+        uint32_t n = component->m_RenderItems.Size();
+        for (uint32_t i = 0; i < n; ++i)
         {
-            MeshRenderItem& ri = component->m_RenderItems[i];
-            if (!ri.m_Mesh || ri.m_Mesh->m_MorphTargets.m_Count == 0)
+            MeshRenderItem& render_item = component->m_RenderItems[i];
+            if (render_item.m_Mesh->m_MorphTargets.m_Count == 0)
+            {
                 continue;
+            }
+
             uint32_t wc = 0;
-            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, ri.m_Model->m_Id, &wc);
+            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, render_item.m_Model->m_Id, &wc);
             if (w && wc > 0)
             {
-                if (out_weights)
-                    *out_weights = w;
-                if (out_count)
-                    *out_count = wc;
+                *out_weights = w;
+                *out_count = wc;
                 return true;
             }
         }
@@ -3226,7 +3205,7 @@ namespace dmGameSystem
         {
             const MeshRenderItem& item = component->m_RenderItems[idx];
             dmVMath::Vector3 mesh_position = component->m_RenderItems[idx].m_Model->m_Local.GetTranslation();
-            
+
             dmVMath::Vector3 transformed_min = mesh_position + item.m_AabbMin;
             dmVMath::Vector3 transformed_max = mesh_position + item.m_AabbMax;
 

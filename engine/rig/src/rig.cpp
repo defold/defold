@@ -1694,47 +1694,6 @@ namespace dmRig
         return instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
     }
 
-    void RefreshMorphWeights(HRigInstance instance)
-    {
-        RigInstance* inst = (RigInstance*)instance;
-        if (!inst || inst->m_MorphSlots.Empty())
-            return;
-        ResetMorphWeightsToBase(inst);
-        if (!IsAnimating(inst))
-            return;
-        RigPlayer* player = GetPlayer(inst);
-        if (!player)
-            return;
-        if (inst->m_Blending)
-        {
-            float fade_rate = inst->m_BlendTimer / inst->m_BlendDuration;
-            float alpha = 1.0f;
-            for (uint32_t pi = 0; pi < 2; ++pi)
-            {
-                RigPlayer* p = &inst->m_Players[pi];
-                float blend_weight = fade_rate;
-                if (player != p)
-                {
-                    blend_weight = 1.0f - fade_rate;
-                }
-                (void)blend_weight;
-                ApplyMorphAnimation(inst, p, alpha);
-                if (player == p)
-                {
-                    alpha = 1.0f - fade_rate;
-                }
-                else
-                {
-                    alpha = fade_rate;
-                }
-            }
-        }
-        else
-        {
-            ApplyMorphAnimation(inst, player, 1.0f);
-        }
-    }
-
     void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
     {
         if (!instance || !weights || count == 0)
