@@ -61,8 +61,8 @@ import org.junit.runners.Parameterized.Parameters;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.util.FileUtil;
@@ -348,7 +348,7 @@ public class BundlerTest {
 
         setProjectProperties(project);
 
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
+        List<TaskResult> result = project.build(Progress.discarding(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
@@ -445,7 +445,7 @@ public class BundlerTest {
         setProjectProperties(project);
 
         try {
-            project.build(new NullProgress(), "bundle");
+            project.build(Progress.discarding(), "bundle");
             fail("Expected bundle output under build directory to be rejected.");
         } catch (CompileExceptionError e) {
             assertTrue(e.getMessage().contains(outputDir));
@@ -800,7 +800,7 @@ public class BundlerTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
         setProjectProperties(project);
 
-        List<TaskResult> buildResult = project.build(new NullProgress(), "clean", "build");
+        List<TaskResult> buildResult = project.build(Progress.discarding(), "clean", "build");
         for (TaskResult taskResult : buildResult) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
@@ -812,7 +812,7 @@ public class BundlerTest {
         String libName = platform.getLibPrefix() + "testlib" + platform.getLibSuffix();
         createFile(platformBinaryDir.getAbsolutePath(), libName, "mock_library_content");
 
-        List<TaskResult> bundleResult = project.build(new NullProgress(), "bundle");
+        List<TaskResult> bundleResult = project.build(Progress.discarding(), "bundle");
         for (TaskResult taskResult : bundleResult) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
