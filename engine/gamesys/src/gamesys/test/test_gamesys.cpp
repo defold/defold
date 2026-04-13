@@ -31,6 +31,9 @@
 #include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_ttf.h"
 #include "gamesys/resources/res_textureset.h"
+#include "../components/comp_model.h"
+
+#include <render/render.h>
 
 #include <stdio.h>
 
@@ -93,6 +96,7 @@ namespace dmGameSystem
     extern uint16_t GetSpriteComponentAnimationIndex(void* sprite_component);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count);
+    extern void GetModelWorldDebugLastLocalInstanceBuffer(void* model_world, const uint8_t** out_data, uint32_t* out_size);
     extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
     extern void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
@@ -7799,6 +7803,88 @@ TEST_F(ModelTest, BlendWeightsScript)
 // should generate the corresponding batch types. In this case the .gltf file
 // has two sub-meshes (RenderItems) with one world space material and one
 // local space material. Hence there should be one of each batch rendered.
+static uint16_t ModelTest_FindInstanceMorphWeightsByteOffset(dmGraphics::HVertexDeclaration inst_decl)
+{
+    if (!inst_decl)
+    {
+        return UINT16_MAX;
+    }
+    for (uint32_t i = 0; i < inst_decl->m_StreamCount; ++i)
+    {
+        if (inst_decl->m_Streams[i].m_NameHash == dmRender::VERTEX_STREAM_MORPH_WEIGHTS)
+        {
+            return inst_decl->m_Streams[i].m_Offset;
+        }
+    }
+    return UINT16_MAX;
+}
+
+TEST_F(ModelTest, InstancedMorphUsesPerInstanceWeights)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/model/morph_instanced_batch.goc", dmHashString64("/morph_a"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/model/morph_instanced_batch.goc", dmHashString64("/morph_b"), 0, Point3(3, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, go_a);
+    ASSERT_NE((dmGameObject::HInstance)0, go_b);
+
+    uint32_t              component_type = 0;
+    dmGameObject::HComponent comp_a = 0;
+    dmGameObject::HComponent comp_b = 0;
+    dmGameObject::HComponentWorld w0 = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go_a, dmHashString64("model"), &component_type, &comp_a, &w0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go_b, dmHashString64("model"), &component_type, &comp_b, &w0));
+
+    float wa[] = {1.0f, 0.0f};
+    float wb[] = {0.0f, 1.0f};
+    dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*)comp_a, wa, DM_ARRAY_SIZE(wa));
+    dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*)comp_b, wb, DM_ARRAY_SIZE(wb));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    dmGraphics::HVertexBuffer      vx_buf = 0;
+    dmGraphics::HVertexDeclaration vx_decl = 0;
+    dmGraphics::HVertexDeclaration inst_decl = 0;
+    dmGameSystem::GetModelComponentAttributeRenderData(comp_a, 0, &vx_buf, &vx_decl, &inst_decl);
+
+    const uint16_t morph_offset = ModelTest_FindInstanceMorphWeightsByteOffset(inst_decl);
+    ASSERT_NE(UINT16_MAX, morph_offset);
+    const uint32_t inst_stride = dmGraphics::GetVertexDeclarationStride(inst_decl);
+    ASSERT_GT(inst_stride, morph_offset);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    uint8_t world_batch_count = 0;
+    uint8_t local_batch_count = 0;
+    uint8_t local_instanced_batch_count = 0;
+    dmGameSystem::GetModelWorldRenderBatchStats(model_world, &world_batch_count, &local_batch_count, &local_instanced_batch_count);
+    ASSERT_EQ(1, (int)local_instanced_batch_count);
+
+    const uint8_t* inst_data = 0;
+    uint32_t       inst_size = 0;
+    dmGameSystem::GetModelWorldDebugLastLocalInstanceBuffer(model_world, &inst_data, &inst_size);
+    ASSERT_NE((const uint8_t*)0, inst_data);
+    ASSERT_EQ(2u * inst_stride, inst_size);
+
+    const float* row0 = (const float*)(inst_data + morph_offset);
+    ASSERT_NEAR(1.0f, row0[0], 1e-4f);
+    ASSERT_NEAR(0.0f, row0[1], 1e-4f);
+
+    const float* row1 = (const float*)(inst_data + inst_stride + morph_offset);
+    ASSERT_NEAR(0.0f, row1[0], 1e-4f);
+    ASSERT_NEAR(1.0f, row1[1], 1e-4f);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, MultiMaterialVertexSpaceRenderBatching)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

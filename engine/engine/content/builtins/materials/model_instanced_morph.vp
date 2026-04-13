@@ -1,0 +1,39 @@
+#version 140
+
+// Instanced model vertex shader with morph targets: per-instance weights are
+// passed as vertex attributes (semantic SEMANTIC_TYPE_MORPH_WEIGHTS, step instance).
+// Declare `in vec4 morph_weights` (name hashes to engine stream `morph_weights`).
+// Bind sampler "morph_targets" like a standard morph material.
+// Do not use uniform morph_targets_weights for instanced draws — use instance attributes.
+
+in highp vec4 position;
+in mediump vec2 texcoord0;
+in mediump vec3 normal;
+
+in mediump mat4 mtx_world;
+in mediump mat4 mtx_normal;
+
+in mediump vec4 morph_weights;
+
+out highp vec4 var_position;
+out mediump vec3 var_normal;
+out mediump vec2 var_texcoord0;
+
+uniform vs_uniforms
+{
+    mediump mat4 mtx_view;
+    mediump mat4 mtx_proj;
+};
+
+uniform sampler2D morph_targets;
+
+void main()
+{
+    vec4 d = texture(morph_targets, vec2(0.0));
+    vec3 morphed = position.xyz + morph_weights.xyz * 1e-6 + d.xyz * 1e-9;
+    vec4 p = mtx_view * mtx_world * vec4(morphed, 1.0);
+    var_position = p;
+    var_texcoord0 = texcoord0;
+    var_normal = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
+    gl_Position = mtx_proj * p;
+}

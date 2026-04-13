@@ -85,3 +85,7 @@ cp build/default/model/morph_blend_weights.rigscenec ../model/morph_blend_weight
 cp build/default/model/morph_weights_anim.meshsetc ../model/morph_weights_anim.prebuilt_meshsetc
 cp build/default/model/morph_weights_anim.skeletonc ../model/morph_weights_anim.prebuilt_skeletonc
 cp build/default/model/morph_weights_anim_generated_0.animationsetc ../model/morph_weights_anim_generated_0.prebuilt_animationsetc
+
+# Instanced morph weights (SEMANTIC_TYPE_MORPH_WEIGHTS on instance step)
+cp build/default/model/morph_instanced.modelc ../model/morph_instanced.prebuilt_modelc
+cp build/default/model/morph_instanced.rigscenec ../model/morph_instanced.prebuilt_rigscenec

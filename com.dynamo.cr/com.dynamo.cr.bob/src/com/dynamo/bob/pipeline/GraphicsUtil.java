@@ -29,7 +29,7 @@ public class GraphicsUtil {
 
     public static boolean isEngineProvidedAttributeSemanticType(VertexAttribute.SemanticType semanticType) {
         switch (semanticType) {
-            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX, SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D -> {
+            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX, SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D, SEMANTIC_TYPE_MORPH_WEIGHTS -> {
                 // The engine will always provide a value for these.
                 return true;
             }

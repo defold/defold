@@ -1269,6 +1269,37 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
     DestroyVertexAttributeInfos(attribute_infos);
 }
 
+TEST_F(dmGraphicsTest, VertexAttributeMorphWeightsEngineProvidedData)
+{
+    float morph_0[] = { 0.1f, 0.2f, 0.3f, 0.4f };
+    float morph_1[] = { 0.5f, 0.6f, 0.7f, 0.8f };
+
+    dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 2);
+
+    AddAttribute(attribute_infos, morph_0, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_WEIGHTS, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    AddAttribute(attribute_infos, morph_1, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_WEIGHTS, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+
+    dmGraphics::VertexAttributeInfo* infos_mut = (dmGraphics::VertexAttributeInfo*) attribute_infos.m_Infos;
+    infos_mut[0].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    infos_mut[1].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    attribute_infos.m_VertexStride = sizeof(float) * 8;
+
+    const float* morph_channels[] = { morph_0, morph_1 };
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &attribute_infos;
+    params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_MorphWeights, morph_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 2, true);
+
+    float actual[8] = {};
+    dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+
+    ASSERT_NEAR(0.1f, actual[0], EPSILON);
+    ASSERT_NEAR(0.8f, actual[7], EPSILON);
+
+    DestroyVertexAttributeInfos(attribute_infos);
+}
+
 // position, color and tangent should have one as W, if there is not enough source data to copy from
 TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
 {

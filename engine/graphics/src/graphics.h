@@ -191,6 +191,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
         WriteAttributeStreamDesc    m_TextureTransform2D;
+        WriteAttributeStreamDesc    m_MorphWeights;
         VertexStepFunction          m_StepFunction;
     };
 
