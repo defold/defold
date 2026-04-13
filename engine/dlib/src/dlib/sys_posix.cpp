@@ -164,7 +164,7 @@ namespace dmSys
         if (!app)
         {
             // For unit tests
-            dmSnPrintf(path, path_len, "/data/local/tmp", DM_HOSTFS);
+            dmSnPrintf(path, path_len, "/data/local/tmp");
             return RESULT_OK;
         }
 

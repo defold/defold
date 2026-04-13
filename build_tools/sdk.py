@@ -273,19 +273,7 @@ def get_android_local_sdk_path(verbose=False):
 
     raise SDKException(f"Path {path} not found")
 
-def _get_android_local_ndk_env_path(verbose=False):
-    for var_name in ('ANDROID_NDK_HOME', 'ANDROID_NDK_ROOT'):
-        path = os.environ.get(var_name, None)
-        if path and os.path.exists(path):
-            log_verbose(verbose, f"  Detected ndk path from {var_name}: {path}")
-            return path
-    return None
-
 def get_android_local_ndk_path(platform, verbose=False):
-    # path = _get_android_local_ndk_env_path(verbose)
-    # if path:
-    #     return path
-
     sdk_root = get_android_local_sdk_path(verbose)
     ndk_root = os.path.join(sdk_root, 'ndk')
     if not os.path.exists(ndk_root):
