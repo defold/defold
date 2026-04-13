@@ -2038,11 +2038,4 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Null);
         return fn_table;
     }
-
-#if defined(DM_PLATFORM_IOS)
-    void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-    }
-#endif
-
 }
