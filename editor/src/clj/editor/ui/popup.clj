@@ -53,8 +53,7 @@
     (doseq [{:keys [key type]} setting-descriptors
             :when (and key (not (contains? hidden-settings key)))
             :let [prefs-path (conj prefs-prefix key)]]
-      (println key prefs-path)
-      (prefs/set! prefs prefs-path (:default (prefs/schema prefs prefs-path))))
+      (prefs/set! prefs prefs-path (prefs/default-value-at prefs prefs-path)))
     (when on-change-fn (on-change-fn nil))))
 
 (defn make-popup
@@ -202,17 +201,22 @@
       (ensure-focus-traversable!))
     (wrap-in-hbox [label text-field])))
 
-(defn- reset-button [localization settings-binding on-reset-fn]
-  (let [button (doto (Button. (localization (localization/message "scene-popup.reset-defaults-button")))
-                 (.setPrefWidth Double/MAX_VALUE))
+(declare settings)
+
+(defn- reset-button [keymap localization settings-binding ^PopupControl popup setting-descriptors hidden-settings button-text]
+  (let [button (Button. button-text)
         reset-fn
         (fn [^ActionEvent event]
+          (reset-all! settings-binding)
           (let [target ^Node (.getTarget event)
-                parent (.getParent target)]
-            (reset-all! settings-binding)
-            (on-reset-fn)))]
+                parent (.getParent (.getParent target)) ;; Button is nested inside an HBox
+                [rows _controls] (settings keymap localization settings-binding popup setting-descriptors hidden-settings)]
+            (doto parent
+              (ui/children! (ui/node-array rows))
+              (.requestFocus))))]
     (doto button
       (ui/on-action! reset-fn)
+      (HBox/setHgrow Priority/ALWAYS)
       (ensure-focus-traversable!))
     (doto (wrap-in-hbox [button])
       (ui/add-style! "reset-button"))))
@@ -242,21 +246,21 @@
   (let [visible-descriptors (remove (fn [{:keys [key]}] (contains? hidden-settings key)) setting-descriptors)
         [rows controls]
         (reduce (fn [[rows controls] descriptor]
-                  (let [key (:key descriptor)
-                        ;; NOTE: Reset button needs to redraw the UI so pass in all the deps
-                        row (if (= key :reset-all)
-                              (reset-button localization settings-binding
-                                            #(setting-row keymap localization settings-binding popup descriptor))
-                              (setting-row keymap localization settings-binding popup descriptor))
-                        children (.getChildren ^HBox row)]
-                    (when-let [style-class (:style-class descriptor)]
-                      (ui/add-style! row style-class))
-                    (let [first-child (first children)]
-                      (HBox/setHgrow first-child Priority/ALWAYS)
-                      (.setMaxWidth ^Region first-child Double/MAX_VALUE))
-                    (doseq [child (rest children)]
-                      (HBox/setHgrow child Priority/NEVER))
-                    [(conj rows row) (cond-> controls key (assoc key children))]))
+                  (if (= :reset-all (:type descriptor))
+                    (let [button-text (localization (localization/message "scene-popup.reset-defaults-button"))
+                          reset-btn (reset-button keymap localization settings-binding popup visible-descriptors hidden-settings button-text)]
+                      [(conj rows reset-btn) controls])
+                    (let [key (:key descriptor)
+                          row (setting-row keymap localization settings-binding popup descriptor)
+                          children (.getChildren ^HBox row)]
+                      (when-let [style-class (:style-class descriptor)]
+                        (ui/add-style! row style-class))
+                      (let [first-child (first children)]
+                        (HBox/setHgrow first-child Priority/ALWAYS)
+                        (.setMaxWidth ^Region first-child Double/MAX_VALUE))
+                      (doseq [child (rest children)]
+                        (HBox/setHgrow child Priority/NEVER))
+                      [(conj rows row) (cond-> controls key (assoc key children))])))
                 [[] {}]
                 visible-descriptors)]
     [rows controls]))

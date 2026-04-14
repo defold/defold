@@ -98,7 +98,7 @@
         .popup-settings {
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
-            -fx-padding: 5px 12px 5px 12px;
+            -fx-padding: 7px 14px 7px 14px;
 
             HBox {
                 -fx-spacing: 5px;
@@ -129,10 +129,6 @@
                 -fx-background-radius: 0;
                 -fx-border-radius: 0;
                 -fx-pref-width: 32px;
-            }
-
-            .first-entry {
-                -fx-padding: -15px 0px 0px 0px;
             }
 
             .text-input {
@@ -175,9 +171,8 @@
             }
 
             .reset-button {
-                -fx-padding: 0px;
-                Label {
-                    -fx-padding: 100px;
+                .button {
+                    -fx-max-width: 500px;
                 }
             }
 

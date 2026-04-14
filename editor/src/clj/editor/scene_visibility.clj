@@ -37,6 +37,7 @@
 
 (def ^:private renderable-tag-toggles-info
   (cond-> [{:type :toggle :label "scene-popup.scene-visibility.visibility-filters" :tag :visibility-filters-enabled? :command :scene.visibility.toggle-filters :always-enabled true}
+           {:type :space}
            #_{:label "scene-popup.scene-visibility.gui-elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
            {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :tag :collision-shape :style-class "compact-toggle"}
            {:type :toggle :label "scene-popup.scene-visibility.camera" :tag :camera :style-class "compact-toggle"}
@@ -330,7 +331,6 @@
                                          ;; NOTE: On close, free the references to the GUI nodes
                                          (g/set-property! scene-visibility :ui-check-boxes nil)))]
     (when controls
-      (ui/add-style! (first (:visibility-filters-enabled? controls)) "first-entry")
       (g/update-property! scene-visibility :ui-check-boxes assoc
                           :visibility-filter-check-box (last (:visibility-filters-enabled? controls))
                           :component-guide-check-box (last (:outline controls))
