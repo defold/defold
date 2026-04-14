@@ -570,8 +570,15 @@ namespace dmRig
         for (uint32_t d = 0; d < dim; ++d)
         {
             uint32_t i0 = sample * dim + d;
-            uint32_t i1 = i0 + dim;
-            out_weights[d] = data[i0] + fraction * (data[i1] - data[i0]);
+            if (sample + 1 < num_poses)
+            {
+                uint32_t i1 = i0 + dim;
+                out_weights[d] = data[i0] + fraction * (data[i1] - data[i0]);
+            }
+            else
+            {
+                out_weights[d] = data[i0];
+            }
         }
     }
 
