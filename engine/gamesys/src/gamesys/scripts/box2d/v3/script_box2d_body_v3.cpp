@@ -13,10 +13,12 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
+#include <string.h>
 
 
 #include <box2d/box2d.h>
 
+#include <dlib/array.h>
 #include <dlib/log.h>
 #include <gameobject/script.h>
 
@@ -24,7 +26,7 @@
 #include "gamesys_private.h"
 #include "components/comp_collision_object.h"
 
-#include "../script_box2d.h"
+#include "script_box2d_v3.h"
 
 extern "C"
 {
@@ -36,24 +38,35 @@ extern "C"
 // b2Body
 namespace dmGameSystem
 {
-
     static uint32_t TYPE_HASH_BODY = 0;
 
     #define BOX2D_TYPE_NAME_BODY "b2body"
 
     struct B2DLuaBody
     {
-        b2BodyId*                 m_Body;
+        b2BodyId                  m_Body;
         dmGameObject::HCollection m_Collection;
         dmhash_t                  m_InstanceId;
+        uint32_t                  m_InstanceGeneration;
     };
 
     void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
         B2DLuaBody* luabody   = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
-        luabody->m_Body       = (b2BodyId*) body;
+        luabody->m_Body       = *(b2BodyId*) body;
         luabody->m_Collection = collection;
         luabody->m_InstanceId = instance_id;
+        luabody->m_InstanceGeneration = 0;
+
+        if (instance_id)
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, instance_id);
+            if (instance)
+            {
+                luabody->m_InstanceGeneration = dmGameObject::GetGeneration(instance);
+            }
+        }
+
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
@@ -78,6 +91,52 @@ namespace dmGameSystem
         return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
     }
 
+    static void PushTransform(lua_State* L, const b2Transform& transform)
+    {
+        lua_newtable(L);
+
+        dmScript::PushVector3(L, FromB2(transform.p, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "position");
+
+        lua_pushnumber(L, b2Rot_GetAngle(transform.q));
+        lua_setfield(L, -2, "angle");
+    }
+
+    static void PushMassData(lua_State* L, const b2MassData& mass_data)
+    {
+        lua_newtable(L);
+
+        lua_pushnumber(L, mass_data.mass);
+        lua_setfield(L, -2, "mass");
+
+        dmScript::PushVector3(L, FromB2(mass_data.center, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "center");
+
+        lua_pushnumber(L, mass_data.rotationalInertia);
+        lua_setfield(L, -2, "inertia");
+    }
+
+    static b2MassData CheckMassData(lua_State* L, int index)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        b2MassData mass_data = {};
+
+        lua_getfield(L, index, "mass");
+        mass_data.mass = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "center");
+        mass_data.center = CheckVec2(L, -1, GetPhysicsScale());
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "inertia");
+        mass_data.rotationalInertia = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+
+        return mass_data;
+    }
+
     static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
     {
         return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
@@ -88,10 +147,15 @@ namespace dmGameSystem
         if (luabody->m_InstanceId) // check if the instance is alive
         {
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance)
+            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
             {
                 return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
             }
+        }
+
+        if (!b2Body_IsValid(luabody->m_Body))
+        {
+            return luaL_error(L, "Invalid b2body handle.");
         }
         return 0;
     }
@@ -100,12 +164,90 @@ namespace dmGameSystem
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         VerifyBodyInternal(L, luabody);
-        return luabody->m_Body;
+        return &luabody->m_Body;
     }
 
     static b2BodyId* ToBody(lua_State* L, int index)
     {
-        return (b2BodyId*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
+        B2DLuaBody* luabody = (B2DLuaBody*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
+        return luabody ? &luabody->m_Body : 0;
+    }
+
+    static int GetShapeCount(b2BodyId body)
+    {
+        return b2Body_GetShapeCount(body);
+    }
+
+    b2ShapeId GetShapeByIndex(b2BodyId body, int shape_index)
+    {
+        if (shape_index <= 0)
+        {
+            return b2_nullShapeId;
+        }
+
+        const int shape_count = GetShapeCount(body);
+        if (shape_index > shape_count)
+        {
+            return b2_nullShapeId;
+        }
+
+        dmArray<b2ShapeId> shapes;
+        shapes.SetCapacity(shape_count);
+        shapes.SetSize(shape_count);
+        b2Body_GetShapes(body, shapes.Begin(), shape_count);
+        return shapes[shape_index - 1];
+    }
+
+    static int GetShapeIndex(b2BodyId body, b2ShapeId shape)
+    {
+        const int shape_count = GetShapeCount(body);
+        if (shape_count == 0)
+        {
+            return 0;
+        }
+
+        dmArray<b2ShapeId> shapes;
+        shapes.SetCapacity(shape_count);
+        shapes.SetSize(shape_count);
+        b2Body_GetShapes(body, shapes.Begin(), shape_count);
+        for (int i = 0; i < shape_count; ++i)
+        {
+            if (B2_ID_EQUALS(shapes[i], shape))
+            {
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+
+    static void PushShapeInfo(lua_State* L, b2ShapeId shape, int shape_index)
+    {
+        lua_newtable(L);
+
+        lua_pushinteger(L, shape_index);
+        lua_setfield(L, -2, "index");
+
+        lua_pushinteger(L, NormalizeShapeTypeForLua(b2Shape_GetType(shape)));
+        lua_setfield(L, -2, "type");
+
+        lua_pushboolean(L, b2Shape_IsSensor(shape));
+        lua_setfield(L, -2, "sensor");
+
+        lua_pushnumber(L, b2Shape_GetDensity(shape));
+        lua_setfield(L, -2, "density");
+
+        lua_pushnumber(L, b2Shape_GetFriction(shape));
+        lua_setfield(L, -2, "friction");
+
+        lua_pushnumber(L, b2Shape_GetRestitution(shape));
+        lua_setfield(L, -2, "restitution");
+
+        lua_pushinteger(L, 1);
+        lua_setfield(L, -2, "child_count");
+
+        b2ChainId parent_chain = b2Shape_GetParentChain(shape);
+        lua_pushboolean(L, b2Chain_IsValid(parent_chain));
+        lua_setfield(L, -2, "is_chain_segment");
     }
 
     static int Body_GetPosition(lua_State* L)
@@ -113,6 +255,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
         dmScript::PushVector3(L, FromB2(b2Body_GetPosition(*body), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        PushTransform(L, b2Body_GetTransform(*body));
         return 1;
     }
 
@@ -180,13 +330,42 @@ namespace dmGameSystem
         return 1;
     }
 
-    // Old name: use Body_GetInertia
-    static int Body_GetRotationalInertia(lua_State* L)
+    static int Body_GetInertia(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
         lua_pushnumber(L, b2Body_GetRotationalInertia(*body));
         return 1;
+    }
+
+    // Old name: use Body_GetInertia
+    static int Body_GetRotationalInertia(lua_State* L)
+    {
+        return Body_GetInertia(L);
+    }
+
+    static int Body_GetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        PushMassData(L, b2Body_GetMassData(*body));
+        return 1;
+    }
+
+    static int Body_SetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Body_SetMassData(*body, CheckMassData(L, 2));
+        return 0;
+    }
+
+    static int Body_ResetMassData(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        b2Body_ApplyMassFromShapes(*body);
+        return 0;
     }
 
     static int Body_GetAngle(lua_State* L)
@@ -215,6 +394,109 @@ namespace dmGameSystem
         b2BodyId* body = CheckBody(L, 1);
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalCenterOfMass(*body), GetInvPhysicsScale()));
         return 1;
+    }
+
+    static int Body_GetWorldCenter(lua_State* L)
+    {
+        return Body_GetWorldCenterOfMass(L);
+    }
+
+    static int Body_GetLocalCenter(lua_State* L)
+    {
+        return Body_GetLocalCenterOfMass(L);
+    }
+
+    static int Body_GetForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(b2Body_GetTotalForce(*body), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetShapes(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+
+        const int shape_count = GetShapeCount(*body);
+        dmArray<b2ShapeId> shapes;
+        shapes.SetCapacity(shape_count);
+        shapes.SetSize(shape_count);
+        b2Body_GetShapes(*body, shapes.Begin(), shape_count);
+
+        lua_newtable(L);
+        for (int i = 0; i < shape_count; ++i)
+        {
+            PushShapeInfo(L, shapes[i], i + 1);
+            lua_rawseti(L, -2, i + 1);
+        }
+        return 1;
+    }
+
+    static int Body_CreateShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2BodyId* body = CheckBody(L, 1);
+        B2DShapeDef shape_def = {};
+        b2ShapeDef shape_create_def = b2DefaultShapeDef();
+        CheckShapeCreateDef(L, 2, &shape_def, &shape_create_def);
+        shape_create_def.userData = b2Body_GetUserData(*body);
+
+        b2ShapeId shape = b2_nullShapeId;
+        switch (shape_def.m_Type)
+        {
+            case B2DShapeDef::TYPE_CIRCLE:
+                shape = b2CreateCircleShape(*body, &shape_create_def, &shape_def.m_Circle);
+                break;
+            case B2DShapeDef::TYPE_CAPSULE:
+                shape = b2CreateCapsuleShape(*body, &shape_create_def, &shape_def.m_Capsule);
+                break;
+            case B2DShapeDef::TYPE_SEGMENT:
+                shape = b2CreateSegmentShape(*body, &shape_create_def, &shape_def.m_Segment);
+                break;
+            case B2DShapeDef::TYPE_POLYGON:
+                shape = b2CreatePolygonShape(*body, &shape_create_def, &shape_def.m_Polygon);
+                break;
+        }
+
+        if (!b2Shape_IsValid(shape))
+        {
+            return luaL_error(L, "Could not create shape. The world may be locked.");
+        }
+
+        int shape_index = GetShapeIndex(*body, shape);
+        if (shape_index == 0)
+        {
+            b2DestroyShape(shape, true);
+            return luaL_error(L, "Could not resolve created shape.");
+        }
+
+        PushShapeInfo(L, shape, shape_index);
+        return 1;
+    }
+
+    static int Body_DestroyShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2BodyId* body = CheckBody(L, 1);
+        int shape_index = luaL_checkinteger(L, 2);
+        b2ShapeId shape = GetShapeByIndex(*body, shape_index);
+        if (!b2Shape_IsValid(shape))
+        {
+            return luaL_error(L, "shape_index %d out of range.", shape_index);
+        }
+
+        b2ChainId parent_chain = b2Shape_GetParentChain(shape);
+        if (b2Chain_IsValid(parent_chain))
+        {
+            b2DestroyChain(parent_chain);
+        }
+        else
+        {
+            b2DestroyShape(shape, true);
+        }
+        return 0;
     }
 
     static int Body_GetLinearVelocity(lua_State* L)
@@ -374,6 +656,11 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Body_IsSleepingAllowed(lua_State* L)
+    {
+        return Body_IsSleepingEnabled(L);
+    }
+
     // Old name: Body_SetSleepingAllowed
     static int Body_EnableSleep(lua_State* L)
     {
@@ -382,6 +669,11 @@ namespace dmGameSystem
         bool enable = lua_toboolean(L, 2);
         b2Body_EnableSleep(*body, enable);
         return 0;
+    }
+
+    static int Body_SetSleepingAllowed(lua_State* L)
+    {
+        return Body_EnableSleep(L);
     }
 
     static int Body_IsActive(lua_State* L)
@@ -500,21 +792,23 @@ namespace dmGameSystem
 
     static const luaL_reg Body_functions[] =
     {
+        {"create_shape", Body_CreateShape},
         {"get_position", Body_GetPosition},
+        {"get_transform", Body_GetTransform},
         {"set_transform", Body_SetTransform},
 
         //{"get_user_data", Body_GetUserData}, - could return the game object id ? ur url?
         //{"set_user_data", Body_SetUserData}, - could attach the body to a game object?
 
         {"get_mass", Body_GetMass},
+        {"get_inertia", Body_GetInertia},
         {"get_rotational_inertia", Body_GetRotationalInertia},
+        {"get_mass_data", Body_GetMassData},
+        {"set_mass_data", Body_SetMassData},
+        {"reset_mass_data", Body_ResetMassData},
         {"get_angle", Body_GetAngle},
-
-        // {"get_mass_data", Body_GetMassData},
-        // {"set_mass_data", Body_SetMassData},
-        // {"reset_mass_data", Body_ResetMassData},
-        // {"synchronize_fixtures", SynchronizeFixtures},
-        // SynchronizeSingle(b2Shape* shape, int32 index)
+        {"get_shapes", Body_GetShapes},
+        {"destroy_shape", Body_DestroyShape},
 
         {"get_linear_velocity", Body_GetLinearVelocity},
         {"set_linear_velocity", Body_SetLinearVelocity},
@@ -539,6 +833,8 @@ namespace dmGameSystem
 
         {"is_sleeping_enabled", Body_IsSleepingEnabled},
         {"enable_sleep", Body_EnableSleep},
+        {"is_sleeping_allowed", Body_IsSleepingAllowed},
+        {"set_sleeping_allowed", Body_SetSleepingAllowed},
 
         {"is_active", Body_IsActive},
         {"set_active", Body_SetActive},
@@ -550,7 +846,10 @@ namespace dmGameSystem
         {"set_type", Body_SetType},
 
         {"get_world_center_of_mass", Body_GetWorldCenterOfMass},
+        {"get_world_center", Body_GetWorldCenter},
         {"get_local_center_of_mass", Body_GetLocalCenterOfMass},
+        {"get_local_center", Body_GetLocalCenter},
+        {"get_force", Body_GetForce},
 
         {"get_world_point", Body_GetWorldPoint},
         {"get_world_vector", Body_GetWorldVector},
@@ -567,10 +866,6 @@ namespace dmGameSystem
 
         {"apply_linear_impulse", Body_ApplyLinearImpulse},
         {"apply_angular_impulse", Body_ApplyAngularImpulse},
-
-        // {"GetFixtureList",GetFixtureList},
-        // {"GetContactList",GetContactList},
-        // {"GetJointList",GetJointList},
 
         {"get_world", Body_GetWorld},
 
@@ -595,6 +890,8 @@ namespace dmGameSystem
 #undef SET_CONSTANT
 
         lua_setfield(L, -2, "body");
+
+        ScriptBox2DInitializeShape(L);
     }
 }
 
@@ -637,39 +934,25 @@ namespace dmGameSystem
  */
 
 /**
- * Creates a fixture and attach it to this body. Use this function if you need
- * to set some fixture parameters, like friction. Otherwise you can create the
- * fixture directly from a shape.
+ * Creates a shape and attaches it to this body.
  * If the density is non-zero, this function automatically updates the mass of the body.
  * Contacts are not created until the next time step.
  * @warning This function is locked during callbacks.
- * @name b2d.body.create_fixture
+ * @name b2d.body.create_shape
  * @param body [type: b2Body] body
- * @param definition [type: b2FixtureDef] the fixture definition.
+ * @param definition [type: table] the shape definition.
  */
 
 /**
- * Creates a fixture from a shape and attach it to this body.
- * This is a convenience function. Use b2FixtureDef if you need to set parameters
- * like friction, restitution, user data, or filtering.
- * If the density is non-zero, this function automatically updates the mass of the body.
- * @warning This function is locked during callbacks.
- * @name b2d.body.create_fixture
- * @param body [type: b2Body] body
- * @param shape  [type: b2Shape] the shape to be cloned.
- * @param density [type: number] the shape density (set to zero for static bodies).
- */
-
-/**
- * Destroy a fixture. This removes the fixture from the broad-phase and
- * destroys all contacts associated with this fixture. This will
+ * Destroy a shape. This removes the shape from the broad-phase and
+ * destroys all contacts associated with this shape. This will
  * automatically adjust the mass of the body if the body is dynamic and the
- * fixture has positive density.
- * All fixtures attached to a body are implicitly destroyed when the body is destroyed.
+ * shape has positive density.
+ * All shapes attached to a body are implicitly destroyed when the body is destroyed.
  * @warning This function is locked during callbacks.
- * @name b2d.body.destroy_fixture
+ * @name b2d.body.destroy_shape
  * @param body [type: b2Body] body
- * @param fixture [type: b2Fixture] the world position of the body's origin.
+ * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
  */
 
 /*#
@@ -797,17 +1080,17 @@ namespace dmGameSystem
  */
 
 /**
- * Set the mass properties to override the mass properties of the fixtures.
+ * Set the mass properties to override the mass properties of the shapes.
  * @note This function has no effect if the body isn't dynamic.
  * @note This changes the center of mass position.
- * @note Creating or destroying fixtures can also alter the mass.
+ * @note Creating or destroying shapes can also alter the mass.
  * @name b2d.body.set_mass_data
  * @param body [type: b2Body] body
  * @param data [type: b2MassData] the mass properties.
  */
 
 /*#
- * This resets the mass properties to the sum of the mass properties of the fixtures.
+ * This resets the mass properties to the sum of the mass properties of the shapes.
  * This normally does not need to be called unless you called SetMassData to override
  * @name b2d.body.reset_mass_data
  * @param body [type: b2Body] body
@@ -943,13 +1226,13 @@ namespace dmGameSystem
 /*# Set the active state of the body
  * Set the active state of the body. An inactive body is not
  * simulated and cannot be collided with or woken up.
- * If you pass a flag of true, all fixtures will be added to the
+ * If you pass a flag of true, all shapes will be added to the
  * broad-phase.
- * If you pass a flag of false, all fixtures will be removed from
+ * If you pass a flag of false, all shapes will be removed from
  * the broad-phase and all contacts will be destroyed.
- * Fixtures and joints are otherwise unaffected. You may continue
- * to create/destroy fixtures and joints on inactive bodies.
- * Fixtures on an inactive body are implicitly inactive and will
+ * Shapes and joints are otherwise unaffected. You may continue
+ * to create/destroy shapes and joints on inactive bodies.
+ * Shapes on an inactive body are implicitly inactive and will
  * not participate in collisions, ray-casts, or queries.
  * Joints connected to an inactive body are implicitly inactive.
  * An inactive body is still owned by a b2World object and remains
@@ -979,10 +1262,10 @@ namespace dmGameSystem
  * @return enabled [type: boolean] is the rotation fixed
  */
 
-/** Get the list of all fixtures attached to this body.
- * @name b2d.body.get_fixture_list
+/** Get the list of all shapes attached to this body.
+ * @name b2d.body.get_shapes
  * @param body [type: b2Body] body
- * @return edge [type: b2Fixture] the first fixture
+ * @return shapes [type: table] a table of functional shape entries
  */
 
 /** Get the list of all joints attached to this body.
@@ -1021,4 +1304,3 @@ namespace dmGameSystem
  * @param body [type: b2Body] body
  * @return force [type: vector3]
  */
-

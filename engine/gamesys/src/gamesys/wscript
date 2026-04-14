@@ -89,7 +89,7 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
-        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v3/script_box2d_body_v3.cpp',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v3/script_box2d_body_v3.cpp scripts/box2d/v3/script_box2d_shape_v3.cpp',
         target = 'script_box2d')
 
     bld.stlib(features = 'cxx',
