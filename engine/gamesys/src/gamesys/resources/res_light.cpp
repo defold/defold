@@ -170,6 +170,12 @@ namespace dmGameSystem
         }
     #undef HANDLE_LIGHT_PARSE_RES
 
+        // Local light forward axis in component space; world direction comes from GO rotation.
+        if (type == dmRender::LIGHT_TYPE_DIRECTIONAL || type == dmRender::LIGHT_TYPE_SPOT)
+        {
+            params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+        }
+
         return LIGHT_PARSE_RESULT_OK;
     }
 
