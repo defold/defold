@@ -229,6 +229,8 @@ namespace dmPhysics
             DeleteContext2D(context);
             return 0x0;
         }
+
+        dmLogInfo("Created physics context: Box2D v%d.%d.%d", b2_version.major, b2_version.minor, b2_version.revision);
         return context;
     }
 
