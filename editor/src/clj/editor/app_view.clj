@@ -547,9 +547,12 @@
 
 (handler/defhandler :scene.perspective-camera.show-settings :workbench
   (run [app-view scene-visibility prefs localization]
-    (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-settings-button "#show-perspective-camera-settings"))]
-      (camera/show-settings! btn prefs (g/node-value app-view :keymap) localization)))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-some [btn (some-> (g/node-value app-view :active-tab evaluation-context)
+                              (get-settings-button "#show-perspective-camera-settings"))]
+        (let [scene (scene/active-scene-view app-view evaluation-context)
+              camera (scene/view->camera (:basis evaluation-context) scene)]
+          (camera/show-settings! btn camera prefs (g/node-value app-view :keymap) localization)))))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 

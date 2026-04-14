@@ -48,7 +48,7 @@
   (get-value [_ key] (prefs/get prefs (conj prefs-prefix key)))
   (set-value! [_ key v]
     (prefs/set! prefs (conj prefs-prefix key) v)
-    (when on-change-fn (on-change-fn v)))
+    (when on-change-fn (on-change-fn key v)))
   (reset-all! [_]
     (doseq [{:keys [key type]} setting-descriptors
             :when (and key (not (contains? hidden-settings key)))
@@ -80,10 +80,10 @@
 (defn- wrap-in-hbox [children]
   (HBox. (ui/node-array children)))
 
-(defn- slider-setting [settings-binding ^PopupControl popup key label-text range-min range-max]
+(defn- slider-setting [^PopupControl popup settings-binding {:keys [key label min max on-change-fn]}]
   (let [value (get-value settings-binding key)
-        slider (Slider. range-min range-max value)
-        label (Label. label-text)]
+        slider (Slider. min max value)
+        label (Label. label)]
     (doto slider
       (ensure-focus-traversable!)
       (.setBlockIncrement 0.1)
@@ -94,13 +94,15 @@
       (.valueProperty slider)
       (fn [_observable _old-val new-val]
         (let [val (math/round-with-precision new-val 0.01)]
+          (when on-change-fn
+            (on-change-fn val))
           (set-value! settings-binding key val))))
     (wrap-in-hbox [label slider])))
 
-(defn- toggle-setting [settings-binding popup key label-text command acc-text]
+(defn- toggle-setting [^PopupControl popup settings-binding {:keys [key label command accelerator] :as descriptor}]
   (let [check-box (CheckBox.)
-        label (Label. label-text)
-        acc (Label. (or acc-text ""))]
+        label-node (Label. (or label ""))
+        acc (Label. (or accelerator ""))]
     (doto check-box
       (ui/value! (get-value settings-binding key))
       (ui/remove-style! "check-box")
@@ -109,8 +111,8 @@
       (ui/on-action! (fn [_]
                        (let [value (ui/value check-box)]
                          (set-value! settings-binding key value)))))
-    (HBox/setHgrow label Priority/ALWAYS)
-    (ui/add-style! label "slide-switch-label")
+    (HBox/setHgrow label-node Priority/ALWAYS)
+    (ui/add-style! label-node "slide-switch-label")
     (when (os/is-mac-os?)
       (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
     (ui/add-style! acc "accelerator-label")
@@ -129,7 +131,7 @@
                                  (let [value (not (ui/value check-box))]
                                    (ui/value! check-box value)
                                    (set-value! settings-binding key value))))
-                 (ui/children! [label acc check-box]))]
+                 (ui/children! [label-node acc check-box]))]
       hbox)))
 
 (defn- vec3-group
@@ -153,7 +155,7 @@
       (ensure-focus-traversable!))
     [label text-field]))
 
-(defn- vec3-floats-setting [settings-binding key]
+(defn- vec3-floats-setting [_popup settings-binding {:keys [key]}]
   (wrap-in-hbox (into []
                       (comp (map (partial vec3-group settings-binding key))
                             (mapcat identity))
@@ -168,10 +170,11 @@
       (.setSelected (= plane active-plane))
       (ui/add-style! "plane-toggle"))))
 
-(defn- vec3-toggle-setting [settings-binding key label-text]
-  (let [plane-group (ToggleGroup.)
+(defn- vec3-toggle-setting [popup settings-binding descriptor]
+  (let [{:keys [key label]} descriptor
+        plane-group (ToggleGroup.)
         buttons (mapv (partial plane-toggle-button settings-binding plane-group key) axes)
-        label (Label. label-text)]
+        label (Label. label)]
     (ui/observe (.selectedToggleProperty plane-group)
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
                   (if new-value
@@ -182,11 +185,11 @@
                     (.setSelected old-value true))))
     (wrap-in-hbox (concat [label] buttons))))
 
-(defn- color-setting [settings-binding key label-text]
+(defn- color-setting [popup settings-binding {:keys [key label]}]
   (let [text-field (TextField.)
         [r g b a] (get-value settings-binding key)
         color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
-        label (Label. label-text)
+        label (Label. label)
         cancel-fn (fn [_] (ui/text! text-field color))
         update-fn (fn [_] (try
                             (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
@@ -228,19 +231,24 @@
   ^Point2D [^Parent container width x-offset]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
-(defn- setting-row [keymap localization settings-binding popup {:keys [type key label min max command]}]
-  (let [label-text (when label (localization (localization/message label)))
-        accelerator (if command (keymap/display-text keymap command "") "")]
-    (case type
-      :slider      (slider-setting settings-binding popup key label-text min max)
-      :toggle      (toggle-setting settings-binding popup key label-text command accelerator)
-      :vec3-floats (vec3-floats-setting settings-binding key)
-      :vec3-toggle (vec3-toggle-setting settings-binding key label-text)
-      :color       (color-setting settings-binding key label-text)
-      :space       (doto (wrap-in-hbox [(Region.)])
-                     (ui/add-style! "settings-divider-row"))
-      :separator   (doto (wrap-in-hbox [(Separator.)])
-                     (ui/add-style! "settings-divider-row")))))
+(def ^:private setting-constructors
+  {:slider      slider-setting
+   :toggle      toggle-setting
+   :vec3-floats vec3-floats-setting
+   :vec3-toggle vec3-toggle-setting
+   :color       color-setting})
+
+(defn- setting-row [keymap localization popup settings-binding descriptor]
+  (let [descriptor (cond-> descriptor
+                     (:label descriptor)
+                     (assoc :label (localization (localization/message (:label descriptor))))
+                     (:command descriptor)
+                     (assoc :accelerator (keymap/display-text keymap (:command descriptor) "")))]
+    (if-let [ctor (setting-constructors (:type descriptor))]
+      (ctor popup settings-binding descriptor)
+      (case (:type descriptor)
+        :space     (doto (wrap-in-hbox [(Region.)]) (ui/add-style! "settings-divider-row"))
+        :separator (doto (wrap-in-hbox [(Separator.)]) (ui/add-style! "settings-divider-row"))))))
 
 (defn- settings [keymap localization settings-binding popup setting-descriptors hidden-settings]
   (let [visible-descriptors (remove (fn [{:keys [key]}] (contains? hidden-settings key)) setting-descriptors)
@@ -251,7 +259,7 @@
                           reset-btn (reset-button keymap localization settings-binding popup visible-descriptors hidden-settings button-text)]
                       [(conj rows reset-btn) controls])
                     (let [key (:key descriptor)
-                          row (setting-row keymap localization settings-binding popup descriptor)
+                          row (setting-row keymap localization popup settings-binding descriptor)
                           children (.getChildren ^HBox row)]
                       (when-let [style-class (:style-class descriptor)]
                         (ui/add-style! row style-class))

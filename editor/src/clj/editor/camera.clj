@@ -1201,10 +1201,12 @@
           current-value (prefs/get prefs prefs-key)]
       (prefs/set! prefs prefs-key (not current-value)))))
 
-(defn show-settings! [^Parent owner prefs keymap localization]
-  (let [settings-descriptor [{:type :reset-all}
-                             {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.75 :max 2.0}
+(defn show-settings! [^Parent owner camera-node prefs keymap localization]
+  (let [fov-fn #(g/update-property! camera-node :local-camera assoc :fov-x % :fov-y %)
+        settings-descriptor [{:type :reset-all}
+                             {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0}
                              {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4}
+                             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 20.0 :max 70.0 :on-change-fn fov-fn}
                              {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
                              {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} nil)]

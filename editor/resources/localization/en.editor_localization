@@ -1059,6 +1059,7 @@ scene-popup.grid.color = Color
 scene-popup.grid.opacity = Opacity
 scene-popup.camera.move-speed = Move Speed
 scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.fov = Field of View
 scene-popup.camera.invert-y = Invert Y
 scene-popup.camera.walking-mode = Walking Mode
 scene-popup.scene-visibility.visibility-filters = Visibility Filters

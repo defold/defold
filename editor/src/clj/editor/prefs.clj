@@ -251,6 +251,7 @@
                                   :scope :project
                                   :properties {:speed {:type :number :default 1.0}
                                                :look-sensitivity {:type :number :default 0.15}
+                                               :fov {:type :number :default 45.0}
                                                :invert-y {:type :boolean :default false}
                                                :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
@@ -323,17 +324,6 @@
         :enum ((:values schema) 0)
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
-
-(defn default-value-at
-  "Returns the default value at a prefs path, recursively constructing
-   defaults for :object types from their properties."
-  [prefs path]
-  (let [s (schema prefs path)]
-    (if (and (= :object (:type s)) (not (contains? s :default)))
-      (coll/into-> (:properties s) {}
-                   (map (fn [[prop-key _]]
-                          [prop-key (default-value-at prefs (conj path prop-key))])))
-      (default-value s))))
 
 ;; endregion
 
@@ -801,6 +791,17 @@
   {:pre [(not= id :default)]}
   (swap! global-state update :registry dissoc id)
   nil)
+
+(defn default-value-at
+  "Returns the default value at a prefs path, recursively constructing
+   defaults for :object types from their properties."
+  [prefs path]
+  (let [s (schema prefs path)]
+    (if (and (= :object (:type s)) (not (contains? s :default)))
+      (coll/into-> (:properties s) {}
+                   (map (fn [[prop-key _]]
+                          [prop-key (default-value-at prefs (conj path prop-key))])))
+      (default-value s))))
 
 (defn global
   "Return a Defold-specific user-level prefs

@@ -1103,7 +1103,7 @@
   (let [w4 (c/camera-unproject camera viewport screen-pos)]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
-(defn- view->camera
+(defn view->camera
   ([view]
    (view->camera (g/now) view))
   ([basis view]
@@ -1166,7 +1166,7 @@
         (g/set-property node-id :picking-drawable nil)
         (g/set-property node-id :async-copy-state nil)))))
 
-(defn- active-scene-view
+(defn active-scene-view
   ([app-view]
    (g/with-auto-evaluation-context evaluation-context
      (active-scene-view app-view evaluation-context)))
