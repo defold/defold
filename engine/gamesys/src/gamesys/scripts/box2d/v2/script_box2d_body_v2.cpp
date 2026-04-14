@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
-
 #include <Box2D/Dynamics/b2Body.h>
 #include <Box2D/Dynamics/b2Fixture.h>
 #include <Box2D/Dynamics/Joints/b2Joint.h>
@@ -53,16 +52,27 @@ namespace dmGameSystem
     {
         dmGameObject::HCollection m_Collection;
         dmhash_t                  m_InstanceId;
+        uint32_t                  m_InstanceGeneration;
     };
 
     static dmOpaqueHandleContainer<uintptr_t> g_BodyHandles;
     static dmHashTable64<HOpaqueHandle>       g_BodyToHandle;
     static dmHashTable32<B2DBodyMeta>         g_BodyMeta;
+    // Defold's Box2D V2 fork stores fixture shapes by raw pointer instead of cloning them.
+    // Script-created fixtures therefore need an owned heap shape that lives until the fixture dies.
+    static dmHashTable64<FixtureShapeDef*>    g_FixtureShapes;
 
     static uint64_t BodyPtrToKey(const b2Body* body)
     {
         return (uint64_t)(uintptr_t)body;
     }
+
+    static uint64_t FixturePtrToKey(const b2Fixture* fixture)
+    {
+        return (uint64_t)(uintptr_t)fixture;
+    }
+
+    static uint32_t GetBodyInstanceGeneration(b2Body* body);
 
     static void EnsureBodyHandleCapacity()
     {
@@ -71,6 +81,18 @@ namespace dmGameSystem
             assert(g_BodyHandles.Allocate(32));
             g_BodyToHandle.OffsetCapacity(32);
             g_BodyMeta.OffsetCapacity(32);
+        }
+    }
+
+    static void EnsureFixtureShapeCapacity()
+    {
+        if (g_FixtureShapes.Full())
+        {
+            g_FixtureShapes.OffsetCapacity(32);
+        }
+        else if (g_FixtureShapes.Capacity() == 0)
+        {
+            g_FixtureShapes.SetCapacity(32);
         }
     }
 
@@ -95,7 +117,7 @@ namespace dmGameSystem
         g_BodyHandles.Release(handle);
     }
 
-    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, HOpaqueHandle* out_handle)
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t instance_generation, HOpaqueHandle* out_handle)
     {
         assert(body);
         EnsureBodyHandleCapacity();
@@ -108,16 +130,33 @@ namespace dmGameSystem
             if (body_ptr)
             {
                 B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
+                if (body_meta && body_meta->m_InstanceId)
+                {
+                    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, body_meta->m_InstanceId);
+                    if (!instance || dmGameObject::GetGeneration(instance) != body_meta->m_InstanceGeneration)
+                    {
+                        InvalidateBodyHandle(*existing_handle);
+                        existing_handle = 0;
+                        body_ptr = 0;
+                    }
+                }
+            }
+
+            if (body_ptr)
+            {
+                B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
                 if (body_meta)
                 {
                     body_meta->m_Collection = collection;
                     body_meta->m_InstanceId = instance_id;
+                    body_meta->m_InstanceGeneration = instance_generation;
                 }
                 else
                 {
                     B2DBodyMeta new_body_meta = {};
                     new_body_meta.m_Collection = collection;
                     new_body_meta.m_InstanceId = instance_id;
+                    new_body_meta.m_InstanceGeneration = instance_generation;
                     if (g_BodyMeta.Full())
                     {
                         g_BodyMeta.OffsetCapacity(32);
@@ -143,6 +182,7 @@ namespace dmGameSystem
         B2DBodyMeta body_meta = {};
         body_meta.m_Collection = collection;
         body_meta.m_InstanceId = instance_id;
+        body_meta.m_InstanceGeneration = instance_generation;
         if (g_BodyMeta.Full())
         {
             g_BodyMeta.OffsetCapacity(32);
@@ -152,14 +192,51 @@ namespace dmGameSystem
         *out_handle = handle;
     }
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t instance_generation)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
 
-        RegisterBodyHandle((b2Body*)body, collection, instance_id, &luabody->m_Handle);
+        RegisterBodyHandle((b2Body*)body, collection, instance_id, instance_generation, &luabody->m_Handle);
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
+    }
+
+    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    {
+        PushBodyInternal(L, body, collection, instance_id, GetBodyInstanceGeneration((b2Body*)body));
+    }
+
+    void TrackOwnedFixtureShape(b2Fixture* fixture, FixtureShapeDef* shape_def)
+    {
+        assert(fixture);
+        assert(shape_def);
+        EnsureFixtureShapeCapacity();
+
+        const uint64_t key = FixturePtrToKey(fixture);
+        FixtureShapeDef** previous_shape_def = g_FixtureShapes.Get(key);
+        if (previous_shape_def)
+        {
+            delete *previous_shape_def;
+        }
+        g_FixtureShapes.Put(key, shape_def);
+    }
+
+    void ReleaseOwnedFixtureShape(b2Fixture* fixture)
+    {
+        if (!fixture)
+        {
+            return;
+        }
+
+        FixtureShapeDef** shape_def = g_FixtureShapes.Get(FixturePtrToKey(fixture));
+        if (!shape_def)
+        {
+            return;
+        }
+
+        delete *shape_def;
+        g_FixtureShapes.Erase(FixturePtrToKey(fixture));
     }
 
     static b2Vec2 CheckVec2(lua_State* L, int index, float scale)
@@ -237,7 +314,7 @@ namespace dmGameSystem
         if (instance_id) // check if the instance is alive
         {
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, instance_id);
-            if (!instance)
+            if (!instance || dmGameObject::GetGeneration(instance) != body_meta->m_InstanceGeneration)
             {
                 InvalidateBodyHandle(luabody->m_Handle);
                 luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
@@ -272,6 +349,19 @@ namespace dmGameSystem
         return instance ? dmGameObject::GetIdentifier(instance) : 0;
     }
 
+    static uint32_t GetBodyInstanceGeneration(b2Body* body)
+    {
+        void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+
+        dmGameObject::HInstance instance = 0;
+        if (user_data)
+        {
+            instance = dmGameSystem::CompCollisionObjectGetInstance(user_data);
+        }
+
+        return instance ? dmGameObject::GetGeneration(instance) : 0;
+    }
+
     b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index)
     {
         if (fixture_index <= 0)
@@ -302,7 +392,7 @@ namespace dmGameSystem
         B2DLuaBody* reference_body = CheckBodyInternal(L, reference_index);
         B2DBodyMeta* body_meta = 0;
         VerifyBodyInternal(L, reference_body, &body_meta);
-        PushBody(L, body, body_meta->m_Collection, GetBodyInstanceId(body));
+        PushBodyInternal(L, body, body_meta->m_Collection, GetBodyInstanceId(body), GetBodyInstanceGeneration(body));
     }
 
     static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int fixture_index)
@@ -329,6 +419,19 @@ namespace dmGameSystem
 
         lua_pushinteger(L, fixture->GetShape()->GetChildCount());
         lua_setfield(L, -2, "child_count");
+    }
+
+    static int GetFixtureIndex(b2Body* body, const b2Fixture* fixture)
+    {
+        int fixture_index = 1;
+        for (b2Fixture* current = body->GetFixtureList(); current; current = current->GetNext(), ++fixture_index)
+        {
+            if (current == fixture)
+            {
+                return fixture_index;
+            }
+        }
+        return 0;
     }
 
     static B2DLuaBody* ToBody(lua_State* L, int index)
@@ -479,6 +582,36 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Body_CreateFixture(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+
+        FixtureShapeDef* shape_def = new FixtureShapeDef;
+        b2FixtureDef fixture_def;
+        CheckFixtureDef(L, 2, shape_def, &fixture_def);
+        fixture_def.userData = body->GetUserData();
+        b2Fixture* fixture = body->CreateFixture(&fixture_def);
+        if (!fixture)
+        {
+            delete shape_def;
+            return luaL_error(L, "Could not create fixture. The world may be locked.");
+        }
+
+        TrackOwnedFixtureShape(fixture, shape_def);
+
+        int fixture_index = GetFixtureIndex(body, fixture);
+        if (fixture_index == 0)
+        {
+            body->DestroyFixture(fixture);
+            ReleaseOwnedFixtureShape(fixture);
+            return luaL_error(L, "Could not resolve created fixture.");
+        }
+
+        PushFixtureInfo(L, fixture, fixture_index);
+        return 1;
+    }
+
     static int Body_DestroyFixture(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -489,7 +622,10 @@ namespace dmGameSystem
         {
             return luaL_error(L, "fixture_index %d out of range.", fixture_index);
         }
+        // Release the owned script shape after Box2D destroys the fixture, since DestroyFixture()
+        // still reads the shape while tearing down proxies and filters.
         body->DestroyFixture(fixture);
+        ReleaseOwnedFixtureShape(fixture);
         return 0;
     }
 
@@ -824,6 +960,7 @@ namespace dmGameSystem
 
     static const luaL_reg Body_functions[] =
     {
+        {"create_fixture", Body_CreateFixture},
         {"get_transform", Body_GetTransform},
         {"get_position", Body_GetPosition},
         {"set_transform", Body_SetTransform},
@@ -926,6 +1063,7 @@ namespace dmGameSystem
         lua_setfield(L, -2, "body");
 
         ScriptBox2DInitializeFixture(L);
+        ScriptBox2DInitializeShape(L);
     }
 }
 
@@ -964,7 +1102,34 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_fixture
  * @param body [type: b2Body] body
- * @param definition [type: b2FixtureDef] the fixture definition.
+ * @param definition [type: table] fixture definition table with:
+ * `shape` = shape table, `friction` = number, `restitution` = number,
+ * `density` = number, `sensor` = boolean, and optional `filter` table.
+ * Supported shape tables are:
+ * `circle` = `{ type = b2d.shape.SHAPE_TYPE_CIRCLE, radius = number, center = vector3_or_nil }`
+ * `edge` = `{ type = b2d.shape.SHAPE_TYPE_EDGE, v1 = vector3, v2 = vector3, v0 = vector3_or_nil, v3 = vector3_or_nil }`
+ * `polygon` = `{ type = b2d.shape.SHAPE_TYPE_POLYGON, vertices = { vector3, ... } }`
+ * `box` = `{ type = b2d.shape.SHAPE_TYPE_BOX, hx = number, hy = number, center = vector3_or_nil, angle = radians_or_nil }`
+ * `chain` = `{ type = b2d.shape.SHAPE_TYPE_CHAIN, vertices = { vector3, ... }, loop = boolean_or_nil, prev_vertex = vector3_or_nil, next_vertex = vector3_or_nil }`
+ * @return fixture [type: table] fixture info table with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ *
+ * local triangle = b2d.body.create_fixture(body, {
+ *     density = 1.0,
+ *     friction = 0.3,
+ *     shape = {
+ *         type = b2d.shape.SHAPE_TYPE_POLYGON,
+ *         vertices = {
+ *             vmath.vector3(-16, -16, 0),
+ *             vmath.vector3( 16, -16, 0),
+ *             vmath.vector3(  0,  16, 0),
+ *         },
+ *     },
+ * })
+ * ```
  */
 
 /**

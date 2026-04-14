@@ -13,8 +13,11 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
-
 #include <Box2D/Dynamics/b2Fixture.h>
+#include <Box2D/Collision/Shapes/b2ChainShape.h>
+#include <Box2D/Collision/Shapes/b2CircleShape.h>
+#include <Box2D/Collision/Shapes/b2EdgeShape.h>
+#include <Box2D/Collision/Shapes/b2PolygonShape.h>
 
 #include <script/script.h>
 #include <gameobject/script.h>
@@ -40,6 +43,114 @@ namespace dmGameSystem
         return dmVMath::Vector3(p.x * inv_scale, p.y * inv_scale, 0);
     }
 
+    static void PushVertices(lua_State* L, const b2Vec2* vertices, int vertex_count)
+    {
+        lua_newtable(L);
+        for (int i = 0; i < vertex_count; ++i)
+        {
+            dmScript::PushVector3(L, FromB2(vertices[i], GetInvPhysicsScale()));
+            lua_rawseti(L, -2, i + 1);
+        }
+    }
+
+    static bool IsSameVec2(const b2Vec2& a, const b2Vec2& b)
+    {
+        return a.x == b.x && a.y == b.y;
+    }
+
+    static void PushShape(lua_State* L, const b2Shape* shape)
+    {
+        lua_newtable(L);
+
+        switch (shape->GetType())
+        {
+            case b2Shape::e_circle:
+            {
+                const b2CircleShape* circle = (const b2CircleShape*)shape;
+                lua_pushinteger(L, b2Shape::e_circle);
+                lua_setfield(L, -2, "type");
+
+                lua_pushnumber(L, circle->m_radius * GetInvPhysicsScale());
+                lua_setfield(L, -2, "radius");
+
+                dmScript::PushVector3(L, FromB2(circle->m_p, GetInvPhysicsScale()));
+                lua_setfield(L, -2, "center");
+                return;
+            }
+
+            case b2Shape::e_edge:
+            {
+                const b2EdgeShape* edge = (const b2EdgeShape*)shape;
+                lua_pushinteger(L, b2Shape::e_edge);
+                lua_setfield(L, -2, "type");
+
+                dmScript::PushVector3(L, FromB2(edge->m_vertex1, GetInvPhysicsScale()));
+                lua_setfield(L, -2, "v1");
+
+                dmScript::PushVector3(L, FromB2(edge->m_vertex2, GetInvPhysicsScale()));
+                lua_setfield(L, -2, "v2");
+
+                if (edge->m_hasVertex0)
+                {
+                    dmScript::PushVector3(L, FromB2(edge->m_vertex0, GetInvPhysicsScale()));
+                    lua_setfield(L, -2, "v0");
+                }
+
+                if (edge->m_hasVertex3)
+                {
+                    dmScript::PushVector3(L, FromB2(edge->m_vertex3, GetInvPhysicsScale()));
+                    lua_setfield(L, -2, "v3");
+                }
+                return;
+            }
+
+            case b2Shape::e_polygon:
+            {
+                const b2PolygonShape* polygon = (const b2PolygonShape*)shape;
+                lua_pushinteger(L, b2Shape::e_polygon);
+                lua_setfield(L, -2, "type");
+
+                PushVertices(L, polygon->m_verticesOriginal, polygon->m_vertexCount);
+                lua_setfield(L, -2, "vertices");
+                return;
+            }
+
+            case b2Shape::e_chain:
+            {
+                const b2ChainShape* chain = (const b2ChainShape*)shape;
+                bool is_loop = chain->m_count >= 2 && IsSameVec2(chain->m_vertices[0], chain->m_vertices[chain->m_count - 1]);
+
+                lua_pushinteger(L, b2Shape::e_chain);
+                lua_setfield(L, -2, "type");
+
+                lua_pushboolean(L, is_loop);
+                lua_setfield(L, -2, "loop");
+
+                PushVertices(L, chain->m_vertices, is_loop ? chain->m_count - 1 : chain->m_count);
+                lua_setfield(L, -2, "vertices");
+
+                if (!is_loop && chain->m_hasPrevVertex)
+                {
+                    dmScript::PushVector3(L, FromB2(chain->m_prevVertex, GetInvPhysicsScale()));
+                    lua_setfield(L, -2, "prev_vertex");
+                }
+
+                if (!is_loop && chain->m_hasNextVertex)
+                {
+                    dmScript::PushVector3(L, FromB2(chain->m_nextVertex, GetInvPhysicsScale()));
+                    lua_setfield(L, -2, "next_vertex");
+                }
+                return;
+            }
+
+            default:
+            {
+                luaL_error(L, "Unsupported shape type %d for Lua shape snapshot.", shape->GetType());
+                return;
+            }
+        }
+    }
+
     static b2Filter CheckFilterData(lua_State* L, int index)
     {
         luaL_checktype(L, index, LUA_TTABLE);
@@ -59,6 +170,74 @@ namespace dmGameSystem
         lua_pop(L, 1);
 
         return filter;
+    }
+
+    static bool TryGetNumberField(lua_State* L, int index, const char* field_name, float* out_value)
+    {
+        lua_getfield(L, index, field_name);
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            return false;
+        }
+
+        *out_value = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+        return true;
+    }
+
+    static bool TryGetBooleanField(lua_State* L, int index, const char* field_name, bool* out_value)
+    {
+        lua_getfield(L, index, field_name);
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            return false;
+        }
+
+        *out_value = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        return true;
+    }
+
+    void CheckFixtureDef(lua_State* L, int index, FixtureShapeDef* out_shape, b2FixtureDef* out_fixture_def)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        b2FixtureDef fixture_def;
+
+        lua_getfield(L, index, "shape");
+        fixture_def.shape = CheckShapeDef(L, -1, out_shape);
+        lua_pop(L, 1);
+
+        TryGetNumberField(L, index, "friction", &fixture_def.friction);
+        TryGetNumberField(L, index, "restitution", &fixture_def.restitution);
+        TryGetNumberField(L, index, "density", &fixture_def.density);
+
+        bool sensor = fixture_def.isSensor;
+        bool has_sensor = TryGetBooleanField(L, index, "sensor", &sensor);
+        if (!has_sensor)
+        {
+            TryGetBooleanField(L, index, "is_sensor", &sensor);
+        }
+        fixture_def.isSensor = sensor;
+
+        lua_getfield(L, index, "filter");
+        if (!lua_isnil(L, -1))
+        {
+            fixture_def.filter = CheckFilterData(L, -1);
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "user_data");
+        if (!lua_isnil(L, -1))
+        {
+            luaL_error(L, "Fixture user_data is not supported.");
+            return;
+        }
+        lua_pop(L, 1);
+
+        *out_fixture_def = fixture_def;
     }
 
     static void PushFilterData(lua_State* L, const b2Filter& filter)
@@ -104,6 +283,20 @@ namespace dmGameSystem
             return luaL_error(L, "fixture_index %d out of range.", fixture_index);
         }
         lua_pushinteger(L, fixture->GetType());
+        return 1;
+    }
+
+    static int Fixture_GetShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        int fixture_index = luaL_checkinteger(L, 2);
+        b2Fixture* fixture = GetFixtureByIndex(body, fixture_index);
+        if (!fixture)
+        {
+            return luaL_error(L, "fixture_index %d out of range.", fixture_index);
+        }
+        PushShape(L, fixture->GetShape());
         return 1;
     }
 
@@ -307,6 +500,7 @@ namespace dmGameSystem
 
     static const luaL_reg Fixture_functions[] =
     {
+        {"get_shape", Fixture_GetShape},
         {"get_type", Fixture_GetType},
         {"is_sensor", Fixture_IsSensor},
         {"set_sensor", Fixture_SetSensor},
@@ -348,6 +542,17 @@ namespace dmGameSystem
  * @param body [type: b2Body] body
  * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
  * @return type [type: number]
+ */
+
+/*# Get the fixture shape as a functional shape table.
+ * @name b2d.fixture.get_shape
+ * @param body [type: b2Body] body
+ * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @return shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`,
+ * suitable for reuse in `b2d.body.create_fixture`.
+ * Circle shapes use `radius` and `center`, edge shapes use `v1`, `v2`, optional `v0`, `v3`,
+ * polygon shapes use `vertices`, and chain shapes use `vertices`, `loop`, optional `prev_vertex`, and `next_vertex`.
+ * Any angle values are in radians.
  */
 
 /*# Check if a fixture is a sensor.

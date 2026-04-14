@@ -126,3 +126,31 @@ TEST_F(IdTest, TestHierarchies)
     ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go"));
     dmResource::Release(m_Factory, collection);
 }
+
+// Tests that recreating a game object with a reused identifier, still gets a new generation number
+TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
+{
+    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)go1);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go1, "go1"));
+
+    dmhash_t id = dmGameObject::GetIdentifier(go1);
+    uint32_t generation1 = dmGameObject::GetGeneration(go1);
+
+    ASSERT_EQ(go1, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+
+    dmGameObject::Delete(m_Collection, go1, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+
+    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)go2);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go2, "go1"));
+
+    uint32_t generation2 = dmGameObject::GetGeneration(go2);
+
+    ASSERT_LT(generation1, generation2);
+    ASSERT_EQ(go2, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+
+    dmGameObject::Delete(m_Collection, go2, false);
+}
