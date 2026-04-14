@@ -181,7 +181,7 @@ namespace dmGameSystem
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
 
-/*# Get the Box2D version string for the active backend.
+/*# Get the Box2D version information for the active backend.
  * @name b2d.get_version
- * @return version [type: string] version formatted as `major.minor.revision`
+ * @return info [type: table] version info with fields `version`, `major`, `middle`, and `minor`
  */

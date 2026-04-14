@@ -209,7 +209,19 @@ namespace dmGameSystem
 
     void PushBox2DVersion(lua_State* L)
     {
+        lua_newtable(L);
+
         lua_pushfstring(L, "%d.%d.%d", b2_version.major, b2_version.minor, b2_version.revision);
+        lua_setfield(L, -2, "version");
+
+        lua_pushinteger(L, b2_version.major);
+        lua_setfield(L, -2, "major");
+
+        lua_pushinteger(L, b2_version.minor);
+        lua_setfield(L, -2, "middle");
+
+        lua_pushinteger(L, b2_version.revision);
+        lua_setfield(L, -2, "minor");
     }
 
     void TrackOwnedFixtureShape(b2Fixture* fixture, FixtureShapeDef* shape_def)

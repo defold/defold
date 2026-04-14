@@ -74,7 +74,19 @@ namespace dmGameSystem
     void PushBox2DVersion(lua_State* L)
     {
         b2Version version = b2GetVersion();
+        lua_newtable(L);
+
         lua_pushfstring(L, "%d.%d.%d", version.major, version.minor, version.revision);
+        lua_setfield(L, -2, "version");
+
+        lua_pushinteger(L, version.major);
+        lua_setfield(L, -2, "major");
+
+        lua_pushinteger(L, version.minor);
+        lua_setfield(L, -2, "middle");
+
+        lua_pushinteger(L, version.revision);
+        lua_setfield(L, -2, "minor");
     }
 
     //////////////////////////////////////////////////////////////////////////////
