@@ -889,7 +889,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     elif platform in ('x86_64-linux','arm64-linux'):
         folders.append(os.path.join(sdkfolder, host_platform))
 
-    elif platform in ('wasm-web','wasm_pthread-web','js-web'):
+    elif platform in ('wasm-web','wasm_pthread-web'):
         folders.append(get_defold_emsdk())
 
     if not folders:
@@ -972,7 +972,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         info['api']         = get_android_api_version(platform)
         info['clangname']   = get_android_clang_name(platform, info['api'])
 
-    elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    elif platform in ('wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
         info['emsdk']['path'] = get_defold_emsdk()
         info['emsdk']['cache'] = get_defold_emsdk_cache()
@@ -1022,7 +1022,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['api']         = get_android_api_version(platform)
         info['clangname']   = get_android_clang_name(platform, info['api'])
 
-    elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    elif platform in ('wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
         info['emsdk']['path'] = _get_local_emsdk()
         info['emsdk']['cache'] = _get_local_emsdk_cache()

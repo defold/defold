@@ -111,7 +111,7 @@ jobs:
   bld-eng-web:
     strategy:
       matrix:
-        platform: [js-web, wasm-web, wasm_pthread-web]
+        platform: [wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps: [

@@ -942,7 +942,7 @@
                                "bundle-ios-architecture-simulator?" [:bundle :ios :architecture :x86_64-ios]
                                "bundle-ios-install-app?" [:bundle :ios :install]
                                "bundle-ios-launch-app?" [:bundle :ios :launch]
-                               "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
+                               "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :wasm-web]
                                "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
                                "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
                                "bundle-windows-platform" [:bundle :windows :platform]}

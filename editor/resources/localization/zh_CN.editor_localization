@@ -506,7 +506,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = 模拟器 (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + 线程支持
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)

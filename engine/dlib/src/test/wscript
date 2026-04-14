@@ -55,7 +55,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
+    use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
     if use_profile_null:
         local_libs += ['profile_null']
     else:
@@ -118,7 +118,7 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
-    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
+    use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
 
     skip_run = False
     if 'web' in bld.env['PLATFORM']:
@@ -130,9 +130,9 @@ def build(bld):
 
     skip_http = False
     skip_threads = False
-    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
         skip_http = True
-        if bld.env.PLATFORM in ('js-web', 'wasm-web'):
+        if bld.env.PLATFORM == 'wasm-web':
             skip_threads = True
 
     if _is_mac_ci():

@@ -113,7 +113,8 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.Arm64MacOS});
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
-            data.add(new Platform[]{Platform.JsWeb});
+            data.add(new Platform[]{Platform.WasmWeb});
+            data.add(new Platform[]{Platform.WasmPthreadWeb});
 
             // Can only do this on OSX machines currently
             if (Platform.getHostPlatform().isMacOS()) {
@@ -207,11 +208,6 @@ public class BundlerTest {
             checkFileExist(outputDirFile, wasmjsFile);
             File wasmFile = new File(outputDirFile, exeName + "_pthread.wasm");
             checkFileExist(outputDirFile, wasmFile);
-        }
-        else if (platform == Platform.JsWeb)
-        {
-            File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-            assertTrue(asmjsFile.exists());
         }
         else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
@@ -568,11 +564,12 @@ public class BundlerTest {
                 expectedFiles.add("archive/game0.projectc");
                 expectedFiles.add("archive/archive_files.json");
         }
-        else if (platform == Platform.JsWeb)
+        else if (platform == Platform.WasmPthreadWeb)
         {
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
-                expectedFiles.add("unnamed_asmjs.js");
+                expectedFiles.add("unnamed_pthread_wasm.js");
+                expectedFiles.add("unnamed_pthread.wasm");
                 expectedFiles.add("archive/game0.arcd");
                 expectedFiles.add("archive/game0.arci");
                 expectedFiles.add("archive/game0.dmanifest");
@@ -787,7 +784,7 @@ public class BundlerTest {
     @Test
     public void testBundleWithDynamicLibraries()
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+        if (platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             return;
         }
 

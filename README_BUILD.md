@@ -73,7 +73,6 @@ The following platforms are supported:
 * `arm64-ios`
 * `armv7-android`
 * `arm64-android`
-* `js-web`
 * `wasm-web`
 * `wasm_pthread-web`
 
