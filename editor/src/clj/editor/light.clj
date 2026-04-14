@@ -61,6 +61,7 @@
 (def ^:private ^:const gizmo-target-pixels 100.0)
 ;; Screen-space half-extent (pixels) for the origin icon quad; world size = scale-factor * this (see camera preview mesh).
 (def ^:private ^:const origin-marker-pixels 8.0)
+(def ^:private ^:const max-spot-cone-angle 365.0)
 
 (def ^:private outline-icon "icons/64/Icons_21-Light.png")
 
@@ -126,6 +127,16 @@
       (mapv #(double (or (:number %) 0.0)) vals)
       [0.0 0.0 -1.0])))
 
+(defn- clamp [v low high]
+  (-> (double v)
+      (max (double low))
+      (min (double high))))
+
+(defn- sanitize-spot-cone-angles [inner-cone-angle outer-cone-angle]
+  (let [outer-cone-angle (clamp outer-cone-angle 0.0 max-spot-cone-angle)
+        inner-cone-angle (clamp inner-cone-angle 0.0 outer-cone-angle)]
+    [inner-cone-angle outer-cone-angle]))
+
 (defn- parse-data-desc [light-desc]
   ;; GameObject$Data in map format.
   (let [tags (vec (:tags light-desc))
@@ -141,7 +152,8 @@
 
 (defn- build-data-desc
   [light-type color intensity range direction inner-cone-angle outer-cone-angle]
-  (let [tags (light-type->tags light-type)
+  (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
+        tags (light-type->tags light-type)
         c4 (vec (take 4 (concat color (repeat 1.0))))
         fields (case light-type
                  :point {"color" (list-field-vec4 c4)
@@ -720,7 +732,8 @@
 
 (g/defnk produce-form-data
   [_node-id light-type color intensity range direction inner-cone-angle outer-cone-angle]
-  (let [direction-vec4 (vec (take 4 (concat direction [0.0 0.0 -1.0 0.0])))
+  (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
+        direction-vec4 (vec (take 4 (concat direction [0.0 0.0 -1.0 0.0])))
         hidden-range (= :directional light-type)
         hidden-direction (not= :directional light-type)
         hidden-cones (not= :spot light-type)]
@@ -756,11 +769,15 @@
                            :localization-key "light.inner-cone-angle"
                            :type :number
                            :default 0.0
+                           :min 0.0
+                           :max outer-cone-angle
                            :hidden hidden-cones}
                           {:path [:outer-cone-angle]
                            :localization-key "light.outer-cone-angle"
                            :type :number
                            :default 45.0
+                           :min inner-cone-angle
+                           :max max-spot-cone-angle
                            :hidden hidden-cones}]}]
      :values {[:light-type] light-type
               [:color] color
@@ -801,9 +818,29 @@
             (dynamic visible (g/fnk [light-type] (= :directional light-type))))
   (property inner-cone-angle g/Num (default 0.0)
             (dynamic label (properties/label-dynamic :light :inner-cone-angle))
+            (dynamic edit-type (g/fnk [outer-cone-angle]
+                                 {:type g/Num
+                                  :min 0.0
+                                  :max (clamp outer-cone-angle 0.0 max-spot-cone-angle)}))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (when (some? new-value)
+                     (let [outer-cone-angle (g/node-value self :outer-cone-angle evaluation-context)
+                           [inner-cone-angle _] (sanitize-spot-cone-angles new-value outer-cone-angle)]
+                       (g/set-property self :inner-cone-angle inner-cone-angle)))))
             (dynamic visible (g/fnk [light-type] (= :spot light-type))))
   (property outer-cone-angle g/Num (default 45.0)
             (dynamic label (properties/label-dynamic :light :outer-cone-angle))
+            (dynamic edit-type (g/fnk [inner-cone-angle]
+                                 {:type g/Num
+                                  :min (clamp inner-cone-angle 0.0 max-spot-cone-angle)
+                                  :max max-spot-cone-angle}))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (when (some? new-value)
+                     (let [inner-cone-angle (g/node-value self :inner-cone-angle evaluation-context)
+                           [inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle new-value)]
+                       (concat
+                         (g/set-property self :inner-cone-angle inner-cone-angle)
+                         (g/set-property self :outer-cone-angle outer-cone-angle))))))
             (dynamic visible (g/fnk [light-type] (= :spot light-type))))
 
   (display-order [:light-type :color :intensity :range :direction :inner-cone-angle :outer-cone-angle])
