@@ -200,8 +200,8 @@
 ;; Affine from unit square (s,t) to atlas UV — same packing as engine ResolveAnimationData (mat3 column-major).
 ;; quad-unflipped must match Bob's tex_coord order for the quad: unrotated BL,TL,TR,BR; rotated TL,TR,BR,BL.
 ;; Animation flip is applied only to vertex UVs at runtime, not to this transform.
-(defn- tex-coords->texture-transform-2d [quad-unflipped atlas-rotated?]
-  (if atlas-rotated?
+(defn- tex-coords->texture-transform-2d [quad-unflipped atlas-rotated]
+  (if atlas-rotated
     (let [[tl tr br bl] quad-unflipped
           u-bl (double (nth bl 0))
           v-bl (double (nth bl 1))
