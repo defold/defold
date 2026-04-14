@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -103,6 +104,13 @@ public class BundleHelper {
 
     public static void throwIfCanceled(ICanceled canceled) {
         if(canceled.isCanceled()) {
+            throw new RuntimeException("Canceled");
+        }
+    }
+
+    public static void throwIfCanceled(ICanceled canceled, AtomicBoolean remoteBuildFailed) {
+        throwIfCanceled(canceled);
+        if (remoteBuildFailed.get()) {
             throw new RuntimeException("Canceled");
         }
     }
