@@ -227,7 +227,7 @@ public class ModelUtilTest {
     private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,
-                                         Rig.Skeleton.Builder skeletonBuilder) {
+                                         Rig.Skeleton.Builder skeletonBuilder) throws LoaderException {
         Modelimporter.Scene scene = loadSceneNoException(path);
         if (scene != null)
         {
@@ -241,7 +241,7 @@ public class ModelUtilTest {
     }
 
     private Modelimporter.Scene loadBuiltScene(String path,
-                                         Rig.MeshSet.Builder meshSetBuilder) {
+                                         Rig.MeshSet.Builder meshSetBuilder) throws LoaderException {
         Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadModels(scene, meshSetBuilder);
         return scene;
@@ -292,7 +292,7 @@ public class ModelUtilTest {
      * Tests a collada file with fewer, and more, than 4 bone influences per vertex.
      */
     @Test
-    public void testBoneInfluences() {
+    public void testBoneInfluences() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -357,7 +357,7 @@ public class ModelUtilTest {
      *  Tests a collada with two connected bones, each with their own animation track.
      */
     @Test
-    public void testTwoBoneAnimation() {
+    public void testTwoBoneAnimation() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -431,7 +431,7 @@ public class ModelUtilTest {
      * Collada file with a asset unit scale set to 0.01.
      */
     @Test
-    public void testAssetUnit() {
+    public void testAssetUnit() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -484,7 +484,7 @@ public class ModelUtilTest {
      * Tests that an invalid gltf file is handled
      */
     @Test
-    public void testInvalidFile() {
+    public void testInvalidFile() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -506,7 +506,7 @@ public class ModelUtilTest {
     }
 
     @Test
-    public void testVehicleGltfHierarchy() {
+    public void testVehicleGltfHierarchy() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Modelimporter.Scene scene = loadBuiltScene("vehicle.glb", meshSetBuilder);
 

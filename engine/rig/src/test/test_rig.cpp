@@ -1989,6 +1989,9 @@ static dmRigDDF::MeshSet* NewMorphMeshSet(uint64_t model_id, uint32_t morph_coun
     {
         memset(&mesh.m_MorphTargets.m_Data[i], 0, sizeof(dmRigDDF::MorphTarget));
     }
+    mesh.m_MorphBaseWeights.m_Count = morph_count;
+    mesh.m_MorphBaseWeights.m_Data = new float[morph_count];
+    memset(mesh.m_MorphBaseWeights.m_Data, 0, morph_count * sizeof(float));
     mesh_set->m_MaxBoneCount = 0;
     mesh_set->m_BoneList.m_Count = 0;
     mesh_set->m_BoneList.m_Data = 0;

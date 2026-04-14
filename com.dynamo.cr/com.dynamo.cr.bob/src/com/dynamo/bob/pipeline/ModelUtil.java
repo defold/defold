@@ -70,6 +70,60 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
+    /**
+     * Atlas size for morph target slices (same growth rule as engine {@code ComputeMorphTextureSize}).
+     */
+    public static void computeMorphTextureSize(int vertexCount, int maxW, int maxH, int[] outWidthHeight) {
+        int w = 1;
+        int h = 1;
+        while (w * h < vertexCount) {
+            if (w < maxW) {
+                w <<= 1;
+            } else if (h < maxH) {
+                h <<= 1;
+            } else {
+                break;
+            }
+        }
+        outWidthHeight[0] = w;
+        outWidthHeight[1] = h;
+    }
+
+    static void validateMorphTargetTextureLayout(Mesh mesh, int maxTexW, int maxTexH) throws LoaderException {
+        if (mesh.morphTargets == null || mesh.morphTargets.length == 0) {
+            return;
+        }
+        if (mesh.positions == null || mesh.positions.length < 3) {
+            throw new LoaderException("Mesh has morph targets but no base positions.");
+        }
+
+        int baseVertexCount = mesh.positions.length / 3;
+        int maxCount = baseVertexCount;
+        for (MorphTarget mt : mesh.morphTargets) {
+            if (mt.positions != null) {
+                maxCount = Math.max(maxCount, mt.positions.length / 3);
+            }
+            if (mt.normals != null) {
+                maxCount = Math.max(maxCount, mt.normals.length / 3);
+            }
+            if (mt.tangents != null) {
+                maxCount = Math.max(maxCount, mt.tangents.length / 4);
+            }
+        }
+
+        int[] wh = new int[2];
+        computeMorphTextureSize(maxCount, maxTexW, maxTexH, wh);
+        int width = wh[0];
+        int height = wh[1];
+        if (width > maxTexW || height > maxTexH || width * height < maxCount) {
+            String meshLabel = mesh.name != null && !mesh.name.isEmpty() ? mesh.name : "<unnamed>";
+            throw new LoaderException(String.format(
+                    "Morph target data for mesh '%s' needs at least %d vertices in a %d x %d atlas (limits: %d x %d from [model] max_morph_target_texture_width / max_morph_target_texture_height in game.project). "
+                            + "Raise those limits or reduce mesh / morph stream size.",
+                    meshLabel, maxCount, width, height, maxTexW, maxTexH));
+        }
+    }
+
     public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         if (options == null)
             options = new Options();
@@ -780,9 +834,12 @@ public class ModelUtil {
                             dstMt.tangents = new float[MAX_SPLIT_VCOUNT * 4];
                         newMesh.morphTargets[mi] = dstMt;
                     }
-                }
-                if (inMesh.morphBaseWeights != null) {
-                    newMesh.morphBaseWeights = Arrays.copyOf(inMesh.morphBaseWeights, inMesh.morphBaseWeights.length);
+                    int nm = inMesh.morphTargets.length;
+                    newMesh.morphBaseWeights = new float[nm];
+                    if (inMesh.morphBaseWeights != null) {
+                        int c = Math.min(nm, inMesh.morphBaseWeights.length);
+                        System.arraycopy(inMesh.morphBaseWeights, 0, newMesh.morphBaseWeights, 0, c);
+                    }
                 }
             }
 
@@ -893,7 +950,8 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    public static Rig.Mesh loadMesh(Mesh mesh) {
+    public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
+        validateMorphTargetTextureLayout(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
 
         String name = mesh.name;
 
@@ -966,20 +1024,24 @@ public class ModelUtil {
                 }
                 meshBuilder.addMorphTargets(morphTargetBuilder);
             }
-        }
-        if (mesh.morphBaseWeights != null) {
-            meshBuilder.addAllMorphBaseWeights(toList(mesh.morphBaseWeights));
+            int morphN = mesh.morphTargets.length;
+            float[] base = new float[morphN];
+            if (mesh.morphBaseWeights != null) {
+                int c = Math.min(morphN, mesh.morphBaseWeights.length);
+                System.arraycopy(mesh.morphBaseWeights, 0, base, 0, c);
+            }
+            meshBuilder.addAllMorphBaseWeights(toList(base));
         }
 
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton) {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton, int maxMorphTexW, int maxMorphTexH) throws LoaderException {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh));
+            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH));
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
@@ -996,15 +1058,15 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models) {
+    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH) throws LoaderException {
 
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton));
+            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH));
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, models);
+            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH);
         }
     }
 
@@ -1063,15 +1125,14 @@ public class ModelUtil {
         return scene;
     }
 
-
-    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
+    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            loadModelInstances(root, skeleton, models);
+            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH);
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
@@ -1175,7 +1236,7 @@ public class ModelUtil {
     }
 
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, LoaderException {
         if (args.length < 1) {
             System.err.println("No model specified!");
             return;
@@ -1323,7 +1384,7 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        loadModels(scene, meshSetBuilder); // testing the function
+        loadModels(scene, meshSetBuilder, 0, 0); // testing the function
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadSkeleton(scene, skeletonBuilder); // testing the function

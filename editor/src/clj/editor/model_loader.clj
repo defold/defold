@@ -19,18 +19,39 @@
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
-           [java.util ArrayList]
-           [java.io InputStream]))
+           [java.io File InputStream]
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 
-(defn- load-collada-scene [^InputStream stream]
+(defn- morph-target-texture-limits
+  [^File project-directory]
+  (let [default-w ModelUtil/DEFAULT_MAX_MORPH_TARGET_TEXTURE_WIDTH
+        default-h ModelUtil/DEFAULT_MAX_MORPH_TARGET_TEXTURE_HEIGHT
+        f (io/file project-directory "game.project")]
+    (if-not (.isFile f)
+      [(int default-w) (int default-h)]
+      (try
+        (with-open [r (io/reader f)]
+          (let [raw (settings-core/parse-settings r)
+                w-str (settings-core/get-setting raw ["model" "max_morph_target_texture_width"])
+                h-str (settings-core/get-setting raw ["model" "max_morph_target_texture_height"])
+                w (if w-str (Integer/parseInt w-str) default-w)
+                h (if h-str (Integer/parseInt h-str) default-h)]
+            [(int w) (int h)]))
+        (catch Exception _
+          [(int default-w) (int default-h)])))))
+
+(defn- load-collada-scene
+  "Collada has no morph-target support in the importer; do not read game.project morph atlas limits here."
+  [^InputStream stream]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         scene (ColladaUtil/loadScene stream)
@@ -47,9 +68,12 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-model-scene [resource ^InputStream stream]
+(defn- load-model-scene
+  "glTF/glb only: mesh build runs morph atlas size checks against game.project limits."
+  [resource ^InputStream stream]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
+        [morph-tex-w morph-tex-h] (morph-target-texture-limits project-directory)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
@@ -61,7 +85,7 @@
         animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder)
+    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set

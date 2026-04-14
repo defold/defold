@@ -258,8 +258,10 @@ namespace dmGameSystem
         {
             if (w < max_w)
                 w <<= 1;
-            else
+            else if (h < max_h)
                 h <<= 1;
+            else
+                break;
         }
         *out_w = w;
         *out_h = h;
@@ -291,6 +293,7 @@ namespace dmGameSystem
         uint32_t width;
         uint32_t height;
         ComputeMorphTextureSize(max_count, max_tex_w, max_tex_h, &width, &height);
+        // MeshsetBuilder / editor ModelUtil enforce the same layout against game.project at build time
         if (width > max_tex_w || height > max_tex_h || width * height < max_count)
         {
             dmLogError(

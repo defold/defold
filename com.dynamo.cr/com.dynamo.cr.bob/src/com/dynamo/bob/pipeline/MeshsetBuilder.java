@@ -34,6 +34,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -143,6 +144,10 @@ public class MeshsetBuilder extends Builder  {
             validateGltf(task, suffix);
         }
 
+        BobProjectProperties projectProperties = this.project.getProjectProperties();
+        int morphTexW = projectProperties.getIntValue("model", "max_morph_target_texture_width", 1024);
+        int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
+
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
         Modelimporter.Scene scene;
@@ -161,7 +166,11 @@ public class MeshsetBuilder extends Builder  {
                 ModelUtil.splitMeshes(scene);
             }
 
-            ModelUtil.loadModels(scene, meshSetBuilder);
+            try {
+                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH);
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+            }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);

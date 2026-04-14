@@ -785,6 +785,31 @@ static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
     }
 }
 
+// One weight per morph target; zero-filled when glTF omits mesh/node weights (rig reset memcpy).
+static void EnsureMorphBaseWeightsMatchTargetCount(Mesh* mesh)
+{
+    uint32_t tc = mesh->m_MorphTargets.Size();
+    if (tc == 0)
+        return;
+
+    uint32_t bc = mesh->m_MorphBaseWeights.Size();
+    if (bc == tc)
+        return;
+
+    float* mw = new float[tc];
+    if (bc > 0)
+    {
+        memcpy(mw, mesh->m_MorphBaseWeights.Begin(), bc * sizeof(float));
+        if (tc > bc)
+            memset(mw + bc, 0, (tc - bc) * sizeof(float));
+    }
+    else
+    {
+        memset(mw, 0, tc * sizeof(float));
+    }
+    mesh->m_MorphBaseWeights.Set(mw, tc, tc, false);
+}
+
 static void AddDynamicMaterial(Scene* scene, Material* material)
 {
     if (scene->m_DynamicMaterials.Full())
@@ -981,6 +1006,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                     }
                 }
             }
+            EnsureMorphBaseWeightsMatchTargetCount(mesh);
         }
 
         if (mesh->m_TexCoords0.Empty())
@@ -1472,6 +1498,11 @@ static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
                 mesh->m_MorphBaseWeights.SetCapacity(0);
                 mesh->m_MorphBaseWeights.Set(mw, (uint32_t)gltf_node->weights_count, (uint32_t)gltf_node->weights_count, false);
             }
+        }
+
+        for (uint32_t j = 0; j < node->m_Model->m_Meshes.Size(); ++j)
+        {
+            EnsureMorphBaseWeightsMatchTargetCount(&node->m_Model->m_Meshes[j]);
         }
     }
 }

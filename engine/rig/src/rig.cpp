@@ -414,22 +414,21 @@ namespace dmRig
         return t;
     }
 
-    static int32_t FindMorphSlotIndex(RigInstance* instance, uint64_t model_id)
+    static MorphWeightSlot* GetMorphWeightSlot(RigInstance* instance, uint64_t model_id)
     {
         for (uint32_t i = 0; i < instance->m_MorphSlots.Size(); ++i)
         {
             if (instance->m_MorphSlots[i].m_ModelId == model_id)
             {
-                return (int32_t)i;
+                return &instance->m_MorphSlots[i];
             }
         }
-        return -1;
+        return 0x0;
     }
 
     static void ResetMorphWeights(RigInstance* instance)
     {
-        const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
-        if (!mesh_set || instance->m_MorphSlots.Empty())
+        if (instance->m_MorphSlots.Empty())
         {
             return;
         }
@@ -438,38 +437,9 @@ namespace dmRig
         {
             MorphWeightSlot& slot = instance->m_MorphSlots[si];
             float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
-
-            const dmRigDDF::Model* model = 0;
-            for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
+            if (slot.m_DefaultMorphWeights)
             {
-                if (mesh_set->m_Models[mi].m_Id == slot.m_ModelId)
-                {
-                    model = &mesh_set->m_Models[mi];
-                    break;
-                }
-            }
-            if (!model)
-            {
-                memset(dest, 0, slot.m_MorphCount * sizeof(float));
-                continue;
-            }
-
-            const dmRigDDF::Mesh* mesh_with_base = 0;
-            for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
-            {
-                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
-                if (mm.m_MorphBaseWeights.m_Data != 0x0 && mm.m_MorphBaseWeights.m_Count > 0)
-                {
-                    mesh_with_base = &mm;
-                    break;
-                }
-            }
-            if (mesh_with_base)
-            {
-                uint32_t n = dmMath::Min(slot.m_MorphCount, mesh_with_base->m_MorphBaseWeights.m_Count);
-                memcpy(dest, mesh_with_base->m_MorphBaseWeights.m_Data, n * sizeof(float));
-                if (n < slot.m_MorphCount)
-                    memset(dest + n, 0, (slot.m_MorphCount - n) * sizeof(float));
+                memcpy(dest, slot.m_DefaultMorphWeights, slot.m_MorphCount * sizeof(float));
             }
             else
             {
@@ -532,10 +502,26 @@ namespace dmRig
                 continue;
             }
 
+            const float* default_weights = 0x0;
+            for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
+            {
+                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
+                if (mm.m_MorphTargets.m_Count != mcount)
+                {
+                    continue;
+                }
+                if (mm.m_MorphBaseWeights.m_Data != 0x0 && mm.m_MorphBaseWeights.m_Count == mcount)
+                {
+                    default_weights = mm.m_MorphBaseWeights.m_Data;
+                    break;
+                }
+            }
+
             MorphWeightSlot slot;
             slot.m_ModelId = model->m_Id;
             slot.m_MorphCount = mcount;
             slot.m_BufferOffset = buffer_offset;
+            slot.m_DefaultMorphWeights = default_weights;
             instance->m_MorphSlots.Push(slot);
             buffer_offset += mcount;
         }
@@ -602,23 +588,21 @@ namespace dmRig
         for (uint32_t ti = 0; ti < mw_count; ++ti)
         {
             const dmRigDDF::MorphWeightTrack* track = &mw_tracks[ti];
-            int32_t slot_index = FindMorphSlotIndex(instance, track->m_ModelId);
-
-            if (slot_index < 0)
+            MorphWeightSlot* slot = GetMorphWeightSlot(instance, track->m_ModelId);
+            if (!slot)
             {
                 continue;
             }
 
-            MorphWeightSlot& slot = instance->m_MorphSlots[slot_index];
-            if (track->m_MorphCount != slot.m_MorphCount)
+            if (track->m_MorphCount != slot->m_MorphCount)
             {
                 continue;
             }
 
             SampleMorphWeightTrack(track, t, sample_rate, instance->m_MorphScratch.Begin());
-            float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
+            float* dest = instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
             const float* sampled = instance->m_MorphScratch.Begin();
-            for (uint32_t d = 0; d < slot.m_MorphCount; ++d)
+            for (uint32_t d = 0; d < slot->m_MorphCount; ++d)
             {
                 dest[d] = dest[d] + blend_weight * (sampled[d] - dest[d]);
             }
@@ -1690,29 +1674,27 @@ namespace dmRig
         {
             return 0x0;
         }
-        int32_t idx = FindMorphSlotIndex(instance, model_id);
-        if (idx < 0)
+        MorphWeightSlot* slot = GetMorphWeightSlot(instance, model_id);
+        if (!slot)
         {
             return 0x0;
         }
-        const MorphWeightSlot& slot = instance->m_MorphSlots[idx];
-        *out_count = slot.m_MorphCount;
-        return instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
+        *out_count = slot->m_MorphCount;
+        return instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
     }
 
     void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
     {
-        int32_t idx = FindMorphSlotIndex(instance, model_id);
-        if (idx < 0)
+        MorphWeightSlot* slot = GetMorphWeightSlot(instance, model_id);
+        if (!slot)
         {
             return;
         }
-        MorphWeightSlot& slot = instance->m_MorphSlots[idx];
-        float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
-        uint32_t n = dmMath::Min(count, slot.m_MorphCount);
+        float* dest = instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+        uint32_t n = dmMath::Min(count, slot->m_MorphCount);
         memcpy(dest, weights, n * sizeof(float));
-        if (n < slot.m_MorphCount)
-            memset(dest + n, 0, (slot.m_MorphCount - n) * sizeof(float));
+        if (n < slot->m_MorphCount)
+            memset(dest + n, 0, (slot->m_MorphCount - n) * sizeof(float));
     }
 
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)
