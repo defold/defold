@@ -30,6 +30,7 @@ namespace dmGameSystem
 
     void  PushWorld(struct lua_State* L, void* world);
     void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
+    void  PushBox2DVersion(struct lua_State* L);
 
     void  ScriptBox2DInitializeBody(struct lua_State* L);
     void  ScriptBox2DInitializeFixture(struct lua_State* L);

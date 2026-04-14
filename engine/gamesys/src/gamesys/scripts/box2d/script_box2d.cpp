@@ -105,10 +105,18 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int B2D_GetVersion(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushBox2DVersion(L);
+        return 1;
+    }
+
     static const luaL_reg BOX2D_FUNCTIONS[] =
     {
         {"get_world", B2D_GetWorld},
         {"get_body", B2D_GetBody},
+        {"get_version", B2D_GetVersion},
 
         {0, 0}
     };
@@ -173,3 +181,7 @@ namespace dmGameSystem
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
 
+/*# Get the Box2D version string for the active backend.
+ * @name b2d.get_version
+ * @return version [type: string] version formatted as `major.minor.revision`
+ */

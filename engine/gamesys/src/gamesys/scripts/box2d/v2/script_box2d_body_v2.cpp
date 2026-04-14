@@ -207,6 +207,11 @@ namespace dmGameSystem
         PushBodyInternal(L, body, collection, instance_id, GetBodyInstanceGeneration((b2Body*)body));
     }
 
+    void PushBox2DVersion(lua_State* L)
+    {
+        lua_pushfstring(L, "%d.%d.%d", b2_version.major, b2_version.minor, b2_version.revision);
+    }
+
     void TrackOwnedFixtureShape(b2Fixture* fixture, FixtureShapeDef* shape_def)
     {
         assert(fixture);

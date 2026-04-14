@@ -58,6 +58,12 @@ namespace dmGameSystem
         lua_setmetatable(L, -2);
     }
 
+    void PushBox2DVersion(lua_State* L)
+    {
+        b2Version version = b2GetVersion();
+        lua_pushfstring(L, "%d.%d.%d", version.major, version.minor, version.revision);
+    }
+
     //////////////////////////////////////////////////////////////////////////////
     // b2Vec2
     static b2Vec2 CheckVec2(lua_State* L, int index, float scale)
