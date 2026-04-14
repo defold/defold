@@ -31,23 +31,32 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- morph-target-texture-limits
+(def ^:private default-morph-target-texture-size 1024)
+
+(defn- parse-morph-texture-dimension [v]
+  (cond
+    (nil? v) default-morph-target-texture-size
+    (number? v) (int v)
+    (string? v) (try (Integer/parseInt (string/trim v))
+                     (catch NumberFormatException _
+                       default-morph-target-texture-size))
+    :else default-morph-target-texture-size))
+
+(defn- morph-target-texture-limits-from-project-settings [project-settings]
+  [(parse-morph-texture-dimension (get project-settings ["model" "max_morph_target_texture_width"]))
+   (parse-morph-texture-dimension (get project-settings ["model" "max_morph_target_texture_height"]))])
+
+(defn- morph-target-texture-limits-from-disk
+  "Fallback when loading without the editor project settings graph (e.g. some tests)."
   [^File project-directory]
-  (let [default-w ModelUtil/DEFAULT_MAX_MORPH_TARGET_TEXTURE_WIDTH
-        default-h ModelUtil/DEFAULT_MAX_MORPH_TARGET_TEXTURE_HEIGHT
-        f (io/file project-directory "game.project")]
-    (if-not (.isFile f)
-      [(int default-w) (int default-h)]
-      (try
-        (with-open [r (io/reader f)]
-          (let [raw (settings-core/parse-settings r)
-                w-str (settings-core/get-setting raw ["model" "max_morph_target_texture_width"])
-                h-str (settings-core/get-setting raw ["model" "max_morph_target_texture_height"])
-                w (if w-str (Integer/parseInt w-str) default-w)
-                h (if h-str (Integer/parseInt h-str) default-h)]
-            [(int w) (int h)]))
-        (catch Exception _
-          [(int default-w) (int default-h)])))))
+  (let [game-project-file (io/file project-directory "game.project")]
+    (with-open [r (io/reader game-project-file)]
+      (let [raw (settings-core/parse-settings r)
+            w-str (settings-core/get-setting raw ["model" "max_morph_target_texture_width"])
+            h-str (settings-core/get-setting raw ["model" "max_morph_target_texture_height"])
+            max-morph-target-texture-width (int (Integer/parseInt w-str))
+            max-morph-target-texture-height (int (Integer/parseInt h-str))]
+        [max-morph-target-texture-width max-morph-target-texture-height]))))
 
 (defn- load-collada-scene
   "Collada has no morph-target support in the importer; do not read game.project morph atlas limits here."
@@ -70,10 +79,9 @@
 
 (defn- load-model-scene
   "glTF/glb only: mesh build runs morph atlas size checks against game.project limits."
-  [resource ^InputStream stream]
+  [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
-        [morph-tex-w morph-tex-h] (morph-target-texture-limits project-directory)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
@@ -112,8 +120,13 @@
                       {:resource resource
                        :errors gltf-validation-errors})))))
 
-(defn- load-scene-internal [resource]
-  (let [ext (string/lower-case (resource/ext resource))
+(defn- load-scene-internal [resource project-settings]
+  (let [workspace (resource/workspace resource)
+        project-directory (workspace/project-directory workspace)
+        [morph-tex-w morph-tex-h] (if (some? project-settings)
+                                    (morph-target-texture-limits-from-project-settings project-settings)
+                                    (morph-target-texture-limits-from-disk project-directory))
+        ext (string/lower-case (resource/ext resource))
         is-zip-resource? (resource/zip-resource? resource)]
     ;; First, run glTF/glb files through the bob validator.
     ;; For zip resources we validate from a stream and avoid validating external
@@ -128,15 +141,18 @@
     (with-open [stream (io/input-stream resource)]
       (if (= "dae" ext)
         (load-collada-scene stream)
-        (load-model-scene resource stream)))))
+        (load-model-scene resource stream morph-tex-w morph-tex-h)))))
 
-(defn load-scene [node-id resource]
-  (try
-    (load-scene-internal resource)
-    (catch Exception e
-      (let [path (resource/proj-path resource)
-            message (.getMessage e)]
-        (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
-        (g/->error node-id nil :fatal nil
-                   (localization/message "error.model-load-failed" {"file" path "error" message})
-                   {:type :invalid-content :resource resource})))))
+(defn load-scene
+  ([node-id resource]
+   (load-scene node-id resource nil))
+  ([node-id resource project-settings]
+   (try
+     (load-scene-internal resource project-settings)
+     (catch Exception e
+       (let [path (resource/proj-path resource)
+             message (.getMessage e)]
+         (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
+         (g/->error node-id nil :fatal nil
+                    (localization/message "error.model-load-failed" {"file" path "error" message})
+                    {:type :invalid-content :resource resource}))))))
