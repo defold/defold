@@ -19,44 +19,21 @@
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
-           [java.io File InputStream]
+           [java.io InputStream]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private default-morph-target-texture-size 1024)
-
-(defn- parse-morph-texture-dimension [v]
-  (cond
-    (nil? v) default-morph-target-texture-size
-    (number? v) (int v)
-    (string? v) (try (Integer/parseInt (string/trim v))
-                     (catch NumberFormatException _
-                       default-morph-target-texture-size))
-    :else default-morph-target-texture-size))
-
-(defn- morph-target-texture-limits-from-project-settings [project-settings]
-  [(parse-morph-texture-dimension (get project-settings ["model" "max_morph_target_texture_width"]))
-   (parse-morph-texture-dimension (get project-settings ["model" "max_morph_target_texture_height"]))])
-
-(defn- morph-target-texture-limits-from-disk
-  "Fallback when loading without the editor project settings graph (e.g. some tests)."
-  [^File project-directory]
-  (let [game-project-file (io/file project-directory "game.project")]
-    (with-open [r (io/reader game-project-file)]
-      (let [raw (settings-core/parse-settings r)
-            w-str (settings-core/get-setting raw ["model" "max_morph_target_texture_width"])
-            h-str (settings-core/get-setting raw ["model" "max_morph_target_texture_height"])
-            max-morph-target-texture-width (int (Integer/parseInt w-str))
-            max-morph-target-texture-height (int (Integer/parseInt h-str))]
-        [max-morph-target-texture-width max-morph-target-texture-height]))))
+(defn- morph-target-texture-limits [project-settings]
+  (mapv #(int (Integer/parseInt (string/trim (str (get project-settings %)))))
+        [["model" "max_morph_target_texture_width"]
+         ["model" "max_morph_target_texture_height"]]))
 
 (defn- load-collada-scene
   "Collada has no morph-target support in the importer; do not read game.project morph atlas limits here."
@@ -121,11 +98,7 @@
                        :errors gltf-validation-errors})))))
 
 (defn- load-scene-internal [resource project-settings]
-  (let [workspace (resource/workspace resource)
-        project-directory (workspace/project-directory workspace)
-        [morph-tex-w morph-tex-h] (if (some? project-settings)
-                                    (morph-target-texture-limits-from-project-settings project-settings)
-                                    (morph-target-texture-limits-from-disk project-directory))
+  (let [[morph-tex-w morph-tex-h] (morph-target-texture-limits project-settings)
         ext (string/lower-case (resource/ext resource))
         is-zip-resource? (resource/zip-resource? resource)]
     ;; First, run glTF/glb files through the bob validator.
@@ -143,16 +116,13 @@
         (load-collada-scene stream)
         (load-model-scene resource stream morph-tex-w morph-tex-h)))))
 
-(defn load-scene
-  ([node-id resource]
-   (load-scene node-id resource nil))
-  ([node-id resource project-settings]
-   (try
-     (load-scene-internal resource project-settings)
-     (catch Exception e
-       (let [path (resource/proj-path resource)
-             message (.getMessage e)]
-         (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
-         (g/->error node-id nil :fatal nil
-                    (localization/message "error.model-load-failed" {"file" path "error" message})
-                    {:type :invalid-content :resource resource}))))))
+(defn load-scene [node-id resource project-settings]
+  (try
+    (load-scene-internal resource project-settings)
+    (catch Exception e
+      (let [path (resource/proj-path resource)
+            message (.getMessage e)]
+        (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
+        (g/->error node-id nil :fatal nil
+                   (localization/message "error.model-load-failed" {"file" path "error" message})
+                   {:type :invalid-content :resource resource})))))
