@@ -116,15 +116,20 @@
        :params (vec4d tidx intensity 0.0 0.0)})))
 
 (defn packed-lights-from-scene
-  "Collect lights from outline-pass renderables (scene lights). Returns
+  "Collect lights from scene renderables. Returns
   `default-preview-lights` when there are none."
   [renderables-by-pass]
-  (let [outline-rs (get renderables-by-pass pass/outline [])
-        with-preview (filterv #(get-in % [:user-data :editor-preview-light]) outline-rs)]
-    (if (seq with-preview)
+  (let [scene-renderables (concat (get renderables-by-pass pass/transparent [])
+                                  (get renderables-by-pass pass/outline []))
+        with-preview (filterv #(get-in % [:user-data :editor-preview-light]) scene-renderables)
+        deduped-preview (vals (reduce (fn [by-node-id-path renderable]
+                                        (update by-node-id-path (:node-id-path renderable) #(or % renderable)))
+                                      {}
+                                      with-preview))]
+    (if (seq deduped-preview)
       (mapv renderable->std140-light
             (take default-max-preview-lights
-                  (sort-by (comp vec :node-id-path) with-preview)))
+                  (sort-by (comp vec :node-id-path) deduped-preview)))
       default-preview-lights)))
 
 (defn pack-lights

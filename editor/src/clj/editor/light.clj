@@ -30,7 +30,9 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
+            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
@@ -61,7 +63,7 @@
 (def ^:private ^:const gizmo-target-pixels 100.0)
 ;; Screen-space half-extent (pixels) for the origin icon quad; world size = scale-factor * this (see camera preview mesh).
 (def ^:private ^:const origin-marker-pixels 8.0)
-(def ^:private ^:const max-spot-cone-angle 365.0)
+(def ^:private ^:const max-spot-cone-angle 180.0)
 
 (def ^:private outline-icon "icons/64/Icons_21-Light.png")
 
@@ -424,6 +426,11 @@
       (let [c (:color user-data)]
         [(double (nth c 0 1.0)) (double (nth c 1 1.0)) (double (nth c 2 1.0))])))
 
+(defn- finite-positive? [x]
+  (let [x (double x)]
+    (and (Double/isFinite x)
+         (pos? x))))
+
 (defn- render-origin-markers-billboard [^GL2 gl render-args renderables icon-gpu-texture]
   (assert (= pass/outline (:pass render-args)))
   (let [n (count renderables)
@@ -435,9 +442,12 @@
                                ^Vector3d world-translation (:world-translation renderable)
                                sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
                                h (* 2.0 (double sf) (double origin-marker-pixels))]
-                           (if-some [axes (billboard-axes world-translation camera)]
-                             (let [[^Vector3d right ^Vector3d up _] axes]
-                               (fill-light-icon-quad! vbuf world-translation right up h ocr ocg ocb))
+                           (if (and (finite-positive? sf)
+                                    (finite-positive? h))
+                             (if-some [axes (billboard-axes world-translation camera)]
+                               (let [[^Vector3d right ^Vector3d up _] axes]
+                                 (fill-light-icon-quad! vbuf world-translation right up h ocr ocg ocb))
+                               vbuf)
                              vbuf)))
                        (->tex-color-vtx (* n 6))
                        (range n)))]
@@ -469,9 +479,12 @@
                                ^Vector3d world-translation (:world-translation renderable)
                                sf (scene-tools/scale-factor camera (:viewport render-args) world-translation)
                                h (* 2.0 (double sf) (double origin-marker-pixels))]
-                           (if-some [axes (billboard-axes world-translation camera)]
-                             (let [[^Vector3d right ^Vector3d up _] axes]
-                               (fill-solid-billboard-quad! vbuf world-translation right up h cr cg cb ca))
+                           (if (and (finite-positive? sf)
+                                    (finite-positive? h))
+                             (if-some [axes (billboard-axes world-translation camera)]
+                               (let [[^Vector3d right ^Vector3d up _] axes]
+                                 (fill-solid-billboard-quad! vbuf world-translation right up h cr cg cb ca))
+                               vbuf)
                              vbuf)))
                        (->color-vtx (* n 6))
                        (range n)))]
@@ -554,7 +567,8 @@
                                         d (world-dir-from-light renderable)
                                         sf (scene-tools/scale-factor camera (:viewport render-args) p)
                                         total-len (* (double sf) gizmo-target-pixels)]
-                                    (fill-directional-move-arrow-tris-only! vbuf p d cr cg cb total-len)
+                                    (when (finite-positive? total-len)
+                                      (fill-directional-move-arrow-tris-only! vbuf p d cr cg cb total-len))
                                     vbuf)
                                   vbuf)))
                             (->color-vtx (* (long n) (long directional-arrow-tri-vert-count)))
@@ -569,7 +583,8 @@
                                           d (world-dir-from-light renderable)
                                           sf (scene-tools/scale-factor camera (:viewport render-args) p)
                                           total-len (* (double sf) gizmo-target-pixels)]
-                                      (fill-directional-move-arrow-lines-only! vbuf p d cr cg cb total-len)
+                                      (when (finite-positive? total-len)
+                                        (fill-directional-move-arrow-lines-only! vbuf p d cr cg cb total-len))
                                       vbuf)
                                     vbuf)))
                               (->color-vtx (* (long n) (long directional-arrow-line-vert-count)))
@@ -628,6 +643,36 @@
                          :inner-cone-angle inner-cone-angle
                          :outer-cone-angle outer-cone-angle}})
 
+(defn- point-light-preview-fn
+  [visibility-aabb user-data prop-kw->override-value]
+  (if-some [range-override (:range prop-kw->override-value)]
+    (let [r (max (double range-override) 0.01)
+          point-scale (float-array [(float r) (float r) (float r) 1.0])
+          visibility-aabb (geom/mirrored-point->aabb (Point3d. r r r))
+          user-data (assoc user-data
+                      :range range-override
+                      :editor-preview-light (assoc (:editor-preview-light user-data) :range range-override)
+                      :point-scale point-scale)]
+      [visibility-aabb user-data])
+    [visibility-aabb user-data]))
+
+(defn- spot-light-preview-fn
+  [visibility-aabb user-data prop-kw->override-value]
+  (if-some [range-override (:range prop-kw->override-value)]
+    (let [h (max (double range-override) 0.01)
+          outer-cone-angle (double (or (:outer-cone-angle user-data) 45.0))
+          half-outer (* 0.5 (Math/toRadians outer-cone-angle))
+          base-r (max (* h (Math/tan half-outer)) 0.02)
+          point-scale (float-array [(float base-r) (float base-r) (float h) 1.0])
+          max-ext (max base-r h)
+          visibility-aabb (geom/mirrored-point->aabb (Point3d. max-ext max-ext max-ext))
+          user-data (assoc user-data
+                      :range range-override
+                      :editor-preview-light (assoc (:editor-preview-light user-data) :range range-override)
+                      :point-scale point-scale)]
+      [visibility-aabb user-data])
+    [visibility-aabb user-data]))
+
 (g/defnk produce-light-scene
   [_node-id light-type color intensity range outer-cone-angle inner-cone-angle]
   (let [preview (preview-light-user-data light-type color intensity range inner-cone-angle outer-cone-angle)
@@ -650,12 +695,14 @@
         {:node-id _node-id
          :aabb aabb
          :renderable {:render-fn render-point-volume-scaled
+                      :preview-fn point-light-preview-fn
                       :batch-key [scene-shapes/shader]
                       :passes [pass/transparent pass/selection]
                       :user-data vol-ud}
          :children [{:node-id _node-id
                      :aabb aabb
                      :renderable {:render-fn render-point-outline-scaled
+                                  :preview-fn point-light-preview-fn
                                   :batch-key [outline-shader]
                                   :tags #{:outline}
                                   :passes [pass/outline]
@@ -699,12 +746,14 @@
         {:node-id _node-id
          :aabb aabb
          :renderable {:render-fn render-spot-volume-scaled
+                      :preview-fn spot-light-preview-fn
                       :batch-key [scene-shapes/shader]
                       :passes [pass/transparent pass/selection]
                       :user-data vol-ud}
          :children [{:node-id _node-id
                      :aabb aabb
                      :renderable {:render-fn render-spot-outline-scaled
+                                  :preview-fn spot-light-preview-fn
                                   :batch-key [outline-shader]
                                   :tags #{:outline}
                                   :passes [pass/outline]
@@ -821,6 +870,63 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-light-scene)
   (output node-outline outline/OutlineData :cached produce-outline-data))
+
+(def ^:private light-component-type-ext "light")
+(def ^:private light-range-scale-manips [:scale-uniform])
+(def ^:private default-component-scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
+
+(defn- property-effective-value [{:keys [value original-value]}]
+  (if (some? value) value original-value))
+
+(defn- light-component-range-property
+  [component-node-id evaluation-context]
+  (when (= light-component-type-ext
+           (some-> (g/node-value component-node-id :source-resource evaluation-context)
+                   resource/type-ext))
+    (let [range-property (get-in (g/node-value component-node-id :_properties evaluation-context)
+                                 [:properties :range])]
+      (when (and (map? range-property)
+                 (:visible range-property true))
+        range-property))))
+
+(defn- light-component-range-endpoint
+  [component-node-id evaluation-context]
+  (when-some [range-property (light-component-range-property component-node-id evaluation-context)]
+    (let [target-node-id (:node-id range-property)
+          target-prop-kw (or (:prop-kw range-property) :range)]
+      (when (and target-node-id (keyword? target-prop-kw))
+        {:node-id target-node-id
+         :prop-kw target-prop-kw
+         :property range-property}))))
+
+(defn- scalar-scale-factor [^Vector3d delta]
+  (let [scale-components [(.getX delta) (.getY delta) (.getZ delta)]
+        changed-scale-components (into [] (filter #(> (Math/abs (- (double %) 1.0)) 1e-9)) scale-components)]
+    (if (seq changed-scale-components)
+      (/ (reduce + changed-scale-components) (count changed-scale-components))
+      (.getX delta))))
+
+(defmethod scene-tools/manip-scalable? :editor.game-object/ComponentNode [node-id]
+  (or (some? (light-component-range-property node-id (g/make-evaluation-context)))
+      (contains? (g/node-value node-id :transform-properties) :scale)))
+
+(defmethod scene-tools/manip-scale-manips :editor.game-object/ComponentNode [node-id]
+  (if (some? (light-component-range-property node-id (g/make-evaluation-context)))
+    light-range-scale-manips
+    default-component-scale-manips))
+
+(defmethod scene-tools/manip-scale :editor.game-object/ComponentNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (if-some [{target-node-id :node-id target-prop-kw :prop-kw property :property}
+            (light-component-range-endpoint node-id initial-evaluation-context)]
+    (let [old-range (double (property-effective-value property))
+          new-range (properties/scale-by-absolute-value-and-round old-range (scalar-scale-factor delta))]
+      (case manip-phase
+        :manip-phase/commit
+        {:manip/tx-data (g/set-property target-node-id target-prop-kw new-range)}
+
+        :manip-phase/preview
+        {:manip/prop-kw->override-value {:range new-range}}))
+    (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

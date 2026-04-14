@@ -15,6 +15,7 @@
 #include <dmsdk/gamesys/resources/res_light.h>
 
 #include <ddf/ddf.h>
+#include <dlib/math.h>
 #include <render/render.h>
 
 namespace dmGameSystem
@@ -162,6 +163,10 @@ namespace dmGameSystem
             HANDLE_LIGHT_PARSE_RES("spot.inner_cone_angle", res);
             res = GetNumber(&light_data, "outer_cone_angle", &params.m_OuterConeAngle);
             HANDLE_LIGHT_PARSE_RES("spot.outer_cone_angle", res);
+            params.m_OuterConeAngle = dmMath::Clamp(params.m_OuterConeAngle, 0.0f, 180.0f);
+            params.m_InnerConeAngle = dmMath::Clamp(params.m_InnerConeAngle, 0.0f, params.m_OuterConeAngle);
+            params.m_InnerConeAngle = params.m_InnerConeAngle * ((float) M_PI / 180.0f);
+            params.m_OuterConeAngle = params.m_OuterConeAngle * ((float) M_PI / 180.0f);
         }
     #undef HANDLE_LIGHT_PARSE_RES
 

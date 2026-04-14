@@ -15,6 +15,8 @@
 (ns editor.gl.light-uniforms-test
   (:require [clojure.test :refer :all]
             [editor.gl.light-uniforms :as light-u]
+            [editor.geom :as geom]
+            [editor.light :as light]
             [editor.gl.pass :as pass])
   (:import [javax.vecmath Matrix4d Vector3d Vector4d]))
 
@@ -81,3 +83,21 @@
         pl (light-u/packed-lights-from-scene {pass/outline [r]})]
     (is (= 1 (count pl)))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:color (first pl))))) 1e-6))))
+
+(deftest point-light-preview-updates-shader-range-test
+  (let [[_ user-data] (#'editor.light/point-light-preview-fn
+                        geom/null-aabb
+                        {:range 10.0
+                         :editor-preview-light {:light-type :point
+                                                :color [1.0 1.0 1.0 1.0]
+                                                :intensity 1.0
+                                                :range 10.0
+                                                :inner-cone-angle 0.0
+                                                :outer-cone-angle 45.0}}
+                        {:range 25.0})
+        packed-light (light-u/renderable->std140-light
+                       {:world-translation (Vector3d. 0.0 0.0 0.0)
+                        :world-transform (doto (Matrix4d.) (.setIdentity))
+                        :user-data user-data})]
+    (is (= 25.0 (get-in user-data [:editor-preview-light :range])))
+    (is (< (Math/abs (- 25.0 (.w ^Vector4d (:direction_range packed-light)))) 1e-6))))
