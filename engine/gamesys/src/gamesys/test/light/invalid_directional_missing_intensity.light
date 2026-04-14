@@ -13,9 +13,5 @@ data {
         }
       }
     }
-    fields {
-      key: "intensity"
-      value { number: 2.5 }
-    }
   }
 }

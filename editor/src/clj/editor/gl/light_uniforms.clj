@@ -54,11 +54,15 @@
       (doto v (.set 0.0 0.0 -1.0)))))
 
 (defn- world-space-light-direction
-  ^Vector3d [^Matrix4d world-transform local-dir-vec3]
-  (let [d (Vector3d. (double (nth local-dir-vec3 0))
-                     (double (nth local-dir-vec3 1))
-                     (double (nth local-dir-vec3 2)))]
+  ^Vector3d [^Matrix4d world-transform]
+  (let [d (Vector3d. 0.0 0.0 -1.0)]
     (normalize-dir! (math/transform-vector world-transform d))))
+
+(defn- renderable-min-scale
+  ^double [renderable]
+  (if-some [^Vector3d ws (:world-scale renderable)]
+    (min (.x ws) (.y ws) (.z ws))
+    1.0))
 
 (defn renderable->std140-light
   "Build one engine `LightSTD140` row from a flattened scene renderable that has
@@ -72,7 +76,7 @@
         c (:color prev)
         intensity (double (or (:intensity prev) 1.0))
         range (double (or (:range prev) 10.0))
-        dir (:direction prev)
+        scaled-range (max 0.01 (* range (double (renderable-min-scale renderable))))
         inner-deg (double (or (:inner-cone-angle prev) 0.0))
         outer-deg (double (or (:outer-cone-angle prev) 45.0))
         inner-rad (Math/toRadians inner-deg)
@@ -86,7 +90,7 @@
         tidx (engine-light-type-index lt)]
     (case lt
       :directional
-      (let [^Vector3d d (world-space-light-direction wt dir)]
+      (let [^Vector3d d (world-space-light-direction wt)]
         {:position pos
          :color col
          :direction_range (vec4d (.x d) (.y d) (.z d) 0.0)
@@ -95,14 +99,14 @@
       :point
       {:position pos
        :color col
-       :direction_range (vec4d 0.0 0.0 0.0 range)
+       :direction_range (vec4d 0.0 0.0 0.0 scaled-range)
        :params (vec4d tidx intensity 0.0 0.0)}
 
       :spot
-      (let [^Vector3d d (world-space-light-direction wt dir)]
+      (let [^Vector3d d (world-space-light-direction wt)]
         {:position pos
          :color col
-         :direction_range (vec4d (.x d) (.y d) (.z d) range)
+         :direction_range (vec4d (.x d) (.y d) (.z d) scaled-range)
          :params (vec4d tidx intensity inner-rad outer-rad)})
 
       ;; Unknown

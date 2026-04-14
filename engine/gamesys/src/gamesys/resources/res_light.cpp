@@ -101,18 +101,6 @@ namespace dmGameSystem
         return LIGHT_PARSE_RESULT_OK;
     }
 
-    static LightParseResult GetVector3(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector3* out)
-    {
-        dmVMath::Vector4 v4;
-        LightParseResult res = GetVector4(s, key, &v4);
-        if (res != LIGHT_PARSE_RESULT_OK)
-        {
-            return res;
-        }
-        *out = v4.getXYZ();
-        return LIGHT_PARSE_RESULT_OK;
-    }
-
     static LightParseResult DDFToLightParams(const dmGameSystemDDF::Data* ddf, dmRender::LightPrototypeParams& params)
     {
         // Parse tags to determine the light type
@@ -159,8 +147,7 @@ namespace dmGameSystem
         // Light type specific properties
         if (type == dmRender::LIGHT_TYPE_DIRECTIONAL)
         {
-            res = GetVector3(&light_data, "direction", &params.m_Direction);
-            HANDLE_LIGHT_PARSE_RES("directional.direction", res);
+            // Direction is derived from game object rotation applied to (0, 0, -1).
         }
         else if (type == dmRender::LIGHT_TYPE_POINT)
         {

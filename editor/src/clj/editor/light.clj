@@ -87,9 +87,6 @@
 (defn- list-field-vec4 [v]
   {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
 
-(defn- list-field-vec3 [v]
-  {:list {:values (mapv (fn [x] {:number (double x)}) v)}})
-
 (defn- field-num [n]
   {:number (double n)})
 
@@ -121,12 +118,6 @@
       (mapv #(double (or (:number %) 0.0)) vals)
       [1.0 1.0 1.0 1.0])))
 
-(defn- get-vec3 [fields key]
-  (let [vals (get-in fields [key :list :values])]
-    (if (seq vals)
-      (mapv #(double (or (:number %) 0.0)) vals)
-      [0.0 0.0 -1.0])))
-
 (defn- clamp [v low high]
   (-> (double v)
       (max (double low))
@@ -146,12 +137,11 @@
      :color (get-vec4 fields "color")
      :intensity (get-number fields "intensity" 1.0)
      :range (get-number fields "range" 10.0)
-     :direction (get-vec3 fields "direction")
      :inner-cone-angle (get-number fields "inner_cone_angle" 0.0)
      :outer-cone-angle (get-number fields "outer_cone_angle" 45.0)}))
 
 (defn- build-data-desc
-  [light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  [light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
         tags (light-type->tags light-type)
         c4 (vec (take 4 (concat color (repeat 1.0))))
@@ -160,8 +150,7 @@
                          "intensity" (field-num intensity)
                          "range" (field-num range)}
                  :directional {"color" (list-field-vec4 c4)
-                               "intensity" (field-num intensity)
-                               "direction" (list-field-vec3 (vec (take 3 (concat direction [0.0 0.0 -1.0]))))}
+                               "intensity" (field-num intensity)}
                  :spot {"color" (list-field-vec4 c4)
                         "intensity" (field-num intensity)
                         "range" (field-num range)
@@ -184,8 +173,8 @@
       :user-data {:pb-map save-value}})])
 
 (g/defnk produce-save-value
-  [light-type color intensity range direction inner-cone-angle outer-cone-angle]
-  (build-data-desc light-type color intensity range direction inner-cone-angle outer-cone-angle))
+  [light-type color intensity range inner-cone-angle outer-cone-angle]
+  (build-data-desc light-type color intensity range inner-cone-angle outer-cone-angle))
 
 (g/defnk produce-outline-data [_node-id]
   {:node-id _node-id
@@ -230,8 +219,8 @@
       (doto v (.scale (/ 1.0 len)))
       (.set v fallback))))
 
-(defn- world-dir-from-light [renderable local-dir]
-  (let [d (Vector3d. (double (local-dir 0)) (double (local-dir 1)) (double (local-dir 2)))
+(defn- world-dir-from-light [renderable]
+  (let [d (Vector3d. 0.0 0.0 -1.0)
         v (math/transform-vector (:world-transform renderable) d)]
     (v3-normalize! v (Vector3d. 0.0 0.0 -1.0))))
 
@@ -559,10 +548,10 @@
                     (reduce (fn [vbuf ri]
                               (let [renderable (nth renderables ri)]
                                 (if (light-gizmo-selected? renderable)
-                                  (let [{:keys [color direction]} (:user-data renderable)
+                                  (let [{:keys [color]} (:user-data renderable)
                                         [cr cg cb] (outline-rgb-for-light renderable color)
                                         ^Vector3d p (:world-translation renderable)
-                                        d (world-dir-from-light renderable direction)
+                                        d (world-dir-from-light renderable)
                                         sf (scene-tools/scale-factor camera (:viewport render-args) p)
                                         total-len (* (double sf) gizmo-target-pixels)]
                                     (fill-directional-move-arrow-tris-only! vbuf p d cr cg cb total-len)
@@ -574,10 +563,10 @@
                       (reduce (fn [vbuf ri]
                                 (let [renderable (nth renderables ri)]
                                   (if (light-gizmo-selected? renderable)
-                                    (let [{:keys [color direction]} (:user-data renderable)
+                                    (let [{:keys [color]} (:user-data renderable)
                                           [cr cg cb] (outline-rgb-for-light renderable color)
                                           ^Vector3d p (:world-translation renderable)
-                                          d (world-dir-from-light renderable direction)
+                                          d (world-dir-from-light renderable)
                                           sf (scene-tools/scale-factor camera (:viewport render-args) p)
                                           total-len (* (double sf) gizmo-target-pixels)]
                                       (fill-directional-move-arrow-lines-only! vbuf p d cr cg cb total-len)
@@ -631,18 +620,17 @@
 (def ^:private render-spot-volume-scaled (wrap-uniform-scale render-spot-volume))
 
 (defn- preview-light-user-data
-  [light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  [light-type color intensity range inner-cone-angle outer-cone-angle]
   {:editor-preview-light {:light-type light-type
                          :color color
                          :intensity intensity
                          :range range
-                         :direction direction
                          :inner-cone-angle inner-cone-angle
                          :outer-cone-angle outer-cone-angle}})
 
 (g/defnk produce-light-scene
-  [_node-id light-type color intensity direction range outer-cone-angle inner-cone-angle]
-  (let [preview (preview-light-user-data light-type color intensity range direction inner-cone-angle outer-cone-angle)
+  [_node-id light-type color intensity range outer-cone-angle inner-cone-angle]
+  (let [preview (preview-light-user-data light-type color intensity range inner-cone-angle outer-cone-angle)
         rgb-base {:color color
                   :light-rgb [(double (nth color 0 1.0))
                               (double (nth color 1 1.0))
@@ -675,7 +663,7 @@
 
       :directional
       (let [aabb (geom/mirrored-point->aabb (Point3d. 1.5 1.5 1.5))
-            dir-ud (assoc base-user-data :direction direction)]
+            dir-ud base-user-data]
         {:node-id _node-id
          :aabb aabb
          :renderable {:render-fn render-directional-volume-scaled
@@ -725,21 +713,14 @@
       {:node-id _node-id
        :aabb geom/empty-bounding-box})))
 
-(defn- light-set-form-op [{:keys [node-id]} [prop] value]
-  (case prop
-    :direction (g/set-property node-id :direction (vec (take 3 value)))
-    (protobuf-forms-util/set-form-op {:node-id node-id} [prop] value)))
-
 (g/defnk produce-form-data
-  [_node-id light-type color intensity range direction inner-cone-angle outer-cone-angle]
+  [_node-id light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
-        direction-vec4 (vec (take 4 (concat direction [0.0 0.0 -1.0 0.0])))
         hidden-range (= :directional light-type)
-        hidden-direction (not= :directional light-type)
         hidden-cones (not= :spot light-type)]
     {:navigation false
      :form-ops {:user-data {:node-id _node-id}
-                :set light-set-form-op
+                :set protobuf-forms-util/set-form-op
                 :clear protobuf-forms-util/clear-form-op}
      :sections [{:localization-key "light"
                  :fields [{:path [:light-type]
@@ -760,11 +741,6 @@
                            :type :number
                            :default 10.0
                            :hidden hidden-range}
-                          {:path [:direction]
-                           :localization-key "light.direction"
-                           :type :vec4
-                           :default [0.0 0.0 -1.0 0.0]
-                           :hidden hidden-direction}
                           {:path [:inner-cone-angle]
                            :localization-key "light.inner-cone-angle"
                            :type :number
@@ -783,7 +759,6 @@
               [:color] color
               [:intensity] intensity
               [:range] range
-              [:direction] direction-vec4
               [:inner-cone-angle] inner-cone-angle
               [:outer-cone-angle] outer-cone-angle}}))
 
@@ -791,7 +766,7 @@
   {:pre [(map? light-desc)]}
   (let [m (parse-data-desc light-desc)]
     (build-data-desc (:light-type m) (:color m) (:intensity m) (:range m)
-                     (:direction m) (:inner-cone-angle m) (:outer-cone-angle m))))
+                     (:inner-cone-angle m) (:outer-cone-angle m))))
 
 (defn load-light [_project self _resource light-desc]
   {:pre [(map? light-desc)]} ; DataProto$Data in map format.
@@ -812,10 +787,6 @@
   (property range g/Num (default 10.0)
             (dynamic label (properties/label-dynamic :light :range))
             (dynamic visible (g/fnk [light-type] (contains? #{:point :spot} light-type))))
-  (property direction types/Vec3 (default [0.0 0.0 -1.0])
-            (dynamic label (properties/label-dynamic :light :direction))
-            (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["X" "Y" "Z"]}))
-            (dynamic visible (g/fnk [light-type] (= :directional light-type))))
   (property inner-cone-angle g/Num (default 0.0)
             (dynamic label (properties/label-dynamic :light :inner-cone-angle))
             (dynamic edit-type (g/fnk [outer-cone-angle]
@@ -843,7 +814,7 @@
                          (g/set-property self :outer-cone-angle outer-cone-angle))))))
             (dynamic visible (g/fnk [light-type] (= :spot light-type))))
 
-  (display-order [:light-type :color :intensity :range :direction :inner-cone-angle :outer-cone-angle])
+  (display-order [:light-type :color :intensity :range :inner-cone-angle :outer-cone-angle])
 
   (output form-data g/Any :cached produce-form-data)
   (output save-value g/Any :cached produce-save-value)

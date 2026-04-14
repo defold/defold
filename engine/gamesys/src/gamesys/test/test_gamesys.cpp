@@ -4983,7 +4983,7 @@ INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resou
 ResourceFailParams invalid_light_resources[] =
 {
     {"/light/valid_point.lightc", "/light/invalid_point_missing_range.lightc"},
-    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_direction.lightc"},
+    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_intensity.lightc"},
     {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"}
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));

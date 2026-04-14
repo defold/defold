@@ -2271,7 +2271,7 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
 
         dmVMath::Point3 p0;
         dmVMath::Quat r0;
-        dmRender::SetLightInstance(m_Context, light0, p0, r0);
+        dmRender::SetLightInstance(m_Context, light0, p0, r0, 1.0f);
         dmRender::DeleteLightInstance(m_Context, light0);
     }
 
@@ -2290,7 +2290,7 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     ASSERT_NE((dmRender::HLightPrototype)0, proto_dir);
     dmRender::HLightInstance inst_dir = dmRender::NewLightInstance(m_Context, proto_dir);
     ASSERT_NE((dmRender::HLightInstance)0, inst_dir);
-    dmRender::SetLightInstance(m_Context, inst_dir, dmVMath::Point3(0, 10, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, inst_dir, dmVMath::Point3(0, 10, 0), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_dir);
     dmRender::DeleteLightPrototype(m_Context, proto_dir);
 
@@ -2302,7 +2302,7 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     ASSERT_NE((dmRender::HLightPrototype)0, proto_point);
     dmRender::HLightInstance inst_point = dmRender::NewLightInstance(m_Context, proto_point);
     ASSERT_NE((dmRender::HLightInstance)0, inst_point);
-    dmRender::SetLightInstance(m_Context, inst_point, dmVMath::Point3(5.0f, 0.0f, -3.0f), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, inst_point, dmVMath::Point3(5.0f, 0.0f, -3.0f), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_point);
     dmRender::DeleteLightPrototype(m_Context, proto_point);
 
@@ -2316,7 +2316,7 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     ASSERT_NE((dmRender::HLightPrototype)0, proto_spot);
     dmRender::HLightInstance inst_spot = dmRender::NewLightInstance(m_Context, proto_spot);
     ASSERT_NE((dmRender::HLightInstance)0, inst_spot);
-    dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_spot);
     dmRender::DeleteLightPrototype(m_Context, proto_spot);
 }
@@ -2336,7 +2336,7 @@ TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
     {
         lights[i] = dmRender::NewLightInstance(m_Context, prototype);
         ASSERT_NE((dmRender::HLightInstance)0, lights[i]);
-        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, (float)i * 2.0f, (float)i * -1.0f), dmVMath::Quat::identity());
+        dmRender::SetLightInstance(m_Context, lights[i], dmVMath::Point3((float)i, (float)i * 2.0f, (float)i * -1.0f), dmVMath::Quat::identity(), 1.0f);
     }
 
     for (uint32_t i = 0; i < 4; ++i)
@@ -2362,8 +2362,8 @@ TEST_F(dmRenderTest, LightBufferTestIndexReuse)
     dmRender::HLightInstance c = dmRender::NewLightInstance(m_Context, prototype);
     ASSERT_NE((dmRender::HLightInstance)0, c);
 
-    dmRender::SetLightInstance(m_Context, b, dmVMath::Point3(1, 0, 0), dmVMath::Quat::identity());
-    dmRender::SetLightInstance(m_Context, c, dmVMath::Point3(2, 0, 0), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, b, dmVMath::Point3(1, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, c, dmVMath::Point3(2, 0, 0), dmVMath::Quat::identity(), 1.0f);
 
     dmRender::DeleteLightInstance(m_Context, b);
     dmRender::DeleteLightInstance(m_Context, c);
@@ -2381,12 +2381,12 @@ TEST_F(dmRenderTest, LightBufferTestSetLightInstanceUpdates)
     dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
     ASSERT_NE((dmRender::HLightInstance)0, instance);
 
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity());
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity());
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), dmVMath::Quat::identity(), 1.0f);
     // Z rotation by 45 degrees: quat (0, 0, sin(θ/2), cos(θ/2))
     const float half = 3.14159265f / 8.0f;
     dmVMath::Quat rot_z(0.0f, 0.0f, sinf(half), cosf(half));
-    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_z);
+    dmRender::SetLightInstance(m_Context, instance, dmVMath::Point3(1, 2, 3), rot_z, 1.0f);
 
     dmRender::DeleteLightInstance(m_Context, instance);
     dmRender::DeleteLightPrototype(m_Context, prototype);

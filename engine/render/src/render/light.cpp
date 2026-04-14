@@ -84,6 +84,7 @@ namespace dmRender
         light_instance->m_Position         = dmVMath::Point3(0.0f, 0.0f, 0.0f);
         light_instance->m_Direction        = light_prototype->m_Direction;
         light_instance->m_LightPrototype   = light_prototype;
+        light_instance->m_Scale            = 1.0f;
         light_instance->m_LightBufferIndex = render_context->m_RenderLightsIndices.Pop();
 
         if (light_instance->m_LightBufferIndex >= render_context->m_LightBufferScratch.Size())
@@ -117,7 +118,7 @@ namespace dmRender
         return dist2 <= eps * eps;
     }
 
-    void SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation)
+    void SetLightInstance(HRenderContext render_context, HLightInstance instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale)
     {
         LightInstance* light_instance = render_context->m_RenderLights.Get(instance);
         if (!light_instance)
@@ -126,10 +127,14 @@ namespace dmRender
         }
 
         dmVMath::Vector3 direction = dmVMath::Rotate(rotation, light_instance->m_LightPrototype->m_Direction);
-        bool needs_commit = !Vector3Equals(dmVMath::Vector3(position), dmVMath::Vector3(light_instance->m_Position)) || !Vector3Equals(direction, light_instance->m_Direction);
+        float clamped_scale = dmMath::Max(0.0f, scale);
+        bool needs_commit = !Vector3Equals(dmVMath::Vector3(position), dmVMath::Vector3(light_instance->m_Position))
+                            || !Vector3Equals(direction, light_instance->m_Direction)
+                            || dmMath::Abs(clamped_scale - light_instance->m_Scale) > 1e-4f;
 
         light_instance->m_Position = position;
         light_instance->m_Direction = direction;
+        light_instance->m_Scale = clamped_scale;
 
         if (needs_commit)
         {
@@ -247,11 +252,11 @@ namespace dmRender
             direction = instance->m_Direction;
             break;
         case LIGHT_TYPE_POINT:
-            range = prototype->m_Range;
+            range = prototype->m_Range * instance->m_Scale;
             break;
         case LIGHT_TYPE_SPOT:
             direction  = instance->m_Direction;
-            range      = prototype->m_Range;
+            range      = prototype->m_Range * instance->m_Scale;
             inner_cone = prototype->m_InnerConeAngle;
             outer_cone = prototype->m_OuterConeAngle;
             break;
