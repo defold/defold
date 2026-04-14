@@ -116,15 +116,31 @@ static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid
 
 static void ComputeTextureTransformFromTexCoords(const float* tc, float* out_tt)
 {
-    out_tt[0] = tc[2] - tc[0];
-    out_tt[1] = tc[3] - tc[1];
-    out_tt[2] = 0.0f;
-    out_tt[3] = tc[6] - tc[0];
-    out_tt[4] = tc[7] - tc[1];
-    out_tt[5] = 0.0f;
-    out_tt[6] = tc[0];
-    out_tt[7] = tc[1];
-    out_tt[8] = 1.0f;
+    const bool uv_rotated = (tc[0] != tc[2]) && (tc[3] != tc[5]);
+    if (uv_rotated)
+    {
+        out_tt[0] = tc[4] - tc[6];
+        out_tt[1] = tc[5] - tc[7];
+        out_tt[2] = 0.0f;
+        out_tt[3] = tc[0] - tc[6];
+        out_tt[4] = tc[1] - tc[7];
+        out_tt[5] = 0.0f;
+        out_tt[6] = tc[6];
+        out_tt[7] = tc[7];
+        out_tt[8] = 1.0f;
+    }
+    else
+    {
+        out_tt[0] = tc[6] - tc[0];
+        out_tt[1] = tc[7] - tc[1];
+        out_tt[2] = 0.0f;
+        out_tt[3] = tc[2] - tc[0];
+        out_tt[4] = tc[3] - tc[1];
+        out_tt[5] = 0.0f;
+        out_tt[6] = tc[0];
+        out_tt[7] = tc[1];
+        out_tt[8] = 1.0f;
+    }
 }
 
 static void ComputeTextureTransformFromTextureSet(dmResource::HFactory factory,
