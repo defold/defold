@@ -24,14 +24,15 @@ namespace dmRig
     /// One slot per MeshSet model that has morph targets. Maps a model id to a slice of
     /// RigInstance::m_MorphWeightsBuffer (m_BufferOffset .. +m_MorphCount floats) where
     /// animation and sampling read/write blend-shape weights for that model.
-    /// m_DefaultMorphWeights points at a mesh DDF array with exactly m_MorphCount floats (rest pose / glTF defaults).
+    ///
+    /// m_MorphCount is the maximum morph-target count among meshes on that model (one shared
+    /// weight vector for the whole model, matching morph animation tracks). Reset clears this
+    /// slice to zero; glTF/rest defaults live on mesh DDF (m_MorphBaseWeights) for render fallback.
     struct MorphWeightSlot
     {
-        uint64_t       m_ModelId;
-        uint32_t       m_MorphCount;
-        uint32_t       m_BufferOffset;
-        /// Default/rest weights for this slot (m_MorphCount floats); points into MeshSet mesh DDF. Null for legacy assets.
-        const float*   m_DefaultMorphWeights;
+        uint64_t m_ModelId;
+        uint32_t m_MorphCount;
+        uint32_t m_BufferOffset;
     };
 
     struct RigPlayer

@@ -951,7 +951,7 @@ public class ColladaUtil {
         }
 
         for (Modelimporter.Mesh newMesh : allMeshes) {
-            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh));
+            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh, 0, 0));
         }
 
         String name = sceneNode != null ? sceneNode.name : null;

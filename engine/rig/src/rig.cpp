@@ -437,15 +437,18 @@ namespace dmRig
         {
             MorphWeightSlot& slot = instance->m_MorphSlots[si];
             float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
-            if (slot.m_DefaultMorphWeights)
-            {
-                memcpy(dest, slot.m_DefaultMorphWeights, slot.m_MorphCount * sizeof(float));
-            }
-            else
-            {
-                memset(dest, 0, slot.m_MorphCount * sizeof(float));
-            }
+            memset(dest, 0, slot.m_MorphCount * sizeof(float));
         }
+    }
+
+    static uint32_t GetModelMaxMorphTargetCount(const dmRigDDF::Model* model)
+    {
+        uint32_t mcount = 0;
+        for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
+        {
+            mcount = dmMath::Max(mcount, model->m_Meshes[m].m_MorphTargets.m_Count);
+        }
+        return mcount;
     }
 
     static void InitMorphSlots(RigInstance* instance)
@@ -464,12 +467,7 @@ namespace dmRig
         for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
         {
             const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
-            uint32_t mcount = 0;
-            for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
-            {
-                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
-                mcount = dmMath::Max(mcount, mm.m_MorphTargets.m_Count);
-            }
+            uint32_t mcount = GetModelMaxMorphTargetCount(model);
             if (mcount == 0)
             {
                 continue;
@@ -490,38 +488,16 @@ namespace dmRig
         for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
         {
             const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
-            uint32_t mcount = 0;
-            for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
-            {
-                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
-                mcount = dmMath::Max(mcount, mm.m_MorphTargets.m_Count);
-            }
-
+            uint32_t mcount = GetModelMaxMorphTargetCount(model);
             if (mcount == 0)
             {
                 continue;
-            }
-
-            const float* default_weights = 0x0;
-            for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
-            {
-                const dmRigDDF::Mesh& mm = model->m_Meshes[m];
-                if (mm.m_MorphTargets.m_Count != mcount)
-                {
-                    continue;
-                }
-                if (mm.m_MorphBaseWeights.m_Data != 0x0 && mm.m_MorphBaseWeights.m_Count == mcount)
-                {
-                    default_weights = mm.m_MorphBaseWeights.m_Data;
-                    break;
-                }
             }
 
             MorphWeightSlot slot;
             slot.m_ModelId = model->m_Id;
             slot.m_MorphCount = mcount;
             slot.m_BufferOffset = buffer_offset;
-            slot.m_DefaultMorphWeights = default_weights;
             instance->m_MorphSlots.Push(slot);
             buffer_offset += mcount;
         }
