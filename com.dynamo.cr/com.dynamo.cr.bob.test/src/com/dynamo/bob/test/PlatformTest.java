@@ -62,6 +62,7 @@ public class PlatformTest {
         assertTrue(Platform.get("armv7-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
         assertTrue(Platform.get("arm64-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
 
+        assertTrue(Platform.get("js-web") == Platform.WasmWeb);
         assertTrue(Platform.get("wasm-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
         assertTrue(Platform.get("wasm_pthread-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
 

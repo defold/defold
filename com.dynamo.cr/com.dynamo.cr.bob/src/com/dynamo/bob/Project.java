@@ -977,7 +977,25 @@ public class Project {
 
     public List<Platform> getArchitectures() throws CompileExceptionError {
         Platform p = getPlatform();
-        return Platform.getArchitecturesFromString(option("architectures", ""), p);
+        String architectures = option("architectures", "");
+        if (!architectures.isEmpty()) {
+            String[] architectureStrings = architectures.split(",");
+            boolean updated = false;
+            for (int i = 0; i < architectureStrings.length; ++i) {
+                if (architectureStrings[i].equals("js-web")) {
+                    architectureStrings[i] = Platform.WasmWeb.getPair();
+                    System.out.printf("Architecture name %s is deprecated. Please use '%s' instead\n", "js-web", architectureStrings[i]);
+                    updated = true;
+                }
+            }
+
+            if (updated) {
+                architectures = String.join(",", architectureStrings);
+                setOption("architectures", architectures);
+            }
+        }
+
+        return Platform.getArchitecturesFromString(architectures, p);
     }
 
     public Platform getPlatform() throws CompileExceptionError {
@@ -998,6 +1016,13 @@ public class Project {
                 pair = Platform.Arm64Ios.getPair();
                 System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
             }
+            else if (pair.equals("js-web"))
+            {
+                String deprecatedPair = pair;
+                pair = Platform.WasmWeb.getPair();
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
+            }
+            setOption("platform", pair);
             p = Platform.get(pair);
         }
 
