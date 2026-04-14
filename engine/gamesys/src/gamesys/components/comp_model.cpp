@@ -549,6 +549,32 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
     }
 
+    static void GetRenderItemMorphWeights(const ModelComponent* component, const MeshRenderItem* render_item, const float** weights_out, uint32_t* weights_count_out)
+    {
+        uint32_t wcount = 0;
+        const float* w = 0;
+        if (component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
+        {
+            w = component->m_BlendWeightsOverride.Begin();
+            wcount = component->m_BlendWeightsOverride.Size();
+        }
+        else if (component->m_RigInstance)
+        {
+            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
+        }
+
+        // Fallback to base weights (written DDF data)
+        if (!w || wcount == 0)
+        {
+            const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
+            w = mesh->m_MorphBaseWeights.m_Data;
+            wcount = mesh->m_MorphBaseWeights.m_Count;
+        }
+
+        *weights_out = w;
+        *weights_count_out = wcount;
+    }
+
     static void HashRenderItem(HashState32* state, ModelWorld* world, ModelComponent* component, const MeshRenderItem& item)
     {
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
@@ -594,6 +620,18 @@ namespace dmGameSystem
                 }
                 uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr.m_DataType);
                 dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
+            }
+
+            // Morph weights need to be included into the instancing hash
+            // otherwise two instanced objects with different morph weights
+            // will be rendered in the same draw call. At this moment,
+            // morpth targets + instancing is not supported (MVP2 for this feature).
+            if (item.m_MorphTargetTexture)
+            {
+                const float* weights;
+                uint32_t weights_count;
+                GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
+                dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
             }
         }
         else
@@ -1612,25 +1650,9 @@ namespace dmGameSystem
             return;
         }
 
-        uint32_t wcount = 0;
-        const float* w = 0;
-        if (component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
-        {
-            w = component->m_BlendWeightsOverride.Begin();
-            wcount = component->m_BlendWeightsOverride.Size();
-        }
-        else if (component->m_RigInstance)
-        {
-            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
-        }
-
-        // Fallback to base weights (written DDF data)
-        if (!w || wcount == 0)
-        {
-            const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
-            w = mesh->m_MorphBaseWeights.m_Data;
-            wcount = mesh->m_MorphBaseWeights.m_Count;
-        }
+        uint32_t weights_count = 0;
+        const float* weights = 0;
+        GetRenderItemMorphWeights(component, render_item, &weights, &weights_count);
 
         dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
         if (scratch.Capacity() < shader_vec4_slots)
@@ -1638,7 +1660,7 @@ namespace dmGameSystem
             scratch.SetCapacity(shader_vec4_slots);
         }
         scratch.SetSize(shader_vec4_slots);
-        FillMorphWeightsVector4Slots(w, wcount, scratch.Begin(), shader_vec4_slots);
+        FillMorphWeightsVector4Slots(weights, weights_count, scratch.Begin(), shader_vec4_slots);
 
         dmRender::SetNamedConstant(ro->m_ConstantBuffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, scratch.Begin(), shader_vec4_slots);
     }
