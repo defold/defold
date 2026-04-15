@@ -17,7 +17,18 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#include <io.h>
+#include <windows.h>
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
+#else
+#include <unistd.h>
+#endif
 
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -117,17 +128,160 @@ static void AppDestroy(void* _ctx)
     (void)_ctx;
 }
 
+static const char* KeyToStr(dmHID::Key key);
+
 struct EngineCtx
 {
     HWindow m_Window;
     dmHID::HContext m_HidContext;
+    bool m_InteractiveOutput;
     dmHID::GamepadPacket m_OldGamepadPackets[dmHID::MAX_GAMEPAD_COUNT];
     dmHID::KeyboardPacket m_OldKeyboardPackets[dmHID::MAX_KEYBOARD_COUNT];
+    char m_LastEvent[256];
 } g_EngineCtx;
+
+static bool IsInteractiveStdout()
+{
+#if defined(_WIN32)
+    return _isatty(_fileno(stdout)) != 0;
+#else
+    return isatty(fileno(stdout)) != 0;
+#endif
+}
+
+#if defined(_WIN32)
+static bool EnableVirtualTerminalProcessing()
+{
+    HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (stdout_handle == INVALID_HANDLE_VALUE)
+        return false;
+
+    DWORD mode = 0;
+    if (!GetConsoleMode(stdout_handle, &mode))
+        return false;
+
+    if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        return true;
+
+    return SetConsoleMode(stdout_handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
+}
+#endif
+
+static void SetLastEvent(EngineCtx* engine, const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vsnprintf(engine->m_LastEvent, sizeof(engine->m_LastEvent), format, args);
+    va_end(args);
+}
+
+static void AppendStatusLine(char* buffer, uint32_t buffer_size, uint32_t* offset, const char* format, ...)
+{
+    if (*offset >= buffer_size)
+        return;
+
+    va_list args;
+    va_start(args, format);
+    int written = vsnprintf(buffer + *offset, buffer_size - *offset, format, args);
+    va_end(args);
+
+    if (written < 0)
+        return;
+
+    uint32_t written_count = (uint32_t)written;
+    if (written_count >= (buffer_size - *offset))
+    {
+        *offset = buffer_size - 1;
+        buffer[buffer_size - 1] = '\0';
+        return;
+    }
+
+    *offset += written_count;
+}
+
+static void AppendKeyboardStatus(char* buffer, uint32_t buffer_size, uint32_t* offset, int keyboard_index, dmHID::KeyboardPacket* packet)
+{
+    AppendStatusLine(buffer, buffer_size, offset, "Keyboard %d:", keyboard_index);
+
+    bool has_pressed_keys = false;
+    for (int j = dmHID::KEY_SPACE; j < dmHID::MAX_KEY_COUNT; ++j)
+    {
+        if (GetKey(packet, (dmHID::Key)j))
+        {
+            AppendStatusLine(buffer, buffer_size, offset, " %s", KeyToStr((dmHID::Key)j));
+            has_pressed_keys = true;
+        }
+    }
+
+    if (!has_pressed_keys)
+    {
+        AppendStatusLine(buffer, buffer_size, offset, " <none>");
+    }
+
+    AppendStatusLine(buffer, buffer_size, offset, "\n");
+}
+
+static void AppendGamepadStatus(EngineCtx* engine, char* buffer, uint32_t buffer_size, uint32_t* offset, uint32_t gamepad_index, dmHID::HGamepad pad, dmHID::GamepadPacket* packet)
+{
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(engine->m_HidContext, pad, device_name);
+
+    AppendStatusLine(buffer, buffer_size, offset, "Pad %u: %s\n", gamepad_index, device_name);
+    AppendStatusLine(buffer, buffer_size, offset, "  Buttons:");
+
+    uint32_t button_count = dmHID::GetGamepadButtonCount(pad);
+    if (button_count == 0)
+    {
+        AppendStatusLine(buffer, buffer_size, offset, " <none>");
+    }
+    else
+    {
+        for (uint32_t button = 0; button < button_count; ++button)
+        {
+            AppendStatusLine(buffer, buffer_size, offset, "%c", GetGamepadButton(packet, button) ? '*' : '_');
+        }
+    }
+    AppendStatusLine(buffer, buffer_size, offset, "\n");
+
+    AppendStatusLine(buffer, buffer_size, offset, "  Hats:");
+    uint32_t hat_count = dmHID::GetGamepadHatCount(pad);
+    if (hat_count == 0)
+    {
+        AppendStatusLine(buffer, buffer_size, offset, " <none>");
+    }
+    else
+    {
+        for (uint32_t hat = 0; hat < hat_count; ++hat)
+        {
+            AppendStatusLine(buffer, buffer_size, offset, " %d", packet->m_Hat[hat]);
+        }
+    }
+    AppendStatusLine(buffer, buffer_size, offset, "\n");
+
+    AppendStatusLine(buffer, buffer_size, offset, "  Axis:");
+    uint32_t axis_count = dmHID::GetGamepadAxisCount(pad);
+    if (axis_count == 0)
+    {
+        AppendStatusLine(buffer, buffer_size, offset, " <none>");
+    }
+    else
+    {
+        for (uint32_t axis = 0; axis < axis_count; ++axis)
+        {
+            AppendStatusLine(buffer, buffer_size, offset, " %1.3f", packet->m_Axis[axis]);
+        }
+    }
+    AppendStatusLine(buffer, buffer_size, offset, "\n");
+}
 
 static void EngineDestroy(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
+    if (engine->m_InteractiveOutput)
+    {
+        fputs("\n", stdout);
+        fflush(stdout);
+    }
     dmHID::Final(engine->m_HidContext);
     dmHID::DeleteContext(engine->m_HidContext);
 
@@ -139,6 +293,14 @@ static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = (EngineCtx*)&g_EngineCtx;
     memset(engine, 0, sizeof(EngineCtx));
+    engine->m_InteractiveOutput = IsInteractiveStdout();
+#if defined(_WIN32)
+    if (engine->m_InteractiveOutput && !EnableVirtualTerminalProcessing())
+    {
+        engine->m_InteractiveOutput = false;
+    }
+#endif
+    SetLastEvent(engine, "Waiting for input");
 
     engine->m_Window = dmPlatform::NewWindow();
 
@@ -149,6 +311,7 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_Title            = "hid_test_app";
     window_params.m_GraphicsApi      = WINDOW_GRAPHICS_API_OPENGL;
     window_params.m_ContextAlphabits = 8;
+    window_params.m_Hidden           = 1;
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
 
@@ -331,12 +494,22 @@ static const char* KeyToStr(dmHID::Key key)
 static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
+    const uint32_t status_buffer_size = 16 * 1024;
+    char status_buffer[16 * 1024];
+    uint32_t status_offset = 0;
+    uint32_t connected_keyboard_count = 0;
+    uint32_t connected_gamepad_count = 0;
 
     dmHID::Update(engine->m_HidContext);
 
     dmPlatform::PollEvents(engine->m_Window);
 
-#define LOG if (packet_changed) dmLogInfo
+    if (engine->m_InteractiveOutput)
+    {
+        AppendStatusLine(status_buffer, status_buffer_size, &status_offset, "HID input status\n");
+        AppendStatusLine(status_buffer, status_buffer_size, &status_offset, "Last event: %s\n", engine->m_LastEvent);
+        AppendStatusLine(status_buffer, status_buffer_size, &status_offset, "\nKeyboards\n");
+    }
 
     for (int i = 0; i < dmHID::MAX_KEYBOARD_COUNT; ++i)
     {
@@ -356,15 +529,42 @@ static UpdateResult EngineUpdate(void* _engine)
         int packet_changed = memcmp(&packet, &engine->m_OldKeyboardPackets[i], sizeof(dmHID::KeyboardPacket)) != 0;
         memcpy(&engine->m_OldKeyboardPackets[i], &packet, sizeof(dmHID::KeyboardPacket));
 
-        LOG("KEYBOARD %d: ", i);
-
-        for (int j = dmHID::KEY_SPACE; j < dmHID::MAX_KEY_COUNT; ++j)
+        if (engine->m_InteractiveOutput)
         {
-            if (GetKey(&packet, (dmHID::Key) j))
-            {
-                LOG("KEY %s (%d)", KeyToStr((dmHID::Key) j), j);
-            }
+            ++connected_keyboard_count;
+            AppendKeyboardStatus(status_buffer, status_buffer_size, &status_offset, i, &packet);
         }
+        else if (packet_changed)
+        {
+            printf("KEYBOARD %d:", i);
+
+            bool has_pressed_keys = false;
+            for (int j = dmHID::KEY_SPACE; j < dmHID::MAX_KEY_COUNT; ++j)
+            {
+                if (GetKey(&packet, (dmHID::Key)j))
+                {
+                    printf(" KEY %s (%d)", KeyToStr((dmHID::Key)j), j);
+                    has_pressed_keys = true;
+                }
+            }
+
+            if (!has_pressed_keys)
+            {
+                printf(" <none>");
+            }
+
+            printf("\n");
+        }
+    }
+
+    if (engine->m_InteractiveOutput && connected_keyboard_count == 0)
+    {
+        AppendStatusLine(status_buffer, status_buffer_size, &status_offset, "<none>\n");
+    }
+
+    if (engine->m_InteractiveOutput)
+    {
+        AppendStatusLine(status_buffer, status_buffer_size, &status_offset, "\nGamepads\n");
     }
 
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
@@ -388,38 +588,77 @@ static UpdateResult EngineUpdate(void* _engine)
         int packet_changed = memcmp(&packet, &engine->m_OldGamepadPackets[i], sizeof(dmHID::GamepadPacket)) != 0;
         memcpy(&engine->m_OldGamepadPackets[i], &packet, sizeof(dmHID::GamepadPacket));
 
-        LOG("PAD %d: ", i);
-        LOG("BN: ");
-
-        uint32_t bncount = dmHID::GetGamepadButtonCount(pad);
-        for (uint32_t b = 0; b < bncount; ++b)
+        if (engine->m_InteractiveOutput)
         {
-            bool pressed = GetGamepadButton(&packet, b);
-
-            LOG("%s", pressed ? "*" : "_");
+            ++connected_gamepad_count;
+            AppendGamepadStatus(engine, status_buffer, status_buffer_size, &status_offset, i, pad, &packet);
         }
-
-        LOG("HAT: ");
-        for (uint32_t a = 0; a < dmHID::GetGamepadHatCount(pad); ++a)
+        else if (packet_changed)
         {
-            LOG("%d ", packet.m_Hat[a]);
+            printf("PAD %u:\n", i);
+            printf("  BN:");
+
+            uint32_t bncount = dmHID::GetGamepadButtonCount(pad);
+            if (bncount == 0)
+            {
+                printf(" <none>");
+            }
+            else
+            {
+                for (uint32_t b = 0; b < bncount; ++b)
+                {
+                    printf("%c", GetGamepadButton(&packet, b) ? '*' : '_');
+                }
+            }
+            printf("\n");
+
+            printf("  HAT:");
+            uint32_t hat_count = dmHID::GetGamepadHatCount(pad);
+            if (hat_count == 0)
+            {
+                printf(" <none>");
+            }
+            else
+            {
+                for (uint32_t a = 0; a < hat_count; ++a)
+                {
+                    printf(" %d", packet.m_Hat[a]);
+                }
+            }
+            printf("\n");
+
+            printf("  AXIS:");
+            uint32_t axis_count = dmHID::GetGamepadAxisCount(pad);
+            if (axis_count == 0)
+            {
+                printf(" <none>");
+            }
+            else
+            {
+                for (uint32_t a = 0; a < axis_count; ++a)
+                {
+                    printf(" %1.3f", packet.m_Axis[a]);
+                }
+            }
+            printf("\n");
         }
+    }
 
-        LOG("AXIS: ");
+    if (engine->m_InteractiveOutput && connected_gamepad_count == 0)
+    {
+        AppendStatusLine(status_buffer, status_buffer_size, &status_offset, "<none>\n");
+    }
 
-        for (uint32_t a = 0; a < dmHID::GetGamepadAxisCount(pad); ++a)
-        {
-            LOG("%1.3f ", packet.m_Axis[a]);
-        }
-
-        LOG("\n");
+    if (engine->m_InteractiveOutput)
+    {
+        fputs("\x1b[H\x1b[J", stdout);
+        fputs(status_buffer, stdout);
+        fflush(stdout);
     }
 
     dmTime::Sleep(100000);
 
     return RESULT_OK;
-
-#undef LOG
 }
 
 static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int* argc, char*** argv)
@@ -430,17 +669,32 @@ static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int*
 
 static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
 {
+    (void)userdata;
     dmHID::HGamepad pad = dmHID::GetGamepad(g_EngineCtx.m_HidContext, gamepad_index);
 
     if (connected)
     {
         char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, device_name);
-        printf("Gamepad %d connected: %s\n", gamepad_index, device_name);
+        if (g_EngineCtx.m_InteractiveOutput)
+        {
+            SetLastEvent(&g_EngineCtx, "Gamepad %u connected: %s", gamepad_index, device_name);
+        }
+        else
+        {
+            printf("Gamepad %u connected: %s\n", gamepad_index, device_name);
+        }
     }
     else
     {
-        printf("Gamepad %d disconnected\n", gamepad_index);
+        if (g_EngineCtx.m_InteractiveOutput)
+        {
+            SetLastEvent(&g_EngineCtx, "Gamepad %u disconnected", gamepad_index);
+        }
+        else
+        {
+            printf("Gamepad %u disconnected\n", gamepad_index);
+        }
     }
 
     return true;
