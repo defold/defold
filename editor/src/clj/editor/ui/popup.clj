@@ -67,7 +67,7 @@
                      (dispose [_] (reset! *skinnable nil)))]
     (doto popup
       (.setSkin popup-skin)
-      (.setConsumeAutoHidingEvents true)
+      (.setConsumeAutoHidingEvents false)
       (.setAutoHide true)
       (.setAutoFix true)
       (.setHideOnEscape true))))
