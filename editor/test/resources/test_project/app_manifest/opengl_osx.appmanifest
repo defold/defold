@@ -84,7 +84,8 @@ platforms:
       excludeSymbols: []
       symbols: []
       libs: []
-      linkFlags: []  wasm-web:
+      linkFlags: []
+  wasm-web:
     context:
       excludeLibs: []
       excludeJsLibs: []
