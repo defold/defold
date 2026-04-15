@@ -41,16 +41,6 @@ import com.dynamo.bob.util.BobProjectProperties;
 
 public class JarTest {
 
-    private static final class BobResult {
-        final int exitCode;
-        final String output;
-
-        BobResult(int exitCode, String output) {
-            this.exitCode = exitCode;
-            this.output = output;
-        }
-    }
-
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
         Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", command });
@@ -88,29 +78,6 @@ public class JarTest {
         return p.waitFor();
     }
 
-    private BobResult bobResult(String[] commands) throws IOException, InterruptedException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj"};
-        String[] allArgs = new String[bobArgs.length + commands.length];
-        System.arraycopy(bobArgs, 0, allArgs, 0, bobArgs.length);
-        System.arraycopy(commands, 0, allArgs, bobArgs.length, commands.length);
-
-        ProcessBuilder processBuilder = new ProcessBuilder(allArgs);
-        processBuilder.redirectErrorStream(true);
-        Process p = processBuilder.start();
-
-        StringBuilder output = new StringBuilder();
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-            String line;
-            while ((line = in.readLine()) != null) {
-                System.out.println(line);
-                output.append(line).append('\n');
-            }
-        }
-
-        return new BobResult(p.waitFor(), output.toString());
-    }
-
     @Test
     public void testBuild() throws Exception {
         String[] outputs = new String[] {"input/default.gamepadsc", "input/game.input_bindingc", "main/default.display_profilesc"};
@@ -131,18 +98,6 @@ public class JarTest {
         String[] args = new String[] {"--texture-profiles", "true"};
         int result = bob(args, "WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
         assertEquals(1337, result);
-    }
-
-    @Test
-    public void testDeprecatedJsWebOptionsBuildAsWasmWeb() throws Exception {
-        int result = bob("distclean");
-        assertEquals(0, result);
-
-        BobResult bobResult = bobResult(new String[] {"--platform", "js-web", "--architectures", "js-web", "build"});
-        assertEquals(0, bobResult.exitCode);
-        assertTrue(bobResult.output.contains("Platform name js-web is deprecated. Please use 'wasm-web' instead"));
-        assertTrue(bobResult.output.contains("Architecture name js-web is deprecated. Please use 'wasm-web' instead"));
-        assertTrue(new File("test/proj/build/default/game.projectc").exists());
     }
 
     @Test

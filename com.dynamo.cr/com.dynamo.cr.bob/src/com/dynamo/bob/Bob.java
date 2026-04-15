@@ -793,8 +793,7 @@ public class Bob {
                 List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
 
                 if (cmd.hasOption("architectures")) {
-                    project.getArchitectures();
-                    architectures = project.option("architectures", "").split(",");
+                    architectures = cmd.getOptionValue("architectures").split(",");
                 }
 
                 if (architectures.length == 0) {

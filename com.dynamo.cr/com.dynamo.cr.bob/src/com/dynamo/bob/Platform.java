@@ -197,11 +197,9 @@ public class Platform {
 
     public static Platform get(String pair) {
 
-        // support for legacy platform names until old settings and scripts have been upgraded
-        if ("win32".equals(pair))
+        // support for legacy platform name (until we've changed all occurrances to "x86-win32")
+        if (pair.equals("win32"))
             pair = "x86_64-win32";
-        else if ("js-web".equals(pair))
-            pair = "wasm-web";
 
         Platform[] platforms = Platform.values();
         for (Platform p : platforms) {
