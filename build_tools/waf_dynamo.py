@@ -19,6 +19,7 @@ from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from waf_tests import get_test_harness
 from build_constants import TargetOS
 import sdk
 
@@ -475,6 +476,8 @@ def default_flags(self):
                                       '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
+
+        self.env.append_value('DEFINES', ['DM_NO_SYSTEM_FUNCTION', 'JC_TEST_USE_COLORS=1'])
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
@@ -1437,93 +1440,76 @@ def _should_run_test_taskgen(ctx, taskgen):
     return True
 
 
-def run_tests(ctx, valgrind = False, configfile = None):
+def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
-
-    # TODO: Add something similar to this
-    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-    # to find leaks and set error code
-
-    if not ctx.env['VALGRIND']:
-        valgrind = False
-
-    if not getattr(Options.options, 'with_valgrind', False):
-        valgrind = False
 
     if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
-    for t in ctx.get_all_task_gen():
-        if not _should_run_test_taskgen(ctx, t):
-            continue
+    harness = get_test_harness(ctx.env.PLATFORM)
+    cwd = os.getcwd()
 
-        if not t.tasks:
-            print("No runnable task found in generator %s" % t.name)
-            continue
+    try:
+        harness.prepare(ctx.env, cwd, configfile, folders)
+    except Exception as e:
+        print("Failed to prepare test harness for platform %s" % (ctx.env.PLATFORM))
+        raise e
 
-        task = None
-        task_type = None
-        for _task in t.tasks:
-            for attr in ['link_task', 'jar_task']:
-                if _task == getattr(t, attr, None):
-                    task = _task
-                    task_type = attr
-                    break
+    try:
+        for t in ctx.get_all_task_gen():
+            if not _should_run_test_taskgen(ctx, t):
+                continue
 
-        # Create the environment for the task
-        env = dict(os.environ)
-        merged_table = t.env.get_merged_dict()
-        keys=list(merged_table.keys())
-        for key in keys:
-            v = merged_table[key]
-            if isinstance(v, str):
-                env[key] = v
+            if not t.tasks:
+                print("No runnable task found in generator %s" % t.name)
+                continue
 
-        launch_pattern = '%s %s'
-        if task_type == 'jar_task':
-            # java -cp <classpath> <main-class>
-            mainclass = getattr(t, 'mainclass', '')
-            classpath = Utils.to_list(getattr(t, 'classpath', []))
-            java_library_paths = Utils.to_list(getattr(t, 'java_library_paths', []))
-            jar_path = task.outputs[0].abspath()
-            jar_dir = os.path.dirname(jar_path)
-            java_library_paths.append(jar_dir)
-            classpath.append(jar_path)
-            debug_flags = ''
-            #debug_flags = '-Xcheck:jni'
-            #debug_flags = '-Xcheck:jni -Xlog:library=info -verbose:class'
-            launch_pattern = f'java {debug_flags} -Djava.library.path={os.pathsep.join(java_library_paths)} -Djni.library.path={os.pathsep.join(java_library_paths)} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
-            print("launch_pattern:", launch_pattern)
+            task = None
+            task_type = None
+            for _task in t.tasks:
+                for attr in ['link_task', 'jar_task']:
+                    if _task == getattr(t, attr, None):
+                        task = _task
+                        task_type = attr
+                        break
 
-        if 'TEST_LAUNCH_PATTERN' in t.env:
-            launch_pattern = t.env.TEST_LAUNCH_PATTERN
+            # Create the environment for the task
+            env = dict(os.environ)
+            merged_table = t.env.get_merged_dict()
+            for key in merged_table:
+                env[key] = merged_table[key]
 
-        if task is None:
-            print("Skipping", t.name)
-            continue
+            if task is None:
+                print("Skipping", t.name)
+                continue
 
-        program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+            program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+            if task_type == 'jar_task':
+                if not hasattr(harness, 'run_jar_test'):
+                    print("Skipping %s, harness has no jar runner for platform %s" % (t.name, ctx.env.PLATFORM))
+                    continue
 
-        if task_type == 'jar_task':
-            cmd = launch_pattern
-        else:
-            cmd = launch_pattern % (program, configfile if configfile else '')
+                ret = harness.run_jar_test(task, env, configfile)
+            else:
+                argv = [program]
+                if configfile:
+                    argv.append(configfile)
 
-            if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
-                cmd = '%s %s' % (ctx.env['NODEJS'][0], cmd)
+                ret = harness.run_test(program, configfile, env, argv)
 
-        # disable shortly during beta release, due to issue with jctest + test_gui
-        valgrind = False
-        if valgrind:
-            dynamo_home = os.getenv('DYNAMO_HOME')
-            cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-        proc = subprocess.Popen(cmd, shell = True, env = env)
-        ret = proc.wait()
-        if ret != 0:
-            print("test failed %s" %(t.target) )
-            sys.exit(ret)
+            if ret != 0:
+                print("test failed %s" %(t.target) )
+                sys.exit(ret)
+    finally:
+        propagating = sys.exc_info()[0] is not None
+        try:
+            harness.stop(ctx.env, cwd, configfile)
+        except Exception:
+            print("Failed to stop test harness for platform %s" % (ctx.env.PLATFORM))
+            if not propagating:
+                sys.exit(1)
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1942,6 +1928,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.load('waf_android')
     elif TargetOS.WINDOWS == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:

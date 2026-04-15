@@ -16,9 +16,16 @@
 
 #include <glfw/glfw_native.h>
 
+#include <dmsdk/dlib/android.h>
+
 #include <dlib/math.h>
 
 #include "platform_window_android.h"
+
+extern "C" {
+    extern void _glfwAndroidSetInputMethod(int);
+    extern void _glfwAndroidSetFullscreenParameters(int, int);
+}
 
 namespace dmPlatform
 {
@@ -56,7 +63,17 @@ namespace dmPlatform
 
     android_app* GetAndroidApp()
     {
-        return glfwGetAndroidApp();
+        return dmAndroid::GetAndroidApp();
+    }
+
+    void SetAndroidInputMethod(bool use_hidden_inputfield)
+    {
+        _glfwAndroidSetInputMethod((int)use_hidden_inputfield);
+    }
+
+    void SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout)
+    {
+        _glfwAndroidSetFullscreenParameters((int)immersive_mode, (int)display_cutout);
     }
 
     bool GetSafeAreaAndroid(HWindow window, WindowSafeArea* out)
@@ -86,7 +103,7 @@ namespace dmPlatform
             return true;
         }
 
-        android_app* app = glfwGetAndroidApp();
+        android_app* app = dmAndroid::GetAndroidApp();
         // ARect content depends on window settings we swt in DefoldActivity.java
         const ARect rect = app->contentRect;
         const int32_t rect_width = rect.right - rect.left;

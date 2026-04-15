@@ -135,6 +135,10 @@ def build(bld):
         if bld.env.PLATFORM == 'wasm-web':
             skip_threads = True
 
+    if 'android' in bld.env['PLATFORM']:
+        # MAWE: test_httpclient etc still has a lot of issues
+        skip_http = True
+
     if _is_mac_ci():
         skip_http = True
 

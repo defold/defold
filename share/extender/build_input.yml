@@ -172,6 +172,7 @@ context:
 
 main: |
     #include <stdio.h>
+    #include <dmsdk/dlib/android.h>
 
     #if __cplusplus
     extern "C" {
@@ -220,6 +221,7 @@ main: |
         // Make sure glue isn't stripped.
         app_dummy();
         _glfwPreMain(state);
+        dmAndroid::SetAndroidApp(state);
     }
 
     #if __cplusplus

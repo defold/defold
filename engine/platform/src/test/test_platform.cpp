@@ -19,6 +19,10 @@
 #include <dlib/log.h>
 #include "../window.h"
 
+#if defined(ANDROID)
+#include "../platform_window_android.h"
+#endif
+
 #define APP_TITLE "PlatformTest"
 #define WIDTH 8u
 #define HEIGHT 4u
@@ -123,6 +127,34 @@ TEST_F(dmPlatformTest, TestWindowSize)
     ASSERT_EQ(width, m_ResizeData.m_Width);
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
+
+#if defined(ANDROID)
+
+namespace
+{
+    template <typename T>
+    static void ReferenceAndroidSymbol(T symbol)
+    {
+        volatile T referenced_symbol = symbol;
+        (void) referenced_symbol;
+    }
+}
+
+TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
+{
+    ReferenceAndroidSymbol(&dmPlatform::AndroidVerifySurface);
+    ReferenceAndroidSymbol(&dmPlatform::AndroidBeginFrame);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidEGLContext);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidEGLSurface);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidJavaVM);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidActivity);
+    ReferenceAndroidSymbol(&dmPlatform::GetAndroidApp);
+    ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);
+    SKIP();
+}
+#endif
 
 int main(int argc, char **argv)
 {

@@ -15,8 +15,7 @@
  */
 
 #include "android_native_app_glue.h"
-
-#include <jni.h>
+#include "android_jni.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -435,6 +434,16 @@ static void onInputQueueDestroyed(ANativeActivity* activity, AInputQueue* queue)
 JNIEXPORT
 void ANativeActivity_onCreate(ANativeActivity* activity, void* savedState, size_t savedStateSize) {
     LOGV("Creating: %p", activity);
+
+    // DEFOLD ->>
+    // Seed argv before the app thread starts so _glfwPreMain() sees the Intent launch args.
+    // This is only enabled for debuggable Android packages. Invoke it with adb:
+    // adb shell am start -n <package>/<activity> \
+    //     --esa com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS <arg1>,<arg2>,<arg3>
+    if (!JNIAndroidSetCommandLine(activity)) {
+        LOGE("Failed to read command line arguments from Intent");
+    }
+    // <<- DEFOLD
 
     activity->callbacks->onConfigurationChanged = onConfigurationChanged;
     activity->callbacks->onContentRectChanged = onContentRectChanged;

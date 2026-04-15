@@ -68,7 +68,10 @@ if(BUILD_TESTS)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
     # Register into global build_tests and run_tests
-    defold_register_test_target(test_hid)
+    defold_register_test_target(test_hid ON "${CMAKE_CURRENT_LIST_DIR}"
+        STAGE_FILES
+            "build/src/test/build" "build/src/test/build"
+    )
 
     # =====================================================================================
 
