@@ -345,6 +345,31 @@
         (.remove legacy-prefs legacy-key)
         (.flush legacy-prefs)))))
 
+(deftest migrate-project-prefs-legacy-html5-architecture-prefers-wasm-web-test
+  (let [legacy-js-web-key "bundle-html5-architecture-js-web?"
+        legacy-wasm-web-key "bundle-html5-architecture-wasm-web?"
+        legacy-prefs (.node (Preferences/userRoot) "defold")]
+    (try
+      (.put legacy-prefs legacy-js-web-key (transit-str true))
+      (.put legacy-prefs legacy-wasm-web-key (transit-str false))
+      (.flush legacy-prefs)
+      (with-schemas {::bundle-html5-migration
+                     {:type :object
+                      :properties {:bundle {:type :object
+                                            :properties {:html5 {:type :object
+                                                                 :properties {:architecture {:type :object
+                                                                                             :properties {:wasm-web {:type :boolean
+                                                                                                                     :scope :project}}}}}}}}}}
+        (let [project-file (fs/create-temp-file! "project" "test.editor_settings")
+              p (prefs/make :scopes {:project project-file}
+                            :schemas [::bundle-html5-migration])]
+          (prefs/migrate-project-prefs! p)
+          (is (false? (prefs/get p [:bundle :html5 :architecture :wasm-web])))))
+      (finally
+        (.remove legacy-prefs legacy-js-web-key)
+        (.remove legacy-prefs legacy-wasm-web-key)
+        (.flush legacy-prefs)))))
+
 (deftest scopes-test
   (with-schemas {::scopes
                  {:type :object

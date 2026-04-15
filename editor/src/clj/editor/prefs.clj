@@ -839,30 +839,55 @@
 
 ;; region migration
 
-(defn- migrate! [prefs legacy-key->path]
-  (let [legacy-prefs (.node (Preferences/userRoot) "defold")
-        not-found "editor.prefs/not-found"
-        {:keys [scopes schemas]} prefs
+(def ^:private legacy-prefs-not-found "editor.prefs/not-found")
+
+(defn- fresh-migration-target? [prefs path]
+  (let [{:keys [scopes schemas]} prefs
         {:keys [registry storage]} @global-state]
+    (->> schemas
+         (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
+         (e/map #(-> % :scope scopes storage))
+         (coll/some #(identical? ::not-found %))
+         boolean)))
+
+(defn- legacy-pref-value [legacy-prefs legacy-key]
+  (let [transit-str (.get legacy-prefs legacy-key legacy-prefs-not-found)]
+    (when-not (identical? legacy-prefs-not-found transit-str)
+      (-> transit-str
+          (.getBytes StandardCharsets/UTF_8)
+          ByteArrayInputStream.
+          (transit/reader :json)
+          transit/read))))
+
+(defn- migrate! [prefs legacy-key->path]
+  (let [legacy-prefs (.node (Preferences/userRoot) "defold")]
     (->> legacy-key->path
          (e/keep (fn [[legacy-key path]]
-                   (let [transit-str (.get legacy-prefs legacy-key not-found)]
-                     (when (and (not (identical? not-found transit-str))
-                                ;; is fresh file?
-                                (->> schemas
-                                     (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                                     (e/map #(-> % :scope scopes storage))
-                                     (coll/some #(identical? ::not-found %))
-                                     boolean))
-                       (when-some [v (-> transit-str
-                                         (.getBytes StandardCharsets/UTF_8)
-                                         ByteArrayInputStream.
-                                         (transit/reader :json)
-                                         transit/read)]
+                   (when (fresh-migration-target? prefs path)
+                     (when-some [v (legacy-pref-value legacy-prefs legacy-key)]
                          (coll/pair path v))))))
          (reduce #(assoc-in %1 (key %2) (val %2)) {})
          ;; since `set!` is a special form, we need to use a fully-qualified reference
          (editor.prefs/set! prefs []))))
+
+(defn- migrate-project-html5-architecture-prefs! [project-prefs]
+  (let [legacy-prefs (.node (Preferences/userRoot) "defold")
+        wasm-web-path [:bundle :html5 :architecture :wasm-web]
+        wasm-pthread-web-path [:bundle :html5 :architecture :wasm_pthread-web]
+        wasm-web-value (or (legacy-pref-value legacy-prefs "bundle-html5-architecture-wasm-web?")
+                           (legacy-pref-value legacy-prefs "bundle-html5-architecture-js-web?"))
+        wasm-pthread-web-value (legacy-pref-value legacy-prefs "bundle-html5-architecture-wasm_pthread-web?")]
+    (editor.prefs/set!
+      project-prefs
+      []
+      (cond-> {}
+        (and (fresh-migration-target? project-prefs wasm-web-path)
+             (some? wasm-web-value))
+        (assoc-in wasm-web-path wasm-web-value)
+
+        (and (fresh-migration-target? project-prefs wasm-pthread-web-path)
+             (some? wasm-pthread-web-value))
+        (assoc-in wasm-pthread-web-path wasm-pthread-web-value)))))
 
 (defn migrate-global-prefs!
   "Migrate global prefs from the old prefs storage
@@ -942,9 +967,6 @@
                                "bundle-ios-architecture-simulator?" [:bundle :ios :architecture :x86_64-ios]
                                "bundle-ios-install-app?" [:bundle :ios :install]
                                "bundle-ios-launch-app?" [:bundle :ios :launch]
-                               "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :wasm-web]
-                               "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
-                               "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
                                "bundle-windows-platform" [:bundle :windows :platform]}
                               ;; these prefs already used project scope
                               (e/map #(coll/pair (str (key %) suffix) (val %))
@@ -952,6 +974,7 @@
                                       "recent-files-by-workspace-root" [:workflow :recent-files]
                                       "instance-count" [:run :instance-count]
                                       "simulate-rotated-device" [:run :simulate-rotated-device]
-                                      "simulated-resolution" [:run :simulated-resolution]})))))
+                                      "simulated-resolution" [:run :simulated-resolution]})))
+    (migrate-project-html5-architecture-prefs! project-prefs)))
 
 ;; end region

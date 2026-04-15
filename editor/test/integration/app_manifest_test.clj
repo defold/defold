@@ -390,3 +390,16 @@
       (g/set-property! manifest :exclude-record false)
       (is (false? (string/includes? (text) "record_null")))
       (is (false? (g/node-value manifest :exclude-record))))))
+
+(deftest legacy-js-web-removal-test
+  (test-util/with-loaded-project
+    (let [manifest (test-util/resource-node project "/app_manifest/legacy_js_web.appmanifest")
+          text #(slurp (data/lines-reader (g/node-value manifest :modified-lines)))
+          manifest-data (g/node-value manifest :manifest)]
+      (is (not (contains? (:platforms manifest-data) :js-web)))
+      (is (not (contains? (:platforms manifest-data) :wasm-web)))
+      (is (contains? (:platforms manifest-data) :wasm_pthread-web))
+      (g/set-property! manifest :manifest manifest-data)
+      (is (string/includes? (text) "wasm_pthread-web:"))
+      (is (false? (string/includes? (text) "wasm-web:")))
+      (is (false? (string/includes? (text) "js-web:"))))))

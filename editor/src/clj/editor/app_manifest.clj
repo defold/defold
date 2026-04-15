@@ -523,6 +523,16 @@
     :both webgpu-toggles
     :web-gl))
 
+(defn- normalize-manifest [manifest]
+  (if-some [platforms (and (map? manifest)
+                           (map? (:platforms manifest))
+                           (:platforms manifest))]
+    (let [platforms (dissoc platforms :js-web)]
+      (cond-> (dissoc manifest :platforms)
+        (seq platforms)
+        (assoc :platforms platforms)))
+    manifest))
+
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
                                      :defines
@@ -569,7 +579,8 @@
                                           (resource-io/with-error-translation resource _node-id :manifest
                                             (yaml/with-error-translation _node-id :manifest resource
                                               (with-open [reader (data/lines-reader lines)]
-                                                (yaml/load reader keyword))))))
+                                                (some-> (yaml/load reader keyword)
+                                                        normalize-manifest))))))
   (property manifest g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough parsed-manifest))
