@@ -850,8 +850,8 @@
          (coll/some #(identical? ::not-found %))
          boolean)))
 
-(defn- legacy-pref-value [legacy-prefs legacy-key]
-  (let [transit-str (.get legacy-prefs legacy-key legacy-prefs-not-found)]
+(defn- legacy-pref-value [^Preferences legacy-prefs legacy-key]
+  (let [^String transit-str (.get legacy-prefs legacy-key legacy-prefs-not-found)]
     (when-not (identical? legacy-prefs-not-found transit-str)
       (-> transit-str
           (.getBytes StandardCharsets/UTF_8)
@@ -861,14 +861,15 @@
 
 (defn- migrate! [prefs legacy-key->path]
   (let [legacy-prefs (.node (Preferences/userRoot) "defold")]
-    (->> legacy-key->path
-         (e/keep (fn [[legacy-key path]]
-                   (when (fresh-migration-target? prefs path)
-                     (when-some [v (legacy-pref-value legacy-prefs legacy-key)]
-                         (coll/pair path v))))))
-         (reduce #(assoc-in %1 (key %2) (val %2)) {})
-         ;; since `set!` is a special form, we need to use a fully-qualified reference
-         (editor.prefs/set! prefs []))))
+    (editor.prefs/set!
+      prefs
+      []
+      (->> legacy-key->path
+           (e/keep (fn [[legacy-key path]]
+                     (when (fresh-migration-target? prefs path)
+                       (when-some [v (legacy-pref-value legacy-prefs legacy-key)]
+                         (coll/pair path v)))))
+           (reduce #(assoc-in %1 (key %2) (val %2)) {})))))
 
 (defn- migrate-project-html5-architecture-prefs! [project-prefs]
   (let [legacy-prefs (.node (Preferences/userRoot) "defold")
