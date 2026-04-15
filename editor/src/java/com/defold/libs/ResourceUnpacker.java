@@ -252,7 +252,8 @@ public class ResourceUnpacker {
 
         String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
         if (sha1 != null) {
-            return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1)));
+            var arch = Platform.getHostPlatform().getArch();
+            return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1 + "-" + arch)));
         } else {
             Path tmpDir = Files.createTempDirectory("defold-unpack");
             FileUtil.deleteOnExit(tmpDir);

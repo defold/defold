@@ -20,6 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -51,8 +52,9 @@ import org.junit.Test;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.IProgress;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IFileSystem;
@@ -60,6 +62,14 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 
 public class ProjectTest {
+    private static final class RecordingReporter implements Progress.Reporter {
+        private final List<IProgress.Message> messages = new ArrayList<>();
+
+        @Override
+        public void report(IProgress.Message message, double fraction) {
+            messages.add(message);
+        }
+    }
 
     private class MockProject extends Project {
         public HashMap<String,String> env;
@@ -143,7 +153,7 @@ public class ProjectTest {
     }
 
     List<TaskResult> build(String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
-        return project.build(new NullProgress(), commands);
+        return project.build(Progress.discarding(), commands);
     }
 
     private boolean libExists(String lib) {
@@ -160,7 +170,7 @@ public class ProjectTest {
             FileUtils.cleanDirectory(libDir);
         }
 
-        this.project.resolveLibUrls(new NullProgress());
+        this.project.resolveLibUrls(Progress.discarding());
 
         File currentFiles[] = libDir.listFiles(File::isFile);
 
@@ -178,7 +188,7 @@ public class ProjectTest {
 
         assertEquals(0, _304Count.get());
 
-        this.project.resolveLibUrls(new NullProgress());
+        this.project.resolveLibUrls(Progress.discarding());
 
         currentFiles = libDir.listFiles(File::isFile);
         List<File> filenames = new ArrayList<>();
@@ -200,9 +210,37 @@ public class ProjectTest {
     }
 
     @Test
+    public void testResolveProgressSanitizesCredentialUrls() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        URI originalUri = null;
+        for (URL url : libraryUrls) {
+            URI uri = url.toURI();
+            if ("user:secret".equals(uri.getUserInfo()) && "/test_lib5.zip".equals(uri.getPath())) {
+                originalUri = uri;
+                break;
+            }
+        }
+
+        this.project.resolveLibUrls(new Progress(reporter));
+
+        URI progressUri = null;
+        for (IProgress.Message message : reporter.messages) {
+            if (message instanceof IProgress.Message.DownloadingArchive(URI uri)) {
+                if ("localhost".equals(uri.getHost()) && "/test_lib5.zip".equals(uri.getPath())) {
+                    progressUri = uri;
+                    break;
+                }
+            }
+        }
+
+        assertEquals(new URI("http://user:secret@localhost:8081/test_lib5.zip"), originalUri);
+        assertEquals(new URI("http://localhost:8081/test_lib5.zip"), progressUri);
+    }
+
+    @Test
     public void testMountPoints() throws Exception {
         System.out.printf("testMountPoints start");
-        project.resolveLibUrls(new NullProgress());
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib5/file5.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
@@ -216,7 +254,7 @@ public class ProjectTest {
     @Test
     public void testMountPointFindSources() throws Exception {
         System.out.printf("testMountPointFindSources start");
-        project.resolveLibUrls(new NullProgress());
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib2/file2.in", "test_lib1/file1.in", "test_lib6/file6.in", "test_lib5/file5.in"));
         List<TaskResult> results = build("build");
@@ -246,7 +284,7 @@ public class ProjectTest {
     public void testFindResourcePaths() throws Exception {
         System.out.printf("testFindResourcePaths start");
         libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
-        project.resolveLibUrls(new NullProgress());
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
 
@@ -263,7 +301,7 @@ public class ProjectTest {
     public void testFindResourceDirs() throws Exception {
         System.out.printf("testFindResourceDirs start");
         libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
-        project.resolveLibUrls(new NullProgress());
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
 
@@ -287,7 +325,7 @@ public class ProjectTest {
 
     @Test
     public void testAllResourcePathsCacheLibrary() throws Exception {
-        project.resolveLibUrls(new NullProgress());
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test/file.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
@@ -363,4 +401,3 @@ public class ProjectTest {
         }
     }
 }
-
