@@ -478,6 +478,7 @@
                       blend-mode (convert-blend-mode (:blend-mode render-data))]
                   (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
                     (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+                    (shader/bind-preview-lights-for-shader! gl shader render-args)
                     (gl/set-blend-mode gl blend-mode)
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                     (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))))
