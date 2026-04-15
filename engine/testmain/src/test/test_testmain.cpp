@@ -12,18 +12,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_PLATFORM_VENDOR)
+#include <stdlib.h>
+#include <string.h>
 
-#include "testmain.h"
+#include "../common/testmain.h"
 
-extern "C" bool TestMainPlatformInit()
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
+TEST(dmTestMain, PlatformInit)
 {
-    return true;
+    ASSERT_TRUE(TestMainPlatformInit());
+
+    bool is_attached = TestMainIsDebuggerAttached();
+    printf("DebuggerAttached: %d", is_attached?1:0);
+    fflush(stdout);
 }
 
-extern "C" int TestMainIsDebuggerAttached()
+int main(int argc, char** argv)
 {
-    return 0;
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
-
-#endif
