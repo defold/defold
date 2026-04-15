@@ -3877,6 +3877,9 @@ TEST_F(ComponentTest, LabelPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    // Queue a prepared layout, then invalidate the label before the queued text
+    // is consumed. Without render-queue ownership this used to crash later in
+    // CreateFontVertexDataFromTextLayout()/OutputGlyph() on a freed layout.
     HTextLayout prepared_layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, prepared_layout);
 

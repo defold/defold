@@ -179,6 +179,8 @@ TEST_F(ProfilerRenderTest, TransientLayoutsSurviveProfilerClearBeforeDraw)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     QueueProfiler(render_profile);
 
+    // The profiler owns these layouts. Clearing them before DrawRenderList used
+    // to leave the render queue with dangling prepared-layout pointers.
     ASSERT_GT(m_Context->m_TextContext.m_TextEntries.Size(), 1u);
     HTextLayout cached_layout = m_Context->m_TextContext.m_TextEntries[0].m_TextLayout;
     HTextLayout transient_layout = m_Context->m_TextContext.m_TextEntries[1].m_TextLayout;
@@ -217,6 +219,8 @@ TEST_F(ProfilerRenderTest, CachedLayoutsSurviveProfileDeletionBeforeDraw)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     QueueProfiler(render_profile);
 
+    // Deleting the profile before DrawRenderList used to free the prepared
+    // layouts out from under the queued text entries.
     ASSERT_GT(m_Context->m_TextContext.m_TextEntries.Size(), 1u);
     HTextLayout cached_layout = m_Context->m_TextContext.m_TextEntries[0].m_TextLayout;
     HTextLayout transient_layout = m_Context->m_TextContext.m_TextEntries[1].m_TextLayout;
