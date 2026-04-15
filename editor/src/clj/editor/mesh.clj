@@ -207,8 +207,7 @@
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units texture)))
-      (light-u/bind-engine-style-lights! gl shader (or (:editor/preview-lights render-args)
-                                                       light-u/default-preview-lights))
+      (light-u/bind-engine-style-lights! gl shader (or (:editor/preview-lights render-args) []))
       (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)

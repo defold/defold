@@ -130,6 +130,9 @@
         inner-cone-angle (clamp inner-cone-angle 0.0 outer-cone-angle)]
     [inner-cone-angle outer-cone-angle]))
 
+(defn- non-negative [v]
+  (max 0.0 (double v)))
+
 (defn- parse-data-desc [light-desc]
   ;; GameObject$Data in map format.
   (let [tags (vec (:tags light-desc))
@@ -137,14 +140,16 @@
         fields (struct-fields light-desc)]
     {:light-type light-type
      :color (get-vec4 fields "color")
-     :intensity (get-number fields "intensity" 1.0)
-     :range (get-number fields "range" 10.0)
+     :intensity (non-negative (get-number fields "intensity" 1.0))
+     :range (non-negative (get-number fields "range" 10.0))
      :inner-cone-angle (get-number fields "inner_cone_angle" 0.0)
      :outer-cone-angle (get-number fields "outer_cone_angle" 45.0)}))
 
 (defn- build-data-desc
   [light-type color intensity range inner-cone-angle outer-cone-angle]
-  (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
+  (let [intensity (non-negative intensity)
+        range (non-negative range)
+        [inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
         tags (light-type->tags light-type)
         c4 (vec (take 4 (concat color (repeat 1.0))))
         fields (case light-type
@@ -697,6 +702,7 @@
          :renderable {:render-fn render-point-volume-scaled
                       :preview-fn point-light-preview-fn
                       :batch-key [scene-shapes/shader]
+                      :tags #{:light}
                       :passes [pass/transparent pass/selection]
                       :user-data vol-ud}
          :children [{:node-id _node-id
@@ -704,7 +710,7 @@
                      :renderable {:render-fn render-point-outline-scaled
                                   :preview-fn point-light-preview-fn
                                   :batch-key [outline-shader]
-                                  :tags #{:outline}
+                                  :tags #{:light :outline}
                                   :passes [pass/outline]
                                   :user-data out-ud}}]})
 
@@ -715,13 +721,14 @@
          :aabb aabb
          :renderable {:render-fn render-directional-volume-scaled
                       :batch-key [outline-shader]
+                      :tags #{:light}
                       :passes [pass/transparent pass/selection]
                       :user-data dir-ud}
          :children [{:node-id _node-id
                      :aabb aabb
                      :renderable {:render-fn render-directional-outline-scaled
                                   :batch-key [outline-shader]
-                                  :tags #{:outline}
+                                  :tags #{:light :outline}
                                   :passes [pass/outline]
                                   :user-data dir-ud}}]})
 
@@ -748,6 +755,7 @@
          :renderable {:render-fn render-spot-volume-scaled
                       :preview-fn spot-light-preview-fn
                       :batch-key [scene-shapes/shader]
+                      :tags #{:light}
                       :passes [pass/transparent pass/selection]
                       :user-data vol-ud}
          :children [{:node-id _node-id
@@ -755,7 +763,7 @@
                      :renderable {:render-fn render-spot-outline-scaled
                                   :preview-fn spot-light-preview-fn
                                   :batch-key [outline-shader]
-                                  :tags #{:outline}
+                                  :tags #{:light :outline}
                                   :passes [pass/outline]
                                   :user-data out-ud}}]})
 
@@ -784,11 +792,13 @@
                           {:path [:intensity]
                            :localization-key "light.intensity"
                            :type :number
-                           :default 1.0}
+                           :default 1.0
+                           :min 0.0}
                           {:path [:range]
                            :localization-key "light.range"
                            :type :number
                            :default 10.0
+                           :min 0.0
                            :hidden hidden-range}
                           {:path [:inner-cone-angle]
                            :localization-key "light.inner-cone-angle"
@@ -832,9 +842,13 @@
             (dynamic label (properties/label-dynamic :light :color))
             (dynamic tooltip (properties/tooltip-dynamic :light :color)))
   (property intensity g/Num (default 1.0)
-            (dynamic label (properties/label-dynamic :light :intensity)))
+            (dynamic label (properties/label-dynamic :light :intensity))
+            (dynamic edit-type (g/constantly {:type g/Num
+                                              :min 0.0})))
   (property range g/Num (default 10.0)
             (dynamic label (properties/label-dynamic :light :range))
+            (dynamic edit-type (g/constantly {:type g/Num
+                                              :min 0.0}))
             (dynamic visible (g/fnk [light-type] (contains? #{:point :spot} light-type))))
   (property inner-cone-angle g/Num (default 0.0)
             (dynamic label (properties/label-dynamic :light :inner-cone-angle))
@@ -903,7 +917,13 @@
   (let [scale-components [(.getX delta) (.getY delta) (.getZ delta)]
         changed-scale-components (into [] (filter #(> (Math/abs (- (double %) 1.0)) 1e-9)) scale-components)]
     (if (seq changed-scale-components)
-      (/ (reduce + changed-scale-components) (count changed-scale-components))
+      (let [n (long (count changed-scale-components))
+            sum (loop [i 0
+                       acc 0.0]
+                  (if (< i n)
+                    (recur (unchecked-inc i) (+ acc (double (nth changed-scale-components i))))
+                    acc))]
+        (/ sum (double n)))
       (.getX delta))))
 
 (defmethod scene-tools/manip-scalable? :editor.game-object/ComponentNode [node-id]

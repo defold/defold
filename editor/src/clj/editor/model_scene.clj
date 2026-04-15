@@ -240,8 +240,7 @@
         (shader/set-samplers-by-name shader gl name (:texture-units t)))
       (doseq [[name v] material-data]
         (shader/set-uniform shader gl name v))
-      (light-u/bind-engine-style-lights! gl shader (or (:editor/preview-lights render-args)
-                                                       light-u/default-preview-lights))
+      (light-u/bind-engine-style-lights! gl shader (or (:editor/preview-lights render-args) []))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)

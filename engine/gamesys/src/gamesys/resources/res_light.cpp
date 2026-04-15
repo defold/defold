@@ -144,6 +144,7 @@ namespace dmGameSystem
 
         res = GetNumber(&light_data, "intensity", &params.m_Intensity);
         HANDLE_LIGHT_PARSE_RES("intensity", res);
+        params.m_Intensity = dmMath::Max(0.0f, params.m_Intensity);
 
         // Light type specific properties
         if (type == dmRender::LIGHT_TYPE_DIRECTIONAL)
@@ -154,11 +155,13 @@ namespace dmGameSystem
         {
             res = GetNumber(&light_data, "range", &params.m_Range);
             HANDLE_LIGHT_PARSE_RES("point.range", res);
+            params.m_Range = dmMath::Max(0.0f, params.m_Range);
         }
         else if (type == dmRender::LIGHT_TYPE_SPOT)
         {
             res = GetNumber(&light_data, "range", &params.m_Range);
             HANDLE_LIGHT_PARSE_RES("spot.range", res);
+            params.m_Range = dmMath::Max(0.0f, params.m_Range);
             res = GetNumber(&light_data, "inner_cone_angle", &params.m_InnerConeAngle);
             HANDLE_LIGHT_PARSE_RES("spot.inner_cone_angle", res);
             res = GetNumber(&light_data, "outer_cone_angle", &params.m_OuterConeAngle);

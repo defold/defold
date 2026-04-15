@@ -26,14 +26,6 @@
 
 (def ^:const default-max-preview-lights 8)
 
-(def default-preview-lights
-  "Fallback when the scene has no light components: one directional white light
-  (`LIGHT_TYPE_DIRECTIONAL` = 0), intensity 1, aimed down -Y."
-  [{:position (Vector4d. 0.0 0.0 0.0 1.0)
-    :color (Vector4d. 1.0 1.0 1.0 1.0)
-    :direction_range (Vector4d. 0.0 -1.0 0.0 0.0)
-    :params (Vector4d. 0.0 1.0 0.0 0.0)}])
-
 (defn- vec4d
   ^Vector4d [^double x ^double y ^double z ^double w]
   (Vector4d. x y z w))
@@ -116,21 +108,22 @@
        :params (vec4d tidx intensity 0.0 0.0)})))
 
 (defn packed-lights-from-scene
-  "Collect lights from scene renderables. Returns
-  `default-preview-lights` when there are none."
+  "Collect lights from scene renderables. Returns an empty vector when there are none."
   [renderables-by-pass]
-  (let [scene-renderables (concat (get renderables-by-pass pass/transparent [])
-                                  (get renderables-by-pass pass/outline []))
-        with-preview (filterv #(get-in % [:user-data :editor-preview-light]) scene-renderables)
-        deduped-preview (vals (reduce (fn [by-node-id-path renderable]
-                                        (update by-node-id-path (:node-id-path renderable) #(or % renderable)))
-                                      {}
-                                      with-preview))]
-    (if (seq deduped-preview)
+  (let [;; Only transparent pass renderables are actually visible in scene view.
+        ;; Hidden lights can still appear in outline/selection for selection UX.
+        visible-with-preview (filterv #(get-in % [:user-data :editor-preview-light])
+                                      (get renderables-by-pass pass/transparent []))
+        deduped-visible-preview (vals (reduce (fn [by-node-id-path renderable]
+                                                (update by-node-id-path (:node-id-path renderable) #(or % renderable)))
+                                              {}
+                                              visible-with-preview))]
+    (if (seq deduped-visible-preview)
       (mapv renderable->std140-light
             (take default-max-preview-lights
-                  (sort-by (comp vec :node-id-path) deduped-preview)))
-      default-preview-lights)))
+                  (sort-by (comp vec :node-id-path) deduped-visible-preview)))
+      ;; No visible lights -> empty light buffer.
+      [])))
 
 (defn pack-lights
   "Returns a vector of light maps in engine order. Each map has keys
