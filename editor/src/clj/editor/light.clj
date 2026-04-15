@@ -922,8 +922,9 @@
                        acc 0.0]
                   (if (< i n)
                     (recur (unchecked-inc i) (+ acc (double (nth changed-scale-components i))))
-                    acc))]
-        (/ sum (double n)))
+                    acc))
+            n-as-double (double n)]
+        (/ sum n-as-double))
       (.getX delta))))
 
 (defmethod scene-tools/manip-scalable? :editor.game-object/ComponentNode [node-id]
