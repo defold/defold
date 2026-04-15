@@ -15,6 +15,7 @@
 (ns integration.model-utility-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.model-loader :as model-loader]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
