@@ -23,7 +23,7 @@
             [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
-            [editor.ui.popup :as popup])
+            [editor.ui.settings-popover :as settings-popover])
   (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
            [java.util List]
@@ -281,7 +281,7 @@
                              {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
                              {:key :color :type :color :label "scene-popup.grid.color"}
                              {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
-                              :slider-string-value-fn (fn [^double v]
-                                                        (str (Math/round (* v 100)) "%"))}]
-        prefs-binding (popup/->PrefsBinding prefs [:scene :grid] settings-descriptor ignore-options (fn [_k _v] (invalidate-grids! app-view)))]
-    (popup/show-settings! owner keymap localization prefs-binding 220 0.0 settings-descriptor)))
+                              :slider-value->string (fn [^double v]
+                                                      (str (Math/round (* v 100)) "%"))}]
+        prefs-store (settings-popover/->PrefsStore prefs [:scene :grid] settings-descriptor ignore-options (fn [_k _v] (invalidate-grids! app-view)))]
+    (settings-popover/show! owner keymap localization prefs-store 220 0.0 settings-descriptor)))

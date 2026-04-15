@@ -22,7 +22,7 @@
             [editor.math :as math]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup]
+            [editor.ui.settings-popover :as settings-popover]
             [editor.prefs :as prefs])
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
@@ -1236,12 +1236,12 @@
                               :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
                              {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
                               :slider-value->string (fn [^double v]
-                                                        (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
-                                                          (str (math/round-with-precision scaled 0.1))))}
+                                                      (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
+                                                        (str (math/round-with-precision scaled 0.1))))}
                              {:key :fov :type :slider :label "scene-popup.camera.fov" :min 15.0 :max 120.0
                               :on-change-fn (partial fov-fn :fov)
                               :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
                              {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
                              {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
-        prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
-    (popup/show-settings! owner keymap localization prefs-binding 240 0.0 settings-descriptor)))
+        prefs-store (settings-popover/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
+    (settings-popover/show! owner keymap localization prefs-store 240 0.0 settings-descriptor)))

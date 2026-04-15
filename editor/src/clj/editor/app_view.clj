@@ -82,7 +82,7 @@
             [editor.targets :as targets]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup]
+            [editor.ui.settings-popover :as settings-popover]
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -525,7 +525,7 @@
   (state [app-view scene-visibility evaluation-context]
     (when-let [btn (scene-visibility/toggle-button app-view)]
       (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
-      (popup/settings-visible? btn))))
+      (settings-popover/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
   (some-> tab
@@ -535,7 +535,7 @@
 (defn- show-settings-state [app-view button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)
           (get-settings-button button-id)
-          (popup/settings-visible?)))
+          (settings-popover/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs localization]

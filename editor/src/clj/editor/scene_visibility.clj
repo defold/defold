@@ -22,7 +22,7 @@
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup]
+            [editor.ui.settings-popover :as settings-popover]
             [internal.util :as iutil]
             [schema.core :as s]
             [util.coll :as coll])
@@ -302,8 +302,8 @@
          (doseq [cb check-boxes]
            (ui/enable! cb enabled?)))))))
 
-(defrecord SceneVisibilityBinding [scene-visibility]
-  popup/SettingsBinding
+(defrecord SceneVisibilityStore [scene-visibility]
+  settings-popover/SettingsStore
   (get-value [_ key]
     (if (= :visibility-filters-enabled? key)
       (g/node-value scene-visibility :visibility-filters-enabled?)
@@ -320,25 +320,25 @@
                                        (assoc :key (:tag %))
                                        (dissoc :tag :always-enabled :appear-filtered))
                                   renderable-tag-toggles-info)
-        scene-vis-binding (->SceneVisibilityBinding scene-visibility)
+        scene-vis-store (->SceneVisibilityStore scene-visibility)
         ;; HACK: There's a visual bug where if you're hovering over the SplitPane next to Outline, if you move the
         ;; cursor into the popup, JavaFX doesn't receive a mouse-move inside the scene view, so once you
         ;; enter the popup, the H_RESIZE cursor stays active. As a hack, just move the scene visibility to the left by
         ;; 13 pixels, that seems to be enough to allow the cursor to get reset.
-        controls (popup/show-settings! owner keymap localization scene-vis-binding 230 -13.0 setting-descriptors nil
-                                       (fn [_]
-                                         (sync-filter-checkboxes! scene-visibility)
-                                         ;; NOTE: On close, free the references to the GUI nodes
-                                         (g/set-property! scene-visibility :ui-check-boxes nil)))]
+        controls (settings-popover/show! owner keymap localization scene-vis-store 230 -13.0 setting-descriptors nil
+                                         (fn [_]
+                                           (sync-filter-checkboxes! scene-visibility)
+                                           ;; NOTE: On close, free the references to the GUI nodes
+                                           (g/set-property! scene-visibility :ui-check-boxes nil)))]
     (when controls
       (g/update-property! scene-visibility :ui-check-boxes assoc
                           :visibility-filter-check-box (last (:visibility-filters-enabled? controls))
                           :component-guide-check-box (last (:outline controls))
                           :filter-check-boxes (coll/into-> controls []
-                                                (keep (fn [[key entry]]
-                                                        (when (contains? toggleable-filters key)
-                                                          ;; NOTE: We only need the HBox for this, so we can disable the whole thing
-                                                          (first entry))))))
+                                                           (keep (fn [[key entry]]
+                                                                   (when (contains? toggleable-filters key)
+                                                                     ;; NOTE: We only need the HBox for this, so we can disable the whole thing
+                                                                     (first entry))))))
       (sync-filter-checkboxes! scene-visibility))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
