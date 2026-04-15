@@ -15,7 +15,6 @@
 (ns integration.model-utility-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
-            [dynamo.graph :as g]
             [editor.model-loader :as model-loader]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -45,7 +44,7 @@
 (defn- load-scene [workspace project file-path]
   (let [resource (workspace/file-resource workspace file-path)
         node-id (project/get-resource-node project resource)]
-    (model-loader/load-scene node-id resource (g/node-value project :settings))))
+    (model-loader/load-scene node-id resource (project/settings project))))
 
 (deftest mesh-normals
   (test-util/with-loaded-project

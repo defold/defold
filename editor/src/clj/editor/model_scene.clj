@@ -672,8 +672,12 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
-(defn load-model-scene-node [project self _resource]
-  [(g/connect project :settings self :project-settings)])
+(defn load-model-scene-node [project self resource]
+  (let [workspace-node (resource/workspace resource)
+        disk-sha256 (resource/resource->sha256-hex resource)]
+    (concat
+      (g/connect project :settings self :project-settings)
+      (workspace/set-disk-sha256 workspace-node self disk-sha256))))
 
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)

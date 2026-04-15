@@ -31,7 +31,7 @@
 (set! *warn-on-reflection* true)
 
 (defn- morph-target-texture-limits [project-settings]
-  (mapv #(int (Integer/parseInt (string/trim (str (get project-settings %)))))
+  (mapv #(int (get project-settings %))
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
 
