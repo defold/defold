@@ -112,7 +112,7 @@
             }
 
             .color-setting-row {
-                -fx-max-width: 107px;
+                -fx-max-width: 100px;
             }
 
             .compact-toggle {
@@ -124,11 +124,15 @@
                 -fx-padding: 0 3px 0 0;
             }
 
+            .slider-value-label {
+                -fx-text-fill: -df-text-dark;
+            }
+
             .plane-toggle {
                 -fx-text-fill: -df-text;
                 -fx-background-radius: 0;
                 -fx-border-radius: 0;
-                -fx-pref-width: 32px;
+                -fx-pref-width: 30px;
             }
 
             .text-input {
@@ -184,7 +188,7 @@
             }
 
             .slider {
-                -fx-pref-width: 107px;
+                -fx-pref-width: 100px;
                 .track {
                     -fx-background-color: -df-background-light;
                     -fx-border-color: -df-component-light;

@@ -1231,10 +1231,17 @@
                                              :fov-y fov-y-distance
                                              :fov-x fov-x-distance))))))
         settings-descriptor [{:type :reset-all}
-                             {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0}
-                             {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4}
-                             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 20.0 :max 70.0 :on-change-fn (partial fov-fn :fov)}
+                             {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0
+                              :snap-to 0.25
+                              :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
+                             {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
+                              :slider-value->string (fn [^double v]
+                                                        (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
+                                                          (str (math/round-with-precision scaled 0.1))))}
+                             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 15.0 :max 120.0
+                              :on-change-fn (partial fov-fn :fov)
+                              :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
                              {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
                              {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
-    (popup/show-settings! owner keymap localization prefs-binding 250 0.0 settings-descriptor)))
+    (popup/show-settings! owner keymap localization prefs-binding 240 0.0 settings-descriptor)))

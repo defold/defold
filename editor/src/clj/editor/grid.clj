@@ -280,6 +280,8 @@
                              {:key :size :type :vec3-floats}
                              {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
                              {:key :color :type :color :label "scene-popup.grid.color"}
-                             {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0}]
+                             {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
+                              :slider-string-value-fn (fn [^double v]
+                                                        (str (Math/round (* v 100)) "%"))}]
         prefs-binding (popup/->PrefsBinding prefs [:scene :grid] settings-descriptor ignore-options (fn [_k _v] (invalidate-grids! app-view)))]
     (popup/show-settings! owner keymap localization prefs-binding 220 0.0 settings-descriptor)))

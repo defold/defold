@@ -80,10 +80,17 @@
 (defn- wrap-in-hbox [children]
   (HBox. (ui/node-array children)))
 
-(defn- slider-setting [^PopupControl popup settings-binding {:keys [key label min max on-change-fn]}]
+(defn- slider-setting [^PopupControl popup settings-binding {:keys [key label min max on-change-fn snap-to slider-value->string]}]
   (let [value (get-value settings-binding key)
         slider (Slider. min max value)
-        label (Label. label)]
+        label (Label. label)
+        snap-fn (if snap-to
+                  (fn [^double v]
+                    (* (double snap-to) (Math/round (/ v (double snap-to)))))
+                  identity)
+        slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
+        value-label (doto (Label. (slider-value->string value))
+                      (ui/add-style! "slider-value-label"))]
     (doto slider
       (ensure-focus-traversable!)
       (.setBlockIncrement 0.1)
@@ -93,11 +100,13 @@
     (ui/observe
       (.valueProperty slider)
       (fn [_observable _old-val new-val]
-        (let [val (math/round-with-precision new-val 0.01)]
+        (let [new-val (snap-fn new-val)
+              str-val (slider-value->string new-val)]
+          (ui/text! value-label str-val)
           (when on-change-fn
-            (on-change-fn val))
-          (set-value! settings-binding key val))))
-    (wrap-in-hbox [label slider])))
+            (on-change-fn new-val))
+          (set-value! settings-binding key new-val))))
+    (wrap-in-hbox [label value-label slider])))
 
 (defn- toggle-setting [^PopupControl popup settings-binding {:keys [key label command accelerator] :as descriptor}]
   (let [check-box (CheckBox.)
@@ -231,24 +240,20 @@
   ^Point2D [^Parent container width x-offset]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
-(def ^:private setting-constructors
-  {:slider      slider-setting
-   :toggle      toggle-setting
-   :vec3-floats vec3-floats-setting
-   :vec3-toggle vec3-toggle-setting
-   :color       color-setting})
-
 (defn- setting-row [keymap localization popup settings-binding descriptor]
   (let [descriptor (cond-> descriptor
                      (:label descriptor)
                      (assoc :label (localization (localization/message (:label descriptor))))
                      (:command descriptor)
                      (assoc :accelerator (keymap/display-text keymap (:command descriptor) "")))]
-    (if-let [ctor (setting-constructors (:type descriptor))]
-      (ctor popup settings-binding descriptor)
-      (case (:type descriptor)
-        :space     (doto (wrap-in-hbox [(Region.)]) (ui/add-style! "settings-divider-row"))
-        :separator (doto (wrap-in-hbox [(Separator.)]) (ui/add-style! "settings-divider-row"))))))
+    (case (:type descriptor)
+      :slider      (slider-setting popup settings-binding descriptor)
+      :toggle      (toggle-setting popup settings-binding descriptor)
+      :vec3-floats (vec3-floats-setting popup settings-binding descriptor)
+      :vec3-toggle (vec3-toggle-setting popup settings-binding descriptor)
+      :color       (color-setting popup settings-binding descriptor)
+      :space       (doto (wrap-in-hbox [(Region.)]) (ui/add-style! "settings-divider-row"))
+      :separator   (doto (wrap-in-hbox [(Separator.)]) (ui/add-style! "settings-divider-row")))))
 
 (defn- settings [keymap localization settings-binding popup setting-descriptors hidden-settings]
   (let [visible-descriptors (remove (fn [{:keys [key]}] (contains? hidden-settings key)) setting-descriptors)

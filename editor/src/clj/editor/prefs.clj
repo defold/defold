@@ -250,7 +250,7 @@
              :perspective-camera {:type :object
                                   :scope :project
                                   :properties {:speed {:type :number :default 1.0}
-                                               :look-sensitivity {:type :number :default 0.15}
+                                               :look-sensitivity {:type :number :default 0.145}
                                                :fov {:type :number :default 37.8}
                                                :invert-y {:type :boolean :default false}
                                                :walking-mode {:type :boolean :default false}}}}}
@@ -966,3 +966,7 @@
                                       "simulated-resolution" [:run :simulated-resolution]})))))
 
 ;; end region
+
+(comment
+  (swap! global-state assoc-in [:registry :default] (resolve-schema default-schema))
+  :-)
