@@ -1327,7 +1327,7 @@ namespace dmGameSystem
         {
             if (layout)
             {
-                TextLayoutFree(layout);
+                TextLayoutRelease(layout);
             }
             dmGui::TextLayout empty_text_layout = {};
             dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
@@ -1337,8 +1337,11 @@ namespace dmGameSystem
         dmGui::TextLayout new_text_layout = {};
         new_text_layout.m_Handle = layout;
         new_text_layout.m_Key = cache_key;
+        // SetNodeTextLayout() acquires a node-owned reference, so we release the
+        // temporary ownership from TextLayoutCreate() after storing the handle.
         dmGui::SetNodeTextLayout(scene, node, new_text_layout);
-        return layout;
+        TextLayoutRelease(layout);
+        return new_text_layout.m_Handle;
     }
 
     static void RenderTextNodes(dmGui::HScene scene,

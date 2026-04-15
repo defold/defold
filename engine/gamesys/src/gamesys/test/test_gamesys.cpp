@@ -1346,7 +1346,7 @@ static void PostLabelSetText(dmGameObject::HCollection collection, dmhash_t go_i
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, user_data, 0, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0));
 }
 
-static HTextLayout SubmitLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection, bool draw)
+static HTextLayout SubmitLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection, bool draw, bool clear_render_objects)
 {
     dmRender::RenderListBegin(render_context);
     dmGameObject::Render(collection);
@@ -1361,18 +1361,26 @@ static HTextLayout SubmitLabelAndGetTextLayout(dmRender::HRenderContext render_c
     {
         dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
-    dmRender::ClearRenderObjects(render_context);
+    if (clear_render_objects)
+    {
+        dmRender::ClearRenderObjects(render_context);
+    }
     return layout;
 }
 
 static HTextLayout RenderLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
 {
-    return SubmitLabelAndGetTextLayout(render_context, collection, true);
+    return SubmitLabelAndGetTextLayout(render_context, collection, true, true);
 }
 
 static HTextLayout PrepareLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
 {
-    return SubmitLabelAndGetTextLayout(render_context, collection, false);
+    return SubmitLabelAndGetTextLayout(render_context, collection, false, true);
+}
+
+static HTextLayout QueueLabelAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    return SubmitLabelAndGetTextLayout(render_context, collection, false, false);
 }
 
 struct GuiTextSubmitResult
@@ -1382,7 +1390,7 @@ struct GuiTextSubmitResult
     uint32_t    m_TextBufferSize;
 };
 
-static GuiTextSubmitResult SubmitGuiAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection, bool draw)
+static GuiTextSubmitResult SubmitGuiAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection, bool draw, bool clear_render_objects)
 {
     GuiTextSubmitResult result = {};
 
@@ -1399,13 +1407,21 @@ static GuiTextSubmitResult SubmitGuiAndGetTextLayout(dmRender::HRenderContext re
     {
         dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
-    dmRender::ClearRenderObjects(render_context);
+    if (clear_render_objects)
+    {
+        dmRender::ClearRenderObjects(render_context);
+    }
     return result;
 }
 
 static GuiTextSubmitResult PrepareGuiAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
 {
-    return SubmitGuiAndGetTextLayout(render_context, collection, false);
+    return SubmitGuiAndGetTextLayout(render_context, collection, false, true);
+}
+
+static GuiTextSubmitResult QueueGuiAndGetTextLayout(dmRender::HRenderContext render_context, dmGameObject::HCollection collection)
+{
+    return SubmitGuiAndGetTextLayout(render_context, collection, false, false);
 }
 
 static dmhash_t GetTextLayoutGlyphFontPathHash(dmGameSystem::FontResource* font_resource, HTextLayout layout)
@@ -3580,7 +3596,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutInvalidation)
     dmGui::GetNodeTextLayout(scene, node, &text_layout);
     ASSERT_EQ((HTextLayout)0, text_layout.m_Handle);
 
-    GuiTextSubmitResult initial = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    GuiTextSubmitResult initial = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(1u, initial.m_TextEntryCount);
     ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
     ASSERT_EQ(0u, initial.m_TextBufferSize);
@@ -3690,6 +3706,40 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     dmGui::DeleteNode(scene, cloned_node);
     dmGui::ClearNodes(scene);
     ASSERT_EQ(0u, scene->m_Nodes.Size());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+
+    GuiTextSubmitResult initial = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, initial.m_TextEntryCount);
+    ASSERT_NE((HTextLayout)0, initial.m_TextLayout);
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, gui_component);
+
+    dmGui::Scene* scene = gui_component->m_Scene;
+    dmGui::HNode node = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, node);
+
+    dmGui::TextLayout text_layout = {};
+    dmGui::GetNodeTextLayout(scene, node, &text_layout);
+    ASSERT_EQ(initial.m_TextLayout, text_layout.m_Handle);
+
+    dmGui::TextLayout cleared_layout = {};
+    dmGui::SetNodeTextLayout(scene, node, cleared_layout);
+
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -3811,6 +3861,33 @@ TEST_F(ComponentTest, LabelPreparedTextLayoutInvalidation)
 
     dmResource::Release(m_Factory, replacement_font_resource);
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, LabelPreparedTextLayoutDestroyedBeforeDraw)
+{
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t label_id = dmHashString64("label");
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    HTextLayout prepared_layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    ASSERT_NE((HTextLayout)0, prepared_layout);
+
+    dmGameObject::PropertyOptions options = {};
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("tracking"), options, dmGameObject::PropertyVar(1.0f)));
+
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
+
+    DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

@@ -163,7 +163,7 @@ TEST_F(FontTest, LayoutSingleLine)
     }
     ASSERT_ARRAY_EQ_LEN(original_text, outtext.Begin(), line.m_Length);
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 
     // Test the same without any lines
     r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
@@ -172,7 +172,7 @@ TEST_F(FontTest, LayoutSingleLine)
     DebugPrintLayout(layout);
     ASSERT_EQ(1u, layout->m_Lines.Size());
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 }
 
 // See https://github.com/defold/defold/issues/11766
@@ -202,7 +202,7 @@ TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
     ASSERT_NE(0.0, line.m_Width);
 
     FontCollectionDestroy(fontCollection);
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     FontDestroy(font);
 }
 
@@ -218,7 +218,29 @@ TEST_F(FontTest, LayoutEmptyString)
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
     ASSERT_EQ(0u, layout->m_Lines.Size());
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, LayoutAcquireRelease)
+{
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0.0f;
+    settings.m_Size = 16.0f;
+
+    HTextLayout layout = 0;
+    TextResult r = TextLayoutCreate(m_FontCollection, 0, 0, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(1u, layout->m_RefCount);
+
+    TextLayoutAcquire(layout);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    TextLayoutRelease(layout);
+    ASSERT_EQ(1u, layout->m_RefCount);
+
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, LayoutMultiLine)
@@ -274,7 +296,7 @@ TEST_F(FontTest, LayoutMultiLine)
     ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + line1.m_Index, line1.m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, LayoutExplicitLineBreaks)
@@ -321,7 +343,7 @@ TEST_F(FontTest, LayoutExplicitLineBreaks)
     ASSERT_EQ((uint32_t)strlen(expected_text_2), line2.m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
@@ -373,7 +395,7 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
     ASSERT_EQ((uint32_t)strlen(expected_text_3), line3.m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_3, outtext.Begin() + line3.m_Index, line3.m_Length);
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, LayoutTrackingAndLeading)
@@ -397,7 +419,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
     float layout_line_height = layout->m_Height;
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 
     // Measure tracking impact as a width delta between two adjacent glyphs.
     const char* tracking_text = "AA";
@@ -406,7 +428,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
     float width_no_tracking = layout->m_Width;
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 
     float tracking_value = 0.25f;
     settings.m_Tracking = tracking_value;
@@ -414,7 +436,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     ASSERT_EQ(TEXT_RESULT_OK, r);
     ASSERT_NE((HTextLayout)0, layout);
     float width_tracking = layout->m_Width;
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 
     // Legacy tracking scales by line height. Skribidi scales by font size in pixels.
     float expected_tracking = 0.0f;
@@ -448,7 +470,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     uint32_t line_count = layout->m_Lines.Size();
     ASSERT_EQ(2u, line_count);
     float height_leading_1 = layout->m_Height;
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 
     settings.m_Leading = 2.0f;
     r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
@@ -456,7 +478,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
     ASSERT_NE((HTextLayout)0, layout);
     ASSERT_EQ(2u, layout->m_Lines.Size());
     float height_leading_2 = layout->m_Height;
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
 
     // Leading should add one extra line height for the entire layout.
     float expected_leading_delta = layout_line_height;
@@ -531,7 +553,7 @@ TEST_F(FontTest, FontTracking)
             }
         }
 
-        TextLayoutFree(layout);
+        TextLayoutRelease(layout);
         layout = 0;
     }
 
@@ -581,7 +603,7 @@ TEST_F(FontTest, FontTracking)
 #endif
         ASSERT_NEAR(expected_width, layout->m_Width, width_epsilon);
 
-        TextLayoutFree(layout);
+        TextLayoutRelease(layout);
         layout = 0;
     }
 }
@@ -923,7 +945,7 @@ TEST_F(FontTest, TextArabic)
     DebugPrintLayout(layout);
 
     FontCollectionDestroy(fontCollection);
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     FontDestroy(font);
 }
 #endif

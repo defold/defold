@@ -2,6 +2,7 @@
 
 def build(bld):
     libs = 'TESTMAIN SOCKET APP GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL PLATFORM_NULL LUA FONT render render_font_default'
+    profiler_render_libs = libs + ' PROFILEREXT'
     exported_symbols = ['GraphicsAdapterNull']
 
     if 'web' in bld.env['PLATFORM']:
@@ -49,3 +50,10 @@ def build(bld):
                 includes = ['../../src', '../../proto'],
                 target = 'test_render_buffer')
 
+    bld.program(features = 'cxx cprogram test',
+                source = ['../../../profiler/src/test/test_profilerext_render.cpp'],
+                use = profiler_render_libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto', '../../../profiler/src'],
+                target = 'test_profilerext_render')
