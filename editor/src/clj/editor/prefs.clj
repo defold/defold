@@ -875,8 +875,10 @@
   (let [legacy-prefs (.node (Preferences/userRoot) "defold")
         wasm-web-path [:bundle :html5 :architecture :wasm-web]
         wasm-pthread-web-path [:bundle :html5 :architecture :wasm_pthread-web]
-        wasm-web-value (or (legacy-pref-value legacy-prefs "bundle-html5-architecture-wasm-web?")
-                           (legacy-pref-value legacy-prefs "bundle-html5-architecture-js-web?"))
+        wasm-web-value (let [legacy-wasm-web-value (legacy-pref-value legacy-prefs "bundle-html5-architecture-wasm-web?")]
+                         (if (some? legacy-wasm-web-value)
+                           legacy-wasm-web-value
+                           (legacy-pref-value legacy-prefs "bundle-html5-architecture-js-web?")))
         wasm-pthread-web-value (legacy-pref-value legacy-prefs "bundle-html5-architecture-wasm_pthread-web?")]
     (editor.prefs/set!
       project-prefs

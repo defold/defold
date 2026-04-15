@@ -573,6 +573,14 @@
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
 
+(defn serialize-manifest [manifest indent-type]
+  (util/split-lines
+    (yaml/dump manifest
+               :order-pattern app-manifest-key-order-pattern
+               :indent (case indent-type
+                         :two-spaces 2
+                         4))))
+
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
   (output parsed-manifest g/Any :cached (g/fnk [lines _node-id resource]
@@ -588,12 +596,7 @@
                    (g/set-property
                      self
                      :modified-lines
-                     (util/split-lines
-                       (yaml/dump new-value
-                                  :order-pattern app-manifest-key-order-pattern
-                                  :indent (case (g/node-value self :indent-type evaluation-context)
-                                            :two-spaces 2
-                                            4)))))))
+                     (serialize-manifest new-value (g/node-value self :indent-type evaluation-context))))))
   (property physics-2d g/Any
             (dynamic label (properties/label-dynamic :appmanifest :physics-2d))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :physics-2d))
