@@ -41,7 +41,7 @@
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [java.nio ByteOrder FloatBuffer]
-           [javax.vecmath Vector4d]))
+           [javax.vecmath Matrix4d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -470,9 +470,22 @@
          :material-data material-data
          :renderable-buffers renderable-buffers}))))
 
-(defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name]
+(defn- make-bone-id->world-transform [skeleton]
+  (into {}
+        (map (fn [bone]
+               [(:id bone)
+                (let [{:keys [translation rotation scale]} (:world bone)]
+                  (math/clj->mat4 translation rotation scale))]))
+        (:bones skeleton)))
+
+(defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name bone-id->world-transform]
   (let [{:keys [translation rotation scale]} (:local model)
-        model-transform (math/clj->mat4 translation rotation scale)
+        local-transform (math/clj->mat4 translation rotation scale)
+        bone-transform (get bone-id->world-transform (:bone-id model))
+        model-transform (if (some? bone-transform)
+                          (doto (Matrix4d. bone-transform)
+                            (.mul ^Matrix4d local-transform))
+                          local-transform)
 
         renderable-meshes
         (coll/into-> (:meshes model) []
@@ -491,11 +504,12 @@
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
-(defn- make-renderable-mesh-set [mesh-set mesh-set-request-id mesh-material-index->material-name]
-  (let [renderable-models
+(defn- make-renderable-mesh-set [mesh-set skeleton mesh-set-request-id mesh-material-index->material-name]
+  (let [bone-id->world-transform (make-bone-id->world-transform skeleton)
+        renderable-models
         (mapv (fn [model]
                 (let [model-request-id (assoc mesh-set-request-id :model-id (:id model))]
-                  (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name)))
+                  (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)))
               (:models mesh-set))]
 
     (g/precluding-errors renderable-models
@@ -518,7 +532,7 @@
             default-material-ids)
 
         renderable-mesh-set-or-error-value
-        (make-renderable-mesh-set (:mesh-set content) mesh-set-request-id mesh-material-index->material-name)]
+        (make-renderable-mesh-set (:mesh-set content) (:skeleton content) mesh-set-request-id mesh-material-index->material-name)]
 
     (if (g/error-value? renderable-mesh-set-or-error-value)
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)

@@ -1716,9 +1716,11 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                // Skinning must run whenever the mesh is skinned: bind pose matrices are written every frame
-                // (see dmRig::DoAnimate when not playing an animation) so idle pose matches animated pose.
-                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
+                // Match legacy behavior: only apply skinned animation matrices while animating.
+                // This keeps non-playing skeleton setups aligned with non-skinned rendering.
+                if (instance_component->m_Resource->m_RigScene->m_SkeletonRes &&
+                    dmRig::IsAnimating(instance_component->m_RigInstance) &&
+                    dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
@@ -1900,7 +1902,9 @@ namespace dmGameSystem
 
                 dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
 
-                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
+                if (component->m_Resource->m_RigScene->m_SkeletonRes &&
+                    dmRig::IsAnimating(component->m_RigInstance) &&
+                    dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);

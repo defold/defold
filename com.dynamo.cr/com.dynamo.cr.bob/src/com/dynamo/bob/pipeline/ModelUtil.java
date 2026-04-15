@@ -886,10 +886,11 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
-        // Handle GLTF hierarchy correctly based on whether the model is skinned:
-        // - If model is skinned: use node.local to preserve bone hierarchy system
-        // - If model is not skinned: use node.world to flatten transform hierarchy into model transform
-        if (skeleton.size() > 0) {
+        // Preserve local transforms only for meshes that rely on the bone hierarchy at runtime.
+        // Plain rigid meshes in a skinned scene, such as the paladin cape, should keep their
+        // flattened world placement to match the authored scene preview.
+        boolean preserveLocalTransform = node.skin != null || model.parentBone != null;
+        if (preserveLocalTransform) {
             modelBuilder.setLocal(toDDFTransform(node.local));
         } else {
             modelBuilder.setLocal(toDDFTransform(node.world));
@@ -959,7 +960,7 @@ public class ModelUtil {
 
     private static Scene loadInternal(Scene scene, Options options) {
         Modelimporter.Vector3 center = calcCenter(scene);
-        shiftNodes(scene, center); // We might make this optional
+        // shiftNodes(scene, center); // We might make this optional
 
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());
