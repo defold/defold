@@ -54,7 +54,7 @@
             :when (and key (not (contains? hidden-settings key)))
             :let [prefs-path (conj prefs-prefix key)]]
       (prefs/set! prefs prefs-path (prefs/default-value-at prefs prefs-path)))
-    (when on-change-fn (on-change-fn nil))))
+    (when on-change-fn (on-change-fn nil nil))))
 
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]

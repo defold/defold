@@ -834,14 +834,18 @@
           (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
         camera))))
 
-(defn set-camera-type! [camera-controller projection-type]
-  (let [old-camera (g/node-value camera-controller :local-camera)
+(defn perspective-fov-y [camera-node]
+  (or (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :fov])
+      fov-y-35mm-full-frame))
+
+(defn set-camera-type! [camera-node projection-type]
+  (let [old-camera (g/node-value camera-node :local-camera)
         current-type (:type old-camera)]
     (when (not= current-type projection-type)
       (let [new-camera (case projection-type
                          :orthographic (camera-perspective->orthographic old-camera)
-                         :perspective (camera-orthographic->perspective old-camera fov-y-35mm-full-frame))]
-        (set-camera! camera-controller old-camera new-camera false)))))
+                         :perspective (camera-orthographic->perspective old-camera (perspective-fov-y camera-node)))]
+        (set-camera! camera-node old-camera new-camera false)))))
 
 (defn mode-2d? [camera]
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
@@ -852,7 +856,7 @@
   (mode-2d? (g/node-value camera-node :local-camera evaluation-context)))
 
 (defn- sync-camera-position
-  [^Camera camera-a ^Camera camera-b viewport]
+  [camera-node ^Camera camera-a ^Camera camera-b viewport]
   (let [focus ^Vector4d (:focus-point camera-b)
         point (camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
         world (camera-unproject camera-a viewport point)
@@ -866,7 +870,7 @@
                  :fov-y (:fov-y camera-b)))
 
       (= (:type camera-a) :perspective)
-      (camera-orthographic->perspective fov-y-35mm-full-frame))))
+      (camera-orthographic->perspective (perspective-fov-y camera-node)))))
 
 (defn realign-camera
   ([camera-node animate]
@@ -876,19 +880,19 @@
    (let [local-cam (g/node-value camera-node :local-camera evaluation-context)]
      (if (mode-2d? local-cam)
        (let [viewport (g/node-value camera-node :viewport evaluation-context)
-             camera-3d (-> (or (g/node-value camera-node :cached-3d-camera evaluation-context)
-                               (tumble local-cam 200.0 -100.0))
-                           (sync-camera-position local-cam viewport))
+             camera-3d (or (g/node-value camera-node :cached-3d-camera evaluation-context)
+                           (tumble local-cam 200.0 -100.0))
+             camera-3d (sync-camera-position camera-node camera-3d local-cam viewport)
              local-cam (cond-> local-cam
                          (= (:type camera-3d) :perspective)
-                         (camera-orthographic->perspective fov-y-35mm-full-frame))]
+                         (camera-orthographic->perspective (perspective-fov-y camera-node)))]
          (set-camera! camera-node local-cam camera-3d animate))
        (let [is-perspective (= (:type local-cam) :perspective)]
          (g/set-property! camera-node :cached-3d-camera local-cam)
          (let [end-camera (cond-> local-cam
                             is-perspective camera-perspective->orthographic
                             :always camera-orthographic-realign
-                            is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
+                            is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
            (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic))))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
@@ -905,7 +909,7 @@
     (let [local-camera (g/node-value camera-node :local-camera)
           current-camera (cond-> local-camera
                            (= :orthographic (:type local-camera))
-                           (camera-orthographic->perspective fov-y-35mm-full-frame))
+                           (camera-orthographic->perspective (perspective-fov-y camera-node)))
           [pitch yaw _] (math/quat->euler (:rotation current-camera))
           focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
           bounds (.localToScreen image-view (.getBoundsInLocal image-view))
@@ -1202,12 +1206,35 @@
       (prefs/set! prefs prefs-key (not current-value)))))
 
 (defn show-settings! [^Parent owner camera-node prefs keymap localization]
-  (let [fov-fn #(g/update-property! camera-node :local-camera assoc :fov-x % :fov-y %)
+  ;; TODO JOE: So the reason this is ugly is because we have reset-all! on the protocol.
+  ;; because it is now a descriptor, we should remove it from there and instead just have
+  ;; the camera and the grid implement their own reset logic since hidden settings is
+  ;; kind of a grid only thing anyway? I don't know if we can move that out though
+  ;; Once we do that, we can then have a reset callback for the button that does this same
+  ;; thing effectively
+  (let [fov-fn (fn [k v]
+                 (when (or (= k :fov) (nil? k))
+                   (let [camera (g/node-value camera-node :local-camera)
+                         fov-y-deg (double (or v fov-y-35mm-full-frame))
+                         aspect (/ (double (:fov-x camera)) (double (:fov-y camera)))]
+                     (case (:type camera)
+                       :perspective
+                       (g/update-property! camera-node :local-camera assoc
+                                           :fov-y fov-y-deg
+                                           :fov-x (* fov-y-deg aspect))
+                       :orthographic
+                       (let [focus-distance (double (:focus-distance camera))
+                             half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
+                             fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
+                             fov-x-distance (* fov-y-distance aspect)]
+                         (g/update-property! camera-node :local-camera assoc
+                                             :fov-y fov-y-distance
+                                             :fov-x fov-x-distance))))))
         settings-descriptor [{:type :reset-all}
                              {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0}
                              {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4}
-                             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 20.0 :max 70.0 :on-change-fn fov-fn}
+                             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 20.0 :max 70.0 :on-change-fn (partial fov-fn :fov)}
                              {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
                              {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
-        prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
+        prefs-binding (popup/->PrefsBinding prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
     (popup/show-settings! owner keymap localization prefs-binding 250 0.0 settings-descriptor)))
