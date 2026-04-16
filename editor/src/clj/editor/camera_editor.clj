@@ -292,7 +292,9 @@
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode project-display-width project-display-height]
+  [_node-id fov aspect-ratio auto-aspect-ratio near-z far-z orthographic-projection orthographic-zoom orthographic-mode
+   project-display-width project-display-height
+   project-render-clear-color]
   ;; TODO: Better AABB calculation
   (let [^double ext-x far-z
         ^double ext-y far-z
@@ -310,13 +312,15 @@
                               :select-batch-key _node-id
                               :user-data {:fov (math/rad->deg fov) ; TODO: FOV should be edited as degrees, not radians.
                                           :aspect-ratio aspect-ratio
+                                          :auto-aspect-ratio auto-aspect-ratio
                                           :near-z near-z
                                           :far-z far-z
                                           :is-orthographic orthographic-projection
                                           :orthographic-zoom orthographic-zoom
                                           :orthographic-mode orthographic-mode
                                           :display-width project-display-width
-                                          :display-height project-display-height}
+                                          :display-height project-display-height
+                                          :render-clear-color project-render-clear-color}
                               :passes [pass/outline]}}]}))
 
 (defn load-camera [project self _resource camera-desc]
@@ -324,6 +328,7 @@
   (concat
     (g/connect project :display-width self :project-display-width)
     (g/connect project :display-height self :project-display-height)
+    (g/connect project :render-clear-color self :project-render-clear-color)
     (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
       aspect-ratio :aspect-ratio
       fov :fov
@@ -374,6 +379,7 @@
 
   (input project-display-width g/Num)
   (input project-display-height g/Num)
+  (input project-render-clear-color g/Any)
 
   (output form-data g/Any produce-form-data)
 

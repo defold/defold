@@ -14,7 +14,9 @@
 
 (ns editor.scene
   (:require [cljfx.api :as fx]
+            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text-area :as fx.text-area]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
@@ -27,6 +29,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.grid :as grid]
             [editor.handler :as handler]
@@ -51,6 +54,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -91,6 +95,11 @@
   {:position default-position
    :rotation default-rotation
    :scale default-scale})
+
+(def ^:private camera-inset-margin 18.0)
+(def ^:private camera-inset-width 240.0)
+(def ^:private camera-inset-height 135.0)
+(def ^:private camera-inset-render-scale 2.0)
 
 (defn significant-scale? [value]
   (cond
@@ -181,21 +190,197 @@
 
 ;; Avoid recreating the image each frame
 (defonce ^:private cached-buf-img-ref (atom nil))
+(defonce ^:private cached-camera-inset-buf-img-ref (atom nil))
 
 ;; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
 ;; We flip in JavaFX instead
-(defn- read-to-buffered-image [^long w ^long h]
-  (let [^BufferedImage image (let [^BufferedImage image @cached-buf-img-ref]
+(defn- read-to-buffered-image
+  ([^long w ^long h]
+   (read-to-buffered-image cached-buf-img-ref w h))
+  ([cache-ref ^long w ^long h]
+   (let [^BufferedImage image (let [^BufferedImage image @cache-ref]
                                (when (or (nil? image) (not= (.getWidth image) w) (not= (.getHeight image) h))
-                                 (reset! cached-buf-img-ref (BufferedImage. w h BufferedImage/TYPE_INT_ARGB_PRE)))
-                               @cached-buf-img-ref)
+                                 (reset! cache-ref (BufferedImage. w h BufferedImage/TYPE_INT_ARGB_PRE)))
+                               @cache-ref)
         glc (GLContext/getCurrent)
         gl (.getGL glc)
         psm (GLPixelStorageModes.)]
-   (.setPackAlignment psm gl 1)
-   (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
-   (.restore psm gl)
-   image))
+     (.setPackAlignment psm gl 1)
+     (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
+     (.restore psm gl)
+     image)))
+
+(declare pass-render-args)
+(declare render!)
+(declare vp-dims)
+
+(defn- camera-renderable? [renderable]
+  (contains? (:tags renderable) :camera))
+
+(defn- camera-inset-clear-color [selected-camera-renderable]
+  (let [[clear-r clear-g clear-b clear-a] (:render-clear-color (:user-data selected-camera-renderable))]
+    [(double (or clear-r 0.0))
+     (double (or clear-g 0.0))
+     (double (or clear-b 0.0))
+     (double (or clear-a 1.0))]))
+
+(defn- reset-camera-inset-gl-state! [^GL2 gl]
+  (.glActiveTexture gl GL/GL_TEXTURE0)
+  (.glBindTexture gl GL/GL_TEXTURE_2D 0)
+  (.glBindTexture gl GL2/GL_TEXTURE_CUBE_MAP 0)
+  (.glUseProgram gl 0))
+
+(defn- valid-camera-inset-orthographic-zoom? [selected-camera-renderable]
+  (let [{:keys [is-orthographic orthographic-mode orthographic-zoom]} (:user-data selected-camera-renderable)]
+    (or (not is-orthographic)
+        (not= orthographic-mode :ortho-mode-fixed)
+        (> (double (or orthographic-zoom 0.0)) 0.0))))
+
+(defn- camera-inset-aspect-ratio [selected-camera-renderable]
+  (let [{:keys [is-orthographic auto-aspect-ratio aspect-ratio display-width display-height]} (:user-data selected-camera-renderable)
+        project-width (double (or display-width 0.0))
+        project-height (double (or display-height 0.0))]
+    (if (or is-orthographic auto-aspect-ratio)
+      (when (and (pos? project-width) (pos? project-height))
+        (/ project-width project-height))
+      (let [camera-aspect-ratio (double (or aspect-ratio 0.0))]
+        (when (pos? camera-aspect-ratio)
+          camera-aspect-ratio)))))
+
+(defn- make-camera-inset-camera
+  ([selected-camera-renderable]
+   (make-camera-inset-camera selected-camera-renderable camera-inset-width camera-inset-height))
+  ([selected-camera-renderable _inset-width _inset-height]
+   (when (valid-camera-inset-orthographic-zoom? selected-camera-renderable)
+     (when-let [aspect-ratio (camera-inset-aspect-ratio selected-camera-renderable)]
+       (let [{:keys [is-orthographic near-z far-z fov display-height orthographic-zoom orthographic-mode]} (:user-data selected-camera-renderable)
+             world-translation ^Vector3d (:world-translation selected-camera-renderable)
+             world-rotation ^Quat4d (:world-rotation selected-camera-renderable)
+             fov-y (double (or fov c/fov-y-35mm-full-frame))
+             fov-x (* fov-y aspect-ratio)
+             zoom (double (or orthographic-zoom 1.0))
+             zoom (if (= orthographic-mode :ortho-mode-fixed)
+                    zoom
+                    1.0)
+             source-height (double (or display-height camera-inset-height))
+             oh (/ source-height zoom)
+             ow (* oh aspect-ratio)
+             camera-type (if is-orthographic :orthographic :perspective)
+             camera-fov-x (if is-orthographic ow fov-x)
+             camera-fov-y (if is-orthographic oh fov-y)
+             camera (c/make-camera camera-type identity {:fov-x camera-fov-x
+                                                         :fov-y camera-fov-y})]
+         (assoc camera
+           :position (Point3d. (.x world-translation) (.y world-translation) (.z world-translation))
+           :rotation (Quat4d. world-rotation)
+           :z-near (double (or near-z 1.0))
+           :z-far (double (or far-z 1000.0))))))))
+
+(defn- camera-inset-dimensions [selected-camera-renderable]
+  (when (valid-camera-inset-orthographic-zoom? selected-camera-renderable)
+    (when-let [aspect-ratio (camera-inset-aspect-ratio selected-camera-renderable)]
+      (let [display-height camera-inset-height
+            display-width (* display-height aspect-ratio)]
+        {:display-width display-width
+         :display-height display-height
+         :render-width (* display-width camera-inset-render-scale)
+         :render-height (* display-height camera-inset-render-scale)}))))
+
+(defn- remove-camera-outline-renderables [all-renderables]
+  (into {}
+        (map (fn [[render-pass renderables]]
+               [render-pass
+                (into [] (remove #(or (contains? (:tags %) :camera)
+                                      (contains? (:tags %) :outline)))
+                      renderables)]))
+        all-renderables))
+
+(defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
+  (let [border-shader shaders/basic-color-local-space
+        vertex-description (shaders/vertex-description border-shader)
+        [viewport-width viewport-height] (vp-dims viewport)
+        border-inset-pixels 1.0
+        border-min-x (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-width))
+        border-max-x (- border-min-x)
+        border-min-y (- 1.0 (/ (* 2.0 border-inset-pixels) viewport-height))
+        border-max-y (- border-min-y)
+        border-z 0.0
+        [border-r border-g border-b border-a] colors/selected-outline-color
+        border-vbuf (vtx/make-vertex-buffer vertex-description :stream 8)
+        border-buf (vtx/buf border-vbuf)
+        border-line-points [[border-min-x border-min-y border-z]
+                            [border-max-x border-min-y border-z]
+                            [border-max-x border-min-y border-z]
+                            [border-max-x border-max-y border-z]
+                            [border-max-x border-max-y border-z]
+                            [border-min-x border-max-y border-z]
+                            [border-min-x border-max-y border-z]
+                            [border-min-x border-min-y border-z]]
+        border-binding (vtx/use-with ::camera-inset-border border-vbuf border-shader)
+        render-args (math/derive-render-transforms geom/Identity4d geom/Identity4d geom/Identity4d geom/Identity4d)]
+    (doseq [[x y z] border-line-points]
+      (vtx/buf-push-floats! border-buf [x y z border-r border-g border-b border-a]))
+    (vtx/flip! border-vbuf)
+    (.glDisable gl GL/GL_DEPTH_TEST)
+    (.glLineWidth gl 2.0)
+    (gl/with-gl-bindings gl render-args [border-shader border-binding]
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count border-vbuf)))
+    (.glLineWidth gl 1.0)))
+
+(defn- produce-selected-camera-renderable [scene-render-data selection]
+  (let [selection-set (set selection)
+        selected-cameras
+        (into []
+              (comp cat
+                    (filter camera-renderable?)
+                    (filter (fn [renderable]
+                              (or (contains? selection-set (:node-id renderable))
+                                  (some selection-set (:node-id-path renderable))))))
+              (vals (:renderables scene-render-data)))]
+    (when (= 1 (count selected-cameras))
+      (first selected-cameras))))
+
+(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states ^GLAutoDrawable camera-inset-drawable]
+  (let [selected-camera-renderable (produce-selected-camera-renderable scene-render-data selection)
+        camera-inset-visible? (some? selected-camera-renderable)]
+    (if-not camera-inset-visible?
+      {:visible false
+       :image nil
+       :width camera-inset-width
+       :height camera-inset-height}
+      (if-let [{:keys [display-width display-height render-width render-height]} (camera-inset-dimensions selected-camera-renderable)]
+        (if-let [camera-inset-camera (make-camera-inset-camera selected-camera-renderable render-width render-height)]
+          (let [clear-color (camera-inset-clear-color selected-camera-renderable)
+                camera-inset-viewport (types/->Region 0 render-width 0 render-height)
+                camera-inset-pass->render-args (into {}
+                                                    (map (juxt identity (partial pass-render-args camera-inset-viewport camera-inset-camera)))
+                                                    pass/all-passes)
+                scene-renderables (:renderables scene-render-data)
+                camera-inset-frame (when camera-inset-drawable
+                                     (gl/with-drawable-as-current camera-inset-drawable
+                                       (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
+                                       (scene-cache/process-pending-deletions! gl)
+                                       (render! gl-context :normal (remove-camera-outline-renderables scene-renderables) updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
+                                       (render-camera-inset-border! gl camera-inset-viewport)
+                                       (reset-camera-inset-gl-state! gl)
+                                       (let [[w h] (vp-dims camera-inset-viewport)
+                                             buf-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
+                                         (scene-cache/prune-context! gl)
+                                         buf-image)))
+                camera-inset-image (when camera-inset-frame
+                                     (SwingFXUtils/toFXImage camera-inset-frame nil))]
+            {:visible (some? camera-inset-image)
+             :image camera-inset-image
+             :width display-width
+             :height display-height})
+          {:visible false
+           :image nil
+           :width camera-inset-width
+           :height camera-inset-height})
+        {:visible false
+         :image nil
+         :width camera-inset-width
+         :height camera-inset-height}))))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
@@ -340,23 +525,26 @@
     (keep :aabb)
     (map #(assoc (render-util/make-aabb-outline-renderable #{}) :aabb %))))
 
-(defn render! [^GLContext context render-mode renderables updatable-states viewport pass->render-args]
-  (let [^GL2 gl (.getGL context)
-        batch-key (render-mode-batch-key render-mode)]
-    (gl/gl-clear gl 0.0 0.0 0.0 1)
-    (.glColor4f gl 1.0 1.0 1.0 1.0)
-    (gl-viewport gl viewport)
-    (doseq [pass (render-mode-passes render-mode)
-            :let [pass-render-args (cond-> (pass->render-args pass)
-                                     (and (= render-mode :picking-rect)
-                                          (some? @last-picking-rect))
-                                     (picking-render-args viewport @last-picking-rect))
-                  pass-renderables (-> (get renderables pass)
-                                       (assoc-updatable-states updatable-states))]]
-      (setup-pass gl pass pass-render-args)
-      (if (= render-mode :aabbs)
-        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
-        (batch-render gl pass-render-args pass-renderables batch-key)))))
+(defn render!
+  ([^GLContext context render-mode renderables updatable-states viewport pass->render-args]
+   (render! context render-mode renderables updatable-states viewport pass->render-args [0.0 0.0 0.0 1.0]))
+  ([^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a]]
+   (let [^GL2 gl (.getGL context)
+         batch-key (render-mode-batch-key render-mode)]
+     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
+     (.glColor4f gl 1.0 1.0 1.0 1.0)
+     (gl-viewport gl viewport)
+     (doseq [pass (render-mode-passes render-mode)
+             :let [pass-render-args (cond-> (pass->render-args pass)
+                                      (and (= render-mode :picking-rect)
+                                           (some? @last-picking-rect))
+                                      (picking-render-args viewport @last-picking-rect))
+                   pass-renderables (-> (get renderables pass)
+                                        (assoc-updatable-states updatable-states))]]
+       (setup-pass gl pass pass-render-args)
+       (if (= render-mode :aabbs)
+         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
+         (batch-render gl pass-render-args pass-renderables batch-key))))))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -863,6 +1051,25 @@
    :anchor-pane/left 30
    :text info-text})
 
+(defn- camera-inset-image-view [camera-inset-image camera-inset-width camera-inset-height]
+  {:fx/type fx.stack-pane/lifecycle
+   :pref-width camera-inset-width
+   :pref-height camera-inset-height
+   :max-width camera-inset-width
+   :max-height camera-inset-height
+   :min-width camera-inset-width
+   :min-height camera-inset-height
+   :children [{:fx/type fx.image-view/lifecycle
+               :image camera-inset-image
+               :fit-width camera-inset-width
+               :fit-height camera-inset-height
+               :preserve-ratio false
+               :smooth true
+               :scale-y -1.0}]
+   :mouse-transparent true
+   :anchor-pane/bottom camera-inset-margin
+   :anchor-pane/right camera-inset-margin})
+
 (defn- animation-preview-anchor-props [camera viewport anim-data]
   (let [[sx sy _] (c/scale-factor camera viewport)
         offset texture-set/animation-preview-offset
@@ -894,7 +1101,7 @@
    :wrap-text true
    :text (coll/join-to-string "\n" (error-message-lines [error] localization-state))})
 
-(g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap]
+(g/defnk produce-overlay-anchor-pane-props [scene ^:try tool-info-text active-updatable-ids updatables camera viewport localization keymap camera-inset-data]
   (if-let [error (:error scene)]
     {:children [{:fx/type error-overlay
                  :anchor-pane/bottom 0
@@ -919,9 +1126,14 @@
                                   {:fx/type close-preview-button
                                    :localization localization
                                    :keymap keymap}))
+            camera-inset-visible? (:visible camera-inset-data)
+            camera-inset-image (:image camera-inset-data)
+            camera-inset-width (:width camera-inset-data camera-inset-width)
+            camera-inset-height (:height camera-inset-data camera-inset-height)
             children (cond-> []
                              info-text (conj (info-label info-text))
-                             close-button (conj close-button))]
+                             close-button (conj close-button)
+                             (and camera-inset-visible? camera-inset-image) (conj (camera-inset-image-view camera-inset-image camera-inset-width camera-inset-height)))]
         (if (not (coll/empty? children))
           {:pick-on-bounds false
            :children children
@@ -1043,6 +1255,7 @@
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
+  (property camera-inset-drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
   (property async-copy-state g/Any)
   (property cursor-pos types/Vec2)
@@ -1064,6 +1277,7 @@
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
+  (output camera-inset-data g/Any :cached produce-camera-inset-data)
   (output overlay-anchor-pane-props g/Any :cached produce-overlay-anchor-pane-props)
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
@@ -1145,6 +1359,9 @@
              :desc {:fx/type fxui/ext-value
                     :value overlay-anchor-pane}}))))))
 
+(defn- supports-camera-inset-drawable? [node-id]
+  (g/node-instance? (g/now) SceneView node-id))
+
 (defn dispose-scene-view! [node-id]
   (when (g/node-by-id node-id)
     (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
@@ -1159,11 +1376,19 @@
         (scene-cache/drop-context! gl)
         (.glFinish gl))
       (.destroy picking-drawable))
+    (when (supports-camera-inset-drawable? node-id)
+      (when-let [^GLAutoDrawable camera-inset-drawable (g/node-value node-id :camera-inset-drawable)]
+        (gl/with-drawable-as-current camera-inset-drawable
+          (scene-cache/drop-context! gl)
+          (.glFinish gl))
+        (.destroy camera-inset-drawable)))
     (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
     (g/transact
       (concat
         (g/set-property node-id :drawable nil)
         (g/set-property node-id :picking-drawable nil)
+        (when (supports-camera-inset-drawable? node-id)
+          (g/set-property node-id :camera-inset-drawable nil))
         (g/set-property node-id :async-copy-state nil)))))
 
 (defn- active-scene-view
@@ -1695,13 +1920,24 @@
                              (let [async-copy-state-atom (g/node-value view-id :async-copy-state)]
                                (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom width height))))
                            (let [drawable (gl/offscreen-drawable width height)
-                                 picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)]
+                                picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)
+                                camera-inset-drawable (when (supports-camera-inset-drawable? view-id)
+                                                        (gl/offscreen-drawable camera-inset-width camera-inset-height))]
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this image-view view-id)
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
-                             (g/set-properties! view-id :drawable drawable :picking-drawable picking-drawable :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                            (if camera-inset-drawable
+                              (g/set-properties! view-id
+                                                :drawable drawable
+                                                :picking-drawable picking-drawable
+                                                :camera-inset-drawable camera-inset-drawable
+                                                :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                              (g/set-properties! view-id
+                                                :drawable drawable
+                                                :picking-drawable picking-drawable
+                                                :async-copy-state (atom (scene-async/make-async-copy-state width height))))
                              (frame-selection! view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))

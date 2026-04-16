@@ -219,3 +219,37 @@
            (->> (get renderables-by-pass pass/transparent)
                 (scene/render-sort)
                 (mapv :node-id))))))
+
+(deftest camera-inset-dimensions-test
+  (testing "Perspective cameras with a fixed aspect ratio size the inset from the camera."
+    (let [renderable {:user-data {:is-orthographic false
+                                  :auto-aspect-ratio false
+                                  :aspect-ratio (/ 4.0 3.0)
+                                  :display-width 1920.0
+                                  :display-height 1080.0}}
+          dimensions (#'scene/camera-inset-dimensions renderable)]
+      (is (= (/ 4.0 3.0)
+             (#'scene/camera-inset-aspect-ratio renderable)))
+      (is (= 180.0
+             (:display-width dimensions)))
+      (is (= 135.0
+             (:display-height dimensions)))))
+
+  (testing "Auto-aspect perspective cameras keep following the project display."
+    (let [renderable {:user-data {:is-orthographic false
+                                  :auto-aspect-ratio true
+                                  :aspect-ratio (/ 4.0 3.0)
+                                  :display-width 1920.0
+                                  :display-height 1080.0}}]
+      (is (= (/ 16.0 9.0)
+             (#'scene/camera-inset-aspect-ratio renderable))))))
+
+(deftest invalid-fixed-orthographic-camera-inset-test
+  (let [renderable {:user-data {:is-orthographic true
+                                :orthographic-mode :ortho-mode-fixed
+                                :orthographic-zoom 0.0
+                                :display-width 1920.0
+                                :display-height 1080.0}}]
+    (is (false? (#'scene/valid-camera-inset-orthographic-zoom? renderable)))
+    (is (nil? (#'scene/camera-inset-dimensions renderable)))
+    (is (nil? (#'scene/make-camera-inset-camera renderable 480.0 270.0)))))
