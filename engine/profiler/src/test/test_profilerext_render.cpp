@@ -81,9 +81,12 @@ protected:
     dmRender::HMaterial         m_FontMaterial;
     HFont                       m_Font;
     dmRenderDDF::GlyphBank*     m_GlyphBank;
+    bool                        m_RenderContextDeleted;
 
     void SetUp() override
     {
+        m_RenderContextDeleted = false;
+
         dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams win_params;
@@ -146,7 +149,10 @@ protected:
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmRender::DeleteMaterial(m_Context, m_FontMaterial);
         dmGraphics::DeleteProgram(m_GraphicsContext, m_FontProgram);
-        dmRender::DeleteRenderContext(m_Context, 0);
+        if (!m_RenderContextDeleted)
+        {
+            dmRender::DeleteRenderContext(m_Context, 0);
+        }
 
         DestroyGlyphBank(m_GlyphBank);
         FontDestroy(m_Font);
@@ -166,6 +172,14 @@ protected:
         dmRender::RenderListEnd(m_Context);
         dmRender::SetViewMatrix(m_Context, Matrix4::identity());
         dmRender::SetProjectionMatrix(m_Context, Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 1.0f, -1.0f));
+    }
+
+    void DeleteRenderContext()
+    {
+        ASSERT_FALSE(m_RenderContextDeleted);
+        dmRender::DeleteRenderContext(m_Context, 0);
+        m_RenderContextDeleted = true;
+        m_Context = 0;
     }
 };
 
@@ -239,6 +253,40 @@ TEST_F(ProfilerRenderTest, CachedLayoutsSurviveProfileDeletionBeforeDraw)
 
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    ASSERT_EQ(1u, cached_layout->m_RefCount);
+    ASSERT_EQ(1u, transient_layout->m_RefCount);
+
+    TextLayoutRelease(cached_layout);
+    TextLayoutRelease(transient_layout);
+}
+
+TEST_F(ProfilerRenderTest, LayoutsAreReleasedWhenRenderContextIsDeletedBeforeProfile)
+{
+    dmProfileRender::HRenderProfile render_profile = dmProfileRender::NewRenderProfile(60.0f);
+    dmProfileRender::ProfilerFrame* frame = CreateProfilerFrame();
+    dmProfileRender::UpdateRenderProfile(render_profile, frame);
+    dmProfileRender::DeleteProfilerFrame(frame);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    QueueProfiler(render_profile);
+
+    ASSERT_GT(m_Context->m_TextContext.m_TextEntries.Size(), 1u);
+    HTextLayout cached_layout = m_Context->m_TextContext.m_TextEntries[0].m_TextLayout;
+    HTextLayout transient_layout = m_Context->m_TextContext.m_TextEntries[1].m_TextLayout;
+    ASSERT_NE((HTextLayout)0, cached_layout);
+    ASSERT_NE((HTextLayout)0, transient_layout);
+    ASSERT_NE(cached_layout, transient_layout);
+
+    TextLayoutAcquire(cached_layout);
+    TextLayoutAcquire(transient_layout);
+    ASSERT_EQ(3u, cached_layout->m_RefCount);
+    ASSERT_EQ(3u, transient_layout->m_RefCount);
+
+    DeleteRenderContext();
+    ASSERT_EQ(2u, cached_layout->m_RefCount);
+    ASSERT_EQ(2u, transient_layout->m_RefCount);
+
+    dmProfileRender::DeleteRenderProfile(render_profile);
     ASSERT_EQ(1u, cached_layout->m_RefCount);
     ASSERT_EQ(1u, transient_layout->m_RefCount);
 
