@@ -1206,35 +1206,7 @@
       (prefs/set! prefs prefs-key (not current-value)))))
 
 (defn show-settings! [^Parent owner camera-node prefs keymap localization]
-  (let [fov-fn
-        ;; NOTE: It might make more sense to pass an on-changed callback to each entry in settings-descriptor, that way
-        ;; we don't have to check the key to see if it belongs to :fov, however, because of the way the
-        ;; settings-popup's reset-button was implemented, where it destroys and recreates the UI instead of setting
-        ;; the default values per row, when we reset, the on-changed would never get called because the SettingsStore
-        ;; set-value! doesn't get called on initialization. So rather that implementing yet another mechanism to handle
-        ;; reset-all scenario, we can take key/val as args and act on that.
-        (fn [k v]
-          (when (= k :fov)
-              (let [camera (g/node-value camera-node :local-camera)
-                    aspect (/ (double (:fov-x camera)) (double (:fov-y camera)))]
-                (case (:type camera)
-                  :perspective
-                  (g/update-property! camera-node :local-camera assoc
-                                      :fov-y v
-                                      :fov-x (* (double v) aspect))
-                  :orthographic
-                  (let [focus-pos (camera-focus-point camera)
-                        focus-distance (.length (math/subtract-vector focus-pos (:position camera)))
-                        half-fov-y-rad (math/deg->rad (* (double v) 0.5))
-                        ^double fov-x-distance (:fov-x camera)
-                        ^double fov-y-distance (:fov-y camera)
-                        aspect (/ fov-x-distance fov-y-distance)
-                        new-fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
-                        new-fov-x-distance (* new-fov-y-distance aspect)]
-                    (g/update-property! camera-node :local-camera assoc
-                                        :fov-y new-fov-y-distance
-                                        :fov-x new-fov-x-distance))))))
-        settings-descriptor
+  (let [settings-descriptor
         [{:type :reset-all}
          {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0
           :snap-to 0.25
@@ -1248,5 +1220,5 @@
           :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
          {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
          {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
-        prefs-store (settings-popup/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
+        prefs-store (settings-popup/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
     (settings-popup/show! owner keymap localization prefs-store 240 0.0 settings-descriptor)))
