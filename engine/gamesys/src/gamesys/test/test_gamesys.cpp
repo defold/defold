@@ -56,6 +56,7 @@
 #include <gamesys/label_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
+#include "../components/comp_collection_proxy.h"
 #include "../scripts/script_sys_gamesys.h"
 #include "../scripts/script_resource.h"
 
@@ -73,6 +74,16 @@
 #include <jc_test/jc_test.h>
 
 using namespace dmVMath;
+
+namespace dmGameObject
+{
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
+}
+
+namespace dmGameSystem
+{
+    dmGameObject::Result CompCollectionProxyUnloadAsync(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx);
+}
 
 #if !defined(DM_TEST_EXTERN_INIT_FUNCTIONS)
     bool GameSystemTest_PlatformInit()
@@ -230,6 +241,52 @@ static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::H
     dmGameObject::Update(collection, &ctx);
     dmGameObject::Delete(collection, instance, false);
     dmGameObject::PostUpdate(collection);
+}
+
+struct CollectionProxyComponentRef
+{
+    dmGameSystem::HCollectionProxyWorld m_World;
+    dmGameSystem::HCollectionProxyComponent m_Component;
+};
+
+static CollectionProxyComponentRef GetCollectionProxyComponentRef(dmGameObject::HInstance instance, dmhash_t component_id)
+{
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld world = 0;
+    EXPECT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, component_id, &component_type, &component, &world));
+    EXPECT_NE((void*)0, component);
+    EXPECT_NE((void*)0, world);
+
+    CollectionProxyComponentRef proxy_ref;
+    proxy_ref.m_World = (dmGameSystem::HCollectionProxyWorld) world;
+    proxy_ref.m_Component = (dmGameSystem::HCollectionProxyComponent) component;
+    return proxy_ref;
+}
+
+static dmGameObject::HCollection GetCollectionByName(dmGameObject::HRegister regist, const char* name)
+{
+    dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(regist, dmHashString64(name));
+    EXPECT_NE((void*)0, collection);
+    return collection;
+}
+
+static void ConfigureCollectionProxy(CollectionProxyComponentRef proxy, const char* collection_path, dmGameObject::Result expected_load_result = dmGameObject::RESULT_OK)
+{
+    ASSERT_EQ(dmGameSystem::SET_COLLECTION_PATH_RESULT_OK, dmGameSystem::CollectionProxySetCollectionPath(proxy.m_World, proxy.m_Component, collection_path));
+    ASSERT_EQ(expected_load_result, dmGameSystem::CompCollectionProxyLoad(proxy.m_World, proxy.m_Component, 0, 0));
+    if (expected_load_result != dmGameObject::RESULT_OK)
+        return;
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyInitialize(proxy.m_World, proxy.m_Component));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
+}
+
+static void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmGameObject::HRegister regist)
+{
+    ASSERT_TRUE(dmGameObject::Update(collection, update_context));
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
+    dmGameObject::PostUpdate(regist);
 }
 
 TEST_P(ResourceTest, Test)
@@ -1163,6 +1220,118 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     ASSERT_INPUT_OBJECT_EQUALS(hash_go_consume_proxy)
 
     #undef ASSERT_INPUT_OBJECT_EQUALS
+}
+
+TEST_F(ComponentTest, CollectionProxySetCollectionLoadInitialize)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* go_path = "/collection_proxy/set_collection_single_root.goc";
+    dmhash_t go_hash = dmHashString64("/go");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (;;)
+    {
+        lua_getglobal(L, "cp_single_target_initialized");
+        bool ready = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        if (ready)
+            break;
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    lua_getglobal(L, "cp_single_root_set_ok");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_single_root_proxy_loaded");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_single_target_update_count");
+    ASSERT_GE((int)lua_tointeger(L, -1), 1);
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    lua_getglobal(L, "cp_single_root_finalized");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_single_target_finalized");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+}
+
+TEST_F(ComponentTest, CollectionProxySetCollectionRecursiveLoadInitialize)
+{
+    const char* go_path = "/collection_proxy/set_collection_cpp_cycle_proxy.goc";
+    dmhash_t go_hash = dmHashString64("/go");
+    dmhash_t proxy_component_hash = dmHashString64("collectionproxy");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    dmLogInfo("collectionproxy cpp cycle root spawned");
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    CollectionProxyComponentRef root_proxy = GetCollectionProxyComponentRef(go, proxy_component_hash);
+    dmLogInfo("collectionproxy cpp cycle root set_collection /collection_proxy/set_collection_cpp_cycle_level1.collectionc");
+    ConfigureCollectionProxy(root_proxy, "/collection_proxy/set_collection_cpp_cycle_level1.collectionc");
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    dmGameObject::HCollection level1_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1");
+    dmLogInfo("collectionproxy cpp cycle level1 loaded and initialized");
+    dmGameObject::HInstance level1_go = dmGameObject::GetInstanceFromIdentifier(level1_collection, dmHashString64("/go"));
+    ASSERT_NE((void*)0, level1_go);
+    CollectionProxyComponentRef level1_proxy = GetCollectionProxyComponentRef(level1_go, proxy_component_hash);
+    dmLogInfo("collectionproxy cpp cycle level1 set_collection /collection_proxy/set_collection_cpp_cycle_level2.collectionc");
+    ConfigureCollectionProxy(level1_proxy, "/collection_proxy/set_collection_cpp_cycle_level2.collectionc");
+    UpdateAndPostUpdateCollection(level1_collection, &m_UpdateContext, m_Register);
+
+    dmGameObject::HCollection level2_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2");
+    dmLogInfo("collectionproxy cpp cycle level2 loaded and initialized");
+    dmGameObject::HInstance level2_go = dmGameObject::GetInstanceFromIdentifier(level2_collection, dmHashString64("/go"));
+    ASSERT_NE((void*)0, level2_go);
+    CollectionProxyComponentRef level2_proxy = GetCollectionProxyComponentRef(level2_go, proxy_component_hash);
+    dmLogInfo("collectionproxy cpp cycle level2 set_collection /collection_proxy/set_collection_cpp_cycle_level3.collectionc");
+    ConfigureCollectionProxy(level2_proxy, "/collection_proxy/set_collection_cpp_cycle_level3.collectionc");
+    UpdateAndPostUpdateCollection(level2_collection, &m_UpdateContext, m_Register);
+
+    dmGameObject::HCollection level3_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3");
+    dmLogInfo("collectionproxy cpp cycle level3 loaded and initialized");
+    dmGameObject::HInstance level3_go = dmGameObject::GetInstanceFromIdentifier(level3_collection, dmHashString64("/go"));
+    ASSERT_NE((void*)0, level3_go);
+    CollectionProxyComponentRef level3_proxy = GetCollectionProxyComponentRef(level3_go, proxy_component_hash);
+
+    // Establish the back-edge in C++ without loading it.
+    // Loading/enabling this final edge is what drives the recursion scenario.
+    dmLogInfo("collectionproxy cpp cycle level3 set_collection /collection_proxy/set_collection_cpp_cycle_level1.collectionc");
+    // Try to create a cyclic graph
+    ConfigureCollectionProxy(level3_proxy, "/collection_proxy/set_collection_cpp_cycle_level1.collectionc", dmGameObject::RESULT_ALREADY_REGISTERED);
+
+    ASSERT_NE((void*)0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1"));
+    ASSERT_NE((void*)0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2"));
+    ASSERT_NE((void*)0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3"));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
 }
 
 TEST_P(ComponentFailTest, Test)
@@ -3324,6 +3493,174 @@ TEST_P(FactoryTest, Create)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_P(FactoryRecursivePrototypeTest, RecursivePrototype)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    const FactoryTestParams& param = GetParam();
+
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "recursive_prototype_path = '%s'", param.m_GOPath);
+    RunString(L, buffer);
+
+    dmResource::HPreloader go_pr = 0;
+    if(param.m_IsPreloaded)
+    {
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        dmResource::Result r;
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
+        {
+            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(16*1000);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    if(go_pr)
+    {
+        dmResource::DeletePreloader(go_pr);
+    }
+
+    dmhash_t recursive_instance = 0;
+    for(;;)
+    {
+        lua_getglobal(L, "global_recursive_created");
+        bool ready = !lua_isnil(L, -1);
+        lua_pop(L, 1);
+        if(ready)
+        {
+            lua_getglobal(L, "recursive_instance");
+            recursive_instance = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
+                break;
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+    }
+
+    ASSERT_NE((dmhash_t)0, recursive_instance);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    ASSERT_EQ((dmGameObject::HInstance)0x0, dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance));
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(FactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    const FactoryTestParams& param = GetParam();
+
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "recursive_prototype_path = '%s'", param.m_GOPath);
+    RunString(L, buffer);
+    RunString(L, "recursive_cleanup_in_script = false");
+
+    dmResource::HPreloader go_pr = 0;
+    if(param.m_IsPreloaded)
+    {
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        dmResource::Result r;
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
+        {
+            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(16*1000);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    if(go_pr)
+    {
+        dmResource::DeletePreloader(go_pr);
+    }
+
+    dmhash_t recursive_instance = 0;
+    for(;;)
+    {
+        lua_getglobal(L, "global_recursive_created");
+        bool ready = !lua_isnil(L, -1);
+        lua_pop(L, 1);
+        if(ready)
+        {
+            lua_getglobal(L, "recursive_instance");
+            recursive_instance = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
+                break;
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+    }
+
+    ASSERT_NE((dmhash_t)0, recursive_instance);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    ASSERT_EQ((dmGameObject::HInstance)0x0, dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash));
+    ASSERT_NE((dmGameObject::HInstance)0x0, dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 /* Collection factory dynamic and static loading */
 
 TEST_P(CollectionFactoryTest, Test)
@@ -3638,6 +3975,180 @@ TEST_P(CollectionFactoryTest, Test)
             ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[i])));
         }
     }
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototype)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    const CollectionFactoryTestParams& param = GetParam();
+    const char* recursive_prototype_path = param.m_IsDynamic
+        ? "/collection_factory/recursive_dynamic_collectionfactory_test.collectionc"
+        : "/collection_factory/recursive_collectionfactory_test.collectionc";
+
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "recursive_prototype_path = '%s'", recursive_prototype_path);
+    RunString(L, buffer);
+
+    dmResource::HPreloader go_pr = 0;
+    if(param.m_IsPreloaded)
+    {
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        dmResource::Result r;
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
+        {
+            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(16*1000);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    if(go_pr)
+    {
+        dmResource::DeletePreloader(go_pr);
+    }
+
+    dmhash_t recursive_instance = 0;
+    for(;;)
+    {
+        lua_getglobal(L, "global_recursive_created");
+        bool ready = !lua_isnil(L, -1);
+        lua_pop(L, 1);
+        if(ready)
+        {
+            lua_getglobal(L, "recursive_instance");
+            recursive_instance = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
+                break;
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+    }
+
+    ASSERT_NE((dmhash_t)0, recursive_instance);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    ASSERT_EQ((dmGameObject::HInstance)0x0, dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance));
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    const CollectionFactoryTestParams& param = GetParam();
+    const char* recursive_prototype_path = param.m_IsDynamic
+        ? "/collection_factory/recursive_dynamic_collectionfactory_test.collectionc"
+        : "/collection_factory/recursive_collectionfactory_test.collectionc";
+
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "recursive_prototype_path = '%s'", recursive_prototype_path);
+    RunString(L, buffer);
+    RunString(L, "recursive_cleanup_in_script = false");
+
+    dmResource::HPreloader go_pr = 0;
+    if(param.m_IsPreloaded)
+    {
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        dmResource::Result r;
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
+        {
+            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(16*1000);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    if(go_pr)
+    {
+        dmResource::DeletePreloader(go_pr);
+    }
+
+    dmhash_t recursive_instance = 0;
+    for(;;)
+    {
+        lua_getglobal(L, "global_recursive_created");
+        bool ready = !lua_isnil(L, -1);
+        lua_pop(L, 1);
+        if(ready)
+        {
+            lua_getglobal(L, "recursive_instance");
+            recursive_instance = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            if (dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance) != 0x0)
+                break;
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+    }
+
+    ASSERT_NE((dmhash_t)0, recursive_instance);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    ASSERT_EQ((dmGameObject::HInstance)0x0, dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash));
+    ASSERT_NE((dmGameObject::HInstance)0x0, dmGameObject::GetInstanceFromIdentifier(m_Collection, recursive_instance));
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
@@ -5443,6 +5954,15 @@ FactoryTestParams factory_testparams [] =
 };
 INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, jc_test_values_in(factory_testparams));
 
+FactoryTestParams factory_recursive_testparams [] =
+{
+    {"/factory/dynamic_factory_test.goc", 0, true, true},
+    {"/factory/dynamic_factory_test.goc", 0, true, false},
+    {"/factory/factory_test.goc", 0, false, true},
+    {"/factory/factory_test.goc", 0, false, false},
+};
+INSTANTIATE_TEST_CASE_P(FactoryRecursivePrototype, FactoryRecursivePrototypeTest, jc_test_values_in(factory_recursive_testparams));
+
 /* Validate default and dynamic collection factories */
 
 CollectionFactoryTestParams collection_factory_testparams [] =
@@ -5457,6 +5977,15 @@ CollectionFactoryTestParams collection_factory_testparams [] =
     {"/collection_factory/collectionfactory_test.goc", "/collection_factory/dynamic_prototype.collectionc", false, false},
 };
 INSTANTIATE_TEST_CASE_P(CollectionFactory, CollectionFactoryTest, jc_test_values_in(collection_factory_testparams));
+
+CollectionFactoryTestParams collection_factory_recursive_testparams [] =
+{
+    {"/collection_factory/dynamic_collectionfactory_test.goc", 0, true, true},
+    {"/collection_factory/dynamic_collectionfactory_test.goc", 0, true, false},
+    {"/collection_factory/collectionfactory_test.goc", 0, false, true},
+    {"/collection_factory/collectionfactory_test.goc", 0, false, false},
+};
+INSTANTIATE_TEST_CASE_P(CollectionFactoryRecursivePrototype, CollectionFactoryRecursivePrototypeTest, jc_test_values_in(collection_factory_recursive_testparams));
 
 /* Validate draw count for different GOs */
 

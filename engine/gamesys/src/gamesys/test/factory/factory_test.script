@@ -16,6 +16,12 @@ local function state(self)
     return self.states[self.state]
 end
 
+local ROOT_ID = hash("/go")
+
+local function should_cleanup_recursive_instance()
+    return recursive_cleanup_in_script ~= false
+end
+
 local function next_state(self)
     self.state = self.state + 1
 end
@@ -30,6 +36,15 @@ local function delete_gameobjects(self)
         go.delete(self.second_instance, true)
         self.second_instance = nil
     end
+end
+
+local function delete_recursive_instance(self)
+    if self.recursive_instance ~= nil then
+        go.delete(self.recursive_instance, true)
+        self.recursive_instance = nil
+    end
+
+    global_recursive_created = nil
 end
 
 local function handle_state(self)
@@ -54,12 +69,34 @@ local function handle_state(self)
     elseif current_state == "delete" then
         delete_gameobjects(self)
         next_state(self)
+    elseif current_state == "recursive_prototype" then
+        assert(recursive_prototype_path ~= nil)
+        factory.set_prototype("/go#factory", recursive_prototype_path)
+        self.recursive_instance = factory.create("/go#factory")
+        assert(self.recursive_instance ~= nil)
+        recursive_instance = self.recursive_instance
+        global_recursive_created = true
+        next_state(self)
+    elseif current_state == "reset_recursive_prototype" then
+        factory.unload("/go#factory")
+        factory.set_prototype("/go#factory", nil)
+        next_state(self)
+    elseif current_state == "delete_recursive_instance" then
+        delete_recursive_instance(self)
+        next_state(self)
     end
 end
 
 function init(self)
+    if recursive_prototype_path ~= nil and go.get_id() ~= ROOT_ID then
+        self.disabled = true
+        return
+    end
+
+    self.disabled = false
     self.first_instance = nil
     self.second_instance = nil
+    self.recursive_instance = nil
     self.loading = false
     self.state = 1
     self.states = { "load", "unload", "delete" }
@@ -68,6 +105,14 @@ function init(self)
         table.insert(self.states, "load_prototype")
         table.insert(self.states, "unload_prototype")
         table.insert(self.states, "delete")
+    end
+
+    if recursive_prototype_path ~= nil then
+        table.insert(self.states, "recursive_prototype")
+        table.insert(self.states, "reset_recursive_prototype")
+        if should_cleanup_recursive_instance() then
+            table.insert(self.states, "delete_recursive_instance")
+        end
     end
 end
 
@@ -80,6 +125,10 @@ function load_complete(self, url, result)
 end
 
 function update(self, dt)
+    if self.disabled then
+        return
+    end
+
     if self.loading then
         return
     end
@@ -88,5 +137,12 @@ function update(self, dt)
 end
 
 function final(self)
-    delete_gameobjects(self)
+    if self.disabled then
+        return
+    end
+
+    if should_cleanup_recursive_instance() then
+        delete_gameobjects(self)
+        delete_recursive_instance(self)
+    end
 end
