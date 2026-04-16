@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.ui.settings-popover
+(ns editor.ui.settings-popup
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.colors :as colors]
@@ -136,7 +136,7 @@
                  (ui/children! [label-node acc check-box]))]
       hbox)))
 
-(defn- vec3-group
+(defn- make-vec3-group
   [settings-store key axis]
   (let [text-field (TextField.)
         label (Label. (string/upper-case (name axis)))
@@ -159,12 +159,12 @@
 
 (defn- make-vec3-floats-row [_popup settings-store {:keys [key]}]
   (wrap-in-hbox (into []
-                      (comp (map (partial vec3-group settings-store key))
+                      (comp (map (partial make-vec3-group settings-store key))
                             (mapcat identity))
                       axes)))
 
 ;; TODO: Rename this cause plane is too specific
-(defn- plane-toggle-button [settings-store plane-group key plane]
+(defn- make-vec3-toggle-button [settings-store plane-group key plane]
   (let [active-plane (get-value settings-store key)]
     (doto (ToggleButton. (string/upper-case (name plane)))
       (ensure-focus-traversable!)
@@ -175,7 +175,7 @@
 (defn- make-vec3-toggle-row [popup settings-store descriptor]
   (let [{:keys [key label]} descriptor
         plane-group (ToggleGroup.)
-        buttons (mapv (partial plane-toggle-button settings-store plane-group key) axes)
+        buttons (mapv (partial make-vec3-toggle-button settings-store plane-group key) axes)
         label (Label. label)]
     (ui/observe (.selectedToggleProperty plane-group)
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]

@@ -22,7 +22,7 @@
             [editor.math :as math]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.settings-popover :as settings-popover]
+            [editor.ui.settings-popup :as settings-popup]
             [editor.prefs :as prefs])
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
@@ -1209,7 +1209,7 @@
   (let [fov-fn
         ;; NOTE: It might make more sense to pass an on-changed callback to each entry in settings-descriptor, that way
         ;; we don't have to check the key to see if it belongs to :fov, however, because of the way the
-        ;; settings-popover's reset-button was implemented, where it destroys and recreates the UI instead of setting
+        ;; settings-popup's reset-button was implemented, where it destroys and recreates the UI instead of setting
         ;; the default values per row, when we reset, the on-changed would never get called because the SettingsStore
         ;; set-value! doesn't get called on initialization. So rather that implementing yet another mechanism to handle
         ;; reset-all scenario, we can take key/val as args and act on that.
@@ -1248,5 +1248,5 @@
           :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
          {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
          {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
-        prefs-store (settings-popover/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
-    (settings-popover/show! owner keymap localization prefs-store 240 0.0 settings-descriptor)))
+        prefs-store (settings-popup/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
+    (settings-popup/show! owner keymap localization prefs-store 240 0.0 settings-descriptor)))

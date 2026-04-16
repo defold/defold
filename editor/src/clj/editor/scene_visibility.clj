@@ -22,7 +22,7 @@
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.settings-popover :as settings-popover]
+            [editor.ui.settings-popup :as settings-popup]
             [internal.util :as iutil]
             [schema.core :as s]
             [util.coll :as coll])
@@ -303,7 +303,7 @@
            (ui/enable! cb enabled?)))))))
 
 (defrecord SceneVisibilityStore [scene-visibility]
-  settings-popover/SettingsStore
+  settings-popup/SettingsStore
   (get-value [_ key]
     (if (= :visibility-filters-enabled? key)
       (g/node-value scene-visibility :visibility-filters-enabled?)
@@ -325,7 +325,7 @@
         ;; cursor into the popup, JavaFX doesn't receive a mouse-move inside the scene view, so once you
         ;; enter the popup, the H_RESIZE cursor stays active. As a hack, just move the scene visibility to the left by
         ;; 13 pixels, that seems to be enough to allow the cursor to get reset.
-        controls (settings-popover/show! owner keymap localization scene-vis-store 230 -13.0 setting-descriptors nil
+        controls (settings-popup/show! owner keymap localization scene-vis-store 230 -13.0 setting-descriptors nil
                                          (fn [_]
                                            (sync-filter-checkboxes! scene-visibility)
                                            ;; NOTE: On close, free the references to the GUI nodes
