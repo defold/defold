@@ -6,7 +6,7 @@ def build(bld):
 
     if 'web' in bld.env['PLATFORM']:
         lib_dirs = {}
-        lib_dirs['library_render.js'] = '../../../render/src/js'
+        lib_dirs['library_render.js'] = '../../render/src/js'
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
     bld.program(features = 'cxx test skip_test',
