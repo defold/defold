@@ -295,6 +295,24 @@
                       renderables)]))
         all-renderables))
 
+(defn- resort-renderables-for-camera [renderables-by-pass ^Camera camera]
+  (let [view-matrix (c/camera-view-matrix camera)]
+    (into {}
+          (map (fn [[render-pass renderables]]
+                 [render-pass
+                  (->> renderables
+                       (mapv (fn [renderable]
+                               (let [world-translation ^Vector3d (:world-translation renderable)
+                                     index (:index renderable)
+                                     topmost? (:topmost? renderable)
+                                     selection-state (:selected renderable)]
+                                 (cond-> (assoc renderable :render-key (render-key view-matrix world-translation index topmost?))
+                                   (contains? (:pass-overrides renderable) pass/outline)
+                                   (assoc-in [:pass-overrides pass/outline :render-key]
+                                             (outline-render-key view-matrix world-translation index topmost? selection-state))))))
+                       render-sort)]))
+          renderables-by-pass)))
+
 (defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
   (let [border-shader shaders/basic-color-local-space
         vertex-description (shaders/vertex-description border-shader)
@@ -340,7 +358,7 @@
     (when (= 1 (count selected-cameras))
       (first selected-cameras))))
 
-(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states ^GLAutoDrawable camera-inset-drawable]
+(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states camera-inset-frame-version ^GLAutoDrawable camera-inset-drawable]
   (let [selected-camera-renderable (produce-selected-camera-renderable scene-render-data selection)
         camera-inset-visible? (some? selected-camera-renderable)]
     (if-not camera-inset-visible?
@@ -355,12 +373,14 @@
                 camera-inset-pass->render-args (into {}
                                                     (map (juxt identity (partial pass-render-args camera-inset-viewport camera-inset-camera)))
                                                     pass/all-passes)
-                scene-renderables (:renderables scene-render-data)
+                scene-renderables (-> (:renderables scene-render-data)
+                                      remove-camera-outline-renderables
+                                      (resort-renderables-for-camera camera-inset-camera))
                 camera-inset-frame (when camera-inset-drawable
                                      (gl/with-drawable-as-current camera-inset-drawable
                                        (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
                                        (scene-cache/process-pending-deletions! gl)
-                                       (render! gl-context :normal (remove-camera-outline-renderables scene-renderables) updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
+                                       (render! gl-context :normal scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
                                        (render-camera-inset-border! gl camera-inset-viewport)
                                        (reset-camera-inset-gl-state! gl)
                                        (let [[w h] (vp-dims camera-inset-viewport)
@@ -1253,6 +1273,7 @@
   (property image-view ImageView)
   (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
+  (property camera-inset-frame-version g/Int (default 0))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property camera-inset-drawable GLAutoDrawable)
@@ -1729,6 +1750,8 @@
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
     (when has-active-updatables
       (g/set-property! view-id :updatable-states new-updatable-states))
+    (when (supports-camera-inset-drawable? view-id)
+      (g/set-property! view-id :camera-inset-frame-version frame-version))
     (profiler/profile "render" -1
       (when (not= last-frame-version frame-version)
         (gl/with-drawable-as-current drawable
