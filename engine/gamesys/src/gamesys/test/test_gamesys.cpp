@@ -2886,6 +2886,18 @@ TEST_P(FactoryTest, Test)
             "/tile/valid.t.texturesetc",
             "/sprite/sprite.materialc",
     };
+    const char* dyn_prototype_empty_resource_path[] = {
+            "/factory/empty.goc",
+    };
+    const char* dyn_prototype_sprite_resource_path[] = {
+            "/factory/dynamic_prototype_sprite.goc",
+            "/sprite/valid.spritec",
+            "/tile/valid.t.texturesetc",
+            "/sprite/sprite.materialc",
+    };
+    const char** dyn_prototype_resource_path = 0;
+    uint32_t num_dyn_prototype_resources = 0;
+    bool custom_prototype_has_subresources = false;
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -2898,6 +2910,29 @@ TEST_P(FactoryTest, Test)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const FactoryTestParams& param = GetParam();
+
+    if (param.m_PrototypePath)
+    {
+        char buffer[256];
+        dmSnPrintf(buffer, sizeof(buffer), "prototype_path = '%s'", param.m_PrototypePath);
+        RunString(L, buffer);
+
+        if (strcmp(param.m_PrototypePath, "/factory/empty.goc") == 0)
+        {
+            dyn_prototype_resource_path = dyn_prototype_empty_resource_path;
+            num_dyn_prototype_resources = DM_ARRAY_SIZE(dyn_prototype_empty_resource_path);
+        }
+        else if (strcmp(param.m_PrototypePath, "/factory/dynamic_prototype_sprite.goc") == 0)
+        {
+            dyn_prototype_resource_path = dyn_prototype_sprite_resource_path;
+            num_dyn_prototype_resources = DM_ARRAY_SIZE(dyn_prototype_sprite_resource_path);
+            custom_prototype_has_subresources = true;
+        }
+        else
+        {
+            ASSERT_TRUE(false);
+        }
+    }
 
     // Conditional preload. This is essentially testing async loading vs sync loading of parent collection
     // This only affects non-dynamic factories.
@@ -3012,6 +3047,85 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
+        if (param.m_PrototypePath)
+        {
+            // --- step 6 ---
+            // unload the factory after the sync create so only the live instances keep the default prototype
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+            // --- step 7 ---
+            // delete the instances created in the previous step so the new prototype starts from zero refs
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+            for (uint32_t i = 0; i < num_dyn_prototype_resources; ++i)
+            {
+                ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+            }
+
+            // --- step 8 ---
+            // set and load a custom prototype, then create two instances
+            for(;;)
+            {
+                lua_getglobal(L, "global_created");
+                bool ready = !lua_isnil(L, -1);
+                lua_pop(L, 1);
+                if(ready)
+                {
+                    lua_getglobal(L, "second_instance");
+                    dmhash_t second_instance = dmScript::CheckHash(L, -1);
+                    lua_pop(L, 1);
+                    if (dmGameObject::GetInstanceFromIdentifier(m_Collection, second_instance) != 0x0)
+                        break;
+                }
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
+
+            ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            if (custom_prototype_has_subresources)
+            {
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[2])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[3])));
+            }
+
+            // --- step 9 ---
+            // unload and reset the prototype; only the created instances should keep the resource alive
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            if (custom_prototype_has_subresources)
+            {
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[2])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[3])));
+            }
+
+            // --- step 10 ---
+            // delete the created instances and release the custom prototype resource
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            for (uint32_t i = 0; i < num_dyn_prototype_resources; ++i)
+            {
+                ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+            }
+        }
+
         // delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
         dmGameObject::Final(m_Collection);
@@ -3054,6 +3168,80 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
+        if (param.m_PrototypePath)
+        {
+            // --- step 3 ---
+            // delete the current instances before switching to a custom prototype
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            if (custom_prototype_has_subresources)
+            {
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[2])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[3])));
+            }
+            else
+            {
+                for (uint32_t i = 1; i < num_dyn_prototype_resources; ++i)
+                {
+                    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+                }
+            }
+
+            // --- step 4 ---
+            // set and load a custom prototype, then create two instances
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            if (custom_prototype_has_subresources)
+            {
+                ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[2])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[3])));
+            }
+
+            // --- step 5 ---
+            // unload and reset the prototype; only the created instances should keep the resource alive
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            if (custom_prototype_has_subresources)
+            {
+                ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[2])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[3])));
+            }
+
+            // --- step 6 ---
+            // delete the created instances and release the custom prototype resource
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            if (custom_prototype_has_subresources)
+            {
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[2])));
+                ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[3])));
+            }
+            else
+            {
+                for (uint32_t i = 1; i < num_dyn_prototype_resources; ++i)
+                {
+                    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+                }
+            }
+        }
+
         // Delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -3094,6 +3282,11 @@ TEST_P(FactoryTest, IdHashTest)
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGameObject::PostUpdate(m_Register);
 
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
@@ -3119,6 +3312,11 @@ TEST_P(FactoryTest, Create)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_create_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameObject::Delete(m_Collection, go, true);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGameObject::PostUpdate(m_Register);
@@ -5230,10 +5428,18 @@ INSTANTIATE_TEST_CASE_P(ResourceProperty, ResourcePropTest, jc_test_values_in(re
 
 FactoryTestParams factory_testparams [] =
 {
-    {"/factory/dynamic_factory_test.goc", true, true},
-    {"/factory/dynamic_factory_test.goc", true, false},
-    {"/factory/factory_test.goc", false, true},
-    {"/factory/factory_test.goc", false, false},
+    {"/factory/dynamic_factory_test.goc", 0, true, true},
+    {"/factory/dynamic_factory_test.goc", 0, true, false},
+    {"/factory/factory_test.goc", 0, false, true},
+    {"/factory/factory_test.goc", 0, false, false},
+    {"/factory/dynamic_factory_test.goc", "/factory/empty.goc", true, true},
+    {"/factory/dynamic_factory_test.goc", "/factory/empty.goc", true, false},
+    {"/factory/factory_test.goc", "/factory/empty.goc", false, true},
+    {"/factory/factory_test.goc", "/factory/empty.goc", false, false},
+    {"/factory/dynamic_factory_test.goc", "/factory/dynamic_prototype_sprite.goc", true, true},
+    {"/factory/dynamic_factory_test.goc", "/factory/dynamic_prototype_sprite.goc", true, false},
+    {"/factory/factory_test.goc", "/factory/dynamic_prototype_sprite.goc", false, true},
+    {"/factory/factory_test.goc", "/factory/dynamic_prototype_sprite.goc", false, false},
 };
 INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, jc_test_values_in(factory_testparams));
 

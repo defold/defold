@@ -12,84 +12,101 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+local function state(self)
+    return self.states[self.state]
+end
+
+local function next_state(self)
+    self.state = self.state + 1
+end
+
+local function delete_gameobjects()
+    if first_instance ~= nil then
+        go.delete(first_instance, true)
+        first_instance = nil
+    end
+
+    if second_instance ~= nil then
+        go.delete(second_instance, true)
+        second_instance = nil
+    end
+
+    global_created = nil
+end
+
+local function create_gameobjects(url)
+    first_instance = factory.create(url)
+    second_instance = factory.create(url)
+    global_created = true
+end
+
+local function handle_state(self)
+    local current_state = state(self)
+
+    if current_state == "load" then
+        assert(factory.get_status("/go#factory") == factory.STATUS_UNLOADED)
+        self.loading = true
+        factory.load("/go#factory", load_complete)
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADING)
+    elseif current_state == "unload_delete" then
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
+        factory.unload("/go#factory")
+        delete_gameobjects()
+        next_state(self)
+    elseif current_state == "unload_keep" then
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
+        factory.unload("/go#factory")
+        next_state(self)
+    elseif current_state == "unload" then
+        factory.unload("/go#factory")
+        next_state(self)
+    elseif current_state == "delete" then
+        delete_gameobjects()
+        next_state(self)
+    elseif current_state == "create" then
+        create_gameobjects("/go#factory")
+        next_state(self)
+    elseif current_state == "load_prototype" then
+        assert(prototype_path ~= nil)
+        factory.set_prototype("/go#factory", prototype_path)
+        self.loading = true
+        factory.load("/go#factory", load_complete)
+    elseif current_state == "unload_prototype" then
+        factory.unload("/go#factory")
+        factory.set_prototype("/go#factory", nil)
+        next_state(self)
+    end
+end
 
 function init(self)
-    self.load = true
-    self.loaded = false
-    self.repeatloadunload = true
-    self.testunloadtwice = false
-    self.delete = false
-    self.create = false
+    self.loading = false
+    self.state = 1
+    self.states = { "load", "unload_delete", "load", "unload_keep", "unload", "delete", "create" }
+
+    if prototype_path ~= nil then
+        table.insert(self.states, "unload")
+        table.insert(self.states, "delete")
+        table.insert(self.states, "load_prototype")
+        table.insert(self.states, "unload_prototype")
+        table.insert(self.states, "delete")
+    end
 end
 
 function load_complete(self, url, result)
     assert(result == true)
-    first_instance = factory.create(url)
-    second_instance = factory.create(url)
-    self.loaded = true
-    global_created = true
+    create_gameobjects(url)
+    self.loading = false
+    next_state(self)
 end
 
 function update(self, dt)
-
-    --- step 1 ---
-    if self.load == true then
-        self.load = false
-        assert(factory.get_status("/go#factory") == factory.STATUS_UNLOADED)
-        factory.load("/go#factory", load_complete)
-        assert(factory.get_status("/go#factory") == factory.STATUS_LOADING)
+    if self.loading then
         return
     end
 
-    --- step 2 ---
-    if self.loaded == true then
-        self.loaded = false
-        assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
-        factory.unload("/go#factory")
-        if self.repeatloadunload == true then
-           self.repeatloadunload = false
-           self.load = true
-            go.delete(first_instance, true)
-            go.delete(second_instance, true)
-            global_created = nil
-        else
-            self.testunloadtwice = true
-        end
-        return
-    end
-
-    --- step 3 ---
-    if self.testunloadtwice == true then
-        self.testunloadtwice = false
-        self.delete = true
-        factory.unload("/go#factory")
-        return
-    end
-
-    --- step 4 ---
-    if self.delete == true then
-        self.delete = false
-        self.create = true
-        go.delete(first_instance, true)
-        go.delete(second_instance, true)
-        global_created = nil
-        return
-    end
-
-    --- step 5 ---
-    if self.create == true then
-        self.create = false
-        first_instance = factory.create("/go#factory")
-        second_instance = factory.create("/go#factory")
-        global_created = true
-        return
-    end
+    handle_state(self)
 end
 
 function final(self)
-    go.delete(first_instance, true)
-    go.delete(second_instance, true)
-    global_created = nil
-    first_instance = nil
-    second_instance = nil
+    delete_gameobjects()
 end
