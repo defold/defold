@@ -399,8 +399,6 @@
       (is (not (contains? (:platforms manifest-data) :js-web)))
       (is (not (contains? (:platforms manifest-data) :wasm-web)))
       (is (contains? (:platforms manifest-data) :wasm_pthread-web))
-      (g/set-property! manifest :exclude-record true)
-      (g/set-property! manifest :manifest manifest-data)
       (is (string/includes? (text) "wasm_pthread-web:"))
       (is (false? (string/includes? (text) "wasm-web:")))
       (is (false? (string/includes? (text) "js-web:"))))))

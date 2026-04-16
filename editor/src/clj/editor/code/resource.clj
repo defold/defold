@@ -99,7 +99,7 @@
   the returned pair will be an ErrorValue and the disk-sha256 value will be nil.
   The disk-sha256 will also be nil for any resource that is not a file in the
   project."
-  [node-id resource]
+  [node-id resource read-fn]
   (let [lines+disk-sha256 (resource-io/with-error-translation resource node-id nil
                             (resource/read-source-value+sha256-hex resource read-fn))]
     (if (g/error? lines+disk-sha256)
@@ -132,7 +132,9 @@
       (fn [loaded-unmodified-lines]
         (or loaded-unmodified-lines
             (let [resource (g/node-value node-id :resource evaluation-context)
-                  [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)]
+                  resource-type (resource/resource-type resource)
+                  resource-read-fn (or (:read-fn resource-type) read-fn)
+                  [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource resource-read-fn)]
               (vreset! read-volatile [resource lines-or-error-value disk-sha256])
               lines-or-error-value))))
     (when-some [[resource lines-or-error-value disk-sha256] (deref read-volatile)]
@@ -204,36 +206,45 @@
   (output completions g/Any (g/constantly {}))
   (output indent-type IndentType :cached (g/fnk [_node-id modified-indent-type resource]
                                            (or modified-indent-type
-                                               (let [lines (resource-io/with-error-translation resource _node-id :indent-type
-                                                             (read-fn resource))]
+                                               (let [resource-type (resource/resource-type resource)
+                                                     resource-read-fn (or (:read-fn resource-type) read-fn)
+                                                     lines (resource-io/with-error-translation resource _node-id :indent-type
+                                                             (resource-read-fn resource))]
                                                  (if (g/error? lines)
                                                    default-indent-type
                                                    (guess-indent-type lines))))))
 
-  (output lines types/Lines (g/fnk [_node-id save-value resource] (or save-value
-                                                                      (resource-io/with-error-translation resource _node-id :lines
-                                                                        (read-fn resource)))))
+  (output lines types/Lines (g/fnk [_node-id save-value resource]
+                              (or save-value
+                                  (let [resource-type (resource/resource-type resource)
+                                        resource-read-fn (or (:read-fn resource-type) read-fn)]
+                                    (resource-io/with-error-translation resource _node-id :lines
+                                      (resource-read-fn resource))))))
 
   (output save-value types/Lines (g/fnk [_node-id modified-lines]
                                    (or modified-lines
                                        (loaded-unmodified-lines _node-id)))))
 
 (defn code-resource-type? [resource-type]
-  (and (:textual? resource-type)
-       (identical? read-fn (:read-fn resource-type))
-       (identical? write-fn (:write-fn resource-type))))
+  (or (:code-resource? resource-type)
+      (and (:textual? resource-type)
+           (identical? read-fn (:read-fn resource-type))
+           (identical? write-fn (:write-fn resource-type)))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class resource-read-fn resource-write-fn] :as args}]
   (let [connect-breakpoints (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)
         args (-> args
-                 (dissoc :additional-load-fn)
+                 (dissoc :additional-load-fn
+                         :resource-read-fn
+                         :resource-write-fn)
                  (assoc :load-fn load-fn
-                        :read-fn read-fn
-                        :write-fn write-fn
+                        :read-fn (or resource-read-fn read-fn)
+                        :write-fn (or resource-write-fn write-fn)
                         :search-fn search-fn
                         :search-value-fn search-value-fn
                         :source-value-fn source-value-fn
+                        :code-resource? true
                         :textual? true
                         :test-info (cond-> {:type :code}
                                            built-pb-class (assoc :built-pb-class built-pb-class))))]

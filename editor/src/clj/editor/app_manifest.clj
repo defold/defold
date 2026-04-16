@@ -529,6 +529,30 @@
     (util/dissoc-in manifest [:platforms :js-web])
     manifest))
 
+(declare ^:private app-manifest-key-order-pattern)
+
+(defn- sanitize-manifest-lines [lines]
+  (try
+    (if-some [manifest (with-open [reader (data/lines-reader lines)]
+                         (yaml/load reader keyword))]
+      (let [sanitized-manifest (normalize-manifest manifest)]
+        (if (= manifest sanitized-manifest)
+          lines
+          (code-util/split-lines
+            (yaml/dump sanitized-manifest
+                       :order-pattern app-manifest-key-order-pattern
+                       :indent (case (r/guess-indent-type lines)
+                                 :two-spaces 2
+                                 4)))))
+      lines)
+    (catch Exception _
+      lines)))
+
+(defn- read-app-manifest-fn [reader-able]
+  (-> reader-able
+      r/read-fn
+      sanitize-manifest-lines))
+
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
                                      :defines
@@ -575,8 +599,7 @@
                                           (resource-io/with-error-translation resource _node-id :manifest
                                             (yaml/with-error-translation _node-id :manifest resource
                                               (with-open [reader (data/lines-reader lines)]
-                                                (some-> (yaml/load reader keyword)
-                                                        normalize-manifest))))))
+                                                (yaml/load reader keyword))))))
   (property manifest g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough parsed-manifest))
@@ -734,4 +757,5 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
+    :resource-read-fn read-app-manifest-fn
     :lazy-loaded true))
