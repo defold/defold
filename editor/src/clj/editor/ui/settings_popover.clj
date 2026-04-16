@@ -40,21 +40,16 @@
 
 (defprotocol SettingsStore
   (get-value [this key])
-  (set-value! [this key v])
-  (reset-all! [this]))
+  (get-default-value [this key])
+  (set-value! [this key v]))
 
 (defrecord PrefsStore [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
   SettingsStore
   (get-value [_ key] (prefs/get prefs (conj prefs-prefix key)))
+  (get-default-value [_ key] (prefs/default-value-at prefs (conj prefs-prefix key)))
   (set-value! [_ key v]
     (prefs/set! prefs (conj prefs-prefix key) v)
-    (when on-change-fn (on-change-fn key v)))
-  (reset-all! [_]
-    (doseq [{:keys [key type]} setting-descriptors
-            :when (and key (not (contains? hidden-settings key)))
-            :let [prefs-path (conj prefs-prefix key)]]
-      (prefs/set! prefs prefs-path (prefs/default-value-at prefs prefs-path)))
-    (when on-change-fn (on-change-fn nil nil))))
+    (when on-change-fn (on-change-fn key v))))
 
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -80,7 +75,7 @@
 (defn- wrap-in-hbox [children]
   (HBox. (ui/node-array children)))
 
-(defn- make-slider-row [^PopupControl popup settings-store {:keys [key label min max on-change-fn snap-to slider-value->string]}]
+(defn- make-slider-row [^PopupControl popup settings-store {:keys [key label min max snap-to slider-value->string]}]
   (let [value (get-value settings-store key)
         slider (Slider. min max value)
         label (Label. label)
@@ -103,8 +98,6 @@
         (let [new-val (snap-fn new-val)
               str-val (slider-value->string new-val)]
           (ui/text! value-label str-val)
-          (when on-change-fn
-            (on-change-fn new-val))
           (set-value! settings-store key new-val))))
     (wrap-in-hbox [label value-label slider])))
 
@@ -219,7 +212,9 @@
   (let [button (Button. button-text)
         reset-fn
         (fn [^ActionEvent event]
-          (reset-all! settings-store)
+          (doseq [{:keys [key]} setting-descriptors
+                  :when (and key (not (contains? hidden-settings key)))]
+            (set-value! settings-store key (get-default-value settings-store key)))
           (let [target ^Node (.getTarget event)
                 parent (.getParent (.getParent target)) ;; Button is nested inside an HBox
                 [rows _controls] (build-controls keymap localization settings-store popup setting-descriptors hidden-settings)]
@@ -265,7 +260,8 @@
         (reduce (fn [[rows controls] descriptor]
                   (if (= :reset-all (:type descriptor))
                     (let [button-text (localization (localization/message "scene-popup.reset-defaults-button"))
-                          reset-btn (make-reset-button-row keymap localization settings-store popup visible-descriptors hidden-settings button-text)]
+                          reset-btn (make-reset-button-row keymap localization settings-store popup
+                                                           visible-descriptors hidden-settings button-text)]
                       [(conj rows reset-btn) controls])
                     (let [key (:key descriptor)
                           row (make-row-from-descriptor keymap localization popup settings-store descriptor)

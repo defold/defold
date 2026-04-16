@@ -1206,42 +1206,47 @@
       (prefs/set! prefs prefs-key (not current-value)))))
 
 (defn show-settings! [^Parent owner camera-node prefs keymap localization]
-  ;; TODO JOE: So the reason this is ugly is because we have reset-all! on the protocol.
-  ;; because it is now a descriptor, we should remove it from there and instead just have
-  ;; the camera and the grid implement their own reset logic since hidden settings is
-  ;; kind of a grid only thing anyway? I don't know if we can move that out though
-  ;; Once we do that, we can then have a reset callback for the button that does this same
-  ;; thing effectively
-  (let [fov-fn (fn [k v]
-                 (when (or (= k :fov) (nil? k))
-                   (let [camera (g/node-value camera-node :local-camera)
-                         fov-y-deg (double (or v fov-y-35mm-full-frame))
-                         aspect (/ (double (:fov-x camera)) (double (:fov-y camera)))]
-                     (case (:type camera)
-                       :perspective
-                       (g/update-property! camera-node :local-camera assoc
-                                           :fov-y fov-y-deg
-                                           :fov-x (* fov-y-deg aspect))
-                       :orthographic
-                       (let [focus-distance (double (:focus-distance camera))
-                             half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
-                             fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
-                             fov-x-distance (* fov-y-distance aspect)]
-                         (g/update-property! camera-node :local-camera assoc
-                                             :fov-y fov-y-distance
-                                             :fov-x fov-x-distance))))))
-        settings-descriptor [{:type :reset-all}
-                             {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0
-                              :snap-to 0.25
-                              :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
-                             {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
-                              :slider-value->string (fn [^double v]
-                                                      (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
-                                                        (str (math/round-with-precision scaled 0.1))))}
-                             {:key :fov :type :slider :label "scene-popup.camera.fov" :min 15.0 :max 120.0
-                              :on-change-fn (partial fov-fn :fov)
-                              :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
-                             {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
-                             {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
+  (let [fov-fn
+        ;; NOTE: It might make more sense to pass an on-changed callback to each entry in settings-descriptor, that way
+        ;; we don't have to check the key to see if it belongs to :fov, however, because of the way the
+        ;; settings-popover's reset-button was implemented, where it destroys and recreates the UI instead of setting
+        ;; the default values per row, when we reset, the on-changed would never get called because the SettingsStore
+        ;; set-value! doesn't get called on initialization. So rather that implementing yet another mechanism to handle
+        ;; reset-all scenario, we can take key/val as args and act on that.
+        (fn [k v]
+          (when (= k :fov)
+              (let [camera (g/node-value camera-node :local-camera)
+                    aspect (/ (double (:fov-x camera)) (double (:fov-y camera)))]
+                (case (:type camera)
+                  :perspective
+                  (g/update-property! camera-node :local-camera assoc
+                                      :fov-y v
+                                      :fov-x (* (double v) aspect))
+                  :orthographic
+                  (let [focus-pos (camera-focus-point camera)
+                        focus-distance (.length (math/subtract-vector focus-pos (:position camera)))
+                        half-fov-y-rad (math/deg->rad (* (double v) 0.5))
+                        ^double fov-x-distance (:fov-x camera)
+                        ^double fov-y-distance (:fov-y camera)
+                        aspect (/ fov-x-distance fov-y-distance)
+                        new-fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
+                        new-fov-x-distance (* new-fov-y-distance aspect)]
+                    (g/update-property! camera-node :local-camera assoc
+                                        :fov-y new-fov-y-distance
+                                        :fov-x new-fov-x-distance))))))
+        settings-descriptor
+        [{:type :reset-all}
+         {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0
+          :snap-to 0.25
+          :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
+         {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
+          :slider-value->string (fn [^double v]
+                                  (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
+                                    (str (math/round-with-precision scaled 0.1))))}
+         ;; TODO: Fix ortho <-> persp fov dolly to be able to enable this
+         #_{:key :fov :type :slider :label "scene-popup.camera.fov" :min 15.0 :max 120.0
+          :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
+         {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
+         {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
         prefs-store (settings-popover/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} fov-fn)]
     (settings-popover/show! owner keymap localization prefs-store 240 0.0 settings-descriptor)))

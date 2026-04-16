@@ -308,12 +308,12 @@
     (if (= :visibility-filters-enabled? key)
       (g/node-value scene-visibility :visibility-filters-enabled?)
       (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key))))
+  (get-default-value [_ _] true)
   (set-value! [_ key v]
     (if (= :visibility-filters-enabled? key)
       (g/set-property! scene-visibility :visibility-filters-enabled? v)
       (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
-    (sync-filter-checkboxes! scene-visibility))
-  (reset-all! [_] nil))
+    (sync-filter-checkboxes! scene-visibility)))
 
 (defn show-settings! [app-view keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (mapv #(-> %
