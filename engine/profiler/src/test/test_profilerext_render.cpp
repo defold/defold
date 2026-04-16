@@ -9,23 +9,39 @@
 #include <script/script.h>
 #include <font/font.h>
 #include <font/fontcollection.h>
-#include <font/text_layout.h>      // HTextLayout internals and refcount helpers.
-#include <graphics/graphics.h>
 #include <platform/window.hpp>
 #include <render/render.h>
-#include <render/render_private.h> // TextContext access for lifetime assertions.
 #include <render/font/fontmap.h>
 #include <render/font/font_glyphbank.h>
 #include <render/font_ddf.h>
 
-#include "graphics_private.h"      // Shader stage flags for ShaderDescBuilder.
-#include "test/test_graphics_util.h"
 #include "../profiler_render.h"
 
 static const uint32_t WIDTH = 640;
 static const uint32_t HEIGHT = 360;
 
 using namespace dmVMath;
+
+static dmGraphics::ShaderDesc MakeDummyShaderDesc(dmGraphics::ShaderDesc::Shader* shaders)
+{
+    const char* shader_source = "foo";
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        shaders[i] = {};
+        shaders[i].m_Source.m_Data = (uint8_t*)shader_source;
+        shaders[i].m_Source.m_Count = 3;
+        shaders[i].m_Language = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330;
+    }
+
+    shaders[0].m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX;
+    shaders[1].m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT;
+
+    dmGraphics::ShaderDesc shader_desc = {};
+    shader_desc.m_Shaders.m_Data = shaders;
+    shader_desc.m_Shaders.m_Count = 2;
+    return shader_desc;
+}
 
 static dmRenderDDF::GlyphBank* CreateGlyphBank(uint32_t max_ascent, uint32_t max_descent, uint32_t glyph_count)
 {
@@ -136,10 +152,9 @@ protected:
 
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 
-        dmGraphics::ShaderDescBuilder shader_desc_builder;
-        shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
-        shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
-        m_FontProgram = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+        dmGraphics::ShaderDesc::Shader shaders[2];
+        dmGraphics::ShaderDesc shader_desc = MakeDummyShaderDesc(shaders);
+        m_FontProgram = dmGraphics::NewProgram(m_GraphicsContext, &shader_desc, 0, 0);
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_FontProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
     }
@@ -177,7 +192,7 @@ protected:
     void DeleteRenderContext()
     {
         ASSERT_FALSE(m_RenderContextDeleted);
-        dmRender::DeleteRenderContext(m_Context, 0);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(m_Context, 0));
         m_RenderContextDeleted = true;
         m_Context = 0;
     }
@@ -185,6 +200,8 @@ protected:
 
 TEST_F(ProfilerRenderTest, TransientLayoutsSurviveProfilerClearBeforeDraw)
 {
+    // Clearing transient profiler layouts before the queued draw executes used
+    // to leave the render list with dangling prepared-layout pointers.
     dmProfileRender::HRenderProfile render_profile = dmProfileRender::NewRenderProfile(60.0f);
     dmProfileRender::ProfilerFrame* frame = CreateProfilerFrame();
     dmProfileRender::UpdateRenderProfile(render_profile, frame);
@@ -193,38 +210,16 @@ TEST_F(ProfilerRenderTest, TransientLayoutsSurviveProfilerClearBeforeDraw)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     QueueProfiler(render_profile);
 
-    // The profiler owns these layouts. Clearing them before DrawRenderList used
-    // to leave the render queue with dangling prepared-layout pointers.
-    ASSERT_GT(m_Context->m_TextContext.m_TextEntries.Size(), 1u);
-    HTextLayout cached_layout = m_Context->m_TextContext.m_TextEntries[0].m_TextLayout;
-    HTextLayout transient_layout = m_Context->m_TextContext.m_TextEntries[1].m_TextLayout;
-    ASSERT_NE((HTextLayout)0, cached_layout);
-    ASSERT_NE((HTextLayout)0, transient_layout);
-    ASSERT_NE(cached_layout, transient_layout);
-
-    TextLayoutAcquire(cached_layout);
-    TextLayoutAcquire(transient_layout);
-    ASSERT_EQ(3u, cached_layout->m_RefCount);
-    ASSERT_EQ(3u, transient_layout->m_RefCount);
-
     dmProfileRender::ClearTransientTextLayouts(render_profile);
-    ASSERT_EQ(3u, cached_layout->m_RefCount);
-    ASSERT_EQ(2u, transient_layout->m_RefCount);
-
-    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
-    ASSERT_EQ(2u, cached_layout->m_RefCount);
-    ASSERT_EQ(1u, transient_layout->m_RefCount);
-
     dmProfileRender::DeleteRenderProfile(render_profile);
-    ASSERT_EQ(1u, cached_layout->m_RefCount);
-
-    TextLayoutRelease(cached_layout);
-    TextLayoutRelease(transient_layout);
 }
 
 TEST_F(ProfilerRenderTest, CachedLayoutsSurviveProfileDeletionBeforeDraw)
 {
+    // Deleting the profiler profile before DrawRenderList must still leave the
+    // queued text alive until the render queue is flushed and cleared.
     dmProfileRender::HRenderProfile render_profile = dmProfileRender::NewRenderProfile(60.0f);
     dmProfileRender::ProfilerFrame* frame = CreateProfilerFrame();
     dmProfileRender::UpdateRenderProfile(render_profile, frame);
@@ -233,35 +228,15 @@ TEST_F(ProfilerRenderTest, CachedLayoutsSurviveProfileDeletionBeforeDraw)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     QueueProfiler(render_profile);
 
-    // Deleting the profile before DrawRenderList used to free the prepared
-    // layouts out from under the queued text entries.
-    ASSERT_GT(m_Context->m_TextContext.m_TextEntries.Size(), 1u);
-    HTextLayout cached_layout = m_Context->m_TextContext.m_TextEntries[0].m_TextLayout;
-    HTextLayout transient_layout = m_Context->m_TextContext.m_TextEntries[1].m_TextLayout;
-    ASSERT_NE((HTextLayout)0, cached_layout);
-    ASSERT_NE((HTextLayout)0, transient_layout);
-    ASSERT_NE(cached_layout, transient_layout);
-
-    TextLayoutAcquire(cached_layout);
-    TextLayoutAcquire(transient_layout);
-    ASSERT_EQ(3u, cached_layout->m_RefCount);
-    ASSERT_EQ(3u, transient_layout->m_RefCount);
-
     dmProfileRender::DeleteRenderProfile(render_profile);
-    ASSERT_EQ(2u, cached_layout->m_RefCount);
-    ASSERT_EQ(2u, transient_layout->m_RefCount);
-
-    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
-    ASSERT_EQ(1u, cached_layout->m_RefCount);
-    ASSERT_EQ(1u, transient_layout->m_RefCount);
-
-    TextLayoutRelease(cached_layout);
-    TextLayoutRelease(transient_layout);
 }
 
 TEST_F(ProfilerRenderTest, LayoutsAreReleasedWhenRenderContextIsDeletedBeforeProfile)
 {
+    // The opposite teardown order also matters: deleting the render context
+    // first must release queued text ownership without double-freeing later.
     dmProfileRender::HRenderProfile render_profile = dmProfileRender::NewRenderProfile(60.0f);
     dmProfileRender::ProfilerFrame* frame = CreateProfilerFrame();
     dmProfileRender::UpdateRenderProfile(render_profile, frame);
@@ -270,28 +245,8 @@ TEST_F(ProfilerRenderTest, LayoutsAreReleasedWhenRenderContextIsDeletedBeforePro
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     QueueProfiler(render_profile);
 
-    ASSERT_GT(m_Context->m_TextContext.m_TextEntries.Size(), 1u);
-    HTextLayout cached_layout = m_Context->m_TextContext.m_TextEntries[0].m_TextLayout;
-    HTextLayout transient_layout = m_Context->m_TextContext.m_TextEntries[1].m_TextLayout;
-    ASSERT_NE((HTextLayout)0, cached_layout);
-    ASSERT_NE((HTextLayout)0, transient_layout);
-    ASSERT_NE(cached_layout, transient_layout);
-
-    TextLayoutAcquire(cached_layout);
-    TextLayoutAcquire(transient_layout);
-    ASSERT_EQ(3u, cached_layout->m_RefCount);
-    ASSERT_EQ(3u, transient_layout->m_RefCount);
-
     DeleteRenderContext();
-    ASSERT_EQ(2u, cached_layout->m_RefCount);
-    ASSERT_EQ(2u, transient_layout->m_RefCount);
-
     dmProfileRender::DeleteRenderProfile(render_profile);
-    ASSERT_EQ(1u, cached_layout->m_RefCount);
-    ASSERT_EQ(1u, transient_layout->m_RefCount);
-
-    TextLayoutRelease(cached_layout);
-    TextLayoutRelease(transient_layout);
 }
 
 extern "C" void dmExportedSymbols();

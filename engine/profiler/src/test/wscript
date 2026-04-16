@@ -4,11 +4,6 @@ def build(bld):
     libs = 'TESTMAIN SOCKET APP GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL PLATFORM_NULL LUA FONT RENDER profilerext'
     exported_symbols = ['GraphicsAdapterNull']
 
-    if 'web' in bld.env['PLATFORM']:
-        lib_dirs = {}
-        lib_dirs['library_render.js'] = '../../render/src/js'
-        bld.env['JS_LIB_PATHS'] = lib_dirs
-
     bld.program(features = 'cxx test skip_test',
                 source = 'test_profilerext_null.cpp',
                 use = 'TESTMAIN DLIB profilerext_null',
@@ -20,5 +15,5 @@ def build(bld):
                 use = libs,
                 exported_symbols = exported_symbols,
                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
-                includes = ['../../../src', '../../../render/src', '../../../graphics/src'],
+                includes = ['../../../src'],
                 target = 'test_profilerext_render')
