@@ -37,7 +37,6 @@ def configure(conf):
     conf.env['STLIB_GRAPHICS_NULL'] = ['graphics_null', 'graphics_proto']
     conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
     conf.env['STLIB_FONT'] = 'font'
-    conf.env['STLIB_PROFILEREXT'] = 'profilerext'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PROFILER"')
 
