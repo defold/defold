@@ -115,6 +115,13 @@ namespace dmGameObject
     void DeleteCollection(HCollection collection);
 
     /**
+     * Check if a gameobject collection has been deleted
+     * @param collection
+     * @return [type:bool] deleted True if the collection has been deleted
+     */
+    bool IsCollectionDeleted(HCollection hcollection);
+
+    /**
      * Return an instance index to the index pool for the collection.
      * @param index The index to return.
      * @param collection Collection that the index should be returned to.
