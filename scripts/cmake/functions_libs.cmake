@@ -141,7 +141,7 @@ function(defold_target_link_libraries_web target platform)
   endif()
 
   # Only for web platforms
-  if(NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+  if(NOT "${platform}" MATCHES "^(wasm-web|wasm_pthread-web)$")
     return()
   endif()
 

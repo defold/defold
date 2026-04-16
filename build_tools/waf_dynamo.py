@@ -75,15 +75,15 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
         return platform in ['arm64-linux']
     if feature == 'webgpu':
-        return platform in ['js-web', 'wasm-web', 'wasm_pthread-web']
+        return platform in ['wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -1523,7 +1523,9 @@ def linux_link_flags(self):
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
-        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
+        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "web-pre.js")
+        if not os.path.exists(pre_js):
+            pre_js = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'share', 'web-pre.js'))
         self.env.append_value('LINKFLAGS', ['--pre-js', pre_js, '-lnodefs.js'])
 
 @task_gen
@@ -1661,7 +1663,7 @@ def detect(conf):
         print ("Codesign disabled", Options.options.skip_codesign)
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:

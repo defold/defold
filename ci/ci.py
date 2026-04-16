@@ -232,7 +232,6 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
                     'arm64-macos',
                     'arm64-ios',
                     'x86_64-ios',
-                    'js-web',
                     'wasm-web',
                     'wasm_pthread-web',
                     'arm64-linux',

@@ -53,7 +53,6 @@ jobs:
            { name: 'x86_64-macos', runner: 'macOS-14', target: 'macos' },
            { name: 'arm64-ios', runner: 'macOS-14', target: 'macos' },
            { name: 'x86_64-ios', runner: 'macOS-14', target: 'macos' },
-           { name: 'js-web', runner: 'ubuntu-22.04', target: 'web' },
            { name: 'wasm-web', runner: 'ubuntu-22.04', target: 'web' },
            { name: 'wasm_pthread-web', runner: 'ubuntu-22.04', target: 'web' },
            { name: 'win32', runner: 'windows-2025', target: 'windows' },
