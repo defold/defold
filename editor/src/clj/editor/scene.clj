@@ -537,7 +537,7 @@
                                        (.glActiveTexture gl GL/GL_TEXTURE0)
                                        (.glBindTexture gl GL/GL_TEXTURE_2D 0)
                                        (.glBindTexture gl GL2/GL_TEXTURE_CUBE_MAP 0)
-                                       (.glUseProgram gl 0)
+                                       (.glUseProgram ^GL2 gl 0)
                                        (let [[w h] (vp-dims camera-inset-viewport)]
                                          (read-to-buffered-image cached-camera-inset-buf-img-ref w h))))
                 camera-inset-image (some-> camera-inset-frame
