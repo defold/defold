@@ -1,12 +1,4 @@
 platforms:
-  armv7-ios:
-    context:
-      excludeLibs: []
-      excludeSymbols: []
-      symbols: []
-      libs: []
-      frameworks: []
-      linkFlags: []
   arm64-ios:
     context:
       excludeLibs: []

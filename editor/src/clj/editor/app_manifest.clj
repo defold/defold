@@ -15,12 +15,11 @@
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :as code-util]
+            [editor.code.util :as util]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.util :as util]
             [editor.yaml :as yaml]))
 
 (def macos #{:x86_64-osx :arm64-osx})
@@ -524,35 +523,6 @@
     :both webgpu-toggles
     :web-gl))
 
-(defn- normalize-manifest [manifest]
-  (if (map? manifest)
-    (util/dissoc-in manifest [:platforms :js-web])
-    manifest))
-
-(declare ^:private app-manifest-key-order-pattern)
-
-(defn- sanitize-manifest-lines [lines]
-  (try
-    (if-some [manifest (with-open [reader (data/lines-reader lines)]
-                         (yaml/load reader keyword))]
-      (let [sanitized-manifest (normalize-manifest manifest)]
-        (if (= manifest sanitized-manifest)
-          lines
-          (code-util/split-lines
-            (yaml/dump sanitized-manifest
-                       :order-pattern app-manifest-key-order-pattern
-                       :indent (case (r/guess-indent-type lines)
-                                 :two-spaces 2
-                                 4)))))
-      lines)
-    (catch Exception _
-      lines)))
-
-(defn- read-app-manifest-fn [reader-able]
-  (-> reader-able
-      r/read-fn
-      sanitize-manifest-lines))
-
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
                                      :defines
@@ -607,7 +577,7 @@
                    (g/set-property
                      self
                      :modified-lines
-                     (code-util/split-lines
+                     (util/split-lines
                        (yaml/dump new-value
                                   :order-pattern app-manifest-key-order-pattern
                                   :indent (case (g/node-value self :indent-type evaluation-context)
@@ -757,5 +727,4 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
-    :resource-read-fn read-app-manifest-fn
     :lazy-loaded true))
