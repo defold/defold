@@ -1,0 +1,8 @@
+scene: "/checked.rivescene"
+default_state_machine: "Button"
+artboard: "New Artboard"
+coordinate_system: COORDINATE_SYSTEM_FULLSCREEN
+artboard_fit: FIT_FILL
+artboard_alignment: ALIGNMENT_TOP_LEFT
+auto_bind: false
+blit_material: "/checked.material"

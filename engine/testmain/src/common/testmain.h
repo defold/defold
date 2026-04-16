@@ -16,6 +16,8 @@
 #ifndef DM_TESTMAIN_H
 #define DM_TESTMAIN_H
 
+#include <stdint.h>
+
 extern "C" bool TestMainPlatformInit();
 extern "C" int  TestMainIsDebuggerAttached();
 

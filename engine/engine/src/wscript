@@ -225,7 +225,7 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS_NULL'
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-ios', 'x86_64-ios'):
-        graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
+        graphics_lib = 'GRAPHICS_NULL DMGLFW' # glfwAndroidHandleCommand etc are in glfw. UIApplicationMain is currently in glfw
 
     bld.add_group()
 

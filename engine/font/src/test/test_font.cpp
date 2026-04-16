@@ -41,7 +41,7 @@ protected:
 
     virtual void SetUp() override
     {
-        LoadFont("src/test/vera_mo_bd.ttf", &m_Font);
+        LoadFont("src/test/data/vera_mo_bd.ttf", &m_Font);
 
         m_FontCollection = FontCollectionCreate();
         FontResult r = FontCollectionAddFont(m_FontCollection, m_Font);
@@ -179,7 +179,7 @@ TEST_F(FontTest, LayoutSingleLine)
 TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
 {
     HFont font;
-    LoadFont("src/test/vera_mo_bd_atoz.ttf", &font);
+    LoadFont("src/test/data/vera_mo_bd_atoz.ttf", &font);
 
     HFontCollection fontCollection = FontCollectionCreate();
     FontResult fr = FontCollectionAddFont(fontCollection, font);
@@ -886,7 +886,7 @@ TEST_F(FontTest, Layout)
 TEST_F(FontTest, TextArabic)
 {
     HFont font;
-    LoadFont("src/test/NotoSansArabic-Regular.ttf", &font);
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &font);
 
     HFontCollection fontCollection = FontCollectionCreate();
     FontResult fr = FontCollectionAddFont(fontCollection, font);
