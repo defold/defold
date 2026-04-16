@@ -295,24 +295,6 @@
                       renderables)]))
         all-renderables))
 
-(defn- resort-renderables-for-camera [renderables-by-pass ^Camera camera]
-  (let [view-matrix (c/camera-view-matrix camera)]
-    (into {}
-          (map (fn [[render-pass renderables]]
-                 [render-pass
-                  (->> renderables
-                       (mapv (fn [renderable]
-                               (let [world-translation ^Vector3d (:world-translation renderable)
-                                     index (:index renderable)
-                                     topmost? (:topmost? renderable)
-                                     selection-state (:selected renderable)]
-                                 (cond-> (assoc renderable :render-key (render-key view-matrix world-translation index topmost?))
-                                   (contains? (:pass-overrides renderable) pass/outline)
-                                   (assoc-in [:pass-overrides pass/outline :render-key]
-                                             (outline-render-key view-matrix world-translation index topmost? selection-state))))))
-                       render-sort)]))
-          renderables-by-pass)))
-
 (defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
   (let [border-shader shaders/basic-color-local-space
         vertex-description (shaders/vertex-description border-shader)
@@ -357,50 +339,6 @@
               (vals (:renderables scene-render-data)))]
     (when (= 1 (count selected-cameras))
       (first selected-cameras))))
-
-(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states camera-inset-frame-version ^GLAutoDrawable camera-inset-drawable]
-  (let [selected-camera-renderable (produce-selected-camera-renderable scene-render-data selection)
-        camera-inset-visible? (some? selected-camera-renderable)]
-    (if-not camera-inset-visible?
-      {:visible false
-       :image nil
-       :width camera-inset-width
-       :height camera-inset-height}
-      (if-let [{:keys [display-width display-height render-width render-height]} (camera-inset-dimensions selected-camera-renderable)]
-        (if-let [camera-inset-camera (make-camera-inset-camera selected-camera-renderable render-width render-height)]
-          (let [clear-color (camera-inset-clear-color selected-camera-renderable)
-                camera-inset-viewport (types/->Region 0 render-width 0 render-height)
-                camera-inset-pass->render-args (into {}
-                                                    (map (juxt identity (partial pass-render-args camera-inset-viewport camera-inset-camera)))
-                                                    pass/all-passes)
-                scene-renderables (-> (:renderables scene-render-data)
-                                      remove-camera-outline-renderables
-                                      (resort-renderables-for-camera camera-inset-camera))
-                camera-inset-frame (when camera-inset-drawable
-                                     (gl/with-drawable-as-current camera-inset-drawable
-                                       (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
-                                       (scene-cache/process-pending-deletions! gl)
-                                       (render! gl-context :normal scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
-                                       (render-camera-inset-border! gl camera-inset-viewport)
-                                       (reset-camera-inset-gl-state! gl)
-                                       (let [[w h] (vp-dims camera-inset-viewport)
-                                             buf-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
-                                         (scene-cache/prune-context! gl)
-                                         buf-image)))
-                camera-inset-image (when camera-inset-frame
-                                     (SwingFXUtils/toFXImage camera-inset-frame nil))]
-            {:visible (some? camera-inset-image)
-             :image camera-inset-image
-             :width display-width
-             :height display-height})
-          {:visible false
-           :image nil
-           :width camera-inset-width
-           :height camera-inset-height})
-        {:visible false
-         :image nil
-         :width camera-inset-width
-         :height camera-inset-height}))))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
@@ -493,6 +431,24 @@
 (defn render-sort [renderables]
   (sort-by :render-key renderables))
 
+(defn- resort-renderables-for-camera [renderables-by-pass ^Camera camera]
+  (let [view-matrix (c/camera-view-matrix camera)]
+    (into {}
+          (map (fn [[render-pass renderables]]
+                 [render-pass
+                  (->> renderables
+                       (mapv (fn [renderable]
+                               (let [world-translation ^Vector3d (:world-translation renderable)
+                                     index (:index renderable)
+                                     topmost? (:topmost? renderable)
+                                     selection-state (:selected renderable)]
+                                 (cond-> (assoc renderable :render-key (render-key view-matrix world-translation index topmost?))
+                                   (contains? (:pass-overrides renderable) pass/outline)
+                                   (assoc-in [:pass-overrides pass/outline :render-key]
+                                             (outline-render-key view-matrix world-translation index topmost? selection-state))))))
+                       render-sort)]))
+          renderables-by-pass)))
+
 (defn pass-render-args [^Region viewport ^Camera camera pass]
   (let [view (if (types/model-transform? pass)
                (c/camera-view-matrix camera)
@@ -510,6 +466,49 @@
            :pass pass
            :camera camera
            :viewport viewport)))
+
+(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states camera-inset-frame-version ^GLAutoDrawable camera-inset-drawable]
+  (let [selected-camera-renderable (produce-selected-camera-renderable scene-render-data selection)
+        camera-inset-visible? (some? selected-camera-renderable)]
+    (if-not camera-inset-visible?
+      {:visible false
+       :image nil
+       :width camera-inset-width
+       :height camera-inset-height}
+      (if-let [{:keys [display-width display-height render-width render-height]} (camera-inset-dimensions selected-camera-renderable)]
+        (if-let [camera-inset-camera (make-camera-inset-camera selected-camera-renderable render-width render-height)]
+          (let [clear-color (camera-inset-clear-color selected-camera-renderable)
+                camera-inset-viewport (types/->Region 0 render-width 0 render-height)
+                camera-inset-pass->render-args (into {}
+                                                    (map (juxt identity (partial pass-render-args camera-inset-viewport camera-inset-camera)))
+                                                    pass/all-passes)
+                scene-renderables (-> (:renderables scene-render-data)
+                                      remove-camera-outline-renderables
+                                      (resort-renderables-for-camera camera-inset-camera))
+                camera-inset-frame (when camera-inset-drawable
+                                     (gl/with-drawable-as-current camera-inset-drawable
+                                       (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
+                                       (scene-cache/process-pending-deletions! gl)
+                                       (render! gl-context :normal scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
+                                       (render-camera-inset-border! gl camera-inset-viewport)
+                                       (reset-camera-inset-gl-state! gl)
+                                       (let [[w h] (vp-dims camera-inset-viewport)
+                                             buf-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
+                                         buf-image)))
+                camera-inset-image (when camera-inset-frame
+                                     (SwingFXUtils/toFXImage camera-inset-frame nil))]
+            {:visible (some? camera-inset-image)
+             :image camera-inset-image
+             :width display-width
+             :height display-height})
+          {:visible false
+           :image nil
+           :width camera-inset-width
+           :height camera-inset-height})
+        {:visible false
+         :image nil
+         :width camera-inset-width
+         :height camera-inset-height}))))
 
 (defn- assoc-updatable-states
   [renderables updatable-states]
