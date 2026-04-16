@@ -521,7 +521,7 @@
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view localization scene-visibility]
     (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/show-settings! app-view (g/node-value app-view :keymap) localization btn scene-visibility)))
+      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
     (when-let [btn (scene-visibility/toggle-button app-view)]
       (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)

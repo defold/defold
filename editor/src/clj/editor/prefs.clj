@@ -251,7 +251,6 @@
                                   :scope :project
                                   :properties {:speed {:type :number :default 1.0}
                                                :look-sensitivity {:type :number :default 0.145}
-                                               :fov {:type :number :default 37.8}
                                                :invert-y {:type :boolean :default false}
                                                :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object

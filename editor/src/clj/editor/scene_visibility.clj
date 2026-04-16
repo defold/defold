@@ -16,22 +16,18 @@
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.handler :as handler]
-            [editor.keymap :as keymap]
-            [editor.localization :as localization]
-            [editor.os :as os]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
             [internal.util :as iutil]
             [schema.core :as s]
-            [util.coll :as coll])
-  (:import [javafx.geometry Point2D Pos]
-           [javafx.css PseudoClass]
+            [util.coll :as coll]
+            [util.defonce :as defonce])
+  (:import [javafx.css PseudoClass]
            [javafx.scene Parent]
-           [javafx.scene.control CheckBox Label PopupControl Separator Tab ToggleButton]
-           [javafx.scene.layout HBox Priority Region StackPane VBox]
-           [javafx.stage PopupWindow$AnchorLocation]))
+           [javafx.scene.control Tab ToggleButton]
+           [javafx.scene.layout HBox]))
 
 (set! *warn-on-reflection* true)
 
@@ -302,7 +298,7 @@
          (doseq [cb check-boxes]
            (ui/enable! cb enabled?)))))))
 
-(defrecord SceneVisibilityStore [scene-visibility]
+(defonce/record SceneVisibilityStore [scene-visibility]
   settings-popup/SettingsStore
   (get-value [_ key]
     (if (= :visibility-filters-enabled? key)
@@ -315,7 +311,7 @@
       (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
     (sync-filter-checkboxes! scene-visibility)))
 
-(defn show-settings! [app-view keymap localization ^Parent owner scene-visibility]
+(defn show-settings! [keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (mapv #(-> %
                                        (assoc :key (:tag %))
                                        (dissoc :tag :always-enabled :appear-filtered))
@@ -332,13 +328,13 @@
                                            (g/set-property! scene-visibility :ui-check-boxes nil)))]
     (when controls
       (g/update-property! scene-visibility :ui-check-boxes assoc
-                          :visibility-filter-check-box (last (:visibility-filters-enabled? controls))
-                          :component-guide-check-box (last (:outline controls))
+                          :visibility-filter-check-box (last (.getChildren ^HBox (:visibility-filters-enabled? controls)))
+                          :component-guide-check-box (last (.getChildren ^HBox (:outline controls)))
                           :filter-check-boxes (coll/into-> controls []
                                                            (keep (fn [[key entry]]
+                                                                   ;; NOTE: We only need the HBox for this, so we can disable the whole thing
                                                                    (when (contains? toggleable-filters key)
-                                                                     ;; NOTE: We only need the HBox for this, so we can disable the whole thing
-                                                                     (first entry))))))
+                                                                     entry)))))
       (sync-filter-checkboxes! scene-visibility))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]

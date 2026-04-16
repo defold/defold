@@ -1215,9 +1215,6 @@
           :slider-value->string (fn [^double v]
                                   (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
                                     (str (math/round-with-precision scaled 0.1))))}
-         ;; TODO: Fix ortho <-> persp fov dolly to be able to enable this
-         #_{:key :fov :type :slider :label "scene-popup.camera.fov" :min 15.0 :max 120.0
-          :slider-value->string (fn [^double v] (str (Math/round v) "°"))}
          {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
          {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
         prefs-store (settings-popup/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} nil)]

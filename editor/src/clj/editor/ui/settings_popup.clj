@@ -14,7 +14,6 @@
 
 (ns editor.ui.settings-popup
   (:require [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.colors :as colors]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
@@ -22,7 +21,8 @@
             [editor.math :as math]
             [editor.os :as os]
             [editor.prefs :as prefs]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.defonce :as defonce])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
            [javafx.css Styleable]
@@ -38,12 +38,12 @@
 
 (defonce ^List axes [:x :y :z])
 
-(defprotocol SettingsStore
+(defonce/protocol SettingsStore
   (get-value [this key])
   (get-default-value [this key])
   (set-value! [this key v]))
 
-(defrecord PrefsStore [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
+(defonce/record PrefsStore [prefs prefs-prefix setting-descriptors hidden-settings on-change-fn]
   SettingsStore
   (get-value [_ key] (prefs/get prefs (conj prefs-prefix key)))
   (get-default-value [_ key] (prefs/default-value-at prefs (conj prefs-prefix key)))
@@ -163,7 +163,6 @@
                             (mapcat identity))
                       axes)))
 
-;; TODO: Rename this cause plane is too specific
 (defn- make-vec3-toggle-button [settings-store plane-group key plane]
   (let [active-plane (get-value settings-store key)]
     (doto (ToggleButton. (string/upper-case (name plane)))
@@ -172,7 +171,7 @@
       (.setSelected (= plane active-plane))
       (ui/add-style! "plane-toggle"))))
 
-(defn- make-vec3-toggle-row [popup settings-store descriptor]
+(defn- make-vec3-toggle-row [_popup settings-store descriptor]
   (let [{:keys [key label]} descriptor
         plane-group (ToggleGroup.)
         buttons (mapv (partial make-vec3-toggle-button settings-store plane-group key) axes)
@@ -187,7 +186,7 @@
                     (.setSelected old-value true))))
     (wrap-in-hbox (concat [label] buttons))))
 
-(defn- make-color-row [popup settings-store {:keys [key label]}]
+(defn- make-color-row [_popup settings-store {:keys [key label]}]
   (let [text-field (TextField.)
         [r g b a] (get-value settings-store key)
         color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
@@ -273,7 +272,7 @@
                         (.setMaxWidth ^Region first-child Double/MAX_VALUE))
                       (doseq [child (rest children)]
                         (HBox/setHgrow child Priority/NEVER))
-                      [(conj rows row) (cond-> controls key (assoc key children))])))
+                      [(conj rows row) (cond-> controls key (assoc key row))])))
                 [[] {}]
                 visible-descriptors)]
     [rows controls]))

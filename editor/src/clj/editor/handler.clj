@@ -301,7 +301,7 @@
 (defn remove-listener!
   "Remove a previously registered listener."
   [listener-id command]
-  (swap! state-atom util/dissoc-in [[:listeners command listener-id]])
+  (swap! state-atom util/dissoc-in [:listeners command listener-id])
   nil)
 
 (defonce/protocol SelectionProvider
