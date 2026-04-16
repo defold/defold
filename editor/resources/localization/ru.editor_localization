@@ -1778,6 +1778,10 @@ form.label.project.model.max_bone_matrix_texture_width = Ширина текст
 form.help.project.model.max_bone_matrix_texture_width = Максимальная ширина текстуры матриц костей, по умолчанию 1024
 form.label.project.model.max_bone_matrix_texture_height = Высота текстуры матриц
 form.help.project.model.max_bone_matrix_texture_height = Максимальная высота текстуры матриц костей, по умолчанию 1024
+form.label.project.model.max_morph_target_texture_width = Макс. ширина текстуры морф-таргета
+form.help.project.model.max_morph_target_texture_width = Максимальная ширина (в пикселях) текстуры, используемой для хранения дельт морф-таргета (позиции, нормали, тангенты) для каждого меша. По умолчанию — 1024. Движок использует не больше этого значения и максимального размера текстуры, поддерживаемого GPU — выбирается меньшее из двух.
+form.label.project.model.max_morph_target_texture_height = Макс. высота текстуры морф-таргета
+form.help.project.model.max_morph_target_texture_height = Максимальная высота (в пикселях) текстуры, используемой для хранения дельт морф-таргета (позиции, нормали, тангенты) для каждого меша. По умолчанию — 1024. Движок использует не больше этого значения и максимального размера текстуры, поддерживаемого GPU — выбирается меньшее из двух.
 
 form.label.project.particle_fx = ParticleFX
 form.help.project.particle_fx = Настройки ParticleFX
