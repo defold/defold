@@ -48,12 +48,3 @@ def build(bld):
                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 includes = ['../../src', '../../proto'],
                 target = 'test_render_buffer')
-
-    bld.program(features = 'cxx cprogram test',
-                source = ['../../../profiler/src/test/test_profilerext_render.cpp',
-                          '../../../profiler/src/profiler_render.cpp'],
-                use = libs,
-                exported_symbols = exported_symbols,
-                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
-                includes = ['../../src', '../../proto', '../../../profiler/src'],
-                target = 'test_profilerext_render')

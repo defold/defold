@@ -7,19 +7,19 @@
 
 #include <dlib/hash.h>
 #include <script/script.h>
-#include "../../../font/src/text_layout.h"
 #include <font/font.h>
 #include <font/fontcollection.h>
+#include <font/text_layout.h>      // HTextLayout internals and refcount helpers.
+#include <graphics/graphics.h>
 #include <platform/window.hpp>
-
-#include "../../../graphics/src/graphics_private.h"
-#include "../../../graphics/src/test/test_graphics_util.h"
-#include "../../../render/src/render/render.h"
-#include "../../../render/src/render/render_private.h"
-#include "../../../render/src/render/font/fontmap.h"
-#include "../../../render/src/render/font/font_glyphbank.h"
+#include <render/render.h>
+#include <render/render_private.h> // TextContext access for lifetime assertions.
+#include <render/font/fontmap.h>
+#include <render/font/font_glyphbank.h>
 #include <render/font_ddf.h>
 
+#include "graphics_private.h"      // Shader stage flags for ShaderDescBuilder.
+#include "test/test_graphics_util.h"
 #include "../profiler_render.h"
 
 static const uint32_t WIDTH = 640;

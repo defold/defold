@@ -22,9 +22,9 @@
 #include <dlib/math.h>
 #include <dlib/dstrings.h>
 #include <script/script.h>
-#include "../../../font/src/text_layout.h"
 #include <font/font.h>
 #include <font/fontcollection.h>
+#include <font/text_layout.h>
 #include <platform/window.hpp>
 
 #include <algorithm> // std::stable_sort
