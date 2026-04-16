@@ -951,7 +951,7 @@ public class ColladaUtil {
         }
 
         for (Modelimporter.Mesh newMesh : allMeshes) {
-            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh));
+            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh, 0, 0));
         }
 
         String name = sceneNode != null ? sceneNode.name : null;
@@ -1530,9 +1530,11 @@ public class ColladaUtil {
     public static void loadModels(XMLCOLLADA scene, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
         try {
             loadMesh(scene, meshSetBuilder, true, false);
-        } catch(IOException e) {
+        } catch (LoaderException e) {
             throw e;
-        } catch(Exception e) {
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
             throw new IOException("Failed to load Collada scene: " + e.getMessage(), e);
         }
     }

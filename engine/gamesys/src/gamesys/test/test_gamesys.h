@@ -662,6 +662,8 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_MaxModelCount = 128;
     m_ModelContext.m_MaxBoneMatrixTextureWidth = 1024;
     m_ModelContext.m_MaxBoneMatrixTextureHeight = 1024;
+    m_ModelContext.m_MaxMorphTargetTextureWidth = 1024;
+    m_ModelContext.m_MaxMorphTargetTextureHeight = 1024;
 
     dmBuffer::NewContext(); // ???
 
@@ -677,7 +679,7 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context);
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context, &m_ModelContext);
     ASSERT_EQ(dmResource::RESULT_OK, r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);

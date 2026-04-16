@@ -55,6 +55,8 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
     const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
     const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
+    const dmhash_t SAMPLER_MORPH_TARGETS              = dmHashString64("morph_targets");
+    const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS     = dmHashString64("morph_targets_weights");
     const dmhash_t FRUSTUM_HASH_UNINITIALIZED         = 0;
 
     StencilTestParams::StencilTestParams() {
