@@ -210,10 +210,6 @@
      (.restore psm gl)
      image)))
 
-(declare pass-render-args)
-(declare render!)
-(declare vp-dims)
-
 (defn- camera-renderable? [renderable]
   (contains? (:tags renderable) :camera))
 
@@ -223,12 +219,6 @@
      (double (or clear-g 0.0))
      (double (or clear-b 0.0))
      (double (or clear-a 1.0))]))
-
-(defn- reset-camera-inset-gl-state! [^GL2 gl]
-  (.glActiveTexture gl GL/GL_TEXTURE0)
-  (.glBindTexture gl GL/GL_TEXTURE_2D 0)
-  (.glBindTexture gl GL2/GL_TEXTURE_CUBE_MAP 0)
-  (.glUseProgram gl 0))
 
 (defn- valid-camera-inset-orthographic-zoom? [selected-camera-renderable]
   (let [{:keys [is-orthographic orthographic-mode orthographic-zoom]} (:user-data selected-camera-renderable)]
@@ -295,6 +285,9 @@
                       renderables)]))
         all-renderables))
 
+(defn vp-dims [^Region viewport]
+  (types/dimensions viewport))
+
 (defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
   (let [border-shader shaders/basic-color-local-space
         vertex-description (shaders/vertex-description border-shader)
@@ -339,9 +332,6 @@
               (vals (:renderables scene-render-data)))]
     (when (= 1 (count selected-cameras))
       (first selected-cameras))))
-
-(defn vp-dims [^Region viewport]
-  (types/dimensions viewport))
 
 (defn- back-to-front-depth-sort-value [^Matrix4d view-matrix ^Vector3d world-translation]
   (let [world-position (Point3d. world-translation)]
@@ -467,49 +457,6 @@
            :camera camera
            :viewport viewport)))
 
-(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states camera-inset-frame-version ^GLAutoDrawable camera-inset-drawable]
-  (let [selected-camera-renderable (produce-selected-camera-renderable scene-render-data selection)
-        camera-inset-visible? (some? selected-camera-renderable)]
-    (if-not camera-inset-visible?
-      {:visible false
-       :image nil
-       :width camera-inset-width
-       :height camera-inset-height}
-      (if-let [{:keys [display-width display-height render-width render-height]} (camera-inset-dimensions selected-camera-renderable)]
-        (if-let [camera-inset-camera (make-camera-inset-camera selected-camera-renderable render-width render-height)]
-          (let [clear-color (camera-inset-clear-color selected-camera-renderable)
-                camera-inset-viewport (types/->Region 0 render-width 0 render-height)
-                camera-inset-pass->render-args (into {}
-                                                    (map (juxt identity (partial pass-render-args camera-inset-viewport camera-inset-camera)))
-                                                    pass/all-passes)
-                scene-renderables (-> (:renderables scene-render-data)
-                                      remove-camera-outline-renderables
-                                      (resort-renderables-for-camera camera-inset-camera))
-                camera-inset-frame (when camera-inset-drawable
-                                     (gl/with-drawable-as-current camera-inset-drawable
-                                       (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
-                                       (scene-cache/process-pending-deletions! gl)
-                                       (render! gl-context :normal scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
-                                       (render-camera-inset-border! gl camera-inset-viewport)
-                                       (reset-camera-inset-gl-state! gl)
-                                       (let [[w h] (vp-dims camera-inset-viewport)
-                                             buf-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
-                                         buf-image)))
-                camera-inset-image (when camera-inset-frame
-                                     (SwingFXUtils/toFXImage camera-inset-frame nil))]
-            {:visible (some? camera-inset-image)
-             :image camera-inset-image
-             :width display-width
-             :height display-height})
-          {:visible false
-           :image nil
-           :width camera-inset-width
-           :height camera-inset-height})
-        {:visible false
-         :image nil
-         :width camera-inset-width
-         :height camera-inset-height}))))
-
 (defn- assoc-updatable-states
   [renderables updatable-states]
   (mapv (fn [renderable]
@@ -564,6 +511,44 @@
        (if (= render-mode :aabbs)
          (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
          (batch-render gl pass-render-args pass-renderables batch-key))))))
+
+(g/defnk produce-camera-inset-data [scene-render-data selection updatable-states camera-inset-frame-version ^GLAutoDrawable camera-inset-drawable]
+  (let [hidden-result {:visible false
+                       :image nil
+                       :width camera-inset-width
+                       :height camera-inset-height}]
+    (if-some [selected-camera-renderable (produce-selected-camera-renderable scene-render-data selection)]
+      (if-some [{:keys [display-width display-height render-width render-height]} (camera-inset-dimensions selected-camera-renderable)]
+        (if-some [camera-inset-camera (make-camera-inset-camera selected-camera-renderable render-width render-height)]
+          (let [clear-color (camera-inset-clear-color selected-camera-renderable)
+                camera-inset-viewport (types/->Region 0 render-width 0 render-height)
+                camera-inset-pass->render-args (into {}
+                                                    (map (juxt identity (partial pass-render-args camera-inset-viewport camera-inset-camera)))
+                                                    pass/all-passes)
+                scene-renderables (-> (:renderables scene-render-data)
+                                      remove-camera-outline-renderables
+                                      (resort-renderables-for-camera camera-inset-camera))
+                camera-inset-frame (when camera-inset-drawable
+                                     (gl/with-drawable-as-current camera-inset-drawable
+                                       (.setSurfaceSize ^GLOffscreenAutoDrawable camera-inset-drawable (int render-width) (int render-height))
+                                       (scene-cache/process-pending-deletions! gl)
+                                       (render! gl-context :normal scene-renderables updatable-states camera-inset-viewport camera-inset-pass->render-args clear-color)
+                                       (render-camera-inset-border! gl camera-inset-viewport)
+                                       (.glActiveTexture gl GL/GL_TEXTURE0)
+                                       (.glBindTexture gl GL/GL_TEXTURE_2D 0)
+                                       (.glBindTexture gl GL2/GL_TEXTURE_CUBE_MAP 0)
+                                       (.glUseProgram gl 0)
+                                       (let [[w h] (vp-dims camera-inset-viewport)]
+                                         (read-to-buffered-image cached-camera-inset-buf-img-ref w h))))
+                camera-inset-image (some-> camera-inset-frame
+                                           (SwingFXUtils/toFXImage nil))]
+            {:visible (some? camera-inset-image)
+             :image camera-inset-image
+             :width display-width
+             :height display-height})
+          hidden-result)
+        hidden-result)
+      hidden-result)))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -1272,6 +1257,8 @@
   (property image-view ImageView)
   (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
+  ;; Some previewed animation state advances in scene caches rather than graph values,
+  ;; so the inset needs an explicit frame tick dependency to invalidate its cached image.
   (property camera-inset-frame-version g/Int (default 0))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
