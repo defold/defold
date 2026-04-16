@@ -395,10 +395,12 @@
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/legacy_js_web.appmanifest")
           manifest-data (g/node-value manifest :manifest)
-          text #(slurp (data/lines-reader (app-manifest/serialize-manifest manifest-data (g/node-value manifest :indent-type))))]
+          text #(slurp (data/lines-reader (g/node-value manifest :lines)))]
       (is (not (contains? (:platforms manifest-data) :js-web)))
       (is (not (contains? (:platforms manifest-data) :wasm-web)))
       (is (contains? (:platforms manifest-data) :wasm_pthread-web))
+      (g/set-property! manifest :exclude-record true)
+      (g/set-property! manifest :manifest manifest-data)
       (is (string/includes? (text) "wasm_pthread-web:"))
       (is (false? (string/includes? (text) "wasm-web:")))
       (is (false? (string/includes? (text) "js-web:"))))))

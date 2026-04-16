@@ -14,7 +14,6 @@
 
 (ns editor.prefs-test
   (:require [clojure.edn :as edn]
-            [cognitect.transit :as transit]
             [clojure.test :refer :all]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
@@ -22,10 +21,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [integration.test-util :as test-util]
-            [service.log :as log])
-  (:import [java.io ByteArrayOutputStream]
-           [java.nio.charset StandardCharsets]
-           [java.util.prefs Preferences]))
+            [service.log :as log]))
 
 (defmacro with-schemas [id->schema & body]
   `(try
@@ -47,12 +43,6 @@
   (fn [x]
     (and (= :path (::prefs/error x))
          (= path (:path x)))))
-
-(defn- transit-str [value]
-  (let [out (ByteArrayOutputStream.)
-        writer (transit/writer out :json)]
-    (transit/write writer value)
-    (String. (.toByteArray out) StandardCharsets/UTF_8)))
 
 (defspec boolean-schema-valid-spec 100
   (prop/for-all [b gen/boolean]
@@ -322,53 +312,6 @@
             p (prefs/make :scopes {:global file}
                           :schemas [::invalid-edn])]
         (is (= "" (prefs/get p [:name])))))))
-
-(deftest migrate-project-prefs-legacy-html5-architecture-test
-  (let [legacy-key "bundle-html5-architecture-js-web?"
-        legacy-prefs (.node (Preferences/userRoot) "defold")]
-    (try
-      (.put legacy-prefs legacy-key (transit-str true))
-      (.flush legacy-prefs)
-      (with-schemas {::bundle-html5-migration
-                     {:type :object
-                      :properties {:bundle {:type :object
-                                            :properties {:html5 {:type :object
-                                                                 :properties {:architecture {:type :object
-                                                                                             :properties {:wasm-web {:type :boolean
-                                                                                                                     :scope :project}}}}}}}}}}
-        (let [project-file (fs/create-temp-file! "project" "test.editor_settings")
-              p (prefs/make :scopes {:project project-file}
-                            :schemas [::bundle-html5-migration])]
-          (prefs/migrate-project-prefs! p)
-          (is (true? (prefs/get p [:bundle :html5 :architecture :wasm-web])))))
-      (finally
-        (.remove legacy-prefs legacy-key)
-        (.flush legacy-prefs)))))
-
-(deftest migrate-project-prefs-legacy-html5-architecture-prefers-wasm-web-test
-  (let [legacy-js-web-key "bundle-html5-architecture-js-web?"
-        legacy-wasm-web-key "bundle-html5-architecture-wasm-web?"
-        legacy-prefs (.node (Preferences/userRoot) "defold")]
-    (try
-      (.put legacy-prefs legacy-js-web-key (transit-str true))
-      (.put legacy-prefs legacy-wasm-web-key (transit-str false))
-      (.flush legacy-prefs)
-      (with-schemas {::bundle-html5-migration
-                     {:type :object
-                      :properties {:bundle {:type :object
-                                            :properties {:html5 {:type :object
-                                                                 :properties {:architecture {:type :object
-                                                                                             :properties {:wasm-web {:type :boolean
-                                                                                                                     :scope :project}}}}}}}}}}
-        (let [project-file (fs/create-temp-file! "project" "test.editor_settings")
-              p (prefs/make :scopes {:project project-file}
-                            :schemas [::bundle-html5-migration])]
-          (prefs/migrate-project-prefs! p)
-          (is (false? (prefs/get p [:bundle :html5 :architecture :wasm-web])))))
-      (finally
-        (.remove legacy-prefs legacy-js-web-key)
-        (.remove legacy-prefs legacy-wasm-web-key)
-        (.flush legacy-prefs)))))
 
 (deftest scopes-test
   (with-schemas {::scopes

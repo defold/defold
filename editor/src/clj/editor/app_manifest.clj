@@ -15,11 +15,12 @@
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :as util]
+            [editor.code.util :as code-util]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
+            [editor.util :as util]
             [editor.yaml :as yaml]))
 
 (def macos #{:x86_64-osx :arm64-osx})
@@ -524,13 +525,8 @@
     :web-gl))
 
 (defn- normalize-manifest [manifest]
-  (if-some [platforms (and (map? manifest)
-                           (map? (:platforms manifest))
-                           (:platforms manifest))]
-    (let [platforms (dissoc platforms :js-web)]
-      (cond-> (dissoc manifest :platforms)
-        (seq platforms)
-        (assoc :platforms platforms)))
+  (if (map? manifest)
+    (util/dissoc-in manifest [:platforms :js-web])
     manifest))
 
 (def ^:private app-manifest-key-order-pattern
@@ -573,14 +569,6 @@
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
 
-(defn serialize-manifest [manifest indent-type]
-  (util/split-lines
-    (yaml/dump manifest
-               :order-pattern app-manifest-key-order-pattern
-               :indent (case indent-type
-                         :two-spaces 2
-                         4))))
-
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
   (output parsed-manifest g/Any :cached (g/fnk [lines _node-id resource]
@@ -596,7 +584,12 @@
                    (g/set-property
                      self
                      :modified-lines
-                     (serialize-manifest new-value (g/node-value self :indent-type evaluation-context))))))
+                     (code-util/split-lines
+                       (yaml/dump new-value
+                                  :order-pattern app-manifest-key-order-pattern
+                                  :indent (case (g/node-value self :indent-type evaluation-context)
+                                            :two-spaces 2
+                                            4)))))))
   (property physics-2d g/Any
             (dynamic label (properties/label-dynamic :appmanifest :physics-2d))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :physics-2d))
