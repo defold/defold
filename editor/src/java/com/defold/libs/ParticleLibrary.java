@@ -42,8 +42,8 @@ public class ParticleLibrary {
         try {
             ResourceUnpacker.unpackResources();
             Native.register(ParticleLibrary.class, NativeLibrary.getInstance(ResourceUnpacker.getPreloadedLibraryPath("particle_shared").toString()));
-        } catch (Throwable t) {
-            logger.error("Failed to register bundled particle_shared", t);
+        } catch (Exception e) {
+            logger.error("Failed to register bundled particle_shared", e);
         }
     }
 

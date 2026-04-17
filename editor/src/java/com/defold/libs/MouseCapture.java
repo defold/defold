@@ -33,8 +33,8 @@ public class MouseCapture {
         try {
             ResourceUnpacker.unpackResources();
             Native.register(MouseCapture.class, NativeLibrary.getInstance(ResourceUnpacker.getPreloadedLibraryPath("mouse_capture_shared").toString()));
-        } catch (Throwable t) {
-            logger.error("Failed to register bundled mouse_capture_shared", t);
+        } catch (Exception e) {
+            logger.error("Failed to register bundled mouse_capture_shared", e);
         }
     }
 
