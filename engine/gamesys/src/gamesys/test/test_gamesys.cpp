@@ -3712,6 +3712,8 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
 
 TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
 {
+    // The GUI node can clear its cached prepared layout after queueing text but
+    // before DrawRenderList. The queued render entry still needs its own ref.
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -3869,6 +3871,8 @@ TEST_F(ComponentTest, LabelPreparedTextLayoutDestroyedBeforeDraw)
     const dmhash_t go_id = dmHashString64("/go");
     const dmhash_t label_id = dmHashString64("label");
 
+    // Labels hit the same lifetime issue as GUI text: mutating the component
+    // after queueing must not free the prepared layout out from under render.
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

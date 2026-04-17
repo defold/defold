@@ -223,6 +223,8 @@ TEST_F(FontTest, LayoutEmptyString)
 
 TEST_F(FontTest, LayoutAcquireRelease)
 {
+    // Prepared text layouts are now shared across font/render call sites, so
+    // the basic retain/release contract needs explicit coverage here.
     TextLayoutSettings settings = {0};
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;

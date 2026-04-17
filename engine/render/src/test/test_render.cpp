@@ -2121,6 +2121,8 @@ TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
 
 TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
 {
+    // Once DrawText queues a prepared layout, the render queue must keep it
+    // alive until ClearRenderObjects drops the queued text entries.
     dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
     dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
     dmRender::SetViewMatrix(m_Context, view);
