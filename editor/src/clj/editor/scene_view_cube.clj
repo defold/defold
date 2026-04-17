@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-view-cube
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
@@ -25,8 +26,8 @@
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL2]
            [editor.types AABB Camera Region]
-           [java.awt AlphaComposite Color Font Graphics2D RenderingHints]
            [java.awt.image BufferedImage]
+           [javax.imageio ImageIO]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -63,47 +64,51 @@
 ;; and v axes correspond to when the face is viewed from outside the cube. They
 ;; are chosen so that each label reads left-to-right, right-side up, when the
 ;; camera is aligned with the face's axis.
+;;
+;; :texture points at the PNG resource with the baked axis label. The PNGs are
+;; generated offline by editor/scripts/GenerateViewCubeTextures.java; rerun that
+;; tool if the font or size of the labels needs to change.
 (def ^:private face->data
   {:+x {:center (Point3d. 1.0 0.0 0.0)
         :color colors/scene-grid-x-axis
-        :label "+X"
         :normal (Vector3d. 1.0 0.0 0.0)
         :quad [[1.0 -1.0 -1.0] [1.0 -1.0 1.0] [1.0 1.0 1.0] [1.0 1.0 -1.0]]
+        :texture "scene/images/view_cube/pos_x.png"
         :u-axis [0.0 0.0 -1.0]
         :v-axis [0.0 1.0 0.0]}
    :-x {:center (Point3d. -1.0 0.0 0.0)
         :color colors/scene-grid-x-axis
-        :label "-X"
         :normal (Vector3d. -1.0 0.0 0.0)
         :quad [[-1.0 -1.0 1.0] [-1.0 -1.0 -1.0] [-1.0 1.0 -1.0] [-1.0 1.0 1.0]]
+        :texture "scene/images/view_cube/neg_x.png"
         :u-axis [0.0 0.0 1.0]
         :v-axis [0.0 1.0 0.0]}
    :+y {:center (Point3d. 0.0 1.0 0.0)
         :color colors/scene-grid-y-axis
-        :label "+Y"
         :normal (Vector3d. 0.0 1.0 0.0)
         :quad [[-1.0 1.0 -1.0] [1.0 1.0 -1.0] [1.0 1.0 1.0] [-1.0 1.0 1.0]]
+        :texture "scene/images/view_cube/pos_y.png"
         :u-axis [1.0 0.0 0.0]
         :v-axis [0.0 0.0 -1.0]}
    :-y {:center (Point3d. 0.0 -1.0 0.0)
         :color colors/scene-grid-y-axis
-        :label "-Y"
         :normal (Vector3d. 0.0 -1.0 0.0)
         :quad [[-1.0 -1.0 1.0] [1.0 -1.0 1.0] [1.0 -1.0 -1.0] [-1.0 -1.0 -1.0]]
+        :texture "scene/images/view_cube/neg_y.png"
         :u-axis [1.0 0.0 0.0]
         :v-axis [0.0 0.0 1.0]}
    :+z {:center (Point3d. 0.0 0.0 1.0)
         :color colors/scene-grid-z-axis
-        :label "+Z"
         :normal (Vector3d. 0.0 0.0 1.0)
         :quad [[-1.0 -1.0 1.0] [-1.0 1.0 1.0] [1.0 1.0 1.0] [1.0 -1.0 1.0]]
+        :texture "scene/images/view_cube/pos_z.png"
         :u-axis [1.0 0.0 0.0]
         :v-axis [0.0 1.0 0.0]}
    :-z {:center (Point3d. 0.0 0.0 -1.0)
         :color colors/scene-grid-z-axis
-        :label "-Z"
         :normal (Vector3d. 0.0 0.0 -1.0)
         :quad [[1.0 -1.0 -1.0] [1.0 1.0 -1.0] [-1.0 1.0 -1.0] [-1.0 -1.0 -1.0]]
+        :texture "scene/images/view_cube/neg_z.png"
         :u-axis [-1.0 0.0 0.0]
         :v-axis [0.0 1.0 0.0]}})
 
@@ -123,42 +128,19 @@
 (def ^:private face-uvs-by-axis
   (into {} (map (fn [[axis data]] [axis (face-uvs data)])) face->data))
 
-(def ^:private label-texture-size 128)
-
-(defn- make-label-image
-  "Draws the given axis label (white, anti-aliased, sans-serif bold) on a
-  transparent square. The resulting BufferedImage is uploaded as the decal
-  texture for that face, so the label rotates with the cube."
-  ^BufferedImage [^String label]
-  (let [image (BufferedImage. label-texture-size label-texture-size BufferedImage/TYPE_INT_ARGB)
-        g ^Graphics2D (.createGraphics image)
-        font (Font. Font/SANS_SERIF Font/BOLD 56)]
-    (try
-      (.setComposite g AlphaComposite/Clear)
-      (.fillRect g 0 0 label-texture-size label-texture-size)
-      (.setComposite g AlphaComposite/SrcOver)
-      (.setRenderingHint g RenderingHints/KEY_ANTIALIASING
-                         RenderingHints/VALUE_ANTIALIAS_ON)
-      (.setRenderingHint g RenderingHints/KEY_TEXT_ANTIALIASING
-                         RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
-      (.setColor g Color/WHITE)
-      (.setFont g font)
-      (let [metrics (.getFontMetrics g)
-            text-width (.stringWidth metrics label)
-            text-height (.getAscent metrics)
-            x (int (- (/ label-texture-size 2.0) (/ text-width 2.0)))
-            y (int (+ (/ label-texture-size 2.0) (/ text-height 3.0)))]
-        (.drawString g ^String label x y))
-      (finally
-        (.dispose g)))
-    image))
+(defn- load-label-image
+  "Loads a per-face axis label texture from the bundled PNG resource produced
+  by editor/scripts/GenerateViewCubeTextures.java."
+  ^BufferedImage [resource-path]
+  (with-open [in (io/input-stream (io/resource resource-path))]
+    (ImageIO/read in)))
 
 (def ^:private face-label-textures
   (into {}
-        (map (fn [[axis {:keys [label]}]]
+        (map (fn [[axis {:keys [texture]}]]
                [axis (texture/image-texture
                        [::face-label axis]
-                       (make-label-image label))]))
+                       (load-label-image texture))]))
         face->data))
 
 (def ^:private opposite-face
