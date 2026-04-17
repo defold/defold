@@ -477,9 +477,20 @@ namespace dmGraphics
         vk_clear_values[1].depthStencil.depth   = 1.0f;
         vk_clear_values[1].depthStencil.stencil = 0;
 
+        // For the main render target, choose between the "clear" render pass (first begin of the
+        // frame) and the "load" render pass (subsequent rebinds) so that the main RT's contents are
+        // preserved when rebinding to it mid-frame without triggering the UNDEFINED-initial-layout
+        // discard behavior.
+        VkRenderPass vk_render_pass = rt->m_Handle.m_RenderPass;
+        const bool is_main_rt = (render_target == context->m_MainRenderTarget);
+        if (is_main_rt && context->m_MainRTBegunThisFrame)
+        {
+            vk_render_pass = context->m_MainRenderPassLoad;
+        }
+
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        vk_render_pass_begin_info.renderPass          = rt->m_Handle.m_RenderPass;
+        vk_render_pass_begin_info.renderPass          = vk_render_pass;
         vk_render_pass_begin_info.framebuffer         = rt->m_Handle.m_Framebuffer;
         vk_render_pass_begin_info.pNext               = 0;
         vk_render_pass_begin_info.renderArea.offset.x = 0;
@@ -495,6 +506,11 @@ namespace dmGraphics
         rt->m_Scissor.extent   = rt->m_Extent;
         rt->m_Scissor.offset.x = 0;
         rt->m_Scissor.offset.y = 0;
+
+        if (is_main_rt)
+        {
+            context->m_MainRTBegunThisFrame = 1;
+        }
 
         context->m_CurrentRenderTarget = render_target;
 
@@ -722,14 +738,14 @@ namespace dmGraphics
         attachments[0].m_ImageLayout        = context->m_SwapChain->HasMultiSampling() ?
                                               VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL :
                                               VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachments[0].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
         // Depth/stencil attachment
         attachments[1].m_Format             = depth_stencil_texture->m_Format;
         attachments[1].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
         attachments[1].m_ImageLayout        = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachments[1].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
         // Optional resolve attachment (for MSAA)
@@ -745,6 +761,26 @@ namespace dmGraphics
         }
 
         res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
+        CHECK_VK_ERROR(res);
+
+        // Second render pass, compatible with m_MainRenderPass but with LOAD_OP_LOAD on the color
+        // attachment so that rebinding the main render target mid-frame preserves the previously
+        // rendered contents. The initial layout must match the layout the image is actually in at
+        // that point, which is the finalLayout of the first main render pass begin for this frame.
+        attachments[0].m_ImageLayoutInitial = attachments[0].m_ImageLayout;
+        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+
+        // Depth contents are not preserved between begins.
+        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+        if (context->m_SwapChain->HasMultiSampling())
+        {
+            // The resolve attachment is only ever written (via the subpass resolve), so we don't
+            // need to preserve its contents.
+            attachments[2].m_LoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        }
+
+        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPassLoad);
         CHECK_VK_ERROR(res);
 
         res = CreateMainFrameBuffers(context);
@@ -1552,8 +1588,9 @@ bail:
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
 
-        context->m_FrameBegun      = 1;
-        context->m_CurrentPipeline = 0;
+        context->m_FrameBegun            = 1;
+        context->m_MainRTBegunThisFrame  = 0;
+        context->m_CurrentPipeline       = 0;
 
         // Update current swapchain texture for rendering
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
@@ -4448,6 +4485,7 @@ bail:
         delete context->m_DefaultStorageImage2D;
 
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
+        vkDestroyRenderPass(vk_device, context->m_MainRenderPassLoad, 0);
 
         vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
         vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
