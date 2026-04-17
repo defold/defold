@@ -3366,9 +3366,23 @@ TEST_P(FactoryTest, Test)
 
             // --- step 4 ---
             // set and load a custom prototype, then create two instances
-            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-            dmGameObject::PostUpdate(m_Register);
+            for (;;)
+            {
+                lua_getglobal(L, "global_created");
+                bool ready = !lua_isnil(L, -1);
+                lua_pop(L, 1);
+                if (ready)
+                {
+                    lua_getglobal(L, "second_instance");
+                    dmhash_t second_instance = dmScript::CheckHash(L, -1);
+                    lua_pop(L, 1);
+                    if (dmGameObject::GetInstanceFromIdentifier(m_Collection, second_instance) != 0x0)
+                        break;
+                }
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
             ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
             if (custom_prototype_has_subresources)
             {
@@ -7259,13 +7273,11 @@ TEST_F(MaterialTest, TextureTransform2DAttribute)
     ASSERT_EQ(5u, attribute_count);
 
     const dmGraphics::VertexAttributeInfo* tt_attr = 0;
-    uint32_t tt_ix = -1;
     for (uint32_t i = 0; i < attribute_count; ++i)
     {
         if (attributes[i].m_NameHash == dmHashString64("texture_transform_2d"))
         {
             tt_attr = &attributes[i];
-            tt_ix = i;
             break;
         }
     }

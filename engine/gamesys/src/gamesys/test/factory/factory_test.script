@@ -30,12 +30,16 @@ local function delete_gameobjects(self)
     if self.first_instance ~= nil then
         go.delete(self.first_instance, true)
         self.first_instance = nil
+        first_instance = nil
     end
 
     if self.second_instance ~= nil then
         go.delete(self.second_instance, true)
         self.second_instance = nil
+        second_instance = nil
     end
+
+    global_created = nil
 end
 
 local function delete_recursive_instance(self)
@@ -97,6 +101,9 @@ function init(self)
     self.first_instance = nil
     self.second_instance = nil
     self.recursive_instance = nil
+    first_instance = nil
+    second_instance = nil
+    global_created = nil
     self.loading = false
     self.state = 1
     self.states = { "load", "unload", "delete" }
@@ -120,6 +127,9 @@ function load_complete(self, url, result)
     assert(result == true)
     self.first_instance = factory.create(url)
     self.second_instance = factory.create(url)
+    first_instance = self.first_instance
+    second_instance = self.second_instance
+    global_created = true
     self.loading = false
     next_state(self)
 end
