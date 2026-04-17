@@ -298,6 +298,7 @@ namespace dmRender
         SetProgramConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
 
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
+        material->m_HasMorphTargetsSampler = material->m_NameHashToLocation.Get(SAMPLER_MORPH_TARGETS) != 0x0;
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
@@ -610,6 +611,11 @@ namespace dmRender
     bool GetMaterialHasSkinnedMatrixCache(HMaterial material)
     {
         return material->m_HasSkinnedMatrixCache;
+    }
+
+    bool GetMaterialHasMorphTargetsSampler(HMaterial material)
+    {
+        return material->m_HasMorphTargetsSampler;
     }
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)

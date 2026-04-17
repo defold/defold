@@ -233,6 +233,13 @@ message EventTrack
     repeated EventKey keys = 2;
 }
 
+message MorphWeightTrack
+{
+    required uint64 model_id = 1;    // MeshSet Model id (name hash) whose morph targets this track samples
+    required uint32 morph_count = 2; // Morph weights per time sample; stride when indexing weights (must match mesh morph count at runtime)
+    repeated float weights = 3;      // Packed samples: morph_count floats per pose
+}
+
 message RigAnimation
 {
     required uint64 id = 1;
@@ -240,6 +247,7 @@ message RigAnimation
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
     repeated EventTrack event_tracks = 5;
+    repeated MorphWeightTrack morph_weight_tracks = 6;
 }
 
 message AnimationSet
@@ -262,6 +270,13 @@ enum IndexBufferFormat
 {
     INDEXBUFFER_FORMAT_16 = 0;
     INDEXBUFFER_FORMAT_32 = 1;
+}
+
+message MorphTarget
+{
+    repeated float positions_delta = 1;
+    repeated float normals_delta   = 2;
+    repeated float tangents_delta  = 3;
 }
 
 message Mesh
@@ -288,6 +303,8 @@ message Mesh
 
     optional uint32 material_index = 15; // index into the mesh set material list
 
+    repeated MorphTarget morph_targets = 16;
+    repeated float morph_base_weights = 17;
 }
 
 message Model // E.g. the Node in the Scene

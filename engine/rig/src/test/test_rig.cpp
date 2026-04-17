@@ -94,6 +94,15 @@ static void DeleteRigAnimation(dmRigDDF::RigAnimation& anim)
     if (anim.m_Tracks.m_Count) {
         delete [] anim.m_Tracks.m_Data;
     }
+
+    for (uint32_t m = 0; m < anim.m_MorphWeightTracks.m_Count; ++m)
+    {
+        dmRigDDF::MorphWeightTrack& mwt = anim.m_MorphWeightTracks.m_Data[m];
+        if (mwt.m_Weights.m_Count)
+            delete[] mwt.m_Weights.m_Data;
+    }
+    if (anim.m_MorphWeightTracks.m_Count)
+        delete[] anim.m_MorphWeightTracks.m_Data;
 }
 
 // Helper function to clean up / delete MeshSet, Skeleton and AnimationSet data
@@ -133,6 +142,16 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
                 delete[] mesh.m_Colors.m_Data;
                 delete[] mesh.m_BoneIndices.m_Data;
                 delete[] mesh.m_Weights.m_Data;
+
+                for (uint32_t ti = 0; ti < mesh.m_MorphTargets.m_Count; ++ti)
+                {
+                    dmRigDDF::MorphTarget& mt = mesh.m_MorphTargets.m_Data[ti];
+                    delete[] mt.m_PositionsDelta.m_Data;
+                    delete[] mt.m_NormalsDelta.m_Data;
+                    delete[] mt.m_TangentsDelta.m_Data;
+                }
+                delete[] mesh.m_MorphTargets.m_Data;
+                delete[] mesh.m_MorphBaseWeights.m_Data;
             }
 
             delete[] mesh_set->m_Models.m_Data[model_index].m_Meshes.m_Data;
@@ -286,6 +305,11 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Weights.m_Data[13]     = 0.0f;
     mesh.m_Weights.m_Data[14]     = 0.0f;
     mesh.m_Weights.m_Data[15]     = 0.0f;
+
+    mesh.m_MorphTargets.m_Count = 0;
+    mesh.m_MorphTargets.m_Data = 0x0;
+    mesh.m_MorphBaseWeights.m_Count = 0;
+    mesh.m_MorphBaseWeights.m_Data = 0x0;
 }
 
 static void CalcWorldTransforms(dmRigDDF::Bone* bones, uint32_t bone_count)
@@ -642,7 +666,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
 
         // Bone animations
         uint32_t animation_count = 6;
-        animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
+        animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count]();
         animation_set->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = animation_set->m_Animations.m_Data[0];
         dmRigDDF::RigAnimation& anim1 = animation_set->m_Animations.m_Data[1];
@@ -865,14 +889,14 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
 
         // Meshes / skins
         mesh_set->m_Models.m_Count = 2;
-        mesh_set->m_Models.m_Data = new dmRigDDF::Model[mesh_set->m_Models.m_Count];
+        mesh_set->m_Models.m_Data = new dmRigDDF::Model[mesh_set->m_Models.m_Count]();
 
-        mesh_set->m_Models.m_Data[0].m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+        mesh_set->m_Models.m_Data[0].m_Meshes.m_Data = new dmRigDDF::Mesh[1]();
         mesh_set->m_Models.m_Data[0].m_Meshes.m_Count = 1;
         mesh_set->m_Models.m_Data[0].m_Id = dmHashString64("test");
         mesh_set->m_Models.m_Data[0].m_Local.SetIdentity();
 
-        mesh_set->m_Models.m_Data[1].m_Meshes.m_Data = new dmRigDDF::Mesh[2];
+        mesh_set->m_Models.m_Data[1].m_Meshes.m_Data = new dmRigDDF::Mesh[2]();
         mesh_set->m_Models.m_Data[1].m_Meshes.m_Count = 2;
         mesh_set->m_Models.m_Data[1].m_Id = dmHashString64("test2");
         mesh_set->m_Models.m_Data[1].m_Local.SetIdentity();
@@ -1941,6 +1965,241 @@ TEST_F(RigContextTest, TestBindPoseCache)
 
     dmRig::InstanceDestroy(m_Context, instance);
     DeleteRigData(mesh_set, skeleton, animation_set);
+}
+
+// Mesh with morph targets only (minimal DDF); cleaned up with DeleteRigData(mesh_set, 0, anim_set).
+static dmRigDDF::MeshSet* NewMorphMeshSet(uint64_t model_id, uint32_t morph_count)
+{
+    dmRigDDF::MeshSet* mesh_set = new dmRigDDF::MeshSet();
+    mesh_set->m_Models.m_Count = 1;
+    mesh_set->m_Models.m_Data = new dmRigDDF::Model[1];
+    dmRigDDF::Model& model = mesh_set->m_Models.m_Data[0];
+    model.m_Id = model_id;
+    model.m_Local.SetIdentity();
+    model.m_Meshes.m_Count = 1;
+    model.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
+    dmRigDDF::Mesh& mesh = model.m_Meshes.m_Data[0];
+    memset(&mesh, 0, sizeof(mesh));
+
+    mesh.m_AabbMin = Vector3(-1.0f, -1.0f, -1.0f);
+    mesh.m_AabbMax = Vector3(1.0f, 1.0f, 1.0f);
+    mesh.m_MorphTargets.m_Count = morph_count;
+    mesh.m_MorphTargets.m_Data = new dmRigDDF::MorphTarget[morph_count];
+    for (uint32_t i = 0; i < morph_count; ++i)
+    {
+        memset(&mesh.m_MorphTargets.m_Data[i], 0, sizeof(dmRigDDF::MorphTarget));
+    }
+    mesh.m_MorphBaseWeights.m_Count = morph_count;
+    mesh.m_MorphBaseWeights.m_Data = new float[morph_count];
+    memset(mesh.m_MorphBaseWeights.m_Data, 0, morph_count * sizeof(float));
+    mesh_set->m_MaxBoneCount = 0;
+    mesh_set->m_BoneList.m_Count = 0;
+    mesh_set->m_BoneList.m_Data = 0;
+    return mesh_set;
+}
+
+static dmRigDDF::AnimationSet* NewEmptyAnimationSet()
+{
+    dmRigDDF::AnimationSet* anim_set = new dmRigDDF::AnimationSet();
+    anim_set->m_Animations.m_Count = 0;
+    anim_set->m_Animations.m_Data = 0;
+    return anim_set;
+}
+
+static dmRig::HRigInstance CreateMorphOnlyRigInstance(dmRig::HRigContext ctx, dmRigDDF::MeshSet* mesh_set, dmRigDDF::AnimationSet* anim_set, uint64_t model_id)
+{
+    dmArray<dmRig::RigBone> bind_pose;
+    dmHashTable64<uint32_t> bone_indices;
+    bone_indices.SetCapacity(1, 1);
+    dmRig::InstanceCreateParams ip = {};
+    ip.m_BindPose = &bind_pose;
+    ip.m_BoneIndices = &bone_indices;
+    ip.m_Skeleton = 0;
+    ip.m_MeshSet = mesh_set;
+    ip.m_AnimationSet = anim_set;
+    ip.m_ModelId = model_id;
+    dmRig::HRigInstance inst = 0;
+    if (dmRig::InstanceCreate(ctx, ip, &inst) != dmRig::RESULT_OK)
+        return 0;
+    return inst;
+}
+
+TEST(RigMorphWeights, SetMorphWeightsWritesBuffer)
+{
+    dmRig::HRigContext ctx = 0;
+    dmRig::NewContextParams cp = {};
+    cp.m_MaxRigInstanceCount = 1;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(cp, &ctx));
+
+    const uint64_t model_id = dmHashString64("morph_set_test");
+    dmRigDDF::MeshSet* mesh_set = NewMorphMeshSet(model_id, 3);
+    dmRigDDF::AnimationSet* anim_set = NewEmptyAnimationSet();
+    dmRig::HRigInstance inst = CreateMorphOnlyRigInstance(ctx, mesh_set, anim_set, model_id);
+    ASSERT_NE((dmRig::HRigInstance)0, inst);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(ctx, 0.0f));
+
+    uint32_t wc = 0;
+    const float* w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_EQ(3u, wc);
+    ASSERT_NEAR(0.0f, w[0], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, w[1], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, w[2], RIG_EPSILON_FLOAT);
+
+    float set3[] = { 0.1f, 0.2f, 0.3f };
+    dmRig::SetMorphWeights(inst, model_id, set3, 3);
+    w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_EQ(3u, wc);
+    ASSERT_NEAR(0.1f, w[0], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.2f, w[1], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.3f, w[2], RIG_EPSILON_FLOAT);
+
+    dmRig::InstanceDestroy(ctx, inst);
+    DeleteRigData(mesh_set, 0, anim_set);
+    dmRig::DeleteContext(ctx);
+}
+
+TEST(RigMorphWeights, SetMorphWeightsPartialFillsRestWithZero)
+{
+    dmRig::HRigContext ctx = 0;
+    dmRig::NewContextParams cp = {};
+    cp.m_MaxRigInstanceCount = 1;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(cp, &ctx));
+
+    const uint64_t model_id = dmHashString64("morph_partial");
+    dmRigDDF::MeshSet* mesh_set = NewMorphMeshSet(model_id, 3);
+    dmRigDDF::AnimationSet* anim_set = NewEmptyAnimationSet();
+    dmRig::HRigInstance inst = CreateMorphOnlyRigInstance(ctx, mesh_set, anim_set, model_id);
+    ASSERT_NE((dmRig::HRigInstance)0, inst);
+
+    float one = 0.55f;
+    dmRig::SetMorphWeights(inst, model_id, &one, 1);
+
+    uint32_t wc = 0;
+    const float* w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_EQ(3u, wc);
+    ASSERT_NEAR(0.55f, w[0], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, w[1], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.0f, w[2], RIG_EPSILON_FLOAT);
+
+    dmRig::InstanceDestroy(ctx, inst);
+    DeleteRigData(mesh_set, 0, anim_set);
+    dmRig::DeleteContext(ctx);
+}
+
+TEST(RigMorphWeights, SetMorphWeightsTruncatesWhenSourceTooLong)
+{
+    dmRig::HRigContext ctx = 0;
+    dmRig::NewContextParams cp = {};
+    cp.m_MaxRigInstanceCount = 1;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(cp, &ctx));
+
+    const uint64_t model_id = dmHashString64("morph_trunc");
+    dmRigDDF::MeshSet* mesh_set = NewMorphMeshSet(model_id, 2);
+    dmRigDDF::AnimationSet* anim_set = NewEmptyAnimationSet();
+    dmRig::HRigInstance inst = CreateMorphOnlyRigInstance(ctx, mesh_set, anim_set, model_id);
+    ASSERT_NE((dmRig::HRigInstance)0, inst);
+
+    float many[] = { 0.25f, 0.5f, 0.75f, 1.0f };
+    dmRig::SetMorphWeights(inst, model_id, many, 4);
+
+    uint32_t wc = 0;
+    const float* w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_EQ(2u, wc);
+    ASSERT_NEAR(0.25f, w[0], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.5f, w[1], RIG_EPSILON_FLOAT);
+
+    dmRig::InstanceDestroy(ctx, inst);
+    DeleteRigData(mesh_set, 0, anim_set);
+    dmRig::DeleteContext(ctx);
+}
+
+TEST(RigMorphWeights, SetMorphWeightsUnknownModelIgnored)
+{
+    dmRig::HRigContext ctx = 0;
+    dmRig::NewContextParams cp = {};
+    cp.m_MaxRigInstanceCount = 1;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(cp, &ctx));
+
+    const uint64_t model_id = dmHashString64("morph_known");
+    dmRigDDF::MeshSet* mesh_set = NewMorphMeshSet(model_id, 2);
+    dmRigDDF::AnimationSet* anim_set = NewEmptyAnimationSet();
+    dmRig::HRigInstance inst = CreateMorphOnlyRigInstance(ctx, mesh_set, anim_set, model_id);
+    ASSERT_NE((dmRig::HRigInstance)0, inst);
+
+    float setv[] = { 0.4f, 0.6f };
+    dmRig::SetMorphWeights(inst, model_id, setv, 2);
+
+    const uint64_t wrong_id = dmHashString64("no_such_model");
+    float bad[] = { 9.0f, 9.0f };
+    dmRig::SetMorphWeights(inst, wrong_id, bad, 2);
+
+    uint32_t wc = 0;
+    const float* w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_EQ(2u, wc);
+    ASSERT_NEAR(0.4f, w[0], RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.6f, w[1], RIG_EPSILON_FLOAT);
+
+    dmRig::InstanceDestroy(ctx, inst);
+    DeleteRigData(mesh_set, 0, anim_set);
+    dmRig::DeleteContext(ctx);
+}
+
+TEST(RigMorphWeights, SetMorphWeightsOverriddenByNextUpdate)
+{
+    dmRig::HRigContext ctx = 0;
+    dmRig::NewContextParams cp = {};
+    cp.m_MaxRigInstanceCount = 1;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::NewContext(cp, &ctx));
+
+    dmRigDDF::MeshSet* mesh_set = NewMorphMeshSet(dmHashString64("morph_anim_override"), 1);
+    dmRigDDF::Model& model = mesh_set->m_Models.m_Data[0];
+    const uint64_t model_id = model.m_Id;
+
+    dmRigDDF::AnimationSet* anim_set = new dmRigDDF::AnimationSet();
+    anim_set->m_Animations.m_Count = 1;
+    anim_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[1];
+    dmRigDDF::RigAnimation& anim = anim_set->m_Animations.m_Data[0];
+    anim.m_Id = dmHashString64("morph_clip");
+    anim.m_Duration = 1.0f;
+    anim.m_SampleRate = 1.0f;
+    anim.m_Tracks.m_Count = 0;
+    anim.m_Tracks.m_Data = 0;
+    anim.m_EventTracks.m_Count = 0;
+    anim.m_MorphWeightTracks.m_Count = 1;
+    anim.m_MorphWeightTracks.m_Data = new dmRigDDF::MorphWeightTrack[1];
+    dmRigDDF::MorphWeightTrack& mwt = anim.m_MorphWeightTracks.m_Data[0];
+    mwt.m_ModelId = model_id;
+    mwt.m_MorphCount = 1;
+    mwt.m_Weights.m_Count = 2;
+    mwt.m_Weights.m_Data = new float[2];
+    mwt.m_Weights.m_Data[0] = 0.1f;
+    mwt.m_Weights.m_Data[1] = 0.9f;
+
+    dmRig::HRigInstance inst = CreateMorphOnlyRigInstance(ctx, mesh_set, anim_set, model_id);
+    ASSERT_NE((dmRig::HRigInstance)0, inst);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(inst, anim.m_Id, dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetCursor(inst, 0.0f, false));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(ctx, 0.0f));
+
+    uint32_t wc = 0;
+    const float* w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_EQ(1u, wc);
+    ASSERT_NEAR(0.1f, w[0], RIG_EPSILON_FLOAT);
+
+    float manual = 0.88f;
+    dmRig::SetMorphWeights(inst, model_id, &manual, 1);
+    w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_NEAR(0.88f, w[0], RIG_EPSILON_FLOAT);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(ctx, 0.0f));
+    w = dmRig::GetMorphWeights(inst, model_id, &wc);
+    ASSERT_NEAR(0.1f, w[0], RIG_EPSILON_FLOAT);
+
+    dmRig::InstanceDestroy(ctx, inst);
+    DeleteRigData(mesh_set, 0, anim_set);
+    dmRig::DeleteContext(ctx);
 }
 
 #undef ASSERT_VERT_POS

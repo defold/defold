@@ -63,6 +63,7 @@ namespace dmGameSystem
         ModelResourceBuffers*   m_Buffers; // Currently a vertex+index buffer per mesh
         dmRigDDF::Model*        m_Model;   // For the transform
         dmRigDDF::Mesh*         m_Mesh;
+        dmGraphics::HTexture    m_MorphTargetTexture;
     };
 
     struct MaterialTextureInfo

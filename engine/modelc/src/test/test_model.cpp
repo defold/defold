@@ -134,6 +134,35 @@ TEST(ModelGLTF, Load)
     free(mem);
 }
 
+TEST(ModelGLTF, MorphWeightsAnimationChannel)
+{
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene("./src/test/assets/morph_weights_anim.gltf", options);
+    ASSERT_NE((void*)0, scene);
+    ASSERT_EQ(1u, scene->m_Animations.Size());
+    const dmModelImporter::Animation& anim = scene->m_Animations[0];
+    ASSERT_EQ(1u, anim.m_NodeAnimations.Size());
+    const dmModelImporter::NodeAnimation& na = anim.m_NodeAnimations[0];
+    ASSERT_EQ(2u, na.m_MorphWeightDimensions);
+    ASSERT_EQ(2u, na.m_MorphWeightKeyTimes.Size());
+    ASSERT_EQ(4u, na.m_MorphWeightKeyValues.Size());
+    ASSERT_NEAR(0.0f, na.m_MorphWeightKeyTimes[0], 1e-6f);
+    ASSERT_NEAR(1.0f, na.m_MorphWeightKeyTimes[1], 1e-6f);
+    ASSERT_NEAR(0.0f, na.m_MorphWeightKeyValues[0], 1e-6f);
+    ASSERT_NEAR(0.0f, na.m_MorphWeightKeyValues[1], 1e-6f);
+    ASSERT_NEAR(1.0f, na.m_MorphWeightKeyValues[2], 1e-6f);
+    ASSERT_NEAR(0.5f, na.m_MorphWeightKeyValues[3], 1e-6f);
+
+    ASSERT_EQ(1u, scene->m_Models.Size());
+    ASSERT_EQ(1u, scene->m_Models[0].m_Meshes.Size());
+    ASSERT_EQ(2u, scene->m_Models[0].m_Meshes[0].m_MorphTargets.Size());
+    ASSERT_EQ(2u, scene->m_Models[0].m_Meshes[0].m_MorphBaseWeights.Size());
+    ASSERT_NEAR(0.0f, scene->m_Models[0].m_Meshes[0].m_MorphBaseWeights[0], 1e-6f);
+    ASSERT_NEAR(0.0f, scene->m_Models[0].m_Meshes[0].m_MorphBaseWeights[1], 1e-6f);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 TEST(ModelGLTF, LoadSkeleton)
 {
     const char* path = "./src/test/assets/skeleton1.gltf";
