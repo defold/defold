@@ -14,50 +14,19 @@
 
 (ns editor.gl.light-uniforms-test
   (:require [clojure.test :refer :all]
-            [editor.gl.light-uniforms :as light-u]
             [editor.geom :as geom]
-            [editor.light :as light]
-            [editor.gl.pass :as pass])
+            [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.light :as light])
   (:import [javax.vecmath Matrix4d Vector3d Vector4d]))
 
-(deftest default-preview-lights-shape-test
-  (let [lights light-u/default-preview-lights]
-    (is (= 1 (count lights)))
-    (let [m (first lights)]
-      (is (every? #(contains? m %) [:position :color :direction_range :params]))
-      (is (instance? Vector4d (:position m))))))
-
-(deftest pack-lights-roundtrip-test
-  (is (= light-u/default-preview-lights (light-u/pack-lights light-u/default-preview-lights))))
-
-(deftest lights-std140-float-array-order-test
-  (let [lights [{:position (Vector4d. 1.0 2.0 3.0 4.0)
-                 :color (Vector4d. 5.0 6.0 7.0 8.0)
-                 :direction_range (Vector4d. 9.0 10.0 11.0 12.0)
-                 :params (Vector4d. 13.0 14.0 15.0 16.0)}]
-        ^floats a (light-u/lights-std140->float-array lights)]
-    (is (= 16 (alength a)))
-    (dotimes [i 16]
-      (is (= (float (inc i)) (aget a i)) (str "index " i)))))
-
-(deftest lights-std140-two-lights-test
-  (let [l1 {:position (Vector4d. 1 0 0 0)
-            :color (Vector4d. 2 0 0 0)
-            :direction_range (Vector4d. 3 0 0 0)
-            :params (Vector4d. 4 0 0 0)}
-        l2 {:position (Vector4d. 5 0 0 0)
-            :color (Vector4d. 6 0 0 0)
-            :direction_range (Vector4d. 7 0 0 0)
-            :params (Vector4d. 8 0 0 0)}
-        ^floats a (light-u/lights-std140->float-array [l1 l2])]
-    (is (= 32 (alength a)))
-    (is (= 1.0 (aget a 0)))
-    (is (= 5.0 (aget a 16)))))
+(defn- ^Matrix4d identity-m4 []
+  (doto (Matrix4d.) (.setIdentity)))
 
 (deftest renderable->std140-point-red-test
-  (let [m (light-u/renderable->std140-light
+  (let [m (shader/renderable->std140-light
             {:world-translation (Vector3d. 3.0 4.0 5.0)
-             :world-transform (doto (Matrix4d.) (.setIdentity))
+             :world-transform (identity-m4)
              :user-data {:editor-preview-light {:light-type :point
                                                 :color [1.0 0.0 0.0 1.0]
                                                 :intensity 1.0
@@ -69,23 +38,72 @@
     (is (< (Math/abs (- 170.0 (.w ^Vector4d (:direction_range m)))) 1e-6))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:params m)))) 1e-6))))
 
-(deftest packed-lights-from-scene-prefers-scene-test
+(deftest packed-lights-from-scene-transparent-pass-test
   (let [r {:node-id-path [:a :b]
-            :world-translation (Vector3d. 0.0 0.0 0.0)
-            :world-transform (doto (Matrix4d.) (.setIdentity))
-            :user-data {:editor-preview-light {:light-type :point
-                                               :color [1.0 0.0 0.0 1.0]
-                                               :intensity 1.0
-                                               :range 10.0
-                                               :direction [0.0 0.0 -1.0]
-                                               :inner-cone-angle 0.0
-                                               :outer-cone-angle 45.0}}}
-        pl (light-u/packed-lights-from-scene {pass/outline [r]})]
+           :world-translation (Vector3d. 0.0 0.0 0.0)
+           :world-transform (identity-m4)
+           :user-data {:editor-preview-light {:light-type :point
+                                              :color [1.0 0.0 0.0 1.0]
+                                              :intensity 1.0
+                                              :range 10.0
+                                              :direction [0.0 0.0 -1.0]
+                                              :inner-cone-angle 0.0
+                                              :outer-cone-angle 45.0}}}
+        pl (shader/packed-lights-from-scene {pass/transparent [r]})]
     (is (= 1 (count pl)))
     (is (< (Math/abs (- 1.0 (.x ^Vector4d (:color (first pl))))) 1e-6))))
 
+(deftest packed-lights-from-scene-ignores-non-transparent-passes-test
+  (let [r {:node-id-path [:a :b]
+           :world-translation (Vector3d. 0.0 0.0 0.0)
+           :world-transform (identity-m4)
+           :user-data {:editor-preview-light {:light-type :point
+                                              :color [1.0 1.0 1.0 1.0]
+                                              :intensity 1.0
+                                              :range 10.0
+                                              :inner-cone-angle 0.0
+                                              :outer-cone-angle 45.0}}}]
+    (is (= [] (shader/packed-lights-from-scene {pass/outline [r]})))
+    (is (= [] (shader/packed-lights-from-scene {pass/selection [r]})))
+    (is (= [] (shader/packed-lights-from-scene {})))))
+
+(deftest packed-lights-from-scene-dedupes-by-node-id-path-test
+  (let [preview {:light-type :point
+                 :color [1.0 1.0 1.0 1.0]
+                 :intensity 1.0
+                 :range 10.0
+                 :inner-cone-angle 0.0
+                 :outer-cone-angle 45.0}
+        r1 {:node-id-path [:a :b]
+            :world-translation (Vector3d. 1.0 0.0 0.0)
+            :world-transform (identity-m4)
+            :user-data {:editor-preview-light preview}}
+        r2 {:node-id-path [:a :b]
+            :world-translation (Vector3d. 2.0 0.0 0.0)
+            :world-transform (identity-m4)
+            :user-data {:editor-preview-light preview}}
+        pl (shader/packed-lights-from-scene {pass/transparent [r1 r2]})]
+    (is (= 1 (count pl)))
+    (is (< (Math/abs (- 1.0 (.x ^Vector4d (:position (first pl))))) 1e-6))))
+
+(deftest packed-lights-from-scene-caps-at-max-test
+  (let [preview {:light-type :point
+                 :color [1.0 1.0 1.0 1.0]
+                 :intensity 1.0
+                 :range 10.0
+                 :inner-cone-angle 0.0
+                 :outer-cone-angle 45.0}
+        renderables (mapv (fn [i]
+                            {:node-id-path [:r i]
+                             :world-translation (Vector3d. (double i) 0.0 0.0)
+                             :world-transform (identity-m4)
+                             :user-data {:editor-preview-light preview}})
+                          (range (+ 4 (long shader/default-max-preview-lights))))
+        pl (shader/packed-lights-from-scene {pass/transparent renderables})]
+    (is (= (long shader/default-max-preview-lights) (count pl)))))
+
 (deftest point-light-preview-updates-shader-range-test
-  (let [[_ user-data] (#'editor.light/point-light-preview-fn
+  (let [[_ user-data] (#'light/point-light-preview-fn
                         geom/null-aabb
                         {:range 10.0
                          :editor-preview-light {:light-type :point
@@ -95,9 +113,9 @@
                                                 :inner-cone-angle 0.0
                                                 :outer-cone-angle 45.0}}
                         {:range 25.0})
-        packed-light (light-u/renderable->std140-light
+        packed-light (shader/renderable->std140-light
                        {:world-translation (Vector3d. 0.0 0.0 0.0)
-                        :world-transform (doto (Matrix4d.) (.setIdentity))
+                        :world-transform (identity-m4)
                         :user-data user-data})]
     (is (= 25.0 (get-in user-data [:editor-preview-light :range])))
     (is (< (Math/abs (- 25.0 (.w ^Vector4d (:direction_range packed-light)))) 1e-6))))
