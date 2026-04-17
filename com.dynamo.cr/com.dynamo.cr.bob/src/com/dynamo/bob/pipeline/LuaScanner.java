@@ -544,8 +544,8 @@ public class LuaScanner {
         return stringArgs;
     }
 
-    // returns boolean if parsing successful and fill double[] with parsed values with needed length.
-    private static boolean getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
+    // returns InvalidValue if parsing fails and fills double[] if successful.
+    private static InvalidValue getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
         LuaParser.ExplistContext expListCtx = argsCtx.explist();
         // no values for example vmath.vector3()
         if (expListCtx != null) {
@@ -556,11 +556,19 @@ public class LuaScanner {
                 LuaParser.ExpContext exp = val.exp(0);
                 int firstTokenType = val.getStart().getType();
                 if (num != null || (exp != null && exp.number() != null && firstTokenType == LuaParser.MINUS)) {
-                    resultArgs[count] = Double.parseDouble(val.getText());
+                    if (count >= resultArgs.length) {
+                        return new InvalidValue("wrong number of numeric arguments");
+                    }
+                    try {
+                        resultArgs[count] = Double.parseDouble(val.getText());
+                    }
+                    catch (NumberFormatException e) {
+                        return new InvalidValue("wrong number format: '" + val.getText() + "'");
+                    }
                     count++;
                 } else {
                     // the value isn't a number
-                    return false;
+                    return new InvalidValue("invalid numeric argument: '" + val.getText() + "'");
                 }
 
             }
@@ -570,10 +578,12 @@ public class LuaScanner {
                     resultArgs[i] = resultArgs[0];
                 }
             } else {
-                return count == resultArgs.length;
+                if (count != resultArgs.length) {
+                    return new InvalidValue("wrong number of numeric arguments");
+                }
             }
         }
-        return true;
+        return null;
     }
 
     private record FunctionDescriptor(String objectName, String functionName) {
@@ -666,30 +676,30 @@ public class LuaScanner {
                     if (fnDesc.isName("vector3")) {
                         Vector3d v = new Vector3d();
                         double[] resultArgs = new double[3];
-                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
-                            v.set(resultArgs);
-                            return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR3, v);
-                        } else {
-                            return new InvalidValue("invalid vmath.vector3() arguments");
+                        var invalidValue = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        if (invalidValue != null) {
+                            return invalidValue;
                         }
+                        v.set(resultArgs);
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR3, v);
                     } else if (fnDesc.isName("vector4")) {
                         Vector4d v = new Vector4d();
                         double[] resultArgs = new double[4];
-                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
-                            v.set(resultArgs);
-                            return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR4, v);
-                        } else {
-                            return new InvalidValue("invalid vmath.vector4() arguments");
+                        var invalidValue = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        if (invalidValue != null) {
+                            return invalidValue;
                         }
+                        v.set(resultArgs);
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR4, v);
                     } else if (fnDesc.isName("quat")) {
                         Quat4d q = new Quat4d();
                         double[] resultArgs = new double[4];
-                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
-                            q.set(resultArgs);
-                            return new Success(ctx, PropertyType.PROPERTY_TYPE_QUAT, q);
-                        } else {
-                            return new InvalidValue("invalid vmath.quat() arguments");
+                        var invalidValue = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        if (invalidValue != null) {
+                            return invalidValue;
                         }
+                        q.set(resultArgs);
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_QUAT, q);
                     } else {
                         return new InvalidValue("unexpected vmath function");
                     }

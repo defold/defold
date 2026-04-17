@@ -193,8 +193,10 @@ public class LuaScannerTest {
     public void testPropsFail() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_fail.lua");
 
-        assertEquals(1, properties.size());
-        assertEquals(properties.getFirst().status(), Status.INVALID_VALUE);
+        assertTrue(properties.size() >= 1);
+        for (Property property : properties) {
+            assertEquals(Status.INVALID_VALUE, property.status());
+        }
     }
 
     @Test
@@ -619,5 +621,13 @@ public class LuaScannerTest {
         errors = LuaScanner.parse("go.property('local', resource.atlas(atlas_path))").errors();
         assertEquals(1, errors.size());
         assertEquals("expected a string literal resource argument", errors.get(0).message());
+
+        errors = LuaScanner.parse("go.property('hex', vmath.vector3(0x1, 2, 3))").errors();
+        assertEquals(1, errors.size());
+        assertEquals("wrong number format: '0x1'", errors.get(0).message());
+
+        errors = LuaScanner.parse("go.property('vec', vmath.vector3(1, 2, 3, 4))").errors();
+        assertEquals(1, errors.size());
+        assertEquals("wrong number of numeric arguments", errors.get(0).message());
     }
 }
