@@ -338,12 +338,9 @@ dialog.fetch-libraries.host-unreachable.content = Servidor inacessível\: {host}
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = Dependências do projeto mudaram. Você deseja obter as bibliotecas agora?
-notification.fetch-libraries.dependencies-changed.action.fetch = Buscar Bibliotecas
-notification.fetch-libraries.dependencies-missing.warning = Estão faltando as seguintes dependências\:\n{dependencies}\nO projeto pode não funcionar sem elas.\nPara baixar, conecte-se à internet e busque as bibliotecas.
-notification.fetch-libraries.dependencies-error.error = Não foi possível instalar as seguintes dependências\:\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = Abrir game.project
-notification.fetch-libraries.min-version.error = Biblioteca {uri} requer Defold {required} ou mais recente (a versão atual do Defold é {current}). Atualize o Defold ou verifique versões de extensão mais antigas para compatibilidade.
+notification.fetch-libraries.changed = Dependências do projeto mudaram. Você deseja obter as bibliotecas agora?
+notification.fetch-libraries.action.fetch = Buscar Bibliotecas
+notification.fetch-libraries.action.open-game-project = Abrir game.project
 
 # Settings notifications
 

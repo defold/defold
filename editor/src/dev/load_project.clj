@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.library :as library]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -148,12 +149,12 @@
 (defonce game-project-resource
   (workspace/file-resource workspace "/game.project"))
 
-(defonce up-to-date-lib-states
+(defonce up-to-date-lib-results
   (run-and-measure-task!
     :fetch-libraries
     (let [dependencies (project/read-dependencies game-project-resource)
-          stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)]
-      (workspace/install-validated-libraries! workspace stale-lib-states))))
+          library-results (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)]
+      (workspace/set-project-dependencies! workspace library-results))))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!

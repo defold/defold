@@ -84,7 +84,7 @@
 ;; │   └── props.script
 ;; └── test.particlefx
 
-(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2"))
+(def ^:private lib-uris (library/parse-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2"))
 
 (def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
 (def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
@@ -546,7 +546,7 @@
         (is (= initial-graph-nodes (graph-nodes project)))
 
         ;; actual test
-        (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
           (asset-browser/rename [images-dir-resource] "graphics" test-util/localization))
 
@@ -588,7 +588,7 @@
         (is (= (map g/override-original game_object>main-go-scripts)
                [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}])
+        (test-util/set-cached-project-dependencies! workspace [scriptlib-uri])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
           (asset-browser/rename [scripts-dir-resource] "project_scripts" test-util/localization))
 
@@ -623,7 +623,7 @@
             images>pow-resource (resource images>pow)
             image>ball (project/get-resource-node project "/images/ball.png")
             initial-graph-nodes (graph-nodes project)]
-        (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [_src-dest-pairs _localization] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
             (asset-browser/rename [images-dir-resource] "graphics" test-util/localization)))
@@ -662,7 +662,7 @@
             initial-graph-nodes (graph-nodes project)]
         (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}]) ; /scripts/main.script
+        (test-util/set-cached-project-dependencies! workspace [scriptlib-uri]) ; /scripts/main.script
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [_src-dest-pairs _localization] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
             (asset-browser/rename [scripts-dir-resource] "main" test-util/localization)))

@@ -1005,8 +1005,6 @@
    (clear-caches! :project :scene :system))
   ([& cache-kws]
    (let [clear-cache? (set cache-kws)]
-     (when (clear-cache? :library)
-       (test-util/clear-cached-libraries!))
      (when (clear-cache? :project)
        (test-util/clear-cached-projects!))
      (when (clear-cache? :scene)

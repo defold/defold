@@ -18,14 +18,14 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.eduction :as e]))
+            [util.eduction :as e])
+  (:import [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Result]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -199,14 +199,11 @@
   library.defold_min_version)."
   [dependencies]
   (into []
-        (comp
-          (filter #(and (= :error (:status %))
-                        (= :defold-min-version (:reason %))))
-          (map (fn [{:keys [uri required current]}]
-                 (g/map->error
-                   {:severity :fatal
-                    :message (localization/message "notification.fetch-libraries.min-version.error"
-                                                   {"uri" uri "required" required "current" current})}))))
+        (keep
+          (fn [^Library$Result result]
+            (when-let [problem (.problem result)]
+              (when (instance? Library$Problem$DefoldMinVersion problem)
+                (g/map->error {:severity :fatal :message (workspace/library-result-message result)})))))
         dependencies))
 
 (g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]

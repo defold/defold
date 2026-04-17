@@ -33,6 +33,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.input :as input]
+            [editor.library :as library]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.material :as material]
@@ -376,9 +377,13 @@
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
+(defn set-cached-project-dependencies! [workspace library-uris]
+  (->> (library/cached (workspace/project-directory workspace) library-uris)
+       (workspace/set-project-dependencies! workspace)))
 
 (defn set-libraries! [workspace library-uris]
   (let [library-uris
@@ -390,8 +395,8 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn distinct-resource-types-by-editability
@@ -573,9 +578,6 @@
         [@g/*the-system* workspace project]))))
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
-
-(defn clear-cached-libraries! []
-  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
 
 (defn clear-cached-projects! []
   (fn/clear-memoized! load-system-and-project))

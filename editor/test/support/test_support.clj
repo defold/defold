@@ -16,7 +16,11 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.fs :as fs]
-            [internal.system :as is]))
+            [internal.system :as is])
+  (:import [java.io File]
+           [java.net URI]
+           [java.util Base64]
+           [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -76,6 +80,18 @@
 
 (defn write-until-new-mtime [f content]
   (do-until-new-mtime (fn [f] (fs/create-file! f content)) f))
+
+(defn library-directory ^File [project-directory]
+  (io/file (io/as-file project-directory) ".internal/lib"))
+
+(defn library-files [project-directory]
+  (seq (.listFiles (library-directory project-directory))))
+
+(defn library-file ^File [project-directory ^URI library-uri tag]
+  (let [hash (DigestUtils/sha1Hex (str library-uri))
+        ^String tag (or tag "")
+        encoded-tag (.encodeToString (Base64/getUrlEncoder) (.getBytes tag "UTF-8"))]
+    (io/file (library-directory project-directory) (str hash "-" encoded-tag ".zip"))))
 
 (defn graph-dependencies
   ([tgts]
