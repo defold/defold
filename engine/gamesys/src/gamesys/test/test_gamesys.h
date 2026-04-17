@@ -291,6 +291,7 @@ public:
 struct FactoryTestParams
 {
     const char* m_GOPath;
+    const char* m_PrototypePath; // If set, then it uses "Dynamic Prototype"
     bool m_IsDynamic;
     bool m_IsPreloaded;
 };
@@ -299,6 +300,12 @@ class FactoryTest : public GamesysTest<FactoryTestParams>
 {
 public:
     ~FactoryTest() override = default;
+};
+
+class FactoryRecursivePrototypeTest : public GamesysTest<FactoryTestParams>
+{
+public:
+    ~FactoryRecursivePrototypeTest() override = default;
 };
 
 struct CollectionFactoryTestParams
@@ -313,6 +320,12 @@ class CollectionFactoryTest : public GamesysTest<CollectionFactoryTestParams>
 {
 public:
     ~CollectionFactoryTest() override = default;
+};
+
+class CollectionFactoryRecursivePrototypeTest : public GamesysTest<CollectionFactoryTestParams>
+{
+public:
+    ~CollectionFactoryRecursivePrototypeTest() override = default;
 };
 
 class SpriteTest : public ScriptBaseTest
@@ -705,37 +718,40 @@ void GamesysTest<T>::SetUp()
 template<typename T>
 void GamesysTest<T>::TearDown()
 {
-    dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
+    dmGameObject::DeleteCollections(m_Register);
+    m_Collection = 0;
+
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
+
+    dmResource::DeregisterTypes(m_Factory, &m_Contexts);
 
     dmGameObject::ComponentTypeCreateCtx component_create_ctx;
     SetupComponentCreateContext(component_create_ctx);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
-    dmResource::DeregisterTypes(m_Factory, &m_Contexts);
+    dmGameObject::DeleteRegister(m_Register);
+
+    dmSound::Finalize();
+    dmInput::DeleteContext(m_InputContext);
+    dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+    dmHID::Final(m_HidContext);
+    dmHID::DeleteContext(m_HidContext);
+    dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
 
     dmExtension::Finalize(&m_Params);
-    dmExtension::AppFinalize(&m_AppParams);
 
     ExtensionParamsFinalize(&m_Params);
-    ExtensionAppParamsFinalize(&m_AppParams);
 
-    dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
-    dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+    dmScript::Finalize(m_ScriptContext);
+    dmScript::DeleteContext(m_ScriptContext);
+    dmResource::DeleteFactory(m_Factory);
+
     JobSystemDestroy(m_JobContext);
     dmGraphics::CloseWindow(m_GraphicsContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
     dmPlatform::CloseWindow(m_Window);
     dmPlatform::DeleteWindow(m_Window);
-    dmScript::Finalize(m_ScriptContext);
-    dmScript::DeleteContext(m_ScriptContext);
-    dmResource::DeleteFactory(m_Factory);
-    dmGameObject::DeleteRegister(m_Register);
-    dmSound::Finalize();
-    dmInput::DeleteContext(m_InputContext);
-    dmHID::Final(m_HidContext);
-    dmHID::DeleteContext(m_HidContext);
 
     if (m_PhysicsContextBullet3D.m_Context)
     {
@@ -746,6 +762,10 @@ void GamesysTest<T>::TearDown()
     {
         dmPhysics::DeleteContext2D(m_PhysicsContextBox2D.m_Context);
     }
+
+    dmExtension::AppFinalize(&m_AppParams);
+    ExtensionAppParamsFinalize(&m_AppParams);
+
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
 }
