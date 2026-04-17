@@ -45,6 +45,19 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    static void ReleaseTextEntries(TextContext& text_context)
+    {
+        uint32_t entry_count = text_context.m_TextEntries.Size();
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+            HTextLayout text_layout = text_context.m_TextEntries[i].m_TextLayout;
+            if (text_layout)
+            {
+                TextLayoutRelease(text_layout);
+            }
+        }
+    }
+
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
         // TODO: Why does the vertex need to be 16-byte aligned?
@@ -100,6 +113,7 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        ReleaseTextEntries(text_context);
         for (uint32_t i = 0; i < text_context.m_ConstantBuffers.Size(); ++i)
         {
             dmRender::DeleteNamedConstantBuffer(text_context.m_ConstantBuffers[i]);
@@ -109,6 +123,14 @@ namespace dmRender
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
 
         DestroyFontRenderBackend(text_context.m_FontRenderBackend);
+    }
+
+    void ClearTextEntries(HRenderContext render_context)
+    {
+        TextContext& text_context = render_context->m_TextContext;
+        ReleaseTextEntries(text_context);
+        text_context.m_TextEntries.SetSize(0);
+        text_context.m_TextEntriesFlushed = 0;
     }
 
     DrawTextParams::DrawTextParams()
@@ -253,6 +275,10 @@ namespace dmRender
         }
 
         material = material ? material : GetFontMapMaterial(font_map);
+        if (text_layout)
+        {
+            TextLayoutAcquire(text_layout);
+        }
         TextEntry te;
         te.m_Transform = params.m_WorldTransform;
         te.m_StringOffset = offset;

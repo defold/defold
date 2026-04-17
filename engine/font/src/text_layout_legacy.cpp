@@ -210,7 +210,8 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {
     TextLayout* layout = new TextLayout;
-    layout->m_Free = TextLayoutLegacyFree;
+    layout->m_Destroy = TextLayoutLegacyFree;
+    layout->m_RefCount = 1;
 
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(num_codepoints);
@@ -296,4 +297,3 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     *outlayout = layout;
     return TEXT_RESULT_OK;
 }
-
