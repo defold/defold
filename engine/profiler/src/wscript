@@ -20,7 +20,7 @@ def build(bld):
         source += ' profiler_proc_utils.cpp'
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
-    elif bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    elif bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
         source += ' profiler_web.cpp'
     else:
         source += ' profiler_unsupported.cpp'
@@ -35,13 +35,13 @@ def build(bld):
                             source = source_null,
                             target = 'profilerext_null')
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
+    if bld.env['PLATFORM'] not in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         profiler = bld.stlib(features = 'c cxx',
                                 includes = '.',
                                 source = 'remotery/profiler_remotery.cpp remotery/lib/Remotery.c',
                                 target = 'profiler_remotery')
 
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
         profiler = bld.stlib(features = 'cxx',
                                 includes = '.',
                                 source = 'js/profiler_js.cpp',
@@ -54,4 +54,3 @@ def build(bld):
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
-

@@ -258,7 +258,7 @@
   (let [output-path (build-html5-output-path project)
         build-server-url (native-extensions/get-build-server-url prefs project)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
-    {"platform" "js-web"
+    {"platform" "wasm-web"
      "architectures" "wasm-web"
      "variant" "debug"
      "archive" true

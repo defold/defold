@@ -534,7 +534,7 @@ static void LogFrameBufferError(GLenum status)
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
-        m_JobContext              = params.m_JobContext;
+        m_JobContext                            = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)

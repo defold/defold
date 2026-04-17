@@ -120,7 +120,7 @@ def build(bld):
         source = bld.path.find_node('files/somedata'),
         target = bld.path.find_or_declare('somedata'))
 
-    is_web = bld.env.PLATFORM in ['wasm-web', 'wasm_pthread-web', 'js-web']
+    is_web = bld.env.PLATFORM in ['wasm-web', 'wasm_pthread-web']
 
     defines = []
     if not is_web and not ('GITHUB_CI' in bld.env.DEFINES and sys.platform == 'darwin'):

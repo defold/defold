@@ -32,7 +32,7 @@ static void*                                g_CrashExtraInfoCallbackCtx = 0;
 
 void dmCrash::WriteDump()
 {
-    // WriteDump is void for js-web, see JSWriteDump.
+    // WriteDump is void for web builds, see JSWriteDump.
 }
 
 void dmCrash::SetCrashFilename(const char*)
