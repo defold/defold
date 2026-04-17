@@ -49,6 +49,7 @@
             [editor.scene-shapes :as scene-shapes]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-view-cube :as scene-view-cube]
             [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
             [editor.texture-set :as texture-set]
@@ -318,8 +319,9 @@
   (let [{:keys [world view ^Matrix4d projection texture]} render-args
         picking-matrix (c/pick-matrix viewport picking-rect)
         projection' (doto (Matrix4d. picking-matrix) (.mul projection))]
-    (merge render-args
-           (math/derive-render-transforms world view projection' texture))))
+    (-> render-args
+        (merge (math/derive-render-transforms world view projection' texture))
+        (assoc :picking-matrix picking-matrix))))
 
 (def render-mode-transitions {:normal :aabbs
                               :aabbs :picking-color
@@ -1834,6 +1836,7 @@
                                                        :prefs prefs]
                    grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
+                   view-cube       [scene-view-cube/SceneViewCubeController]
                    rulers          [rulers/Rulers]]
 
                   (g/connect resource-node   :scene                         view-id         :scene)
@@ -1867,6 +1870,12 @@
                   (g/connect view-id         :viewport                      tool-controller :viewport)
                   (g/connect camera          :camera                        tool-controller :camera)
                   (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+
+                  (g/connect view-cube       :input-handler                 view-id         :input-handlers)
+                  (g/connect view-cube       :renderables                   view-id         :tool-renderables)
+                  (g/connect camera          :_node-id                      view-cube       :camera-node-id)
+                  (g/connect view-id         :scene-aabb                    view-cube       :scene-aabb)
+                  (g/connect view-id         :viewport                      view-cube       :viewport)
 
                   (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
