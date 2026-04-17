@@ -512,6 +512,8 @@
          (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
          (batch-render gl pass-render-args pass-renderables batch-key))))))
 
+;; NOTE: camera-inset-frame-version is not used but we need it as a dependency
+;;       so that preview animations are stepped in the preview window (e.g particle effects).
 (g/defnk produce-camera-inset-data [scene-render-data selection updatable-states camera-inset-frame-version ^GLAutoDrawable camera-inset-drawable]
   (let [hidden-result {:visible false
                        :image nil
@@ -536,7 +538,6 @@
                                        (render-camera-inset-border! gl camera-inset-viewport)
                                        (.glActiveTexture gl GL/GL_TEXTURE0)
                                        (.glBindTexture gl GL/GL_TEXTURE_2D 0)
-                                       (.glBindTexture gl GL2/GL_TEXTURE_CUBE_MAP 0)
                                        (.glUseProgram ^GL2 gl 0)
                                        (let [[w h] (vp-dims camera-inset-viewport)]
                                          (read-to-buffered-image cached-camera-inset-buf-img-ref w h))))
