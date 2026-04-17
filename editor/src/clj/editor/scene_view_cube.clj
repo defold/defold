@@ -19,13 +19,15 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.texture :as texture]
             [editor.math :as math]
             [editor.scene-picking :as scene-picking]
-            [editor.scene-text :as scene-text]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL2]
            [editor.types AABB Camera Region]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
+           [java.awt AlphaComposite Color Font Graphics2D RenderingHints]
+           [java.awt.image BufferedImage]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -56,37 +58,108 @@
 ;; extension of the in-scene gizmos. The alpha here only affects the base tint:
 ;; faces are drawn fully opaque via face-color to avoid the cube looking
 ;; see-through, while hovered faces switch to defold-yellow.
+;;
+;; :u-axis and :v-axis describe which world-space directions the texture's u
+;; and v axes correspond to when the face is viewed from outside the cube. They
+;; are chosen so that each label reads left-to-right, right-side up, when the
+;; camera is aligned with the face's axis.
 (def ^:private face->data
   {:+x {:center (Point3d. 1.0 0.0 0.0)
         :color colors/scene-grid-x-axis
         :label "+X"
         :normal (Vector3d. 1.0 0.0 0.0)
-        :quad [[1.0 -1.0 -1.0] [1.0 -1.0 1.0] [1.0 1.0 1.0] [1.0 1.0 -1.0]]}
+        :quad [[1.0 -1.0 -1.0] [1.0 -1.0 1.0] [1.0 1.0 1.0] [1.0 1.0 -1.0]]
+        :u-axis [0.0 0.0 -1.0]
+        :v-axis [0.0 1.0 0.0]}
    :-x {:center (Point3d. -1.0 0.0 0.0)
         :color colors/scene-grid-x-axis
         :label "-X"
         :normal (Vector3d. -1.0 0.0 0.0)
-        :quad [[-1.0 -1.0 1.0] [-1.0 -1.0 -1.0] [-1.0 1.0 -1.0] [-1.0 1.0 1.0]]}
+        :quad [[-1.0 -1.0 1.0] [-1.0 -1.0 -1.0] [-1.0 1.0 -1.0] [-1.0 1.0 1.0]]
+        :u-axis [0.0 0.0 1.0]
+        :v-axis [0.0 1.0 0.0]}
    :+y {:center (Point3d. 0.0 1.0 0.0)
         :color colors/scene-grid-y-axis
         :label "+Y"
         :normal (Vector3d. 0.0 1.0 0.0)
-        :quad [[-1.0 1.0 -1.0] [1.0 1.0 -1.0] [1.0 1.0 1.0] [-1.0 1.0 1.0]]}
+        :quad [[-1.0 1.0 -1.0] [1.0 1.0 -1.0] [1.0 1.0 1.0] [-1.0 1.0 1.0]]
+        :u-axis [1.0 0.0 0.0]
+        :v-axis [0.0 0.0 -1.0]}
    :-y {:center (Point3d. 0.0 -1.0 0.0)
         :color colors/scene-grid-y-axis
         :label "-Y"
         :normal (Vector3d. 0.0 -1.0 0.0)
-        :quad [[-1.0 -1.0 1.0] [1.0 -1.0 1.0] [1.0 -1.0 -1.0] [-1.0 -1.0 -1.0]]}
+        :quad [[-1.0 -1.0 1.0] [1.0 -1.0 1.0] [1.0 -1.0 -1.0] [-1.0 -1.0 -1.0]]
+        :u-axis [1.0 0.0 0.0]
+        :v-axis [0.0 0.0 1.0]}
    :+z {:center (Point3d. 0.0 0.0 1.0)
         :color colors/scene-grid-z-axis
         :label "+Z"
         :normal (Vector3d. 0.0 0.0 1.0)
-        :quad [[-1.0 -1.0 1.0] [-1.0 1.0 1.0] [1.0 1.0 1.0] [1.0 -1.0 1.0]]}
+        :quad [[-1.0 -1.0 1.0] [-1.0 1.0 1.0] [1.0 1.0 1.0] [1.0 -1.0 1.0]]
+        :u-axis [1.0 0.0 0.0]
+        :v-axis [0.0 1.0 0.0]}
    :-z {:center (Point3d. 0.0 0.0 -1.0)
         :color colors/scene-grid-z-axis
         :label "-Z"
         :normal (Vector3d. 0.0 0.0 -1.0)
-        :quad [[1.0 -1.0 -1.0] [1.0 1.0 -1.0] [-1.0 1.0 -1.0] [-1.0 -1.0 -1.0]]}})
+        :quad [[1.0 -1.0 -1.0] [1.0 1.0 -1.0] [-1.0 1.0 -1.0] [-1.0 -1.0 -1.0]]
+        :u-axis [-1.0 0.0 0.0]
+        :v-axis [0.0 1.0 0.0]}})
+
+(defn- face-uvs
+  "Computes UVs for each quad vertex given the face's :u-axis and :v-axis. The
+  axes are world-space unit vectors; UVs are derived by projecting each vertex
+  onto them and remapping from [-1, 1] to [0, 1]."
+  [{:keys [quad u-axis v-axis]}]
+  (let [[ux uy uz] u-axis
+        [vx vy vz] v-axis]
+    (mapv (fn [[x y z]]
+            (let [u (* 0.5 (+ 1.0 (+ (* x ux) (* y uy) (* z uz))))
+                  v (* 0.5 (+ 1.0 (+ (* x vx) (* y vy) (* z vz))))]
+              [u v]))
+          quad)))
+
+(def ^:private face-uvs-by-axis
+  (into {} (map (fn [[axis data]] [axis (face-uvs data)])) face->data))
+
+(def ^:private label-texture-size 128)
+
+(defn- make-label-image
+  "Draws the given axis label (white, anti-aliased, sans-serif bold) on a
+  transparent square. The resulting BufferedImage is uploaded as the decal
+  texture for that face, so the label rotates with the cube."
+  ^BufferedImage [^String label]
+  (let [image (BufferedImage. label-texture-size label-texture-size BufferedImage/TYPE_INT_ARGB)
+        g ^Graphics2D (.createGraphics image)
+        font (Font. Font/SANS_SERIF Font/BOLD 56)]
+    (try
+      (.setComposite g AlphaComposite/Clear)
+      (.fillRect g 0 0 label-texture-size label-texture-size)
+      (.setComposite g AlphaComposite/SrcOver)
+      (.setRenderingHint g RenderingHints/KEY_ANTIALIASING
+                         RenderingHints/VALUE_ANTIALIAS_ON)
+      (.setRenderingHint g RenderingHints/KEY_TEXT_ANTIALIASING
+                         RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
+      (.setColor g Color/WHITE)
+      (.setFont g font)
+      (let [metrics (.getFontMetrics g)
+            text-width (.stringWidth metrics label)
+            text-height (.getAscent metrics)
+            x (int (- (/ label-texture-size 2.0) (/ text-width 2.0)))
+            y (int (+ (/ label-texture-size 2.0) (/ text-height 3.0)))]
+        (.drawString g ^String label x y))
+      (finally
+        (.dispose g)))
+    image))
+
+(def ^:private face-label-textures
+  (into {}
+        (map (fn [[axis {:keys [label]}]]
+               [axis (texture/image-texture
+                       [::face-label axis]
+                       (make-label-image label))]))
+        face->data))
 
 (def ^:private opposite-face
   {:+x :-x
@@ -246,13 +319,28 @@
         current-forward ^Vector3d (c/camera-forward-vector camera)]
     (>= (.dot current-forward target-forward) axis-alignment-epsilon)))
 
-(defn- draw-face! [^GL2 gl axis color]
-  (let [quad (:quad (face->data axis))]
+(defn- draw-face!
+  "Draws a textured quad for the given face. The texture contains only the
+  axis label (white text on transparent background); GL_DECAL is configured so
+  that `color` shows through wherever the texture is transparent. For the
+  picking pass we skip texturing entirely since only the solid picking color
+  matters there."
+  [^GL2 gl axis color textured?]
+  (let [quad (:quad (face->data axis))
+        uvs (face-uvs-by-axis axis)
+        texture-lifecycle (face-label-textures axis)]
+    (when textured?
+      (gl/bind gl texture-lifecycle nil)
+      (.glTexEnvi gl GL2/GL_TEXTURE_ENV GL2/GL_TEXTURE_ENV_MODE GL2/GL_DECAL))
     (gl/gl-color gl color)
     (.glBegin gl GL2/GL_QUADS)
-    (doseq [[x y z] quad]
+    (doseq [[[x y z] [u v]] (map vector quad uvs)]
+      (when textured?
+        (.glTexCoord2d gl u v))
       (gl/gl-vertex-3d gl x y z))
     (.glEnd gl)
+    (when textured?
+      (gl/unbind gl texture-lifecycle nil))
     color))
 
 (defn- draw-face-outline! [^GL2 gl axis]
@@ -261,41 +349,6 @@
   (doseq [[x y z] (:quad (face->data axis))]
     (gl/gl-vertex-3d gl x y z))
   (.glEnd gl))
-
-(defn- face-pixel-center
-  "Projects the face center from cube-local space to on-screen pixel
-  coordinates (in the editor's top=0 convention) so that text labels can be
-  drawn on top of each face regardless of the active projection."
-  ^Point3d [^Camera camera ^Region viewport axis]
-  (let [mv ^Matrix4d (cube-model-matrix camera viewport)
-        center ^Point3d (Point3d. ^Point3d (:center (face->data axis)))]
-    (.transform mv center)
-    (if (scene-camera-perspective? camera)
-      (let [proj ^Matrix4d (cube-perspective-projection-matrix viewport)
-            v (Vector4d. (.x center) (.y center) (.z center) 1.0)]
-        (.transform proj v)
-        (let [w (.w v)
-              ndc-x (/ (.x v) w)
-              ndc-y (/ (.y v) w)
-              ndc-z (/ (.z v) w)
-              width (double (- (.right viewport) (.left viewport)))
-              height (double (- (.bottom viewport) (.top viewport)))
-              ;; Undo the GL bottom=0 convention to get editor-style top=0 pixels.
-              pixel-x (+ (.left viewport) (* 0.5 (+ 1.0 ndc-x) width))
-              pixel-y (- (.bottom viewport) (* 0.5 (+ 1.0 ndc-y) height))]
-          (Point3d. pixel-x pixel-y ndc-z)))
-      center)))
-
-(defn- draw-labels! [^GL2 gl ^Camera camera ^Region viewport ^Quat4d rotation axes]
-  (doseq [axis axes
-          :when (visible-face? rotation axis)]
-    (let [^Point3d center (face-pixel-center camera viewport axis)
-          [label-width label-height] (scene-text/bounds gl (:label (face->data axis)))]
-      (scene-text/overlay gl
-                          (:label (face->data axis))
-                          (float (- (.x center) (/ label-width 2.0)))
-                          (float (+ (.y center) (/ label-height 2.0)))
-                          1.0 1.0 1.0 1.0))))
 
 (defn- cube-projection-matrix
   "Computes the projection matrix for drawing the view cube. Picks between a
@@ -332,26 +385,6 @@
       (.glPopMatrix gl)
       (.glMatrixMode gl GL2/GL_MODELVIEW))))
 
-(defn- with-overlay-text-matrices!
-  "Labels are always drawn with a simple pixel-space ortho so they stay
-  perpendicular to the screen regardless of which projection the cube uses."
-  [^GL2 gl ^Region viewport render-fn]
-  (.glMatrixMode gl GL2/GL_PROJECTION)
-  (.glPushMatrix gl)
-  (try
-    (gl/gl-load-matrix-4d gl (cube-ortho-projection-matrix viewport))
-    (.glMatrixMode gl GL2/GL_MODELVIEW)
-    (.glPushMatrix gl)
-    (try
-      (gl/gl-load-matrix-4d gl math/identity-mat4)
-      (render-fn)
-      (finally
-        (.glPopMatrix gl)))
-    (finally
-      (.glMatrixMode gl GL2/GL_PROJECTION)
-      (.glPopMatrix gl)
-      (.glMatrixMode gl GL2/GL_MODELVIEW))))
-
 (defn- render-view-cube [^GL2 gl render-args renderables _rcount]
   (let [renderable (first renderables)
         hot-face (get-in renderable [:user-data :hot-face])
@@ -360,6 +393,8 @@
         camera-rotation (cube-rotation camera)
         model-matrix (cube-model-matrix camera viewport)
         renderable-by-axis (into {} (map (juxt :selection-data identity)) renderables)
+        manipulator-pass? (= pass/manipulator (:pass render-args))
+        picking-pass? (= pass/manipulator-selection (:pass render-args))
         ;; Keep only the cube faces that actually face the user. Since the cube
         ;; is convex, visible faces never overlap in screen space, which means
         ;; we can draw them in any order without a depth buffer. Relying on
@@ -374,14 +409,12 @@
       #(doseq [axis visible-axes]
          (draw-face! gl
                      axis
-                     (if (= pass/manipulator-selection (:pass render-args))
+                     (if picking-pass?
                        (scene-picking/picking-id->color (:picking-id (renderable-by-axis axis)))
-                       (face-color axis hot-face)))
-         (when (= pass/manipulator (:pass render-args))
-           (draw-face-outline! gl axis))))
-    (when (= pass/manipulator (:pass render-args))
-      (with-overlay-text-matrices! gl viewport
-        #(draw-labels! gl camera viewport camera-rotation visible-axes)))))
+                       (face-color axis hot-face))
+                     manipulator-pass?)
+         (when manipulator-pass?
+           (draw-face-outline! gl axis))))))
 
 (g/defnk produce-renderables [_node-id hot-face]
   (let [renderables (coll/into-> face-order []
