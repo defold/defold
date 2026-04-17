@@ -89,7 +89,7 @@ public class Start extends Application {
                 }
             } catch (Throwable t) {
                 t.printStackTrace();
-                logger.error("failed to extract native libs", t);
+                logger.error("failed to initialize bundled native libraries", t);
             }
         });
         kickThread.start();

@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.FloatByReference;
@@ -40,9 +41,9 @@ public class ParticleLibrary {
     static {
         try {
             ResourceUnpacker.unpackResources();
-            Native.register("particle_shared");
-        } catch (Exception e) {
-            logger.error("Failed to extract/register particle_shared", e);
+            Native.register(ParticleLibrary.class, NativeLibrary.getInstance(ResourceUnpacker.getPreloadedLibraryPath("particle_shared").toString()));
+        } catch (Throwable t) {
+            logger.error("Failed to register bundled particle_shared", t);
         }
     }
 
