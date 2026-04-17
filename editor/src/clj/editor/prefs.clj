@@ -61,6 +61,7 @@
             [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
+            [editor.util :as util]
             [service.log :as log]
             [util.array :as array]
             [util.coll :as coll]
@@ -768,6 +769,60 @@
                                 value (lookup-valid-value-at-path scopes storage schema path)]
                             (set-value-at-path m scopes schema path (apply f value args)))))
     nil))
+
+(defn- path-prefix? [prefix path]
+  (and (<= (count prefix) (count path))
+       (= prefix (subvec path 0 (count prefix)))))
+
+(defn- reset-path-entries [scopes schema path]
+  (if (and (= :object (:type schema)) (coll/empty? path))
+    (e/mapcat
+      (fn [e]
+        (let [k (key e)
+              property-schema (val e)]
+          (reset-path-entries scopes property-schema [k])))
+      (:properties schema))
+    [[(-> schema :scope scopes) path]]))
+
+(defn reset-path!
+  "Remove a stored value at the specified path, reverting to the default
+
+  Will throw if invalid (unregistered) path is provided. Performs file IO
+  immediately.
+
+  Using [] as a path allows resetting the whole preference state"
+  [prefs path]
+  {:pre [(vector? path)]}
+  (let [{:keys [scopes]} prefs]
+    (locking io-lock
+      (let [{:keys [registry]} @global-state
+            schema (combined-schema-at-path registry prefs path)
+            entries (reset-path-entries scopes schema path)]
+        (swap! global-state
+               (fn [m]
+                 (reduce
+                   (fn [acc [file-path config-path]]
+                     (-> acc
+                         (update-in [:storage file-path] util/dissoc-in config-path)
+                         (update :events
+                                 (fn [events]
+                                   (when events
+                                     (let [updated (update events file-path
+                                                           (fn [path->val]
+                                                             (when path->val
+                                                               (into {}
+                                                                     (remove #(path-prefix? config-path (key %)))
+                                                                     path->val))))]
+                                       (when (some seq (vals updated))
+                                         updated)))))))
+                   m
+                   entries)))
+        (doseq [[file-path config-path] entries]
+          (let [config (read-config! file-path)
+                config (if (identical? config ::not-found) {} config)
+                updated (util/dissoc-in config config-path)]
+            (when-not (= config updated)
+              (write-config! file-path updated))))))))
 
 (defn schema
   "Get a preference schema at a specified get-in path"

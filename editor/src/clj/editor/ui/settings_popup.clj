@@ -213,7 +213,8 @@
         (fn [^ActionEvent event]
           (doseq [{:keys [key]} setting-descriptors
                   :when (and key (not (contains? hidden-settings key)))]
-            (set-value! settings-store key (get-default-value settings-store key)))
+            ;; TODO JOE: Add the new reset-all! function, we need prefs
+            #_(prefs/reset-path! prefs key))
           (let [target ^Node (.getTarget event)
                 parent (.getParent (.getParent target)) ;; Button is nested inside an HBox
                 [rows _controls] (build-controls keymap localization settings-store popup setting-descriptors hidden-settings)]
