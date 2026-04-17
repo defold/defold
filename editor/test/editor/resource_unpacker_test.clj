@@ -14,10 +14,15 @@
 
 (ns editor.resource-unpacker-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.fs :as fs])
   (:import [com.defold.libs ResourceUnpacker ResourceUnpacker$NativeLibraryLoader]
            [com.dynamo.bob Platform]
+           [com.jogamp.common.jvm JNILibLoaderBase]
+           [com.jogamp.common.os DynamicLibraryBundle NativeLibrary]
+           [com.jogamp.opengl GLProfile]
+           [jogamp.opengl GLDrawableFactoryImpl]
            [java.nio.file Path]
            [java.util LinkedHashMap Map$Entry]
            [java.util.concurrent CountDownLatch TimeUnit]))
@@ -38,6 +43,30 @@
     (doseq [[logical-name path] entries]
       (.put libraries logical-name path))
     libraries))
+
+(defn- jogl-tool-native-library-paths []
+  (let [profile (GLProfile/getDefault)
+        factory ^GLDrawableFactoryImpl (GLDrawableFactoryImpl/getFactoryImpl profile)
+        helper (.getGLDynamicLookupHelper factory 0 0)]
+    (mapv (fn [^NativeLibrary lib]
+            (-> (.getNativeLibraryPath lib)
+                io/file
+                .toPath
+                .toAbsolutePath
+                .normalize))
+          (.getToolLibraries ^DynamicLibraryBundle helper))))
+
+(defn- bundled-jogl-library-names [libraries]
+  (->> (keys libraries)
+       (filter #(or (= "gluegen_rt" %)
+                    (string/starts-with? % "jogl_")
+                    (string/starts-with? % "nativewindow_")))
+       set))
+
+(defn- loaded-jogl-library-names [candidate-names]
+  (->> candidate-names
+       (filter JNILibLoaderBase/isLoaded)
+       set))
 
 (deftest discover-bundled-native-libraries-filters-and-sorts-linux-libs
   (let [lib-dir (fs/create-temp-directory! "resource-unpacker-linux")]
@@ -149,3 +178,30 @@
         (is (.startsWith library-path lib-dir))
         (is (= library-path
                (ResourceUnpacker/getPreloadedLibraryPath logical-name)))))))
+
+(deftest unpack-resources-supports-jogl-glprofile-init-singleton
+  (ResourceUnpacker/unpackResources)
+  ;; Match the startup path in Start.java: preload first, then let JOGL initialize itself.
+  (GLProfile/initSingleton)
+  (is (GLProfile/isInitialized))
+  (let [platform (Platform/getHostPlatform)
+        unpack-path (System/getProperty ResourceUnpacker/DEFOLD_UNPACK_PATH_KEY)
+        lib-dir (-> (io/file unpack-path (str (.getPair platform) "/lib"))
+                    .toPath
+                    .toAbsolutePath
+                    .normalize)
+        preloaded (ResourceUnpacker/getPreloadedLibraries)
+        bundled-jogl-library-names (bundled-jogl-library-names preloaded)
+        loaded-jogl-library-names (loaded-jogl-library-names bundled-jogl-library-names)
+        tool-library-paths (jogl-tool-native-library-paths)]
+    ;; JOGL exposes exact paths for its GL tool bundle and logical names for the other
+    ;; native libraries it requests to load. Since unpackResources pins java.library.path
+    ;; to the unpacked lib directory, these names resolve back to the bundled copies.
+    (is (= (.toString lib-dir) (System/getProperty "java.library.path")))
+    (is (seq tool-library-paths))
+    (doseq [^Path tool-library-path tool-library-paths]
+      (is (.isAbsolute tool-library-path)))
+    (is (contains? loaded-jogl-library-names "gluegen_rt"))
+    (is (some loaded-jogl-library-names ["jogl_desktop" "jogl_mobile"]))
+    (is (seq (filter #(string/starts-with? % "nativewindow_") loaded-jogl-library-names)))
+    (is (every? #(contains? bundled-jogl-library-names %) loaded-jogl-library-names))))
