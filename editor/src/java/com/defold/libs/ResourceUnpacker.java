@@ -160,19 +160,11 @@ public class ResourceUnpacker {
                         Files.writeString(unpackShaPath, sha1);
                     }
                 }
-                if (unpackPath.getParent().startsWith(Editor.getSupportPath())) {
-                    // Prevent from deletion by deleteOldUnpackDirs
-                    Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
-                        try {
-                            Files.setLastModifiedTime(unpackPath, FileTime.from(Instant.now()));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't set lastModifiedTime for {}", unpackPath, e);
-                        }
-                    }, 0, 1, TimeUnit.DAYS);
-                }
 
                 Path unpackedLibDir = unpackPath.resolve(platform.getPair() + "/lib").toAbsolutePath();
                 System.setProperty("jna.nosys", "true");
+                // Exact-path preloading is authoritative, but JOGL still resolves some bundled
+                // natives by logical name, and JNA-by-name callers still expect these paths.
                 System.setProperty("java.library.path", unpackedLibDir.toString());
                 System.setProperty("jna.library.path", unpackedLibDir.toString());
 
@@ -186,6 +178,9 @@ public class ResourceUnpacker {
                 Map<String, Path> discoveredLibraries = discoverBundledNativeLibraries(unpackedLibDir, platform);
                 preloadedLibraryPaths = preloadNativeLibraries(discoveredLibraries, SYSTEM_NATIVE_LIBRARY_LOADER);
                 logger.info("preloaded {} bundled native libraries from {}", preloadedLibraryPaths.size(), unpackedLibDir);
+                if (unpackPath.getParent().startsWith(Editor.getSupportPath())) {
+                    startUnpackDirTouchScheduler(unpackPath);
+                }
                 isInitialized = true;
             } finally {
                 if (!isInitialized) {
@@ -345,6 +340,21 @@ public class ResourceUnpacker {
 
     private static Map<String, Path> immutableLinkedHashMap(Map<String, Path> libraries) {
         return Collections.unmodifiableMap(new LinkedHashMap<>(libraries));
+    }
+
+    private static void startUnpackDirTouchScheduler(Path unpackPath) {
+        try {
+            // Prevent deletion by deleteOldUnpackDirs once initialization has succeeded.
+            Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
+                try {
+                    Files.setLastModifiedTime(unpackPath, FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("Couldn't set lastModifiedTime for {}", unpackPath, e);
+                }
+            }, 0, 1, TimeUnit.DAYS);
+        } catch (RuntimeException e) {
+            logger.warn("Couldn't start unpack dir touch scheduler for {}", unpackPath, e);
+        }
     }
 
     private static void unpackResourceFile(String resourceFileName, Path target) throws IOException {
