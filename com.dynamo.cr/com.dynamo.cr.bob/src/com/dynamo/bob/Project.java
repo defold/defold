@@ -14,33 +14,93 @@
 
 package com.dynamo.bob;
 
-import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderResource;
+import com.defold.extension.pipeline.ILuaTranspiler;
+import com.defold.extension.pipeline.texture.ITextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.archive.publisher.AWSPublisher;
+import com.dynamo.bob.archive.publisher.FolderPublisher;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.bundle.BundlerParams;
+import com.dynamo.bob.bundle.IBundler;
+import com.dynamo.bob.cache.ResourceCache;
+import com.dynamo.bob.fs.ClassLoaderMountPoint;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.DefaultResource;
+import com.dynamo.bob.fs.FileSystemMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.IShaderCompiler;
+import com.dynamo.bob.pipeline.ShaderCompilers;
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.plugin.IPlugin;
+import com.dynamo.bob.plugin.PluginScanner;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.bob.util.MinifyPathCollector;
+import com.dynamo.bob.util.ReportGenerator;
+import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.net.ConnectException;
-import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URI;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
-import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -50,57 +110,7 @@ import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
-import com.defold.extension.pipeline.ILuaTranspiler;
-import com.defold.extension.pipeline.texture.TextureCompressorPreset;
-import com.dynamo.bob.archive.ArchiveBuilder;
-import com.dynamo.bob.archive.publisher.FolderPublisher;
-import com.dynamo.bob.fs.ClassLoaderMountPoint;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.DefaultResource;
-import com.dynamo.bob.fs.FileSystemMountPoint;
-import com.dynamo.bob.fs.FileSystemWalker;
-import com.dynamo.bob.fs.IFileSystem;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.plugin.PluginScanner;
-import com.dynamo.bob.util.BuildInputDataCollector;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.codec.binary.Base64;
-
-import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.ExtenderClientException;
-import com.defold.extender.client.ExtenderResource;
-
-import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.archive.publisher.AWSPublisher;
-import com.dynamo.bob.archive.publisher.NullPublisher;
-import com.dynamo.bob.archive.publisher.Publisher;
-import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.archive.publisher.ZipPublisher;
-
-import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.IBundler;
-import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderCompilers;
-import com.dynamo.bob.pipeline.TextureGenerator;
-import com.defold.extension.pipeline.texture.TextureCompression;
-import com.defold.extension.pipeline.texture.ITextureCompressor;
-import com.dynamo.bob.plugin.IPlugin;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.LibraryUtil;
-import com.dynamo.bob.util.ReportGenerator;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.StringUtil;
-import com.dynamo.graphics.proto.Graphics.TextureProfiles;
-
-import com.dynamo.bob.cache.ResourceCache;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
+import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -125,8 +135,8 @@ public class Project {
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
+    private final ProjectResourceWalker resourceWalker;
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
-    private Map<String, String> inextToOutext = new HashMap<>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private HashMap<String, Task> tasks;
@@ -139,7 +149,6 @@ public class Project {
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
-    private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private BobProjectProperties projectProperties;
     private Publisher publisher;
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
@@ -164,9 +173,9 @@ public class Project {
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
+        this.resourceWalker = new ProjectResourceWalker(this, fileSystem);
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
-        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -174,9 +183,9 @@ public class Project {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
+        this.resourceWalker = new ProjectResourceWalker(this, fileSystem);
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
-        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -186,15 +195,15 @@ public class Project {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
+        this.resourceWalker = new ProjectResourceWalker(this, fileSystem);
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
-        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
     // For tests
     public void cleanupResourcePathsCache() {
-        allResourcePathsCache = null;
+        resourceWalker.clearCaches();
     }
 
     public void dispose() {
@@ -378,7 +387,7 @@ public class Project {
                 if (builderParams != null) {
                     for (String inExt : builderParams.inExts()) {
                         extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                        inextToOutext.put(inExt, builderParams.outExt());
+                        ResourceUtil.registerMapping(inExt, builderParams.outExt());
                     }
                     Builder.addParamsDigest(klass, this.getOptions(), builderParams);
                     ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -425,29 +434,6 @@ public class Project {
         TimeProfiler.stop(); // Final stop after plugin registration
     }
 
-    static String[][] extensionMapping = new String[][] {
-        {".camera", ".camerac"},
-        {".buffer", ".bufferc"},
-        {".mesh", ".meshc"},
-        {".collectionproxy", ".collectionproxyc"},
-        {".collisionobject", ".collisionobjectc"},
-        {".particlefx", ".particlefxc"},
-        {".gui", ".guic"},
-        {".model", ".modelc"},
-        {".script", ".scriptc"},
-        {".sound", ".soundc"},
-        {".wav", ".soundc"},
-        {".ogg", ".soundc"},
-        {".opus", ".soundc"},
-        {".collectionfactory", ".collectionfactoryc"},
-        {".factory", ".factoryc"},
-        {".light", ".lightc"},
-        {".label", ".labelc"},
-        {".sprite", ".spritec"},
-        {".tilegrid", ".tilemapc"},
-        {".tilemap", ".tilemapc"},
-    };
-
     private String generateCircularDependencyErrorMessage(String dependency) {
         StringBuilder errorMessage = new StringBuilder("\nCircular dependency detected:\n");
 
@@ -461,19 +447,6 @@ public class Project {
         errorMessage.append("-> ").append(dependency).append(" (Circular Point)");
 
         return errorMessage.toString();
-    }
-
-    public String replaceExt(String inExt) {
-        for (int i = 0; i < extensionMapping.length; i++) {
-            if (extensionMapping[i][0].equals(inExt))
-            {
-                return extensionMapping[i][1];
-            }
-        }
-        String outExt = inextToOutext.get(inExt); // Get the output ext, or use the inExt as default
-        if (outExt != null)
-            return outExt;
-        return inExt;
     }
 
     private Class<? extends Builder> getBuilderFromExtension(String input) {
@@ -721,13 +694,13 @@ public class Project {
 
     /**
      * Build the project
-     * @param monitor
+     * @param progress
      * @return list of {@link TaskResult}. Only executed nodes are part of the list.
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
-        try {
+    public List<TaskResult> build(IProgress progress, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+        try (progress) {
             if (Arrays.asList(commands).contains("bundle")) {
                 File bundleDir = getBundleOutputDirectory();
                 validateBundleOutputDirectory(bundleDir);
@@ -740,7 +713,7 @@ public class Project {
             if (title != null && title.isEmpty()) {
                 throw new Exception("`project.title` in `game.project` must be non-empty.");
             }
-            return doBuild(monitor, commands);
+            return doBuild(progress, commands);
         } catch (CompileExceptionError e) {
 
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
@@ -904,21 +877,23 @@ public class Project {
         }
     }
 
-    private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
-        IProgress m = monitor.subProgress(1);
-        m.beginTask(IProgress.Task.BUNDLING, 1);
+    private void bundle(IProgress progress) throws IOException, CompileExceptionError {
+        try (progress) {
+            progress.message(IProgress.Message.Bundling.INSTANCE);
 
-        Platform platform = getPlatform();
-        IBundler bundler = createBundler(platform);
+            Platform platform = getPlatform();
+            IBundler bundler = createBundler(platform);
 
-        File bundleDir = getBundleOutputDirectory();
-        BundleHelper.throwIfCanceled(monitor);
-        bundleDir.mkdirs();
-        bundler.bundleApplication(this, platform, bundleDir, monitor);
-        String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
-        BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
-        m.worked(1);
-        m.done();
+            File bundleDir = getBundleOutputDirectory();
+            BundleHelper.throwIfCanceled(progress);
+            bundleDir.mkdirs();
+            bundler.bundleApplication(this, platform, bundleDir, progress);
+            String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
+            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
+            if (ResourceUtil.isMinificationEnabled()) {
+                MinifyPathCollector.saveAsJson(bundleDir);
+            }
+        }
     }
 
     private File getBundleOutputDirectory() throws CompileExceptionError {
@@ -1037,7 +1012,7 @@ public class Project {
         Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Arm64Ios || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.WasmPthreadWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
+        if (p == Platform.Arm64Ios || p == Platform.WasmWeb || p == Platform.WasmPthreadWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
@@ -1050,7 +1025,7 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEnginePlatform(IProgress monitor, File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1112,7 +1087,7 @@ public class Project {
         }
     }
 
-    public void buildLibraryPlatform(IProgress monitor, File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1182,64 +1157,62 @@ public class Project {
         }
     }
 
-    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
-        // Store the build one level above the content build since that folder gets removed during a distclean
-        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
-        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
-        cacheDir.mkdirs();
+    public void buildEngine(IProgress progress, String[] architectures, Map<String,String> appmanifestOptions) throws CompileExceptionError, MultipleCompileException {
+        try (progress) {
+            // Store the build one level above the content build since that folder gets removed during a distclean
+            String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
+            File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
+            cacheDir.mkdirs();
 
-        IProgress m = monitor.subProgress(architectures.length);
-        m.beginTask(IProgress.Task.BUILDING_ENGINE, 0);
+            var split = progress.split(architectures.length);
 
-        // Build all skews of platform
-        String outputDir = getBinaryOutputDirectory();
+            // Build all skews of platform
+            String outputDir = getBinaryOutputDirectory();
 
-        ExecutorService buildEngineExecutor = Executors.newFixedThreadPool(architectures.length);
-        List<Future<?>> buildEngineFutures = new ArrayList<>();
+            ExecutorService buildEngineExecutor = Executors.newFixedThreadPool(architectures.length);
+            List<Future<?>> buildEngineFutures = new ArrayList<>();
 
-        for (int i = 0; i < architectures.length; ++i) {
-            Platform platform = Platform.get(architectures[i]);
-
-            String buildPlatform = platform.getExtenderPair();
-            File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
-            buildDir.mkdirs();
-
-            buildEngineFutures.add(buildEngineExecutor.submit(() -> {
-                TimeProfiler.start("Build Remote Engine %s", platform.toString());
-                TimeProfiler.addData("withSymbols", appmanifestOptions.get("baseVariant"));
-                TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
-                boolean buildLibrary = shouldBuildArtifact("library");
-                try {
-                    if (buildLibrary) {
-                        buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
-                    } else {
-                        buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
+            for (String architecture : architectures) {
+                Platform platform = Platform.get(architecture);
+                String buildPlatform = platform.getExtenderPair();
+                File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
+                buildDir.mkdirs();
+                buildEngineFutures.add(buildEngineExecutor.submit(() -> {
+                    try (var architectureProgress = split.subtask()) {
+                        TimeProfiler.start("Build Remote Engine %s", platform.toString());
+                        TimeProfiler.addData("withSymbols", appmanifestOptions.get("baseVariant"));
+                        TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
+                        try {
+                            if (shouldBuildArtifact("library")) {
+                                buildLibraryPlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                            } else {
+                                buildEnginePlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                            }
+                        } catch (Throwable e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            TimeProfiler.stop();
+                        }
                     }
-                } catch (Throwable e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    TimeProfiler.stop();
-                }
-            }));
-            m.worked(1);
-        }
+                }));
+            }
 
-        for (Future<?> future : buildEngineFutures) {
-            try {
-                future.get();
-            } catch (Exception e) {
-                Throwable cause = e.getCause();
-                if (cause.getCause() instanceof CompileExceptionError) {
-                    throw (CompileExceptionError) cause.getCause();
-                } else if (cause.getCause() instanceof MultipleCompileException) {
-                    throw (MultipleCompileException) cause.getCause();
-                } else {
-                    throw new RuntimeException(e);
+            for (Future<?> future : buildEngineFutures) {
+                try {
+                    future.get();
+                } catch (Exception e) {
+                    Throwable cause = e.getCause();
+                    if (cause.getCause() instanceof CompileExceptionError) {
+                        throw (CompileExceptionError) cause.getCause();
+                    } else if (cause.getCause() instanceof MultipleCompileException) {
+                        throw (MultipleCompileException) cause.getCause();
+                    } else {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
+            buildEngineExecutor.shutdown();
         }
-        buildEngineExecutor.shutdown();
-        m.done();
     }
 
     private static boolean deleteDirectory(File directoryToBeDeleted) {
@@ -1268,18 +1241,18 @@ public class Project {
         }
     }
 
-    private void cleanEngines(IProgress monitor, String[] platformStrings) throws IOException, CompileExceptionError {
-        IProgress m = monitor.subProgress(platformStrings.length);
-        m.beginTask(IProgress.Task.CLEANING_ENGINE, 0);
+    private void cleanEngines(IProgress progress, String[] platformStrings) throws IOException, CompileExceptionError {
+        try (progress) {
+            progress.message(IProgress.Message.CleaningEngine.INSTANCE);
+            var split = progress.split(platformStrings.length);
 
-        String outputDir = getBinaryOutputDirectory();
-        for (int i = 0; i < platformStrings.length; ++i) {
-            Platform platform = Platform.get(platformStrings[i]);
-            cleanEngine(platform, new File(outputDir, platform.getExtenderPair()));
-            m.worked(1);
+            String outputDir = getBinaryOutputDirectory();
+            for (String platformString : platformStrings) {
+                Platform platform = Platform.get(platformString);
+                cleanEngine(platform, new File(outputDir, platform.getExtenderPair()));
+                split.worked();
+            }
         }
-
-        m.done();
     }
 
     static void addToPath(String variable, String path) {
@@ -1351,50 +1324,47 @@ public class Project {
         scan(scanner, "com.defold.extension.pipeline");
     }
 
-    private Future buildRemoteEngine(IProgress monitor, ExecutorService executor) {
-        Callable<Void> callable = new Callable<Void>() {
-            public Void call() throws Exception {
-                logInfo("Build Remote Engine...");
-                final String variant = option("variant", Bob.VARIANT_RELEASE);
-                final Boolean withSymbols = hasOption("with-symbols");
+    private Future buildRemoteEngine(IProgress progress, ExecutorService executor, AtomicBoolean remoteBuildFailed) {
+        return executor.submit(() -> {
+            progress.message(IProgress.Message.BuildingEngine.INSTANCE);
+            var variant = option("variant", Bob.VARIANT_RELEASE);
+            var withSymbols = hasOption("with-symbols");
 
-                Map<String, String> appmanifestOptions = new HashMap<>();
-                appmanifestOptions.put("baseVariant", variant);
-                appmanifestOptions.put("withSymbols", withSymbols.toString());
+            Map<String, String> appmanifestOptions = new HashMap<>();
+            appmanifestOptions.put("baseVariant", variant);
+            appmanifestOptions.put("withSymbols", Boolean.toString(withSymbols));
 
-                if (hasOption("build-artifacts")) {
-                    String s = option("build-artifacts", "");
-                    System.out.printf("build-artifacts: %s\n", s);
-                    appmanifestOptions.put("buildArtifacts", s);
-                }
-
-                Platform platform = getPlatform();
-
-                String[] architectures = platform.getArchitectures().getDefaultArchitectures();
-                String customArchitectures = option("architectures", null);
-                if (customArchitectures != null) {
-                    architectures = customArchitectures.split(",");
-                }
-
-                long tstart = System.currentTimeMillis();
-
-                try {
-                    buildEngine(monitor, architectures, appmanifestOptions);
-                }
-                catch (Exception e) {
-                    if ((e instanceof MultipleCompileException) ||
-                        (e instanceof CompileExceptionError)) {
-                        monitor.setCanceled(true);
-                    }
-                    throw  e;
-                }
-
-                long tend = System.currentTimeMillis();
-                logger.info("Engine build took %f s", (tend-tstart)/1000.0);
-                return (Void)null;
+            if (hasOption("build-artifacts")) {
+                String s = option("build-artifacts", "");
+                System.out.printf("build-artifacts: %s\n", s);
+                appmanifestOptions.put("buildArtifacts", s);
             }
-        };
-        return executor.submit(callable);
+
+            Platform platform = getPlatform();
+
+            String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+            String customArchitectures = option("architectures", null);
+            if (customArchitectures != null) {
+                architectures = customArchitectures.split(",");
+            }
+
+            long tstart = System.currentTimeMillis();
+
+            try {
+                buildEngine(progress, architectures, appmanifestOptions);
+            }
+            catch (Exception e) {
+                if ((e instanceof MultipleCompileException) ||
+                    (e instanceof CompileExceptionError)) {
+                    remoteBuildFailed.set(true);
+                }
+                throw  e;
+            }
+
+            long tend = System.currentTimeMillis();
+            logger.info("Engine build took %f s", (tend-tstart)/1000.0);
+            return (Void)null;
+        });
     }
 
 
@@ -1524,7 +1494,7 @@ public class Project {
     // the texture compressor handler.
     private void installTextureCompressorPresets() throws IOException, CompileExceptionError {
         ArrayList<String> paths = new ArrayList<>();
-        findResourcePathsByExtension("", ".texc_json", paths);
+        resourceWalker.findResourcePathsByExtension("", ".texc_json", paths);
 
         for (String p : paths) {
             IResource r = getResource(p);
@@ -1539,386 +1509,407 @@ public class Project {
         }
     }
 
-    private void transpileLua(IProgress monitor) throws CompileExceptionError, IOException {
-        List<ILuaTranspiler> transpilers = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaTranspiler.class);
-        if (transpilers != null) {
-            IProgress transpilerProgress = monitor.subProgress(1);
-            transpilerProgress.beginTask(IProgress.Task.TRANSPILING_TO_LUA, 1);
-            for (ILuaTranspiler transpiler : transpilers) {
-                IResource buildFileResource = getResource(transpiler.getBuildFileResourcePath());
-                if (buildFileResource.exists()) {
-                    String ext = "." + transpiler.getSourceExt();
-                    ArrayList<IResource> sources = new ArrayList<>();
-                    fileSystem.walk("", new FileSystemWalker() {
-                        @Override
-                        public void handleFile(String path, Collection<String> results) {
-                            if (path.endsWith(ext)) {
-                                sources.add(fileSystem.get(path));
-                            }
+    private void transpileLua(IProgress progress) throws CompileExceptionError, IOException {
+        try (progress) {
+            List<ILuaTranspiler> transpilers = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaTranspiler.class);
+            if (transpilers != null) {
+                progress.message(IProgress.Message.TranspilingToLua.INSTANCE);
+                var split = progress.split(transpilers.size());
+                for (ILuaTranspiler transpiler : transpilers) {
+                    IResource buildFileResource = getResource(transpiler.getBuildFileResourcePath());
+                    if (buildFileResource.exists()) {
+                        String ext = "." + transpiler.getSourceExt();
+                        ArrayList<String> sourcePaths = new ArrayList<>();
+                        resourceWalker.findResourcePathsByExtension("", ext, sourcePaths);
+                        ArrayList<IResource> sources = new ArrayList<>(sourcePaths.size());
+                        for (String sourcePath : sourcePaths) {
+                            sources.add(fileSystem.get(sourcePath));
                         }
-                    }, new ArrayList<>());
-                    if (!sources.isEmpty()) {
-                        // We transpile to lua from the project dir only if all the source code files exist on disc. Since
-                        // some source file may come as dependencies in zip archives, the transpiler will not be able to
-                        // transpile them. In this situation, we extract all source files to a temporary folder. Similar
-                        // logic is implemented in editor in editor.code.transpilers/produce-build-output function
-                        boolean useProjectDir = buildFileResource instanceof DefaultResource && sources.stream().allMatch(s -> s instanceof DefaultResource);
-                        File sourceDir;
-                        if (useProjectDir) {
-                            sourceDir = new File(rootDirectory);
-                        } else {
-                            sourceDir = Files.createTempDirectory("tr-" + transpiler.getClass().getSimpleName()).toFile();
-                            buildFileResource.getContent();
-                            File buildFile = new File(sourceDir, buildFileResource.getPath());
-                            Path buildFilePath = buildFile.toPath();
-                            Files.write(buildFilePath, buildFileResource.getContent());
-                            Files.setLastModifiedTime(buildFilePath, FileTime.fromMillis(buildFileResource.getLastModified()));
-                            for (IResource source : sources) {
-                                Path sourcePath = new File(sourceDir, source.getPath()).toPath();
-                                Files.write(sourcePath, source.getContent());
-                                Files.setLastModifiedTime(sourcePath, FileTime.fromMillis(source.getLastModified()));
-                            }
-                        }
-                        File outputDir = new File(rootDirectory, "build/tr/" + transpiler.getClass().getSimpleName());
-                        Files.createDirectories(outputDir.toPath());
-                        try {
-                            List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
-                            List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
-                            if (!errors.isEmpty()) {
-                                MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
-                                errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));
-                                throw exception;
+                        if (!sources.isEmpty()) {
+                            // We transpile to lua from the project dir only if all the source code files exist on disc. Since
+                            // some source file may come as dependencies in zip archives, the transpiler will not be able to
+                            // transpile them. In this situation, we extract all source files to a temporary folder. Similar
+                            // logic is implemented in editor in editor.code.transpilers/produce-build-output function
+                            boolean useProjectDir = buildFileResource instanceof DefaultResource && sources.stream().allMatch(s -> s instanceof DefaultResource);
+                            File sourceDir;
+                            if (useProjectDir) {
+                                sourceDir = new File(rootDirectory);
                             } else {
-                                issues.forEach(issue -> {
-                                    Level level = switch (issue.severity) {
-                                        case INFO -> Level.INFO;
-                                        case WARNING -> Level.WARNING;
-                                        default -> throw new IllegalStateException();
-                                    };
-                                    logger.log(level, issue.resourcePath + ":" + issue.lineNumber + ": " + issue.message);
-                                });
+                                sourceDir = Files.createTempDirectory("tr-" + transpiler.getClass().getSimpleName()).toFile();
+                                buildFileResource.getContent();
+                                File buildFile = new File(sourceDir, buildFileResource.getPath());
+                                Path buildFilePath = buildFile.toPath();
+                                Files.write(buildFilePath, buildFileResource.getContent());
+                                Files.setLastModifiedTime(buildFilePath, FileTime.fromMillis(buildFileResource.getLastModified()));
+                                for (IResource source : sources) {
+                                    Path sourcePath = new File(sourceDir, source.getPath()).toPath();
+                                    Files.write(sourcePath, source.getContent());
+                                    Files.setLastModifiedTime(sourcePath, FileTime.fromMillis(source.getLastModified()));
+                                }
                             }
-                            DefaultFileSystem fs = new DefaultFileSystem();
-                            fs.setRootDirectory(outputDir.toString());
-                            ArrayList<String> results = new ArrayList<>();
-                            fs.walk("", new FileSystemWalker() {
-                                @Override
-                                public void handleFile(String path, Collection<String> results) {
-                                    if (path.endsWith(".lua")) {
-                                        results.add(path);
+                            File outputDir = new File(rootDirectory, "build/tr/" + transpiler.getClass().getSimpleName());
+                            Files.createDirectories(outputDir.toPath());
+                            try {
+                                List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
+                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
+                                if (!errors.isEmpty()) {
+                                    MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
+                                    errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));
+                                    throw exception;
+                                } else {
+                                    issues.forEach(issue -> {
+                                        Level level = switch (issue.severity) {
+                                            case INFO -> Level.INFO;
+                                            case WARNING -> Level.WARNING;
+                                            default -> throw new IllegalStateException();
+                                        };
+                                        logger.log(level, issue.resourcePath + ":" + issue.lineNumber + ": " + issue.message);
+                                    });
+                                }
+                                DefaultFileSystem fs = new DefaultFileSystem();
+                                fs.setRootDirectory(outputDir.toString());
+                                ArrayList<String> results = new ArrayList<>();
+                                fs.walk("", new FileSystemWalker() {
+                                    @Override
+                                    public void handleFile(String path, Collection<String> results) {
+                                        if (path.endsWith(".lua")) {
+                                            results.add(path);
+                                        }
+                                    }
+                                }, results);
+                                fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, fs));
+                            } catch (Exception e) {
+                                throw new CompileExceptionError(buildFileResource, 1, "Transpilation failed", e);
+                            } finally {
+                                if (!useProjectDir) {
+                                    FileUtils.deleteDirectory(sourceDir);
+                                }
+                            }
+                        }
+                    }
+                    split.worked();
+                }
+            }
+        }
+    }
+
+    private List<TaskResult> createAndRunTasks(IProgress progress, AtomicBoolean remoteBuildFailed) throws IOException, CompileExceptionError {
+        try (progress) {
+            // Do early test if report files are writable before we start building
+            boolean generateReport = this.hasOption("build-report-json") || this.hasOption("build-report-html");
+            FileWriter resourceReportJSONWriter = null;
+            FileWriter resourceReportHTMLWriter = null;
+            FileWriter excludedResourceReportJSONWriter = null;
+            FileWriter excludedResourceReportHTMLWriter = null;
+
+            if (this.hasOption("build-report-json")) {
+                String resourceReportJSONPath = this.option("build-report-json", "report.json");
+
+                File resourceReportJSONFile = new File(resourceReportJSONPath);
+                File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
+                if (resourceReportJSONFolder != null && !resourceReportJSONFolder.exists()) {
+                    boolean success = resourceReportJSONFolder.mkdirs();
+                    if (!success) {
+                        throw new IOException("Failed to create directories for path: " + resourceReportJSONFolder.getAbsolutePath());
+                    }
+                }
+                resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
+
+                String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
+                File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
+                excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
+            }
+            if (this.hasOption("build-report-html")) {
+                String resourceReportHTMLPath = this.option("build-report-html", "report.html");
+                File resourceReportHTMLFile = new File(resourceReportHTMLPath);
+                File parentDir = resourceReportHTMLFile.getParentFile();
+                if (parentDir != null && !parentDir.exists()) {
+                    boolean success = parentDir.mkdirs();
+                    if (!success) {
+                        throw new IOException("Failed to create directories for path: " + parentDir.getAbsolutePath());
+                    }
+                }
+                File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
+                resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
+
+                String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
+                File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
+                excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
+            }
+
+            var split = progress.split(3);
+
+            try (var readTasksProgress = split.subtask()) {
+                readTasksProgress.message(IProgress.Message.ReadingTasks.INSTANCE);
+                TimeProfiler.start("ensureBobInitialized");
+                Bob.ensureBobInitialized();
+                TimeProfiler.stop();
+                TimeProfiler.start("Create tasks");
+                BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                createTasks();
+                validateBuildResourceMapping();
+                TimeProfiler.addData("TasksCount", tasks.size());
+                TimeProfiler.stop();
+            }
+
+            BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+
+            progress.message(IProgress.Message.Building.INSTANCE);
+            List<TaskResult> result = runTasks(split.subtask(), remoteBuildFailed);
+
+            BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+
+            // Generate and save build report
+            TimeProfiler.start("Generating build size report");
+            try (var reportProgress = split.subtask()) {
+                if (generateReport && !anyFailing(result)) {
+                    reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
+                    ReportGenerator rg = new ReportGenerator(this);
+                    String resourceReportJSON = rg.generateResourceReportJSON();
+                    String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
+
+                    // Save JSON report
+                    if (this.hasOption("build-report-json")) {
+                        resourceReportJSONWriter.write(resourceReportJSON);
+                        resourceReportJSONWriter.close();
+                        excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
+                        excludedResourceReportJSONWriter.close();
+                    }
+
+                    // Save HTML report
+                    if (this.hasOption("build-report-html")) {
+                        String resourceReportHTML = rg.generateHTML(resourceReportJSON);
+                        String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
+                        resourceReportHTMLWriter.write(resourceReportHTML);
+                        resourceReportHTMLWriter.close();
+                        excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
+                        excludedResourceReportHTMLWriter.close();
+                    }
+                }
+            }
+            TimeProfiler.stop();
+            return result;
+        }
+    }
+
+    private void clean(IProgress progress, State state) {
+        try (progress) {
+            progress.message(IProgress.Message.Cleaning.INSTANCE);
+            List<String> paths = state.getPaths();
+            var split = progress.split(paths.size());
+            for (String path : paths) {
+                File f = new File(path);
+                if (f.exists()) {
+                    state.removeSignature(path);
+                    f.delete();
+                    BundleHelper.throwIfCanceled(progress);
+                }
+                split.worked();
+            }
+        }
+    }
+
+    private void distClean(IProgress progress) throws IOException {
+        try (progress) {
+            progress.message(IProgress.Message.Cleaning.INSTANCE);
+            BundleHelper.throwIfCanceled(progress);
+            FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
+        }
+    }
+
+    private List<TaskResult> doBuild(IProgress progress, String... commands) throws Throwable {
+        try (progress) {
+            TimeProfiler.start("Prepare cache");
+            resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
+            resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
+            fileSystem.loadCache();
+            IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
+            state = State.load(stateResource);
+            TimeProfiler.stop();
+            List<TaskResult> result = new ArrayList<TaskResult>();
+
+            BundleHelper.throwIfCanceled(progress);
+
+            progress.message(IProgress.Message.Working.INSTANCE);
+            var split = progress.split(commands.length + 1L); // + 1 for reading classes
+            // it should be done before scanJavaClasses to have updated options
+            configurePreBuildProjectOptions();
+            resourceWalker.initIgnorePatterns();
+            {
+                TimeProfiler.start("scanJavaClasses");
+                try (var readClassesProgress = split.subtask()) {
+                    readClassesProgress.message(IProgress.Message.ReadingClasses.INSTANCE);
+                    scanJavaClasses();
+                }
+                TimeProfiler.stop();
+            }
+
+            List<IPlugin> plugins = new ArrayList<>();
+            for (Class<? extends IPlugin> klass : pluginClasses) {
+                IPlugin plugin = klass.getConstructor().newInstance();
+                plugin.init(this);
+                plugins.add(plugin);
+            }
+
+            boolean texture_compress = this.option("texture-compression", "false").equals("true");
+            if (texture_compress) {
+                registerTextureCompressors();
+            }
+
+            boolean experimental_path_minification = hasOption("experimental-path-minification");
+
+            ResourceUtil.enableMinification(experimental_path_minification);
+            ResourceUtil.setBuildDirectory(buildDirectory);
+            ResourceUtil.disableMinify(".luac");
+            ResourceUtil.disableMinify(".scriptc");
+            ResourceUtil.disableMinify(".render_scriptc");
+            ResourceUtil.disableMinify(".gui_scriptc");
+            ResourceUtil.disableMinify(".collectionc");
+
+            loop:
+            for (String command : commands) {
+                try (var commandProgress = split.subtask()) {
+                    BundleHelper.throwIfCanceled(progress);
+                    TimeProfiler.start(command);
+                    switch (command) {
+                        case "build": {
+                            TimeProfiler.start("PrepExtensions");
+                            ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
+                            final String[] platforms = getPlatformStrings();
+                            Future<Void> remoteBuildFuture = null;
+                            // Get or build engine binary
+                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                            boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
+                            TimeProfiler.stop();
+                            var buildPhases = commandProgress.split(3);
+
+                            if (shouldBuildProject) {
+                                try (var setupProgress = buildPhases.subtask()) {
+                                    // do this before buildRemoteEngine to prevent concurrent modification exception, since
+                                    // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
+                                    // when sending to extender
+                                    TimeProfiler.start("transpileLua");
+                                    transpileLua(setupProgress);
+                                    TimeProfiler.stop();
+
+                                    TimeProfiler.start("installTextureCompressorPresets");
+                                    installTextureCompressorPresets();
+                                    TimeProfiler.stop();
+                                }
+                            } else {
+                                buildPhases.worked();
+                            }
+
+                            TimeProfiler.start("PrepEngine");
+                            TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
+                            AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
+                            var engineProgress = buildPhases.subtask();
+                            if (shouldBuildRemoteEngine) {
+                                remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
+                            } else {
+                                // Remove the remote built executables in the build folder, they're still in the cache
+                                var engineSplit = engineProgress.split(2);
+                                cleanEngines(engineSplit.subtask(), platforms);
+                                if (hasOption("with-symbols")) {
+                                    EngineArtifactsProvider.downloadSymbols(this, engineSplit.subtask());
+                                } else {
+                                    engineSplit.worked();
+                                }
+                            }
+                            TimeProfiler.stop();
+                            boolean resourceBuildingFailed = false;
+                            try (var resourceProgress = buildPhases.subtask()) {
+                                if (shouldBuildProject) {
+                                    result = createAndRunTasks(resourceProgress, remoteBuildFailed);
+                                }
+                            } catch (Exception e) {
+                                if (!remoteBuildFailed.get()) {
+                                    resourceBuildingFailed = true;
+                                    throw e;
+                                }
+                            } finally {
+                                if (remoteBuildFuture != null && !resourceBuildingFailed) {
+                                    // get the result from the remote build and catch
+                                    // if an exception was thrown in buildRemoteEngine() the
+                                    // original exception is included in the ExecutionException
+                                    try {
+                                        remoteBuildFuture.get();
+                                    } catch (ExecutionException | InterruptedException e) {
+                                        Throwable cause = e.getCause();
+                                        if ((cause instanceof MultipleCompileException) ||
+                                                (cause instanceof CompileExceptionError)) {
+                                            throw cause;
+                                        } else {
+                                            throw new CompileExceptionError(cause);
+                                        }
                                     }
                                 }
-                            }, results);
-                            fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, fs));
-                        } catch (Exception e) {
-                            throw new CompileExceptionError(buildFileResource, 1, "Transpilation failed", e);
-                        } finally {
-                            if (!useProjectDir) {
-                                FileUtils.deleteDirectory(sourceDir);
-                            }
-                        }
-                    }
-                }
-            }
-            transpilerProgress.done();
-        }
-    }
-
-    private List<TaskResult> createAndRunTasks(IProgress monitor) throws IOException, CompileExceptionError {
-        // Do early test if report files are writable before we start building
-        boolean generateReport = this.hasOption("build-report-json") || this.hasOption("build-report-html");
-        FileWriter resourceReportJSONWriter = null;
-        FileWriter resourceReportHTMLWriter = null;
-        FileWriter excludedResourceReportJSONWriter = null;
-        FileWriter excludedResourceReportHTMLWriter = null;
-
-        if (this.hasOption("build-report-json")) {
-            String resourceReportJSONPath = this.option("build-report-json", "report.json");
-
-            File resourceReportJSONFile = new File(resourceReportJSONPath);
-            File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
-            if (resourceReportJSONFolder != null && !resourceReportJSONFolder.exists()) {
-                boolean success = resourceReportJSONFolder.mkdirs();
-                if (!success) {
-                    throw new IOException("Failed to create directories for path: " + resourceReportJSONFolder.getAbsolutePath());
-                }
-            }
-            resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-
-            String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
-            File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
-            excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
-        }
-        if (this.hasOption("build-report-html")) {
-            String resourceReportHTMLPath = this.option("build-report-html", "report.html");
-            File resourceReportHTMLFile = new File(resourceReportHTMLPath);
-            File parentDir = resourceReportHTMLFile.getParentFile();
-            if (parentDir != null && !parentDir.exists()) {
-                boolean success = parentDir.mkdirs();
-                if (!success) {
-                    throw new IOException("Failed to create directories for path: " + parentDir.getAbsolutePath());
-                }
-            }
-            File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
-            resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-
-            String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
-            File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
-            excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
-        }
-
-        IProgress m = monitor.subProgress(99);
-        TimeProfiler.start("ensureBobInitialized");
-        Bob.ensureBobInitialized();
-        TimeProfiler.stop();
-        IProgress mrep = m.subProgress(1);
-        mrep.beginTask(IProgress.Task.READING_TASKS, 1);
-        TimeProfiler.start("Create tasks");
-        BundleHelper.throwIfCanceled(monitor);
-        createTasks();
-        validateBuildResourceMapping();
-        TimeProfiler.addData("TasksCount", tasks.size());
-        TimeProfiler.stop();
-        mrep.done();
-
-        BundleHelper.throwIfCanceled(monitor);
-        m.beginTask(IProgress.Task.BUILDING, tasks.size());
-        BundleHelper.throwIfCanceled(monitor);
-        List<TaskResult> result = runTasks(m);
-        BundleHelper.throwIfCanceled(monitor);
-        m.done();
-
-        // Generate and save build report
-        TimeProfiler.start("Generating build size report");
-        if (generateReport && !anyFailing(result)) {
-            mrep = monitor.subProgress(1);
-            mrep.beginTask(IProgress.Task.GENERATING_REPORT, 1);
-            ReportGenerator rg = new ReportGenerator(this);
-            String resourceReportJSON = rg.generateResourceReportJSON();
-            String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
-
-            // Save JSON report
-            if (this.hasOption("build-report-json")) {
-                resourceReportJSONWriter.write(resourceReportJSON);
-                resourceReportJSONWriter.close();
-                excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
-                excludedResourceReportJSONWriter.close();
-            }
-
-            // Save HTML report
-            if (this.hasOption("build-report-html")) {
-                String resourceReportHTML = rg.generateHTML(resourceReportJSON);
-                String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
-                resourceReportHTMLWriter.write(resourceReportHTML);
-                resourceReportHTMLWriter.close();
-                excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
-                excludedResourceReportHTMLWriter.close();
-            }
-            mrep.done();
-        }
-        TimeProfiler.stop();
-
-        return result;
-    }
-
-    private void clean(IProgress monitor, State state) {
-        IProgress m = monitor.subProgress(1);
-        List<String> paths = state.getPaths();
-        m.beginTask(IProgress.Task.CLEANING, paths.size());
-        for (String path : paths) {
-            File f = new File(path);
-            if (f.exists()) {
-                state.removeSignature(path);
-                f.delete();
-                m.worked(1);
-                BundleHelper.throwIfCanceled(monitor);
-            }
-        }
-        m.done();
-    }
-
-    private void distClean(IProgress monitor) throws IOException {
-        IProgress m = monitor.subProgress(1);
-        m.beginTask(IProgress.Task.CLEANING, 1);
-        BundleHelper.throwIfCanceled(monitor);
-        FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
-        m.worked(1);
-        m.done();
-    }
-
-    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
-        TimeProfiler.start("Prepare cache");
-        resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
-        resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
-        fileSystem.loadCache();
-        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
-        state = State.load(stateResource);
-        TimeProfiler.stop();
-        List<TaskResult> result = new ArrayList<TaskResult>();
-
-        BundleHelper.throwIfCanceled(monitor);
-
-        monitor.beginTask(IProgress.Task.WORKING, 100);
-        // it should be done before scanJavaClasses to have updated options
-        configurePreBuildProjectOptions();
-        {
-            TimeProfiler.start("scanJavaClasses");
-            IProgress mrep = monitor.subProgress(1);
-            mrep.beginTask(IProgress.Task.READING_CLASSES, 1);
-            scanJavaClasses();
-            mrep.done();
-            TimeProfiler.stop();
-        }
-
-        List<IPlugin> plugins = new ArrayList<>();
-        for (Class<? extends IPlugin> klass : pluginClasses) {
-            IPlugin plugin = klass.getConstructor().newInstance();
-            plugin.init(this);
-            plugins.add(plugin);
-        }
-
-        boolean texture_compress = this.option("texture-compression", "false").equals("true");
-        if (texture_compress)
-        {
-            registerTextureCompressors();
-        }
-
-        loop:
-        for (String command : commands) {
-            BundleHelper.throwIfCanceled(monitor);
-            TimeProfiler.start(command);
-            switch (command) {
-                case "build": {
-                    TimeProfiler.start("PrepExtensions");
-                    ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
-                    final String[] platforms = getPlatformStrings();
-                    Future<Void> remoteBuildFuture = null;
-                    // Get or build engine binary
-                    boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                    boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
-                    TimeProfiler.stop();
-
-                    if (shouldBuildProject) {
-                        // do this before buildRemoteEngine to prevent concurrent modification exception, since
-                        // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
-                        // when sending to extender
-                        TimeProfiler.start("transpileLua");
-                        transpileLua(monitor);
-                        TimeProfiler.stop();
-
-                        TimeProfiler.start("installTextureCompressorPresets");
-                        installTextureCompressorPresets();
-                        TimeProfiler.stop();
-                    }
-
-                    TimeProfiler.start("PrepEngine");
-                    TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
-                    if (shouldBuildRemoteEngine) {
-                        remoteBuildFuture = buildRemoteEngine(monitor, executor);
-                    }
-                    else {
-                        // Remove the remote built executables in the build folder, they're still in the cache
-                        cleanEngines(monitor, platforms);
-                        if (hasOption("with-symbols")) {
-                            IProgress progress = monitor.subProgress(1);
-                            EngineArtifactsProvider.downloadSymbols(this, progress);
-                            progress.done();
-                        }
-                    }
-                    TimeProfiler.stop();
-                    boolean resourceBuildingFailed = false;
-                    try {
-                        if (shouldBuildProject) {
-                            result = createAndRunTasks(monitor);
-                        }
-                    }
-                    catch(Exception e) {
-                        if (!monitor.isCanceled()) {
-                            resourceBuildingFailed = true;
-                            throw e;
-                        }
-                    }
-                    finally {
-                        if (remoteBuildFuture != null && !resourceBuildingFailed) {
-                            // get the result from the remote build and catch
-                            // if an exception was thrown in buildRemoteEngine() the
-                            // original exception is included in the ExecutionException
-                            try {
-                                remoteBuildFuture.get();
-                            }
-                            catch (ExecutionException|InterruptedException e) {
-                                Throwable cause = e.getCause();
-                                if ((cause instanceof MultipleCompileException) ||
-                                    (cause instanceof CompileExceptionError)) {
-                                    throw cause;
-                                }
-                                else {
-                                    throw new CompileExceptionError(cause);
+                                if (anyFailing(result)) {
+                                    break loop;
                                 }
                             }
+                            break;
                         }
-                        if (anyFailing(result)) {
-                            break loop;
+                        case "clean": {
+                            clean(commandProgress, state);
+                            break;
                         }
+                        case "distclean": {
+                            distClean(commandProgress);
+                            break;
+                        }
+                        case "bundle": {
+                            bundle(commandProgress);
+                            break;
+                        }
+                        default:
+                            break;
                     }
-                    break;
+                    TimeProfiler.stop();
                 }
-                case "clean": {
-                    clean(monitor, state);
-                    break;
-                }
-                case "distclean": {
-                    distClean(monitor);
-                    break;
-                }
-                case "bundle": {
-                    bundle(monitor);
-                    break;
-                }
-                default: break;
+
             }
+
+            for (IPlugin plugin : plugins) {
+                plugin.exit(this);
+            }
+            plugins.clear();
+
+            TimeProfiler.start("Save cache");
+            state.save(stateResource);
+            fileSystem.saveCache();
             TimeProfiler.stop();
+            return result;
         }
-
-        for (IPlugin plugin : plugins) {
-            plugin.exit(this);
-        }
-        plugins.clear();
-
-        monitor.done();
-        TimeProfiler.start("Save cache");
-        state.save(stateResource);
-        fileSystem.saveCache();
-        TimeProfiler.stop();
-        return result;
     }
 
 
 
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
+    private List<TaskResult> runTasks(IProgress progress, AtomicBoolean remoteBuildFailed) throws IOException, CompileExceptionError {
+        try (progress) {
+            // tasks are now built in parallel which means that we no longer want
+            // to use all the cores just for texture generation
+            TextureGenerator.maxThreads = getHalfThreads();
 
-        // tasks are now built in parallel which means that we no longer want
-        // to use all the cores just for texture generation
-        TextureGenerator.maxThreads = getHalfThreads();
+            TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
 
-        TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
+            // create mapping between output and flags
+            outputs.clear();
+            for (IResource res : taskBuilder.getAllOutputs()) {
+                outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
+            }
 
-        // create mapping between output and flags
-        outputs.clear();
-        for (IResource res : taskBuilder.getAllOutputs()) {
-            outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
+            // build all tasks and make sure no new tasks were created while building
+            tasks.clear();
+            List<TaskResult> result = taskBuilder.build(progress, remoteBuildFailed);
+            if (!tasks.isEmpty()) {
+                throw new CompileExceptionError("New tasks were created while tasks were building");
+            }
+
+            return result;
         }
-
-        // build all tasks and make sure no new tasks were created while building
-        tasks.clear();
-        List<TaskResult> result = taskBuilder.build(monitor);
-        if (!tasks.isEmpty()) {
-            throw new CompileExceptionError("New tasks were created while tasks were building");
-        }
-
-        return result;
     }
 
     /**
@@ -1967,7 +1958,7 @@ public class Project {
      * @throws IOException
      */
     public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
-        try {
+        try (progress) {
             String libPath = getLibPath();
             File libDir = new File(libPath);
             // Clean lib dir first
@@ -1976,9 +1967,8 @@ public class Project {
             // Download libs
             Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(libPath, libUrls);
             int count = this.libUrls.size();
-            IProgress subProgress = progress.subProgress(count);
-            subProgress.beginTask(IProgress.Task.DOWNLOADING_ARCHIVES, count);
-            logInfo("Downloading %d archive(s)", count);
+            progress.message(new IProgress.Message.DownloadingArchives(count));
+            var split = progress.split(count);
 
             // Use a fixed thread pool with 2 threads for parallel downloads
             ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -1990,11 +1980,20 @@ public class Project {
                 final File f = libFiles.get(url.toString());
 
                 Future<Void> future = executor.submit(() -> {
-                    try {
+                    try (var downloadProgress = split.subtask()) {
                         TimeProfiler.start("Lib %2d", index);
+                        URI progressUri;
+                        String basicAuthData = null;
+                        try {
+                            URI uri = new URI(url.toString());
+                            progressUri = new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(), null, uri.getFragment());
+                            basicAuthData = uri.getUserInfo();
+                        } catch (URISyntaxException e1) {
+                            progressUri = URI.create(url.getProtocol() + "://" + url.getHost() + url.getPath());
+                        }
+                        downloadProgress.message(new IProgress.Message.DownloadingArchive(progressUri));
                         BundleHelper.throwIfCanceled(progress);
 
-                        logInfo("%2d: Downloading %s", index, url);
                         TimeProfiler.addData("url", url.toString());
                         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                         // GitLab will respond with a 406 Not Acceptable if the request
@@ -2009,15 +2008,6 @@ public class Project {
                                 etag = String.format("\"%s\"", etag); // fixing broken etag
                                 connection.addRequestProperty("If-None-Match", etag);
                             }
-                        }
-
-                        // Check if URL contains basic auth credentials
-                        String basicAuthData = null;
-                        try {
-                            URI uri = new URI(url.toString());
-                            basicAuthData = uri.getUserInfo();
-                        } catch (URISyntaxException e1) {
-                            // Ignored, could not get URI and basic auth data from URL.
                         }
 
                         // Check if basic auth password is a token that should be replaced with
@@ -2101,10 +2091,9 @@ public class Project {
                             if (input != null) {
                                 IOUtils.closeQuietly(input);
                             }
-                            subProgress.worked(1);
                         }
 
-                        BundleHelper.throwIfCanceled(subProgress);
+                        BundleHelper.throwIfCanceled(progress);
                         TimeProfiler.stop();
                         return null;
                     } catch (Exception e) {
@@ -2132,10 +2121,8 @@ public class Project {
                 }
             }
             executor.shutdown();
-        } catch (IOException ioe) {
-            throw ioe;
-        } catch (LibraryException le) {
-            throw le;
+        } catch (IOException | LibraryException e) {
+            throw e;
         } catch (Exception e) {
             throw new LibraryException(e.getMessage(), e);
         }
@@ -2264,6 +2251,20 @@ public class Project {
         return path;
     }
 
+    public static String stripLeadingAndTrailingSlashes(String path) {
+        int start = 0;
+        int end = path.length();
+
+        while (start < end && path.charAt(start) == '/') {
+            start++;
+        }
+        while (end > start && path.charAt(end - 1) == '/') {
+            end--;
+        }
+
+        return start == 0 && end == path.length() ? path : path.substring(start, end);
+    }
+
     public static int getDefaultMaxCpuThreads() {
         int maxThreads = 1;
         int availableProcessors = Runtime.getRuntime().availableProcessors();
@@ -2276,69 +2277,13 @@ public class Project {
         return maxThreads;
     }
 
-    private void findResourcePathsByExtension(String _path, String ext, Collection<String> result) {
-        TimeProfiler.start("findResourcePathsByExtension");
-        TimeProfiler.addData("path", _path);
-        TimeProfiler.addData("ext", ext);
-        // Initialize and cache all paths only once
-        if (allResourcePathsCache == null) {
-            List<String> allPaths = new ArrayList<>();
-            fileSystem.walk("", new FileSystemWalker() {
-                public void handleFile(String filePath, Collection<String> results) {
-                    results.add(FilenameUtils.normalize(filePath, true));
-                }
-            }, allPaths);
-            allResourcePathsCache = allPaths;
-        }
-        _path = FilenameUtils.normalize(_path, true);
-        _path = stripLeadingSlash(_path);
-        // Fast path: if no filter, return everything
-        if ((ext == null || ext.isEmpty()) && (_path == null || _path.isEmpty())) {
-            result.addAll(allResourcePathsCache);
-            TimeProfiler.stop();
-            return;
-        }
-        IResource res = fileSystem.get(_path);
-        try {
-            if ( (_path != null && !_path.isEmpty()) && (!res.isFile() || res.getContent() == null)) {
-                if (!_path.endsWith("/")) {
-                    _path += "/";
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        final String path =_path;
-
-        // Filter the cached list in parallel, collect safely, then add to result
-        List<String> filteredPaths = allResourcePathsCache.parallelStream()
-            .filter(p -> (ext == null || p.endsWith(ext)) &&
-                         (path == null || path.isEmpty() || p.startsWith(path)))
-            .collect(Collectors.toList());
-        result.addAll(filteredPaths);
-        TimeProfiler.stop();
-    }
-
     public void findResourcePaths(String _path, Collection<String> result) {
-        findResourcePathsByExtension(_path, null, result);
+        resourceWalker.findResourcePathsByExtension(_path, null, result);
     }
 
     // Finds the first level of directories in a path
     public void findResourceDirs(String _path, Collection<String> result) {
-        // Make sure the path has Unix separators, since this is how
-        // paths are specified game project relative internally.
-        final String path = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(_path));
-        fileSystem.walk(path, new FileSystemWalker() {
-            public boolean handleDirectory(String dir, Collection<String> results) {
-                if (path.equals(dir)) {
-                    return true;
-                }
-                results.add(FilenameUtils.getName(FilenameUtils.normalizeNoEndSeparator(dir)));
-                return false; // skip recursion
-            }
-            public void handleFile(String path, Collection<String> results) { // skip any files
-            }
-        }, result);
+        resourceWalker.findResourceDirs(_path, result);
     }
 
     public List<Task> getTasks() {

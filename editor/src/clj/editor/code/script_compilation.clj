@@ -19,6 +19,7 @@
             [editor.code.preprocessors :as preprocessors]
             [editor.code.resource :as r]
             [editor.image :as image]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.luajit :as luajit]
@@ -33,12 +34,14 @@
             [util.coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [com.google.protobuf ByteString]
-           [java.io StringReader]))
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 
 (def ^Class built-pb-class Lua$LuaModule)
+
+(def ^:const go-property-disallowed-message
+  (localization/message "error.go-property-disallowed"))
 
 (defn script-property-type->go-prop-type
   "Controls how script property values are represented in the file formats."
@@ -98,16 +101,16 @@
       (cond
         (not ext-match?)
         (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' is not of type %s"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)
-                           (validation/format-ext expected-ext)))
+                   (localization/message "error.resource-assignment-not-of-type"
+                                         {"property" (validation/format-name prop-name)
+                                          "resource" (resource/proj-path resource)
+                                          "type" (validation/format-ext-message expected-ext)}))
 
         (not (resource/exists? resource))
         (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' could not be found"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)))))))
+                   (localization/message "error.property-resource-not-found"
+                                         {"property" (validation/format-name prop-name)
+                                          "resource" (resource/proj-path resource)}))))))
 
 (defn validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
   (when (= resource/Resource (:type edit-type))
@@ -163,15 +166,23 @@
     (let [line-number (some-> line-number-string Long/parseLong)]
       (pair proj-path line-number))))
 
-(defn- lua-info-errors [_node-id resource lua-info]
-  (->> lua-info
-       :errors
-       (e/map
-         (fn [{:keys [message cursor-range]}]
-           (g/->error _node-id :modified-lines :fatal resource message {:cursor-range cursor-range})))))
+(defn- lua-info-errors [_node-id resource lua-info allow-go-properties]
+  (e/concat
+    (->> lua-info
+         :errors
+         (e/map
+           (fn [{:keys [message cursor-range]}]
+             (g/->error _node-id :modified-lines :fatal resource message {:cursor-range cursor-range}))))
+    (when-not allow-go-properties
+      (->> lua-info
+           :script-properties
+           (e/map
+             (fn [script-property]
+               (g/->error _node-id :modified-lines :fatal resource go-property-disallowed-message {:cursor-range (:cursor-range (meta script-property))})))))))
 
-(defn build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node evaluation-context]
-  (let [workspace (resource/workspace resource)]
+(defn build-targets [_node-id resource lines allow-go-properties lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node evaluation-context]
+  (let [basis (:basis evaluation-context)
+        workspace (resource/workspace resource)]
     (if-some [errors
               (not-empty
                 (keep (fn [{:keys [name resource-kind type value]}]
@@ -187,11 +198,11 @@
                 exception))]
         (if-some [exception-message (ex-message preprocessed-lines)]
           (let [exception preprocessed-lines
-                build-error-message (str "Lua preprocessing failed.\n" exception-message)
+                build-error-message (localization/message "error.lua-preprocessing-failed" {"error" exception-message})
                 log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
             (log/error :message log-error-message :exception exception)
             (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
-              (let [exception-resource (workspace/resolve-resource resource proj-path evaluation-context)
+              (let [exception-resource (workspace/resolve-resource basis resource proj-path)
                     exception-node-id (proj-path->resource-node proj-path)
                     error-node-id (or exception-node-id _node-id)
                     error-resource (if (nil? exception-node-id) resource exception-resource)
@@ -200,8 +211,8 @@
               (g/->error _node-id :modified-lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
-                  (lua-parser/lua-info workspace valid-resource-kind? reader evaluation-context))]
-            (g/precluding-errors (lua-info-errors _node-id resource preprocessed-lua-info)
+                  (lua-parser/lua-info basis workspace valid-resource-kind? reader))]
+            (g/precluding-errors (lua-info-errors _node-id resource preprocessed-lua-info allow-go-properties)
               (let [preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
                     preprocessed-modules (lua-info->modules preprocessed-lua-info)
                     preprocessed-go-props-with-source-resources

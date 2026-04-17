@@ -58,6 +58,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
+            [util.debug-util :as du]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -95,7 +96,6 @@
 
     (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)
-    (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
 
@@ -167,29 +167,30 @@
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
           editor-tabs-split    (.lookup root "#editor-tabs-split")
+          right-split          (.lookup root "#right-split")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
-          ^TreeView outline    (.lookup root "#outline")
           ^TreeView assets     (.lookup root "#assets")
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
-          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
+          [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
+          outline-view         (outline-view/make-outline-view *view-graph* project app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
+                                                                         localization
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
                                                                              (app-view/select! app-view selected-node-ids))))
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
@@ -212,11 +213,12 @@
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
-                                 [(engine-profiler/routes)
+                                 [(web-server/built-in-routes project)
+                                  (engine-profiler/routes)
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
-                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))
+                                  (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -238,8 +240,6 @@
                       (spit port-file-content))]
       (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
       (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
-      (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
-      (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
       (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
@@ -371,14 +371,16 @@
           (g/connect app-view :active-resource asset-browser :active-resource)
           (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
+          (g/connect outline-view :pane-desc app-view :outline-pane-desc)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+          (g/connect properties-view :_node-id app-view :properties-view)
+          (g/connect properties-view :pane-desc app-view :properties-pane-desc)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
-          (for [label [:active-resource-node :active-outline :open-resource-nodes]]
+          (for [label [:active-resource-node :active-outline :open-resource-nodes :outline-active]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[app-view :refresh-tab-panes]
-                            [outline-view :tree-view]
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]
                             [debug-view :update-available-controls]
@@ -400,7 +402,7 @@
 
           ;; If the project was just created, we automatically open the readme.
           (if newly-created?
-            (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+            (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
 
@@ -429,15 +431,16 @@
 
 (defn open-project!
   [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
-  (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
-        build-settings (workspace/make-build-settings prefs)
-        workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-        workspace (setup-workspace! project-path build-settings workspace-config localization)
-        game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        extensions (extensions/make *project-graph*)
-        project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
-    (ui/run-now
-      (icons/initialize! workspace)
-      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
-    (g/reset-undo! *project-graph*)
-    (log/info :message "project loaded")))
+  (du/log-time "Project loading"
+    (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
+          build-settings (workspace/make-build-settings prefs)
+          workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+          workspace (setup-workspace! project-path build-settings workspace-config localization)
+          game-project-res (workspace/file-resource workspace "/game.project")
+          extensions (extensions/make *project-graph*)
+          project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
+      (ui/run-now
+        (icons/initialize! workspace)
+        (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
+      (g/reset-undo! *project-graph*)
+      (log/info :message "project loaded"))))

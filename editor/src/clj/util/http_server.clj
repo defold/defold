@@ -17,7 +17,6 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.util :as util]
             [reitit.core :as reitit]
@@ -27,7 +26,7 @@
            [java.io Closeable File IOException]
            [java.net InetSocketAddress URI URL]
            [java.nio.charset StandardCharsets]
-           [java.nio.file Files Path]
+           [java.nio.file Path]
            [java.util List]
            [org.apache.commons.io FilenameUtils]
            [org.apache.commons.io.output ByteArrayOutputStream]))
@@ -398,8 +397,8 @@
         method-set (cond-> method-set (contains? method-set "GET") (conj "HEAD"))]
     (string/join ", " (sort method-set))))
 
-(defn- invoke-handler [handler request match]
-  (handler (assoc request :path-params (:path-params match))))
+(defn- invoke-handler [handler request router match]
+  (handler (assoc request :path-params (:path-params match) :router router)))
 
 (defn router-handler
   "Create HTTP request handler function from reitit routes
@@ -450,7 +449,7 @@
           (let [method->handler (:data match)
                 method (:method request)]
             (if-let [handler (method->handler method)]
-              (invoke-handler handler request match)
+              (invoke-handler handler request router match)
               (case method
                 "OPTIONS" (response
                             200
@@ -458,7 +457,7 @@
                              "access-control-allow-methods" (allowed-methods method->handler)}
                             nil)
                 "HEAD" (if-let [get-handler (method->handler "GET")]
-                         (invoke-handler get-handler request match) ;; http server will strip the body
+                         (invoke-handler get-handler request router match) ;; http server will strip the body
                          (update method-not-allowed :headers assoc "allow" (allowed-methods method->handler)))
                 (update method-not-allowed :headers assoc "allow" (allowed-methods method->handler)))))
           not-found)))))

@@ -121,6 +121,17 @@ namespace dmGameSystem
     void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max)
     { }
 
+    void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
+    { }
+
+    void CompModelResetBlendWeights(ModelComponent* component)
+    { }
+
+    bool CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count)
+    {
+        return false;
+    }
+
     void CompModelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
     { }
 }

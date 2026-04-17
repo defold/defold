@@ -125,7 +125,7 @@
         payload {:client_id cid
                  :events batch
                  :user_properties {:locale {:value (localization/current-locale @localization)}}
-                 :device {:language (.getLanguage (Locale/getDefault))
+                 :device {:language (.toLanguageTag (Locale/getDefault))
                           :operating_system (.getOs (Platform/getHostPlatform))}}
         ^String payload-json (json/write-str payload)]
     (.getBytes payload-json StandardCharsets/UTF_8)))

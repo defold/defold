@@ -33,6 +33,10 @@
 ; This must match 'MAX_BUFFER_COLOR_ATTACHMENTS' in engine/graphics/src/graphics.h
 (def ^:private max-color-attachment-count 4)
 
+(def ^:private color-attachments-message (localization/message "form.label.render-target.color-attachments"))
+(def ^:private depth-stencil-attachment-width-message (localization/message "form.label.render-target.depth-stencil-attachment-width"))
+(def ^:private depth-stencil-attachment-height-message (localization/message "form.label.render-target.depth-stencil-attachment-height"))
+
 (def form-data
   {:navigation false
    :sections
@@ -105,19 +109,20 @@
 
 (defn- validate-color-attachment-count [v name]
   (when (> (count v) max-color-attachment-count)
-    (format "'%s' render targets cannot have more than %d color attachments"
-            name max-color-attachment-count)))
+    (localization/message "error.render-target.color-attachments-cannot-exceed"
+                          {"property" name
+                           "max" max-color-attachment-count})))
 
 (defn- color-attachment->error-values [color-attachment-index {:keys [width height]} node-id label]
   (filterv some?
            [(when (< width 1)
               (g/->error node-id label :fatal width
-                         (format "'Color attachment %d' must have a greater than zero width"
-                                 color-attachment-index)))
+                         (localization/message "error.render-target.color-attachment-width-must-be-greater-than-zero"
+                                               {"index" color-attachment-index})))
             (when (< height 1)
               (g/->error node-id label :fatal height
-                         (format "'Color attachment %d' must have a greater than zero height"
-                                 color-attachment-index)))]))
+                         (localization/message "error.render-target.color-attachment-height-must-be-greater-than-zero"
+                                               {"index" color-attachment-index})))]))
 
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
@@ -139,19 +144,19 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
-                                                 (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments "Color Attachments")
+                                                 (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
                                                  (into [] (map-indexed
                                                             (fn [i color-attachment]
                                                               (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
-                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width "Depth/Stencil Width")
-                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height "Depth/Stencil Height")
+                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)
+                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height depth-stencil-attachment-height-message)
                                                  (when (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height))
                                                    (g/->error _node-id :depth-stencil-attachment-width :fatal depth-stencil-attachment-width
-                                                              (format "Incorrect Depth/Stencil attachment: The width is greater than zero, but the height is zero")))
+                                                              (localization/message "error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is")))
                                                  (when (and (> depth-stencil-attachment-height 0) (= 0 depth-stencil-attachment-width))
                                                    (g/->error _node-id :depth-stencil-attachment-height :fatal depth-stencil-attachment-height
-                                                              (format "Incorrect Depth/Stencil attachment: The height is greater than zero, but the width is zero")))))))
+                                                              (localization/message "error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is")))))))
 
 (defn load-render-target [_project self _resource render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
@@ -167,7 +172,7 @@
         depth-stencil-attachment-format :format
         depth-stencil-attachment-texture-storage :texture-storage))))
 
-(def ^:private default-pb-depth-stencil-attachment (protobuf/default-message RenderTarget$RenderTargetDesc$DepthStencilAttachment #{:required}))
+(def ^:private default-pb-depth-stencil-attachment (protobuf/required-field-defaults RenderTarget$RenderTargetDesc$DepthStencilAttachment))
 
 (defn- sanitize-render-target [render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.

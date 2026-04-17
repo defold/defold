@@ -41,9 +41,9 @@
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
-            [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.menu-items :as menu-items]
+            [editor.node-util :as node-util]
             [editor.outline :as outline]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
@@ -52,7 +52,6 @@
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [flipped-pair pair]]
             [util.fn :as fn]
@@ -231,7 +230,7 @@
   {:value-path (:path item)})
 
 (defn- init-search-in-files-tree-view! [^TreeView tree-view]
-  (ui/customize-tree-view! tree-view {:double-click-expand? false})
+  (ui/customize-tree-view! tree-view {:double-click-expand false})
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (.setShowRoot tree-view false)
   (.setRoot tree-view (doto (TreeItem.)
@@ -758,7 +757,7 @@
                                                 (outline-ids node-id) node-id
                                                 :else (recur (core/owner-node-id basis node-id)))))
                                           node-id)
-                       qualifier (gu/node-qualifier-label select-node-id evaluation-context)]
+                       qualifier (node-util/node-qualifier-label select-node-id evaluation-context)]
                    {:node-id select-node-id
                     :qualifier qualifier
                     :resource resource

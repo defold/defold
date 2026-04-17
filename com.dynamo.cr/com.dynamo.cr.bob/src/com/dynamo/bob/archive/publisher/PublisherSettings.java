@@ -75,24 +75,6 @@ public class PublisherSettings {
         return null;
     }
 
-    public void setManifestPublicKey(String value) {
-        this.setValue("liveupdate", "publickey", value);
-    }
-
-    public String getManifestPublicKey() {
-        String value = this.getValue("liveupdate", "publickey");
-        return value != null ? value : "";
-    }
-
-    public void setManifestPrivateKey(String value) {
-        this.setValue("liveupdate", "privatekey", value);
-    }
-
-    public String getManifestPrivateKey() {
-        String value = this.getValue("liveupdate", "privatekey");
-        return value != null ? value : "";
-    }
-
     public void setSupportedVersions(String value) {
         this.setValue("liveupdate", "supported-versions", value);
     }

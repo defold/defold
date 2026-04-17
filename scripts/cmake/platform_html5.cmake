@@ -1,6 +1,6 @@
 defold_log("platform_html5.cmake:")
 
-if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   message(FATAL_ERROR "platform_html5.cmake included for non-web TARGET_PLATFORM: ${TARGET_PLATFORM}")
 endif()
 
@@ -79,15 +79,11 @@ if(WITH_WEBGPU)
   # Note: ASYNCIFY_ADVISE etc. are opt-level dependent in waf; omitted here
 endif()
 
-# WASM vs asm.js
-if(TARGET_PLATFORM MATCHES "^wasm")
-  if(WITH_UBSAN)
-    list(APPEND _DEFOLD_EM_LINK_OPTS -sASSERTIONS=1)
-  endif()
-  list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=1 -sALLOW_MEMORY_GROWTH=1)
-else()
-  list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=0 -sLEGACY_VM_SUPPORT=1)
+# WASM output configuration
+if(WITH_UBSAN)
+  list(APPEND _DEFOLD_EM_LINK_OPTS -sASSERTIONS=1)
 endif()
+list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=1 -sALLOW_MEMORY_GROWTH=1)
 
 if(_DEFOLD_WITH_PTHREAD)
   list(APPEND _DEFOLD_EM_LINK_OPTS -pthread)

@@ -2,33 +2,24 @@
 
 It is possible to connect to and interact with a debug version of the engine through a number of different open TCP ports and services. The following services and ports are typically available in a debug build of the engine:
 
-* SSDP - Port 1900.
+* mDNS/DNS-SD - UDP Port 5353.
 * Engine service - Port 8001 or the port specified in `DM_SERVICE_PORT` environment variable. When running from the editor `DM_SERVICE_PORT` is set to “dynamic” which means that the engine will let the OS assign a random available port.
 * Redirect service - Port 8002. 
 * Log service - Port assigned by OS. 
 * Remotery - Port 17815.
 
 
-## SSDP
-SSDP ([Simple Service Discovery Protocol](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol)) is used by the running engine to [broadcast](https://github.com/defold/defold/blob/dev/engine/dlib/src/dlib/ssdp.cpp) its existence on the network so that the editor can [discover](https://github.com/defold/defold/blob/dev/editor/src/java/com/dynamo/upnp/SSDP.java) it and connect to issue commands.
+## mDNS / DNS-SD
+mDNS/DNS-SD is used by the running engine to broadcast its existence on the network so that the editor can discover it and connect to issue commands.
 
-<details><summary>Example of a client in JavaScript</summary><p>
+The service type is `_defold._tcp.local` and discovery metadata is provided through TXT records. The editor uses this metadata directly to build targets.
+The advertised instance name is a protocol identifier, not display text: it is emitted as `defold[-<sanitized-address>][-<port>][-<startup-suffix>]`, must fit within one 63-byte DNS label, and may omit the address segment when keeping the port and suffix makes the label more useful. The editor-facing display name and stable target identity come from the TXT `name` and `id` entries instead of the wire instance label.
 
-Using npm package [node-ssdp](https://www.npmjs.com/package/node-ssdp)
+<details><summary>Example of discovery using `dns-sd` (macOS)</summary><p>
 
-```js
-const Client = require('node-ssdp').Client;
-const client = new Client();
-
-client.on('response', function (headers, statusCode, rinfo) {
-	if (headers.SERVER.indexOf('Defold') !== -1) {
-		console.log('Found running Defold Engine!', headers.LOCATION);
-	}
-});
-client.search('upnp:rootdevice');
+```bash
+dns-sd -B _defold._tcp local
 ```
-
-![image](https://user-images.githubusercontent.com/7230306/217389478-c99309f7-5bed-4412-bdeb-a6a0a5ab47b3.png)
  
 </p></details>
 
@@ -50,12 +41,8 @@ This endpoint will accept a GET request and reply with a "pong". This can be use
 This endpoint will accept a GET request and reply with a JSON formatted string containing information about the engine:
 
 ```json
-{"version": "1.4.1", "platform": "x86_64-macos", "sha1": "8f96e450ddfb006a99aa134fdd373cace3760571"}
+{"version": "1.4.1", "platform": "x86_64-macos", "sha1": "8f96e450ddfb006a99aa134fdd373cace3760571", "log_port": "7001"}
 ```
-
-### /upnp
-This endpoint will accept a GET request and reply with an upnp specification (XML).
-
 
 ## Redirect service
 The redirect service will redirect any request to the engine service on its actual port (see Engine Service)

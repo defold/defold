@@ -23,6 +23,7 @@
 #include <dlib/platform.h>
 
 #include <graphics/graphics.h>
+#include <platform/window.hpp>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -98,9 +99,10 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = 32;
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
@@ -108,15 +110,15 @@ int main(int argc, char *argv[])
     window_params.m_OpenGLVersionHint = 33;
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     }
     else
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
     }
     window_params.m_ContextAlphabits = 8;
 
-    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
     dmPlatform::ShowWindow(window);
 

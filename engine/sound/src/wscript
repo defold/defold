@@ -54,7 +54,7 @@ def build(bld):
     elif re.match('arm.*?android', bld.env['PLATFORM']):
         classpath = [bld.env.ANDROID_JAR]
         classpath = os.pathsep.join(classpath)
-        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
+        bld.env['JAVACFLAGS'] = '-g --release 8 -Xlint:-options'.split()
         bld(features='javac seq',
             classpath=classpath,
             outdir='java',
@@ -116,7 +116,7 @@ def build(bld):
     for f in ['CFLAGS', 'CXXFLAGS']:
         sound.env.append_value(f, simd_flags)
 
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
         sound_nosimd = bld.stlib(features = 'c cxx ddf',
                                  includes = '. %s' % include,
                                  defines  = defines,

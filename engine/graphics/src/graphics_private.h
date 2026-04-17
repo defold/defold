@@ -18,10 +18,31 @@
 #include <stdint.h>
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
+#include <dmsdk/dlib/atomic.h>
 #include "graphics.h"
 
 namespace dmGraphics
 {
+    // Shared texture metadata embedded as m_Base in each backend texture struct (OpenGLTexture, VulkanTexture, etc.).
+    // Each adapter keeps Texture as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<Texture>(container, handle) is valid alongside GetAssetFromContainer<BackendTexture>(...).
+    struct Texture
+    {
+        TextureType    m_Type;
+        TextureFormat  m_Format;
+        uint16_t       m_Width;
+        uint16_t       m_Height;
+        uint16_t       m_Depth;
+        uint16_t       m_OriginalWidth;
+        uint16_t       m_OriginalHeight;
+        uint16_t       m_OriginalDepth;
+        uint8_t        m_MipMapCount;
+        uint8_t        m_PageCount;
+        uint8_t        m_UsageHintFlags;
+        uint16_t       m_NumTextureIds;
+        int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
+    };
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
@@ -72,14 +93,6 @@ namespace dmGraphics
         SHADER_STAGE_FLAG_COMPUTE  = 0x4,
     };
 
-    enum ShaderResourceBindingFamily
-    {
-        BINDING_FAMILY_GENERIC        = 0,
-        BINDING_FAMILY_UNIFORM_BUFFER = 1,
-        BINDING_FAMILY_STORAGE_BUFFER = 2,
-        BINDING_FAMILY_TEXTURE        = 3,
-    };
-
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -91,36 +104,8 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
-        VertexStepFunction m_StepFunction;
-        uint8_t            m_StreamCount;
-    };
-
-    struct ShaderResourceType
-    {
-        union
-        {
-            ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                   m_TypeIndex;
-        };
-        uint8_t m_UseTypeIndex : 1;
-    };
-
-    struct ShaderResourceMember
-    {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint32_t                    m_Offset;
-    };
-
-    struct ShaderResourceTypeInfo
-    {
-        char*                 m_Name;
-        dmhash_t              m_NameHash;
-        ShaderResourceMember* m_Members;
-        uint32_t              m_MemberCount;
+        dmArray<VertexStream> m_Streams;
+        VertexStepFunction    m_StepFunction;
     };
 
     struct ShaderResourceBinding
@@ -167,6 +152,21 @@ namespace dmGraphics
         dmArray<SetTextureAsyncParams> m_Params;
         dmIndexPool16                  m_Indices;
         dmArray<HTexture>              m_PostDeleteTextures;
+    };
+
+    // Shared fields embedded as m_BaseContext (first member) in each backend context struct.
+    struct GraphicsContext
+    {
+        HWindow                            m_Window;
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
+        uint64_t                           m_TextureFormatSupport;
+        TextureFilter                      m_DefaultTextureMinFilter;
+        TextureFilter                      m_DefaultTextureMagFilter;
+        uint32_t                           m_Width;
+        uint32_t                           m_Height;
+        uint32_t                           m_VerifyGraphicsCalls : 1;
+        uint32_t                           m_PrintDeviceInfo     : 1;
     };
 
     struct ProgramResourceBindingsInfo
@@ -280,7 +280,6 @@ namespace dmGraphics
     uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                       BuildUniforms(Program* program);
     void                       IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
-    void                       GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     UniformBufferLayout*       AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,
@@ -371,7 +370,6 @@ namespace dmGraphics
     void                SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
     const Uniform*      GetUniform(HProgram prog, dmhash_t name_hash);
     const ShaderMeta*   GetShaderMeta(HProgram prog);
-    void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

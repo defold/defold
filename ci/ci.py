@@ -228,7 +228,16 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-linux', 'x86_64-linux'):
+    if platform in ('x86_64-macos',
+                    'arm64-macos',
+                    'arm64-ios',
+                    'x86_64-ios',
+                    'wasm-web',
+                    'wasm_pthread-web',
+                    'arm64-linux',
+                    'x86_64-linux',
+                    'armv7-android',
+                    'arm64-android'):
         install_sdk = ''
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
@@ -457,42 +466,25 @@ def main(argv):
     branch = get_branch()
 
     # configure build flags based on the branch
-    release_channel = None
+    channel = None
     make_release = False
     if branch == "master":
-        engine_channel = "stable"
-        editor_channel = "editor-alpha"
-        release_channel = "stable"
+        channel = "stable"
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
-        engine_channel = "beta"
-        editor_channel = "beta"
-        release_channel = "beta"
+        channel = "beta"
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "dev":
-        engine_channel = "alpha"
-        editor_channel = "alpha"
-        release_channel = "alpha"
+        channel = "alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "editor-dev":
-        engine_channel = None
-        editor_channel = "editor-alpha"
-        release_channel = "editor-alpha"
-        make_release = True
-        engine_artifacts = args.engine_artifacts
-    elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
-        engine_channel = None
-        editor_channel = "editor-dev"
-        engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
-        engine_channel = "dev"
-        editor_channel = "dev"
+        channel = "dev"
         engine_artifacts = args.engine_artifacts or "archived"
 
-    print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
+    print(f"Using branch={branch} channel={channel} engine_artifacts={engine_artifacts}")
 
     # execute commands
     for command in args.commands:
@@ -501,7 +493,7 @@ def main(argv):
                 raise Exception("No --platform specified.")
             build_engine(
                 platform,
-                engine_channel,
+                channel,
                 with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
                 with_asan = args.with_asan,
                 with_ubsan = args.with_ubsan,
@@ -522,7 +514,7 @@ def main(argv):
                 gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
             build_editor2(
-                editor_channel, 
+                channel,
                 platform,
                 engine_artifacts = engine_artifacts, 
                 skip_tests = args.skip_tests,
@@ -532,11 +524,11 @@ def main(argv):
                 gcloud_keyfile = gcloud_keyfile, 
                 gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
-            archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
+            archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            build_bob(engine_channel, branch = branch)
+            build_bob(channel, branch = branch)
         elif command == "sdk":
-            build_sdk(engine_channel)
+            build_sdk(channel)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -547,7 +539,7 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(release_channel)
+                release(channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

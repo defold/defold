@@ -314,7 +314,7 @@
 
 (defn- construct-image [s workspace]
   (if (string/starts-with? s "/")
-    (when-let [resource (workspace/find-resource workspace s (lifecycle-evaluation-context))]
+    (when-let [resource (workspace/find-resource (:basis (lifecycle-evaluation-context)) workspace s)]
       (when (resource/exists? resource)
         (with-open [is (io/input-stream resource)]
           (Image. is))))

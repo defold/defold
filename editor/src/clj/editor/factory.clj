@@ -44,6 +44,8 @@
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
+(def ^:private prototype-message (properties/label-message :factory :prototype))
+
 (g/defnk produce-form-data
   [_node-id factory-type prototype-resource load-dynamically dynamic-prototype]
   (let [localization-key (get-in factory-types [factory-type :localization-key])]
@@ -75,7 +77,7 @@
       :dynamic-prototype dynamic-prototype)))
 
 (g/defnk produce-build-targets [_node-id resource factory-type prototype save-value]
-  (or (validation/prop-error :fatal _node-id :prototype validation/prop-nil? prototype "prototype")
+  (or (validation/prop-error :fatal _node-id :prototype validation/prop-nil? prototype prototype-message)
       [(pipeline/make-protobuf-build-target
          _node-id
          resource
@@ -89,7 +91,8 @@
   {:pre [(contains? factory-types factory-type)
          (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
   (let [pb-class (:pb-type (get factory-types factory-type))
-        resolve-resource #(workspace/resolve-resource resource %)]
+        basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (into [(g/set-property self :factory-type factory-type)]
           (gu/set-properties-from-pb-map self pb-class any-factory-desc
             prototype (resolve-resource :prototype)
@@ -118,8 +121,8 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :prototype-resource])))
             (dynamic error (g/fnk [_node-id prototype-resource]
-                                  (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource "Prototype")
-                                      (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
+                                  (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource prototype-message)
+                                      (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource prototype-message))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])}))
             (dynamic label (properties/label-dynamic :factory :prototype))

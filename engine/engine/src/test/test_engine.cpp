@@ -294,7 +294,10 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
     http_ctx->m_PreCount++;
 }
 
-#if !(defined(DM_PLATFORM_VENDOR)) // Until we can reboot properly
+// VENDOR: Until we can reboot properly within the unit test
+// ANDROID: Until we can the http tests are fixed
+#if !(defined(DM_PLATFORM_VENDOR) || \
+      defined(ANDROID))
 TEST_F(EngineTest, HttpPost)
 {
     char project_path[256];
@@ -426,7 +429,10 @@ TEST_F(EngineTest, RunScript)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv5), (char**)argv5, 0, 0, 0));
 }
 
-#if !(defined(DM_PLATFORM_VENDOR)) // until we support connections
+// VENDOR: Until we support connections
+// ANDROID: Until we can the http tests are fixed
+#if !(defined(DM_PLATFORM_VENDOR) || \
+      defined(ANDROID))
 TEST_F(EngineTest, ConnectionRunScript)
 {
     char project_path[256];
@@ -576,7 +582,7 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
-    dmGraphics::InstallAdapter();
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
     int ret = jc_test_run_all();
     ProfileFinalize();

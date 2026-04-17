@@ -36,7 +36,7 @@ import org.junit.After;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
@@ -157,10 +157,14 @@ public abstract class AbstractProtoBuilderTest {
         return this.project;
     }
 
+    protected MockFileSystem getFileSystem() {
+        return this.fileSystem;
+    }
+
     protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);
         project.setInputs(Collections.singletonList(file));
-        List<TaskResult> results = project.build(new NullProgress(), "build");
+        List<TaskResult> results = project.build(Progress.discarding(), "build");
         List<Message> messages = new ArrayList<Message>();
         for (TaskResult result : results) {
             if (!result.isOk()) {
@@ -184,7 +188,7 @@ public abstract class AbstractProtoBuilderTest {
                 fileSystem.addFile(path, null);
             }
         }, result);
-        project.build(new NullProgress(), "clean");
+        project.build(Progress.discarding(), "clean");
     }
 
     protected <T extends Message> T getMessage(List<Message> messages, Class<T> type) {

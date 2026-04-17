@@ -19,6 +19,8 @@
 #include <assert.h>
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/gameobject/gameobject.h>
+
 #include <dlib/index_pool.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -31,6 +33,7 @@
 #include "gamesys.h"
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
+#include "comp_private.h"
 
 #include "resources/res_particlefx.h"
 #include "resources/res_textureset.h"
@@ -44,30 +47,45 @@ DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, PROFILE_PROPERTY_FRAME_RESET, "si
 
 namespace dmGameSystem
 {
-    const int VERTEX_COUNT = 6; // Fixed vertex count per particle
+    const int VERTEX_COUNT         = 6; // Fixed vertex count per particle
 
     using namespace dmVMath;
 
     struct ParticleFXWorld;
 
+    struct ParticleFXEmitterOverride
+    {
+        MaterialResource*   m_Material;
+        TextureSetResource* m_TextureSet;
+        dmhash_t            m_Animation;
+    };
+
+    struct ParticleFXPrototypeOverrides
+    {
+        dmArray<ParticleFXEmitterOverride> m_EmitterOverrides;
+    };
+
     struct ParticleFXComponentPrototype
     {
-        Vector3 m_Translation;
-        Quat m_Rotation;
-        dmParticle::HPrototype m_ParticlePrototype;
-        uint16_t m_AddedToUpdate : 1;
+        Vector3                       m_Translation;
+        Quat                          m_Rotation;
+        dmParticle::HPrototype        m_ParticlePrototype;
+        ParticleFXPrototypeOverrides* m_Overrides;
+        uint16_t                      m_AddedToUpdate : 1;
         uint16_t : 15;
     };
 
     struct ParticleFXComponent
     {
-        dmGameObject::HInstance m_Instance;
-        dmhash_t m_ComponentId;
-        dmParticle::HInstance m_ParticleInstance;
-        dmParticle::HPrototype m_ParticlePrototype;
-        ParticleFXWorld* m_World;
-        uint32_t m_PrototypeIndex;
-        uint16_t m_AddedToUpdate : 1;
+        dmGameObject::HInstance       m_Instance;
+        dmhash_t                      m_ComponentId;
+        dmParticle::HInstance         m_ParticleInstance;
+        dmParticle::HPrototype        m_ParticlePrototype;
+        // Cloned from the prototype when playing a particle fx
+        ParticleFXPrototypeOverrides* m_Overrides;
+        ParticleFXWorld*              m_World;
+        uint32_t                      m_PrototypeIndex;
+        uint16_t                      m_AddedToUpdate : 1;
         uint16_t : 15;
     };
 
@@ -91,6 +109,8 @@ namespace dmGameSystem
         uint32_t                                m_WarnOutOfROs : 1;
         uint32_t                                m_WarnParticlesExceeded : 1;
     };
+
+    static void DestroyComponent(ParticleFXWorld* world, ParticleFXComponent* component);
 
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -138,8 +158,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pfx_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &pfx_world->m_Components[i];
-            dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
-            dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
+            DestroyComponent(pfx_world, c);
         }
 
         for (uint32_t i = 0; i < pfx_world->m_ConstantBuffers.Size(); ++i)
@@ -171,6 +190,7 @@ namespace dmGameSystem
         prototype->m_Rotation = params.m_Rotation;
         prototype->m_ParticlePrototype = (dmParticle::HPrototype)params.m_Resource;
         prototype->m_AddedToUpdate = false;
+        prototype->m_Overrides = 0;
         *params.m_UserData = (uintptr_t)prototype;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -180,10 +200,32 @@ namespace dmGameSystem
         return (void*)params.m_UserData;
     }
 
+    static void DeleteOverrides(dmResource::HFactory factory, ParticleFXComponentPrototype* prototype)
+    {
+        ParticleFXPrototypeOverrides* overrides = prototype->m_Overrides;
+        if (!overrides)
+            return;
+
+        uint32_t num_emitter_overrides = overrides->m_EmitterOverrides.Size();
+        for (int i = 0; i < num_emitter_overrides; ++i)
+        {
+            if (overrides->m_EmitterOverrides[i].m_Material)
+                dmResource::Release(factory, overrides->m_EmitterOverrides[i].m_Material);
+            if (overrides->m_EmitterOverrides[i].m_TextureSet)
+                dmResource::Release(factory, overrides->m_EmitterOverrides[i].m_TextureSet);
+        }
+
+        delete overrides;
+    }
+
     dmGameObject::CreateResult CompParticleFXDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+        DeleteOverrides(factory, prototype);
+
         uint32_t index = prototype - w->m_Prototypes.Begin();
         for (uint32_t i = 0; i < w->m_Components.Size(); ++i)
         {
@@ -195,13 +237,14 @@ namespace dmGameSystem
             }
         }
         w->m_PrototypeIndices.Push(index);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
     static void SetRenderConstants(dmRender::HNamedConstantBuffer constant_buffer, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const dmVMath::Point3& start, const dmVMath::Point3& end, const dmVMath::Vector4& color);
-    dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
+    dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data);
 
     dmGameObject::CreateResult CompParticleFXAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
@@ -243,7 +286,7 @@ namespace dmGameSystem
         }
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
-        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchAnimationCallback);
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchResourcesCallback);
 
         // Prune sleeping instances
         uint32_t i = 0;
@@ -254,8 +297,7 @@ namespace dmGameSystem
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 w->m_EmitterCount -= emitter_count;
-                dmResource::Release(ctx->m_Factory, c.m_ParticlePrototype);
-                dmParticle::DestroyInstance(particle_context, c.m_ParticleInstance);
+                DestroyComponent(w, &c);
                 components.EraseSwap(i);
                 --count;
             }
@@ -293,10 +335,11 @@ namespace dmGameSystem
         dmRender::HMaterial material = GetRenderMaterial(render_context, first);
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
 
-        dmGraphics::VertexAttributeInfos emitter_attribute_info = {};
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
+
+        dmGraphics::VertexAttributeInfos* emitter_attribute_info = GetScratchVertexAttributeInfos(material_attribute_info.m_NumInfos);
 
         const uint32_t vx_stride = material_attribute_info.m_VertexStride;
         const uint32_t max_gpu_count = pfx_context->m_MaxParticleCount;
@@ -334,7 +377,8 @@ namespace dmGameSystem
                     emitter_render_data->m_Attributes,
                     emitter_render_data->m_AttributeCount,
                     &material_attribute_info,
-                    &emitter_attribute_info);
+                    emitter_attribute_info,
+                    dmGraphics::COORDINATE_SPACE_WORLD);
 
             uint32_t particle_count = dmParticle::GetParticleCount(particle_context, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
@@ -348,7 +392,7 @@ namespace dmGameSystem
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
                     pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                     p, num_particles_to_write,
-                    emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
+                    *emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
                 // if the buffer is full
                 // or if we couldn't fit a single particle
@@ -603,6 +647,7 @@ namespace dmGameSystem
         component->m_Instance = go_instance;
         component->m_ComponentId = component_id;
         component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
+        component->m_Overrides = 0;
         // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
         dmResource::HFactory factory = world->m_Context->m_Factory;
         dmResource::IncRef(factory, prototype->m_ParticlePrototype);
@@ -610,8 +655,65 @@ namespace dmGameSystem
         component->m_ParticlePrototype = prototype->m_ParticlePrototype;
         component->m_World = world;
         component->m_AddedToUpdate = prototype->m_AddedToUpdate;
+
+        // If the prototype has overrides when we play the particlefx,
+        // we need to clone them and incref to make sure they can live
+        // while the particlefx is playing.
+        ParticleFXPrototypeOverrides* overrides = prototype->m_Overrides;
+        if (overrides)
+        {
+            uint32_t num_overrides = overrides->m_EmitterOverrides.Size();
+
+            if (num_overrides > 0)
+            {
+                ParticleFXPrototypeOverrides* component_overrides = new ParticleFXPrototypeOverrides;
+                component_overrides->m_EmitterOverrides.SetCapacity(num_overrides);
+
+                for (int i = 0; i < num_overrides; ++i)
+                {
+                    component_overrides->m_EmitterOverrides.Push(overrides->m_EmitterOverrides[i]);
+                    if (component_overrides->m_EmitterOverrides[i].m_Material)
+                    {
+                        dmResource::IncRef(factory, component_overrides->m_EmitterOverrides[i].m_Material);
+                    }
+                    if (component_overrides->m_EmitterOverrides[i].m_TextureSet)
+                    {
+                        dmResource::IncRef(factory, component_overrides->m_EmitterOverrides[i].m_TextureSet);
+                    }
+                }
+                component->m_Overrides = component_overrides;
+            }
+
+            dmParticle::SetInstanceUserData(world->m_ParticleContext, component->m_ParticleInstance, component);
+        }
+
         world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
         return component->m_ParticleInstance;
+    }
+
+    static void DestroyComponent(ParticleFXWorld* world, ParticleFXComponent* component)
+    {
+        if (component->m_Overrides)
+        {
+            uint32_t num_overrides = component->m_Overrides->m_EmitterOverrides.Size();
+            for (int i = 0; i < num_overrides; ++i)
+            {
+                ParticleFXEmitterOverride* emitter_override = &component->m_Overrides->m_EmitterOverrides[i];
+                if (emitter_override->m_Material)
+                {
+                    dmResource::Release(world->m_Context->m_Factory, emitter_override->m_Material);
+                }
+                if (emitter_override->m_TextureSet)
+                {
+                    dmResource::Release(world->m_Context->m_Factory, emitter_override->m_TextureSet);
+                }
+            }
+
+            delete component->m_Overrides;
+        }
+
+        dmResource::Release(world->m_Context->m_Factory, component->m_ParticlePrototype);
+        dmParticle::DestroyInstance(world->m_ParticleContext, component->m_ParticleInstance);
     }
 
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -727,6 +829,198 @@ namespace dmGameSystem
         // Don't warn if none could be found
     }
 
+    static bool ResolvePropertyEmitter(dmGameObject::HPropertyOptions options, dmhash_t* emitter_id)
+    {
+        if (dmGameObject::GetPropertyOptionsKey(options, 0, emitter_id) != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    static inline const ParticleFXEmitterOverride* GetEmitterOverride(const ParticleFXComponentPrototype* prototype, uint32_t emitter_index)
+    {
+        const ParticleFXPrototypeOverrides* emitter_overrides = prototype->m_Overrides;
+        if (emitter_overrides && emitter_index < emitter_overrides->m_EmitterOverrides.Size())
+        {
+            return &emitter_overrides->m_EmitterOverrides[emitter_index];
+        }
+        return 0;
+    }
+
+    static inline MaterialResource* GetEmitterMaterialResource(const ParticleFXComponentPrototype* prototype, uint32_t emitter_index)
+    {
+        const ParticleFXEmitterOverride* emitter_override = GetEmitterOverride(prototype, emitter_index);
+        if (emitter_override && emitter_override->m_Material)
+        {
+            return emitter_override->m_Material;
+        }
+        return (MaterialResource*) dmParticle::GetMaterial(prototype->m_ParticlePrototype, emitter_index);
+    }
+
+    static inline TextureSetResource* GetEmitterTextureSet(const ParticleFXComponentPrototype* prototype, uint32_t emitter_index)
+    {
+        const ParticleFXEmitterOverride* emitter_override = GetEmitterOverride(prototype, emitter_index);
+        if (emitter_override && emitter_override->m_TextureSet)
+        {
+            return emitter_override->m_TextureSet;
+        }
+        return (TextureSetResource*) dmParticle::GetTileSource(prototype->m_ParticlePrototype, emitter_index);
+    }
+
+    static inline dmhash_t GetEmitterAnimation(const ParticleFXComponentPrototype* prototype, uint32_t emitter_index)
+    {
+        const ParticleFXEmitterOverride* emitter_override = GetEmitterOverride(prototype, emitter_index);
+        if (emitter_override && emitter_override->m_Animation)
+        {
+            return emitter_override->m_Animation;
+        }
+        return dmParticle::GetAnimation(prototype->m_ParticlePrototype, emitter_index);
+    }
+
+    dmGameObject::PropertyResult CompParticleFXGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        dmhash_t emitter_id;
+        if (!ResolvePropertyEmitter(params.m_Options, &emitter_id))
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+        ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+        dmhash_t property_id                    = params.m_PropertyId;
+        uint32_t emitter_index                  = dmParticle::GetEmitterIndexFromId(prototype->m_ParticlePrototype, emitter_id);
+
+        if (emitter_index == dmParticle::INVALID_EMITTER_INDEX)
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        if (property_id == PROP_MATERIAL)
+        {
+            MaterialResource* emitter_material_res = GetEmitterMaterialResource(prototype, emitter_index);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), emitter_material_res, out_value);
+        }
+        else if (property_id == PROP_IMAGE)
+        {
+            TextureSetResource* emitter_texture_set_res = GetEmitterTextureSet(prototype, emitter_index);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), emitter_texture_set_res, out_value);
+        }
+        else if (property_id == PROP_ANIMATION)
+        {
+            dmhash_t emitter_animation = GetEmitterAnimation(prototype, emitter_index);
+            out_value.m_Variant = dmGameObject::PropertyVar(emitter_animation);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    static ParticleFXPrototypeOverrides* EnsureOverridePropertiesForEmitter(ParticleFXComponentPrototype* prototype, uint32_t emitter_index)
+    {
+        if (!prototype->m_Overrides)
+            prototype->m_Overrides = new ParticleFXPrototypeOverrides;
+
+        ParticleFXPrototypeOverrides* overrides = prototype->m_Overrides;
+
+        uint32_t num_overrides = overrides->m_EmitterOverrides.Size();
+        if (emitter_index >= num_overrides)
+        {
+            uint32_t new_size = emitter_index+1;
+            overrides->m_EmitterOverrides.SetCapacity(new_size);
+            overrides->m_EmitterOverrides.SetSize(new_size);
+            memset(overrides->m_EmitterOverrides.Begin() + num_overrides, 0, sizeof(ParticleFXEmitterOverride) * (new_size-num_overrides));
+        }
+        return overrides;
+    }
+
+    static dmGameObject::PropertyResult AddOverrideMaterial(dmResource::HFactory factory, ParticleFXComponentPrototype* prototype, uint32_t emitter_index, dmhash_t resource)
+    {
+        ParticleFXPrototypeOverrides* overrides = EnsureOverridePropertiesForEmitter(prototype, emitter_index);
+        return SetResourceProperty(factory, resource, MATERIAL_EXT_HASH, (void**) &overrides->m_EmitterOverrides[emitter_index].m_Material);
+    }
+
+    static dmGameObject::PropertyResult AddOverrideTileSource(dmResource::HFactory factory, ParticleFXComponentPrototype* prototype, uint32_t emitter_index, dmhash_t resource)
+    {
+        ParticleFXPrototypeOverrides* overrides = EnsureOverridePropertiesForEmitter(prototype, emitter_index);
+        return SetResourceProperty(factory, resource, TEXTURE_SET_EXT_HASH, (void**) &overrides->m_EmitterOverrides[emitter_index].m_TextureSet);
+    }
+
+    static dmGameObject::PropertyResult AddOverrideAnimation(dmResource::HFactory factory, ParticleFXComponentPrototype* prototype, uint32_t emitter_index, dmhash_t animation)
+    {
+        ParticleFXPrototypeOverrides* overrides = EnsureOverridePropertiesForEmitter(prototype, emitter_index);
+        overrides->m_EmitterOverrides[emitter_index].m_Animation = animation;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    dmGameObject::PropertyResult CompParticleFXSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        dmhash_t emitter_id;
+        if (!ResolvePropertyEmitter(params.m_Options, &emitter_id))
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+        dmhash_t property_id                    = params.m_PropertyId;
+        uint32_t emitter_index                  = dmParticle::GetEmitterIndexFromId(prototype->m_ParticlePrototype, emitter_id);
+        if (emitter_index == dmParticle::INVALID_EMITTER_INDEX)
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        if (property_id == PROP_MATERIAL)
+        {
+            return AddOverrideMaterial(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, params.m_Value.m_Hash);
+        }
+        else if (property_id == PROP_IMAGE)
+        {
+            dmGameObject::PropertyResult res = AddOverrideTileSource(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, params.m_Value.m_Hash);
+
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+            {
+                dmhash_t current_animation = GetEmitterAnimation(prototype, emitter_index);
+                TextureSetResource* emitter_texture_set_res = GetEmitterTextureSet(prototype, emitter_index);
+                uint32_t* anim_id = emitter_texture_set_res ? emitter_texture_set_res->m_AnimationIds.Get(current_animation) : 0;
+
+                if (!anim_id)
+                {
+                    DM_HASH_REVERSE_MEM(hash_ctx, 1024);
+                    // it means that new atlas doesn't contain animation with the same name as it played before
+                    const char* error_message = dmHashReverseSafe64Alloc(&hash_ctx, current_animation);
+                    dmHashTable64<uint32_t>::Iterator animation_iterator = emitter_texture_set_res->m_AnimationIds.GetIterator();
+                    if (animation_iterator.Next())
+                    {
+                        current_animation = animation_iterator.GetKey();
+                        anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
+
+                        const char* new_animation_name = dmHashReverseSafe64Alloc(&hash_ctx, current_animation);
+                        dmLogWarning("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name);
+
+                        AddOverrideAnimation(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, current_animation);
+                    }
+                    else
+                    {
+                        dmLogWarning("Atlas doesn't contain animation '%s'. No animation will be used", error_message);
+                    }
+                    // else anim_id still == 0
+                }
+            }
+            return res;
+        }
+        else if (property_id == PROP_ANIMATION)
+        {
+            dmhash_t new_animation = params.m_Value.m_Hash;
+            TextureSetResource* emitter_texture_set_res = GetEmitterTextureSet(prototype, emitter_index);
+            uint32_t* anim_id = emitter_texture_set_res ? emitter_texture_set_res->m_AnimationIds.Get(new_animation) : 0;
+            if (!anim_id)
+            {
+                dmLogError("Animation '%s' not found in atlas", dmHashReverseSafe64(new_animation));
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            }
+            return AddOverrideAnimation(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, new_animation);
+        }
+
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode)
     {
         switch (blend_mode)
@@ -778,62 +1072,85 @@ namespace dmGameSystem
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }
 
-    dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data)
+    dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data)
     {
-        TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
-        dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
-        uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
-        if (anim_index)
+        ParticleFXComponent* component      = (ParticleFXComponent*) dmParticle::GetInstanceUserData(params->m_ParticleContext, params->m_Instance);
+        MaterialResource* material_res      = (MaterialResource*) params->m_MaterialResource;
+        TextureSetResource* texture_set_res = (TextureSetResource*) params->m_TextureSetResource;
+        dmhash_t animation_id               = params->m_Animation;
+
+        if (component && component->m_Overrides)
         {
+            ParticleFXPrototypeOverrides* component_overrides = component->m_Overrides;
+            if (component_overrides && params->m_EmitterIndex < component_overrides->m_EmitterOverrides.Size())
+            {
+                ParticleFXEmitterOverride* emitter_override = &component_overrides->m_EmitterOverrides[params->m_EmitterIndex];
+
+                if (emitter_override->m_Material)
+                    material_res = emitter_override->m_Material;
+                if (emitter_override->m_TextureSet)
+                    texture_set_res = emitter_override->m_TextureSet;
+                if (emitter_override->m_Animation)
+                    animation_id = emitter_override->m_Animation;
+            }
+        }
+
+        out_data->m_Material = material_res;
+
+        if (texture_set_res)
+        {
+            dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
+            uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation_id);
+            if (!anim_index)
+            {
+                return dmParticle::FETCH_RESOURCES_NOT_FOUND;
+            }
             if (texture_set_res->m_TextureSet->m_TexCoords.m_Count == 0)
             {
-                return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+                return dmParticle::FETCH_RESOURCES_UNKNOWN_ERROR;
             }
 
-            out_data->m_Texture = (void*) texture_set_res->m_Texture;
-            out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
-            out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
-            out_data->m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;
-            out_data->m_FrameIndices = texture_set_res->m_TextureSet->m_FrameIndices.m_Data;
+            out_data->m_AnimationData.m_Texture = (void*) texture_set_res->m_Texture;
+            out_data->m_AnimationData.m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
+            out_data->m_AnimationData.m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
+            out_data->m_AnimationData.m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;
+            out_data->m_AnimationData.m_FrameIndices = texture_set_res->m_TextureSet->m_FrameIndices.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
-            out_data->m_FPS = animation->m_Fps;
-            out_data->m_TileWidth = animation->m_Width;
-            out_data->m_TileHeight = animation->m_Height;
-            out_data->m_StartTile = animation->m_Start;
-            out_data->m_EndTile = animation->m_End;
-            out_data->m_HFlip = animation->m_FlipHorizontal;
-            out_data->m_VFlip = animation->m_FlipVertical;
+            out_data->m_AnimationData.m_FPS = animation->m_Fps;
+            out_data->m_AnimationData.m_TileWidth = animation->m_Width;
+            out_data->m_AnimationData.m_TileHeight = animation->m_Height;
+            out_data->m_AnimationData.m_StartTile = animation->m_Start;
+            out_data->m_AnimationData.m_EndTile = animation->m_End;
+            out_data->m_AnimationData.m_HFlip = animation->m_FlipHorizontal;
+            out_data->m_AnimationData.m_VFlip = animation->m_FlipVertical;
             switch (animation->m_Playback)
             {
             case dmGameSystemDDF::PLAYBACK_NONE:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_NONE;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_NONE;
                 break;
             case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
                 break;
             case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
                 break;
             case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_PINGPONG;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_PINGPONG;
                 break;
             case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
                 break;
             case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
                 break;
             case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
-                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
+                out_data->m_AnimationData.m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
                 break;
             }
-            out_data->m_StructSize = sizeof(dmParticle::AnimationData);
-            return dmParticle::FETCH_ANIMATION_OK;
+            out_data->m_AnimationData.m_StructSize = sizeof(dmParticle::AnimationData);
         }
-        else
-        {
-            return dmParticle::FETCH_ANIMATION_NOT_FOUND;
-        }
+
+        return dmParticle::FETCH_RESOURCES_OK;
     }
 
     void GetParticleFXWorldRenderBuffers(void* pfx_world, dmRender::HBufferedRenderBuffer* vx_buffer)

@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -98,12 +99,18 @@ public class BundleHelper {
         "game.projectc",
         "game.arci",
         "game.arcd",
-        "game.dmanifest",
-        "game.public.der"
+        "game.dmanifest"
     };
 
     public static void throwIfCanceled(ICanceled canceled) {
         if(canceled.isCanceled()) {
+            throw new RuntimeException("Canceled");
+        }
+    }
+
+    public static void throwIfCanceled(ICanceled canceled, AtomicBoolean remoteBuildFailed) {
+        throwIfCanceled(canceled);
+        if (remoteBuildFailed.get()) {
             throw new RuntimeException("Canceled");
         }
     }
@@ -286,6 +293,9 @@ public class BundleHelper {
         String exeName = BundleHelper.projectNameToBinaryName(title);
         this.templateProperties.put("exe-name", exeName);
         this.templateProperties.put("build-timestamp", String.valueOf(System.currentTimeMillis() / 1000));
+        if (Bob.VARIANT_RELEASE.equals(project.option("variant", Bob.VARIANT_RELEASE))) {
+            this.templateProperties.put("variant_release", Boolean.TRUE);
+        }
         IBundler bundler = getOrCreateBundler();
         bundler.updateManifestProperties(project, platform, this.projectProperties, this.propertiesMap, this.templateProperties);
     }

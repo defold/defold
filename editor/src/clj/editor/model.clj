@@ -48,6 +48,12 @@
 
 (def ^:private supported-image-exts (conj image/exts "cubemap" "render_target"))
 
+(def ^:private animations-message (properties/label-message :model :animations))
+(def ^:private default-animation-message (properties/label-message :model :default-animation))
+(def ^:private material-message (properties/label-message :material))
+(def ^:private mesh-message (properties/label-message :model :mesh))
+(def ^:private skeleton-message (properties/label-message :model :skeleton))
+
 (g/defnk produce-animation-set-build-target-single [_node-id resource animations-resource animation-set]
   (let [is-single-anim (and (not (empty? animation-set))
                             (not (animation-set/is-animation-set? animations-resource)))]
@@ -85,7 +91,8 @@
 (defn- validate-default-animation [_node-id default-animation animation-ids]
   (when (not (str/blank? default-animation))
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
-                           (format "Animation '%s' does not exist" default-animation))))
+                           (localization/message "error.animation-not-found" {"animation" default-animation
+                                                                              "property" default-animation-message}))))
 
 (defn- update-build-target-vertex-attributes [pb-msg material-binding-infos]
   (let [materials+attribute-build-data (mapv (fn [material+binding-infos]
@@ -114,11 +121,11 @@
           material-binding-infos)))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton create-go-bones]
-  (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
-                      (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
-                      (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")
+  (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh mesh-message)
+                      (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message)
+                      (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)
                       (validate-default-animation _node-id default-animation animation-ids)
-                      (validation/prop-error :fatal _node-id :materials validation/prop-empty? (:materials pb-msg) "Materials")]
+                      (validation/prop-error :fatal _node-id :materials validation/prop-empty? (:materials pb-msg) material-message)]
                      (map (fn [{:keys [name material]}]
                             (validation/prop-error
                               :fatal _node-id
@@ -347,9 +354,8 @@
                                                           :error (or
                                                                    (when should-be-deleted
                                                                      (g/->error material-binding-node-id :materials :warning material
-                                                                                (format "'%s' is not defined in the mesh. Use the \"Clear Override\" command from the label's context menu to remove the property."
-                                                                                        name)))
-                                                                   (prop-resource-error :fatal material-binding-node-id :materials material "Material"))
+                                                                                (localization/message "error.material-not-defined-in-mesh" {"material" name})))
+                                                                   (prop-resource-error :fatal material-binding-node-id :materials material material-message))
                                                           :prop-kw :material
                                                           :edit-type {:type resource/Resource
                                                                       :ext "material"
@@ -373,8 +379,7 @@
                                                                                      :prop-kw :texture
                                                                                      :error (when texture-binding-should-be-deleted
                                                                                               (g/->error _node-id :texture :warning texture
-                                                                                                         (format "'%s' is not defined in the material. Use the \"Clear Override\" command from the label's context menu to remove the property."
-                                                                                                                 sampler)))
+                                                                                                         (localization/message "error.sampler-not-defined-in-material" {"sampler" sampler})))
                                                                                      :edit-type {:type resource/Resource
                                                                                                  :ext supported-image-exts
                                                                                                  :clear-fn (fn [_ _] (g/delete-node _node-id))}}
@@ -398,7 +403,7 @@
                            :label material-name
                            :value nil
                            :type resource/Resource
-                           :error (prop-resource-error :fatal _node-id :material nil "Material")
+                           :error (prop-resource-error :fatal _node-id :material nil material-message)
                            :edit-type {:type resource/Resource
                                        :ext "material"
                                        :set-fn (fn [_evaluation-context _id _old new]
@@ -423,8 +428,10 @@
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:material-ids :mesh-material-ids]
                                             [:scene :scene])))
-            (dynamic error (g/fnk [_node-id mesh]
-                                  (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
+            (dynamic error (g/fnk [_node-id mesh ^:try scene]
+                             (if (g/error-value? scene)
+                               scene
+                               (prop-resource-error :fatal _node-id :mesh mesh mesh-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
             (dynamic label (properties/label-dynamic :model :mesh))
@@ -463,8 +470,10 @@
                                             [:resource :skeleton-resource]
                                             [:bones :skeleton-bones]
                                             [:skeleton-build-target :skeleton-build-target])))
-            (dynamic error (g/fnk [_node-id skeleton]
-                                  (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
+            (dynamic error (g/fnk [_node-id skeleton ^:try skeleton-bones]
+                             (if (g/error-value? skeleton-bones)
+                               skeleton-bones
+                               (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
             (dynamic label (properties/label-dynamic :model :skeleton))
@@ -478,8 +487,10 @@
                                             [:animation-ids :animation-ids]
                                             [:animation-info :animation-infos]
                                             [:animation-set-build-target :animation-set-build-target])))
-            (dynamic error (g/fnk [_node-id animations]
-                                  (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
+            (dynamic error (g/fnk [_node-id animations ^:try animations-bones]
+                             (if (g/error-value? animations-bones)
+                               animations-bones
+                               (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types}))
             (dynamic label (properties/label-dynamic :model :animations))
@@ -545,25 +556,26 @@
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
 (defn load-model [_project self resource {:keys [materials] :as model-desc}]
-  (concat
-    (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
+    (concat
       (gu/set-properties-from-pb-map self ModelProto$ModelDesc model-desc
         name :name
         default-animation :default-animation
         mesh (resolve-resource :mesh)
         skeleton (resolve-resource :skeleton)
         animations (resolve-resource :animations)
-        create-go-bones :create-go-bones))
-    (map-indexed
-      (fn [material-index {:keys [name material textures attributes]}]
-        (let [material (workspace/resolve-resource resource material)
-              textures (mapv (fn [{:keys [texture] :as texture-desc}]
-                               (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
-                             textures)
-              vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]
-          (create-material-binding-tx self name material material-index textures vertex-attribute-overrides)))
-      materials)
-    (g/callback-ec detect-and-flag-migrated! self model-desc)))
+        create-go-bones :create-go-bones)
+      (map-indexed
+        (fn [material-index {:keys [name material textures attributes]}]
+          (let [material (resolve-resource material)
+                textures (mapv (fn [{:keys [texture] :as texture-desc}]
+                                 (assoc texture-desc :texture (resolve-resource texture)))
+                               textures)
+                vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]
+            (create-material-binding-tx self name material material-index textures vertex-attribute-overrides)))
+        materials)
+      (g/callback-ec detect-and-flag-migrated! self model-desc))))
 
 (defn- sanitize-model [{:keys [material textures materials] :as model-desc}]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.

@@ -71,7 +71,7 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.WasmPthreadWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.WasmWeb, Platform.WasmPthreadWeb));
     private static boolean useLua51;
     private static String luaJITExePath;
 
@@ -79,6 +79,10 @@ public abstract class LuaBuilder extends Builder {
     private static List<ILuaObfuscator> luaObfuscators = null;
 
     private LuaScanner.Result luaScannerResult;
+
+    protected boolean allowGoProperties() {
+        return false;
+    }
 
     /**
      * Get a LuaScanner instance for a resource
@@ -113,6 +117,9 @@ public abstract class LuaBuilder extends Builder {
             }
 
             luaScannerResult = LuaScanner.parse(script, Bob.VARIANT_DEBUG.equals(variant));
+            if (!allowGoProperties() && !luaScannerResult.properties().isEmpty()) {
+                throw new CompileExceptionError(resource, luaScannerResult.properties().getFirst().startLine() + 1, "go.property cannot be used in this file type");
+            }
             for (LuaScanner.ParseError error : luaScannerResult.errors()) {
                 throw new CompileExceptionError(resource, error.startLine() + 1, error.message());
             }
@@ -125,7 +132,7 @@ public abstract class LuaBuilder extends Builder {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.disableMinifyPath().changeExt(params.outExt()));
 
         LuaScanner.Result result = getLuaScannerResult(input);
         long finalLuaHash = MurmurHash.hash64(result.code());

@@ -22,7 +22,7 @@
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 #include <platform/platform_window_constants.h>
 
 #include "hid_private.h"
@@ -179,21 +179,21 @@ namespace dmHID
     // disconnect callback.
     // https://github.com/glfw/glfw/blob/3.4/src/win32_joystick.c#L627
     // https://github.com/glfw/glfw/blob/3.4/src/linux_joystick.c#L398
-    static void GLFWGamepadCallback(void* user_Data, int gamepad_id, dmPlatform::GamepadEvent event)
+    static void GLFWGamepadCallback(void* user_Data, int gamepad_id, WindowGamepadEvent event)
     {
         Gamepad* gp = 0;
-        if (event == dmPlatform::GAMEPAD_EVENT_CONNECTED)
+        if (event == WINDOW_GAMEPAD_EVENT_CONNECTED)
         {
             gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
         }
-        else if (event == dmPlatform::GAMEPAD_EVENT_DISCONNECTED)
+        else if (event == WINDOW_GAMEPAD_EVENT_DISCONNECTED)
         {
             gp = GLFWGetGamepad(g_GLFWGamepadDriver, gamepad_id);
         }
 
         if (gp != 0)
         {
-            SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, event == dmPlatform::GAMEPAD_EVENT_CONNECTED ? 1 : 0);
+            SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, event == WINDOW_GAMEPAD_EVENT_CONNECTED ? 1 : 0);
         }
     }
 
@@ -401,7 +401,7 @@ namespace dmHID
 
         for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
         {
-            if (dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_JOYSTICK_PRESENT, i))
+            if (dmPlatform::GetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, i))
             {
                 GLFWEnsureAllocatedGamepad(glfw_driver, i);
             }
@@ -435,7 +435,7 @@ namespace dmHID
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
     {
-        if (!dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (!dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             return false;
         }

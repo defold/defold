@@ -104,15 +104,7 @@
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 
 (defn- blocking-async-build! [project prefs]
-  (let [result (promise)]
-    (test-util/run-event-loop!
-      (fn [exit-event-loop!]
-        (app-view/async-build! project
-                               :prefs prefs
-                               :result-fn (fn [build-results]
-                                            (deliver result build-results)
-                                            (exit-event-loop!)))))
-    (deref result)))
+  @(app-view/async-build! project :prefs prefs))
 
 (deftest ^:native-extensions async-build-on-build-server
   (with-clean-system

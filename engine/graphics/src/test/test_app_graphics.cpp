@@ -28,6 +28,7 @@
 #include "test_app_graphics.h"
 
 #include <dmsdk/graphics/graphics_vulkan.h>
+#include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
 
@@ -165,9 +166,9 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
-    dmPlatform::HWindow   m_Window;
+    HWindow               m_Window;
     dmGraphics::HContext  m_GraphicsContext;
-    dmJobThread::HContext m_JobThread;
+    HJobContext           m_JobContext;
 
     ITest* m_Test;
     bool m_WindowClosed;
@@ -779,11 +780,11 @@ struct StorageBufferTest : ITest
 };
 #endif
 
-static bool OnWindowClose(void* user_data)
+static int OnWindowClose(void* user_data)
 {
     EngineCtx* engine = (EngineCtx*) user_data;
     engine->m_WindowClosed = 1;
-    return true;
+    return 1;
 }
 
 static void* EngineCreate(int argc, char** argv)
@@ -791,35 +792,36 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = &g_EngineCtx;
     engine->m_Window = dmPlatform::NewWindow();
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width                  = 512;
     window_params.m_Height                 = 512;
     window_params.m_Title                  = "Graphics Test App";
-    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
     }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     }
 
-    dmPlatform::PlatformResult pr = dmPlatform::OpenWindow(engine->m_Window, window_params);
-    if (dmPlatform::PLATFORM_RESULT_OK != pr)
+    WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
+    if (WINDOW_RESULT_OK != wr)
     {
-        dmLogError("Failed to open window: %d", pr);
+        dmLogError("Failed to open window: %d", wr);
         return 0;
     }
 
     dmPlatform::ShowWindow(engine->m_Window);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param = {0};
+    JobSystemCreateParams job_thread_create_param = {0};
     job_thread_create_param.m_ThreadCount = 1;
-    engine->m_JobThread = dmJobThread::Create(job_thread_create_param);
+    engine->m_JobContext = JobSystemCreate(&job_thread_create_param);
 
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -829,7 +831,7 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
-    graphics_context_params.m_JobThread               = engine->m_JobThread;
+    graphics_context_params.m_JobContext              = engine->m_JobContext;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
@@ -855,8 +857,8 @@ static void EngineDestroy(void* _engine)
     dmGraphics::DeleteContext(engine->m_GraphicsContext);
     dmGraphics::Finalize();
 
-    if (engine->m_JobThread)
-        dmJobThread::Destroy(engine->m_JobThread);
+    if (engine->m_JobContext)
+        JobSystemDestroy(engine->m_JobContext);
 
     engine->m_WasDestroyed++;
 }
@@ -884,7 +886,7 @@ static UpdateResult EngineUpdate(void* _engine)
         return RESULT_EXIT;
     }
 
-    dmJobThread::Update(engine->m_JobThread, 0);
+    JobSystemUpdate(engine->m_JobContext, 0);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 

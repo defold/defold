@@ -377,10 +377,10 @@ void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int 
 void destroy_gl_surface(_GLFWwin_android* win)
 {
     LOGV("destroy_gl_surface");
+    int did_attach = 0;
+    JNIAttachCurrentThreadIfNeeded(&did_attach);
     if (win->display != EGL_NO_DISPLAY)
     {
-        int did_attach = 0;
-        JNIAttachCurrentThreadIfNeeded(&did_attach);
         eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (win->surface != EGL_NO_SURFACE)
         {
@@ -388,7 +388,6 @@ void destroy_gl_surface(_GLFWwin_android* win)
             CHECK_EGL_ERROR
             win->surface = EGL_NO_SURFACE;
         }
-        JNIDetachCurrentThreadIfNeeded(did_attach);
     }
     win->surface = EGL_NO_SURFACE;
     if (win->native_window)
@@ -396,6 +395,7 @@ void destroy_gl_surface(_GLFWwin_android* win)
         ANativeWindow_release(win->native_window);
         win->native_window = NULL;
     }
+    JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
 int query_gl_aux_context(_GLFWwin_android* win)

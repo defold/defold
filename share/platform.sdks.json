@@ -1,11 +1,10 @@
 {
     "armv7-android": ["android", "ndk25_sdk36"],
     "arm64-android": ["android", "ndk25_sdk36"],
-    "js-web": ["emsdk", "406"],
     "wasm-web": ["emsdk", "406"],
     "wasm_pthread-web": ["emsdk", "406"],
-    "x86_64-win32": ["winsdk", "2022"],
-    "x86-win32": ["winsdk", "2022"],
+    "x86_64-win32": ["winsdk", "2022_144435207"],
+    "x86-win32": ["winsdk", "2022_144435207"],
     "x86_64-linux": ["linux", "latest"],
     "arm64-linux": ["linux-arm64", "latest"],
     "arm64-osx": ["osx", "xcode26"],
@@ -13,4 +12,3 @@
     "arm64-ios": ["osx", "xcode26"],
     "x86_64-ios": ["osx", "xcode26"]
 }
-

@@ -47,7 +47,10 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_WEIGHTS;
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
+    extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
+    extern const dmhash_t SAMPLER_MORPH_TARGETS;
+    extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -58,6 +61,8 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
+    typedef struct LightPrototype*          HLightPrototype;
+    typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
@@ -118,6 +123,22 @@ namespace dmRender
         SORT_NONE          = 3
     };
 
+    enum LightType
+    {
+        LIGHT_TYPE_DIRECTIONAL = 0,
+        LIGHT_TYPE_POINT       = 1,
+        LIGHT_TYPE_SPOT        = 2,
+    };
+
+    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
+    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
+    enum OrthoZoomMode
+    {
+        ORTHO_MODE_FIXED        = 0,
+        ORTHO_MODE_AUTO_FIT     = 1,
+        ORTHO_MODE_AUTO_COVER   = 2,
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -163,15 +184,6 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
-    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
-    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
-    enum OrthoZoomMode
-    {
-        ORTHO_MODE_FIXED        = 0,
-        ORTHO_MODE_AUTO_FIT     = 1,
-        ORTHO_MODE_AUTO_COVER   = 2,
-    };
-
     struct RenderCameraData
     {
         dmVMath::Vector4 m_Viewport;
@@ -188,11 +200,24 @@ namespace dmRender
 
     struct MaterialProgramAttributeInfo
     {
-        dmhash_t                           m_AttributeNameHash;
-        const dmGraphics::VertexAttribute* m_Attribute;
-        const uint8_t*                     m_ValuePtr;
-        dmhash_t                           m_ElementIds[4];
-        uint32_t                           m_ElementIndex;
+        dmhash_t                               m_AttributeNameHash;
+        const dmGraphics::VertexAttributeInfo* m_Attribute;
+        const uint8_t*                         m_ValuePtr;
+        dmhash_t                               m_ElementIds[4];
+        uint32_t                               m_ElementIndex;
+    };
+
+    struct LightPrototypeParams
+    {
+        LightPrototypeParams();
+
+        LightType        m_Type;
+        dmVMath::Vector4 m_Color;
+        dmVMath::Vector3 m_Direction;
+        float            m_Intensity;
+        float            m_Range;
+        float            m_InnerConeAngle;
+        float            m_OuterConeAngle;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -212,6 +237,9 @@ namespace dmRender
 
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
+
+    // Set current frame time and delta-time (in seconds) used for built-in material constants.
+    void SetFrameTime(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);
 
@@ -331,13 +359,15 @@ namespace dmRender
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
     bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
-    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
+    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttributeInfo** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
     void                            GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata);
+    void                            GetMaterialProgramVertexAttributeInfos(HMaterial material, const dmGraphics::VertexAttributeInfo** attribute_infos, uint32_t* num_attribute_infos);
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
+    bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -434,6 +464,21 @@ namespace dmRender
     void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
     float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
+
+    /** Lights
+     * A light prototype is essentially the data that represents the light and has a set of basic parameters,
+     * such as color, range and whatnot. A light 'instance' on the other hand is what exists in the game world,
+     * and is the basis for what's being written into the light buffer. It has a position and a rotation (direction),
+     * and in the future it is likely that a light instance can override certain parameters of the light prototype.
+     * A light prototype can be used across many light instances, and must live as long as the lights live.
+     */
+    HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
+    void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
+    void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
+    HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
+    void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {

@@ -179,15 +179,15 @@
     (localization/message "progress.writing" {"resource" (resource/resource->proj-path resource)})))
 
 (defn write-save-data-to-disk!
-  [save-datas snapshot-invalidate-counters {:keys [render-progress!]
-                                            :or {render-progress! progress/null-render-progress!}
-                                            :as _opts}]
+  [save-datas snapshot-invalidate-counters localization {:keys [render-progress!]
+                                                         :or {render-progress! progress/null-render-progress!}
+                                                         :as _opts}]
   "Write the supplied sequence of save-datas to disk. Returns post-save-actions
   that must later be supplied to the process-post-save-actions! function, called
   from the main thread."
   (render-progress! (progress/make (localization/message "progress.writing-files")))
   (if (g/error? save-datas)
-    (throw (Exception. (g/error-message save-datas)))
+    (throw (Exception. ^String (localization (g/error-message save-datas))))
     (let [written-save-datas
           (filterv (fn [{:keys [resource]}]
                      (not (resource/read-only? resource)))
@@ -226,58 +226,62 @@
          (ifn? save-data-fn)
          (g/node-id? project)
          (or (nil? changes-view) (g/node-id? changes-view))]}
-  (let [workspace (project/workspace project)
-        success-promise (promise)
-        complete! (fn [successful?]
-                    (render-save-progress! progress/done)
-                    (reset! save-job-atom nil)
-                    (deliver success-promise successful?))
-        fail! (fn [error]
-                (error-reporting/report-exception! error)
-                (complete! false))]
-    (future
-      (try
-        ;; It is safe to save any dirty save-datas without performing a reload
-        ;; first, because files are only considered dirty if their save-value
-        ;; differs from the value we last loaded or saved ourselves. If instead,
-        ;; we considered a file dirty when its save-value differs from the value
-        ;; on disk at the time of saving, we'd have to first perform a reload to
-        ;; ensure we do not overwrite any external changes with our un-edited
-        ;; save-values.
-        (let [evaluation-context (g/make-evaluation-context)
-              snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
-              save-data (project/save-data-with-progress project evaluation-context save-data-fn render-save-progress!)
-              post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})
-              written-resources (into #{} (map :resource) save-data)
-              reload-required (some #(= "/.defignore" (resource/proj-path %)) written-resources)]
-          (render-save-progress! (progress/make-indeterminate (localization/message "progress.caching-save-results")))
-          (ui/run-later
-            (try
-              (project/update-system-cache-save-data! evaluation-context)
-              (process-post-save-actions! workspace post-save-actions)
-              (future
-                (try
-                  (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
-                  (project/reload-plugins! project written-resources)
-                  (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
-                  (cond
-                    reload-required
-                    (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))
+  (g/let-ec [workspace (project/workspace project evaluation-context)
+             localization (workspace/localization workspace evaluation-context)]
+    (let [project-directory (workspace/project-directory workspace)
+          old-defignore-patterns (resource/project-defignore-patterns project-directory)
+          success-promise (promise)
+          complete! (fn [successful?]
+                      (render-save-progress! progress/done)
+                      (reset! save-job-atom nil)
+                      (deliver success-promise successful?))
+          fail! (fn [error]
+                  (error-reporting/report-exception! error)
+                  (complete! false))]
+      (future
+        (try
+          ;; It is safe to save any dirty save-datas without performing a reload
+          ;; first, because files are only considered dirty if their save-value
+          ;; differs from the value we last loaded or saved ourselves. If instead,
+          ;; we considered a file dirty when its save-value differs from the value
+          ;; on disk at the time of saving, we'd have to first perform a reload to
+          ;; ensure we do not overwrite any external changes with our un-edited
+          ;; save-values.
+          (let [evaluation-context (g/make-evaluation-context)
+                snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
+                save-data (project/save-data-with-progress project evaluation-context save-data-fn render-save-progress!)
+                post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters localization {:render-progress! render-save-progress!})
+                written-resources (into #{} (map :resource) save-data)
+                new-defignore-patterns (resource/project-defignore-patterns project-directory)
+                reload-required (not= old-defignore-patterns new-defignore-patterns)]
+            (render-save-progress! (progress/make-indeterminate (localization/message "progress.caching-save-results")))
+            (ui/run-later
+              (try
+                (project/update-system-cache-save-data! evaluation-context)
+                (process-post-save-actions! workspace post-save-actions)
+                (future
+                  (try
+                    (render-save-progress! (progress/make-indeterminate (localization/message "progress.reading-timestamps")))
+                    (project/reload-plugins! project written-resources)
+                    (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
+                    (cond
+                      reload-required
+                      (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))
 
-                    (and changes-view (coll/not-empty written-resources))
-                    (do
-                      (changes-view/refresh! changes-view)
+                      (and changes-view (coll/not-empty written-resources))
+                      (do
+                        (changes-view/refresh! changes-view)
+                        (complete! true))
+
+                      :else
                       (complete! true))
-
-                    :else
-                    (complete! true))
-                  (catch Throwable error
-                    (fail! error))))
-              (catch Throwable error
-                (fail! error)))))
-        (catch Throwable error
-          (fail! error))))
-    success-promise))
+                    (catch Throwable error
+                      (fail! error))))
+                (catch Throwable error
+                  (fail! error)))))
+          (catch Throwable error
+            (fail! error))))
+      success-promise)))
 
 (defn async-save!
   ([render-reload-progress! render-save-progress! save-data-fn project changes-view]

@@ -19,9 +19,9 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -35,8 +35,7 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv]
-            [util.murmur :as murmur]
-            [util.text-util :as text-util])
+            [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
@@ -602,6 +601,12 @@
              (name k))
         {}
         (keyword->name k)))))
+
+(defn label-message
+  "Return a (memoized) MessagePattern for a property label"
+  ([k] (label-message nil k))
+  ([domain k]
+   (memoized-label-message domain k)))
 
 (defn label-dynamic
   "Create a fnk that returns a memoized property label MessagePattern
@@ -1205,7 +1210,7 @@
                 (as-> property-transfer property-transfer
                       (merge (sorted-map
                                :source-node-type-kw (g/node-type-kw basis source-node-id)
-                               :source-node-path (gu/node-debug-label-path source-node-id evaluation-context))
+                               :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
                              property-transfer)
                       (update property-transfer :targets
                               (fn [property-transfer-targets]
@@ -1215,9 +1220,9 @@
                                                 (g/node-id? target-prop-node-id)]}
                                          (merge (sorted-map
                                                   :target-node-type-kw (g/node-type-kw basis target-node-id)
-                                                  :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)
+                                                  :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
                                                   :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
-                                                  :target-prop-node-path (gu/node-debug-label-path target-prop-node-id evaluation-context))
+                                                  :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
                                                 property-transfer-target))))))))))))))
 
 (defn transfer-overrides-status
@@ -1282,7 +1287,7 @@
           {"property_count" (count property-transfers)
            "property" (:source-prop-label (first property-transfers))
            "target_count" (count target-node-ids)
-           "target" (or (gu/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
+           "target" (or (node-util/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
            "aspect_count" target-aspect-count
            "aspect" (if (= 1 target-aspect-count)
                       (first (first target-aspects))

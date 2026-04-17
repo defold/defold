@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 import os, sys, re
-from waf_dynamo import apidoc_extract_task
 from BuildUtility import create_build_utility
 import waflib.Options
 
@@ -102,28 +101,6 @@ def build(bld):
 
     proto_files = os.listdir('./proto/gamesys')
     proto_files = [os.path.join('../../proto/gamesys', os.path.basename(x)) for x in proto_files]
-
-    apidoc_extract_task(bld, ['scripts/script_buffer.cpp',
-        'scripts/script_camera.cpp',
-        'scripts/script_collection_factory.cpp',
-        'scripts/script_collectionproxy.cpp',
-        'scripts/script_physics.cpp',
-        'scripts/script_factory.cpp',
-        'scripts/script_font.cpp',
-        'scripts/script_label.cpp',
-        'scripts/script_model.cpp',
-        'scripts/script_particlefx.cpp',
-        'scripts/script_resource.cpp',
-        'scripts/script_sound.cpp',
-        'scripts/script_spine_model.cpp',
-        'scripts/script_sprite.cpp',
-        'scripts/script_tilemap.cpp',
-        'scripts/script_window.cpp',
-        'scripts/script_image.cpp',
-        'scripts/script_sys_gamesys.cpp',
-        'scripts/script_http.cpp',
-        'scripts/box2d/script_box2d.cpp',
-        'scripts/box2d/script_box2d_body.cpp'] + proto_files)
 
     if not waflib.Options.options.skip_build_tests:
         bld.add_group()

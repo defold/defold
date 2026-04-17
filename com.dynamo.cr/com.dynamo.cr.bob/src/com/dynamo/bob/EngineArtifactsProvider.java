@@ -62,50 +62,53 @@ public final class EngineArtifactsProvider {
     }
 
     public static void downloadSymbols(Project project, IProgress progress) throws IOException, CompileExceptionError {
-        String archs = project.option("architectures", null);
-        String[] platforms;
-        if (archs != null) {
-            platforms = archs.split(",");
-        } else {
-            platforms = project.getPlatformStrings();
-        }
-
-        progress.beginTask(IProgress.Task.DOWNLOADING_SYMBOLS, platforms.length);
-
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        String variantSuffix = getVariantSuffix(variant);
-
-        for (String platformKey : platforms) {
-            Platform p = Platform.get(platformKey);
-            String symbolsFilename = getSymbolsFilenameForPlatform(p, variantSuffix);
-
-            if (symbolsFilename != null) {
-                try {
-                    String fallbackKey = (p != null) ? p.getOs() : null;
-                    File cached = getOrDownloadArtifact(platformKey, symbolsFilename, fallbackKey, false);
-                    if (cached == null || !cached.exists() || cached.length() == 0) {
-                        logger.warning("Symbols not available: %s/%s", platformKey, symbolsFilename);
-                        continue;
-                    }
-                    File targetFolder = new File(project.getBinaryOutputDirectory(), p.getExtenderPair());
-                    if (symbolsFilename.endsWith(".zip")) {
-                        File expectedDir = new File(targetFolder, symbolsFilename.substring(0, symbolsFilename.length() - 4));
-                        if (!expectedDir.exists()) {
-                            unzipIfZip(cached, targetFolder);
-                        }
-                    } else {
-                        File target = new File(targetFolder, symbolsFilename);
-                        if (!target.exists()) {
-                            target.getParentFile().mkdirs();
-                            FileUtils.copyFile(cached, target);
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.warning("Failed to fetch symbols '%s' for platform '%s': %s", symbolsFilename, platformKey, e.getMessage());
-                    // Skip; do not fail the build
-                }
+        try (progress) {
+            String archs = project.option("architectures", null);
+            String[] platforms;
+            if (archs != null) {
+                platforms = archs.split(",");
+            } else {
+                platforms = project.getPlatformStrings();
             }
-            progress.worked(1);
+
+            progress.message(IProgress.Message.DownloadingSymbols.INSTANCE);
+            var split = progress.split(platforms.length);
+
+            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+            String variantSuffix = getVariantSuffix(variant);
+
+            for (String platformKey : platforms) {
+                Platform p = Platform.get(platformKey);
+                String symbolsFilename = getSymbolsFilenameForPlatform(p, variantSuffix);
+
+                if (symbolsFilename != null) {
+                    try {
+                        String fallbackKey = (p != null) ? p.getOs() : null;
+                        File cached = getOrDownloadArtifact(platformKey, symbolsFilename, fallbackKey, false);
+                        if (cached == null || !cached.exists() || cached.length() == 0) {
+                            logger.warning("Symbols not available: %s/%s", platformKey, symbolsFilename);
+                            continue;
+                        }
+                        File targetFolder = new File(project.getBinaryOutputDirectory(), p.getExtenderPair());
+                        if (symbolsFilename.endsWith(".zip")) {
+                            File expectedDir = new File(targetFolder, symbolsFilename.substring(0, symbolsFilename.length() - 4));
+                            if (!expectedDir.exists()) {
+                                unzipIfZip(cached, targetFolder);
+                            }
+                        } else {
+                            File target = new File(targetFolder, symbolsFilename);
+                            if (!target.exists()) {
+                                target.getParentFile().mkdirs();
+                                FileUtils.copyFile(cached, target);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warning("Failed to fetch symbols '%s' for platform '%s': %s", symbolsFilename, platformKey, e.getMessage());
+                        // Skip; do not fail the build
+                    }
+                }
+                split.worked();
+            }
         }
     }
 

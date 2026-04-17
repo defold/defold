@@ -14,18 +14,37 @@
 
 (ns editor.command-requests
   (:require [cljfx.api :as fx]
-            [clojure.data.json :as json]
-            [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
             [editor.future :as future]
+            [editor.lsp.server :as lsp.server]
+            [editor.resource :as resource]
             [editor.ui :as ui]
             [service.log :as log]
+            [util.coll :as coll]
             [util.http-server :as http-server]))
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:const url-prefix "/command")
+(defn- build-response [result localization-state]
+  (future/then
+    result
+    (fn [{:keys [error warning]}]
+      (let [issues (coll/into-> [error warning] []
+                     (filter some?)
+                     (mapcat #(:children (build-errors-view/build-resource-tree %)))
+                     (mapcat :children)
+                     (map (fn [{:keys [message severity parent cursor-range]}]
+                            (let [maybe-resource (:resource parent)]
+                              (cond-> {:message (localization-state message)
+                                       :severity (case severity
+                                                   :fatal :error
+                                                   :info :information
+                                                   severity)}
+                                      maybe-resource (assoc :resource (resource/proj-path maybe-resource))
+                                      cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
+        (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))
 
 (def ^:private supported-commands
   ;; Notable exclusions:
@@ -37,7 +56,8 @@
    :build
    {:ui-handler :project.build
     :help "Build and run the project."
-    :resource-sync true}
+    :resource-sync true
+    :response-fn build-response}
 
    :build-html5
    {:ui-handler :project.build-html5
@@ -166,27 +186,33 @@
    {:ui-handler :window.toggle-right-pane
     :help "Toggle visibility of the right editor pane."}})
 
-(def ^:private api-response
-  (let [longest-command-length
-        (reduce (fn [result [command]]
-                  (max result (count (name command))))
-                Long/MIN_VALUE
-                supported-commands)
-
-        command-format-string
-        (str "  %-" (+ longest-command-length 2) "s : %s")
-
-        help-json-string
-        (str "{\n"
-             (->> supported-commands
-                  (sort-by key)
-                  (map (fn [[command {:keys [help]}]]
-                         (format command-format-string
-                                 (json/write-str (name command))
-                                 (json/write-str help))))
-                  (string/join ",\n"))
-             "\n}\n")]
-    (http-server/response 200 {"content-type" (http-server/ext->content-type "json")} help-json-string)))
+(defn- command-openapi []
+  (let [command->help (coll/into-> supported-commands (sorted-map)
+                       (map (fn [[command {:keys [help]}]]
+                              (coll/pair (name command) help))))]
+    {:summary "Execute an editor command"
+     :description (str "Available commands:\n"
+                       (coll/join-to-string
+                         "\n"
+                         (coll/into-> command->help :eduction
+                           (map (fn [[command help]]
+                                  (str "- `" command "`: " help))))))
+     :parameters [{:name "command"
+                   :in "path"
+                   :required true
+                   :description "Command to execute."
+                   :schema {:type "string"
+                            :enum (persistent!
+                                    (reduce-kv (fn [acc command _]
+                                                 (conj! acc command))
+                                               (transient [])
+                                               command->help))}}]
+     :responses {"200" {:description "Command completed and returned a response body"}
+                 "202" {:description "Accepted"}
+                 "403" {:description "Forbidden"}
+                 "404" {:description "Unknown command"}
+                 "422" {:description "Command failed validation/build checks"}
+                 "500" {:description "Internal server error"}}}))
 
 (defn- resolve-ui-handler-ctx [ui-node ui-handler user-data]
   {:pre [(ui/node? ui-node)
@@ -196,43 +222,66 @@
      (g/let-ec [command-contexts (ui/node-contexts ui-node true evaluation-context)]
        (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
 
-(defn router [ui-node render-reload-progress!]
-  {"/command" {"GET" (constantly api-response)}
-   "/command/{command}"
-   {"POST" (bound-fn [request]
-             (let [command (-> request :path-params :command keyword)]
-               (if-let [{:keys [ui-handler resource-sync]} (supported-commands command)]
-                 (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
-                   (case ui-handler-ctx
-                     (::ui/not-active ::ui/not-enabled) http-server/forbidden
-                     (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
-                           result-future (future/make)
-                           execute-command!
-                           (bound-fn execute-command! []
-                             (try
-                               (ui/execute-handler-ctx ui-handler-ctx)
-                               (future/complete! result-future http-server/accepted)
-                               (catch Exception error
-                                 (log/error :msg "Failed to handle command request"
-                                            :request request
-                                            :exception error)
-                                 (future/complete! result-future http-server/internal-server-error))))]
-                       (assert (g/node-id? changes-view))
-                       (assert (g/node-id? workspace))
-                       (when-not (Boolean/getBoolean "defold.tests")
-                         (log/info :msg "Processing request" :command command))
-                       (if-not resource-sync
-                         (ui/run-later (execute-command!))
-                         (disk/async-reload!
-                           render-reload-progress! workspace [] changes-view
-                           (fn async-reload-continuation [success]
-                             ;; This callback is executed on the ui thread.
-                             (if success
-                               (execute-command!)
-                               (do
-                                 ;; Explicitly refresh the UI after the reload, since
-                                 ;; the ui-handler will not have done so on failure.
-                                 (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
-                                 (future/complete! result-future http-server/internal-server-error))))))
-                       result-future)))
-                 http-server/not-found)))}})
+(defn router [ui-node localization render-reload-progress!]
+  {"/command/{command}"
+   {"POST" (with-meta
+             (bound-fn [request]
+               (let [command (-> request :path-params :command keyword)]
+                 (if-let [{:keys [ui-handler resource-sync response-fn]} (supported-commands command)]
+                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                     (case ui-handler-ctx
+                       (::ui/not-active ::ui/not-enabled) http-server/forbidden
+                       (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
+                             result-future (future/make)
+                             execute-command!
+                             (bound-fn execute-command! []
+                               (-> (try
+                                     (future/completed (ui/execute-handler-ctx ui-handler-ctx))
+                                     (catch Throwable e (future/failed e)))
+                                   (future/then
+                                     (fn [result]
+                                       (if response-fn
+                                         (response-fn result @localization)
+                                         http-server/accepted)))
+                                   (future/then
+                                     (fn [response]
+                                       (future/complete! result-future response)))
+                                   (future/catch
+                                     (fn [error]
+                                       (log/error :msg "Failed to handle command request"
+                                                  :request request
+                                                  :exception error)
+                                       (future/complete! result-future http-server/internal-server-error)))))]
+                         (assert (g/node-id? changes-view))
+                         (assert (g/node-id? workspace))
+                         (when-not (Boolean/getBoolean "defold.tests")
+                           (log/info :msg "Processing request" :command command))
+                         (if-not resource-sync
+                           (ui/run-later (execute-command!))
+                           (disk/async-reload!
+                             render-reload-progress! workspace [] changes-view
+                             (fn async-reload-continuation [success]
+                               ;; This callback is executed on the ui thread.
+                               (if success
+                                 (execute-command!)
+                                 (do
+                                   ;; Explicitly refresh the UI after the reload, since
+                                   ;; the ui-handler will not have done so on failure.
+                                   (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
+                                   (future/complete! result-future http-server/internal-server-error))))))
+                         result-future)))
+                   http-server/not-found)))
+             {:openapi (command-openapi)})}})
+
+(comment
+
+  (-> @(util.http-client/request
+         (str "http://localhost:"
+              (slurp (str (g/node-value (dev/workspace) :root) "/.internal/editor.port"))
+              "/command/build")
+         :method "POST"
+         :as :string)
+      :body
+      (clojure.data.json/read-str :key-fn keyword))
+
+  #__)

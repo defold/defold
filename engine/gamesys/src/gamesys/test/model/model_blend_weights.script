@@ -1,0 +1,60 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+require "lua.test_helpers"
+
+blend_weights_script_done = false
+
+local function assert_near(a, b, eps)
+	eps = eps or 1e-5
+	assert_fn(math.abs(a - b) < eps, string.format("expected ~%s got %s", tostring(b), tostring(a)))
+end
+
+function init(self)
+	blend_weights_script_done = false
+
+	local w = model.get_blend_weights("#morph")
+	assert_fn(#w == 2, "expected 2 morph weights")
+	assert_near(w[1], 0.0)
+	assert_near(w[2], 0.0)
+
+	model.set_blend_weights("#morph", { 0.25, 0.75 })
+	local w2 = model.get_blend_weights("#morph")
+	assert_fn(#w2 == 2, "expected 2 morph weights after set")
+	assert_near(w2[1], 0.25)
+	assert_near(w2[2], 0.75)
+
+	model.set_blend_weights("#morph")
+	local w3 = model.get_blend_weights("#morph")
+	assert_fn(#w3 == 2, "expected 2 morph weights after reset")
+	assert_near(w3[1], 0.0)
+	assert_near(w3[2], 0.0)
+
+	model.set_blend_weights("#morph", { 0.25, 0.75 })
+	model.set_blend_weights("#morph", nil)
+	local w4 = model.get_blend_weights("#morph")
+	assert_fn(#w4 == 2, "expected 2 morph weights after nil reset")
+	assert_near(w4[1], 0.0)
+	assert_near(w4[2], 0.0)
+
+	assert_error(function()
+		model.set_blend_weights("#morph", { 1, "bad" })
+	end)
+
+	assert_error(function()
+		model.set_blend_weights("#morph", {})
+	end)
+
+	blend_weights_script_done = true
+end

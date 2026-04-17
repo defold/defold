@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import os, re
-from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
@@ -33,7 +32,7 @@ def build(bld):
         sig_handler = 'backtrace_execinfo.cpp'
 
     if 'web' in bld.env['PLATFORM']:
-        sig_handler = 'backtrace_jsweb.cpp';
+        sig_handler = 'backtrace_web.cpp';
         file_handler = 'file_posix.cpp';
 
     if 'macos' in bld.env['PLATFORM'] or 'ios' in bld.env['PLATFORM']:
@@ -63,7 +62,4 @@ def build(bld):
     bld.recurse('test')
     bld.recurse('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
-
-    apidoc_extract_task(bld, ['script_crash.cpp'])
-
 

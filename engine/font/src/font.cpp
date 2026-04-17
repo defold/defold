@@ -95,7 +95,6 @@ HFont FontLoadFromPath(const char* path)
     free(data);
     if (!font)
     {
-        free((void*)data);
         return 0;
     }
     return font;

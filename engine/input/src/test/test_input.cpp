@@ -59,8 +59,7 @@ protected:
 
         dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
 
-        (void)result;
-        assert(dmDDF::RESULT_OK == result);
+        ASSERT_EQ(dmDDF::RESULT_OK, result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
         dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
@@ -500,7 +499,7 @@ TEST_F(InputTest, Touch)
     ASSERT_EQ(1.0f, action->m_Value);
     ASSERT_TRUE(action->m_Pressed);
     ASSERT_FALSE(action->m_Released);
-    ASSERT_TRUE(action->m_Repeated);
+    ASSERT_FALSE(action->m_Repeated);
     ASSERT_TRUE(action->m_PositionSet);
     ASSERT_EQ(0, action->m_X);
     ASSERT_EQ(1, action->m_Y);
@@ -513,7 +512,7 @@ TEST_F(InputTest, Touch)
     ASSERT_EQ(1.0f, action->m_Value);
     ASSERT_TRUE(action->m_Pressed);
     ASSERT_FALSE(action->m_Released);
-    ASSERT_TRUE(action->m_Repeated);
+    ASSERT_FALSE(action->m_Repeated);
     ASSERT_TRUE(action->m_PositionSet);
     ASSERT_EQ(2, action->m_Touch[1].m_X);
     ASSERT_EQ(3, action->m_Touch[1].m_Y);
@@ -609,7 +608,7 @@ TEST_F(InputTest, TouchPhases)
     ASSERT_EQ(2, action->m_Count);
     ASSERT_TRUE(action->m_Pressed);
     ASSERT_FALSE(action->m_Released);
-    ASSERT_TRUE(action->m_Repeated);
+    ASSERT_FALSE(action->m_Repeated);
     ASSERT_TRUE(action->m_PositionSet);
     ASSERT_EQ(0, action->m_X);
     ASSERT_EQ(1, action->m_Y);
@@ -829,7 +828,7 @@ TEST_F(InputTest, TestRepeat)
     ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
 
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_TRUE(dmInput::Repeated(binding, key_0_id));
+    ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
 
     for (int i = 0; i < 29; ++i)
     {

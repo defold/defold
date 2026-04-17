@@ -241,7 +241,8 @@ TextResult TextLayoutSkribidiCreate(HFontCollection collection,
                             TextLayoutSettings* settings, TextLayout** outlayout)
 {
     TextLayout* layout = new TextLayout;
-    layout->m_Free = TextLayoutSkribidiFree;
+    layout->m_Destroy = TextLayoutSkribidiFree;
+    layout->m_RefCount = 1;
 
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(0);

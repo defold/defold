@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Image API documentation
+/*# Image API documentation
  *
  * Image API functions.
  *
@@ -122,6 +122,7 @@ namespace dmImage
 
     /*#
      * Get the block size
+     * @name GetAstcBlockSize
      * @param mem [type: void*] the .astc memory (including the header)
      * @param memsize [type: uint32_t] the length of the memory blob
      * @param width [type: uint32_t*] (out) the block width
@@ -133,6 +134,7 @@ namespace dmImage
 
     /*#
      * Get the astc image size
+     * @name GetAstcDimensions
      * @param mem [type: void*] the .astc memory (including the header)
      * @param memsize [type: uint32_t] the length of the memory blob
      * @param width [type: uint32_t*] (out) the block width

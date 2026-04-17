@@ -12,13 +12,14 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from waf_tests import get_test_harness
 from build_constants import TargetOS
 import sdk
 
@@ -37,10 +38,8 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
-script_dir = os.path.dirname(__file__)
-defold_root = os.path.abspath(os.path.join(script_dir, ".."))
-
 # import the vendor specific build setup
+script_dir = os.path.dirname(__file__)
 path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
 if os.path.exists(path):
     sys.dont_write_bytecode = True
@@ -76,15 +75,15 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
         return platform in ['arm64-linux']
     if feature == 'webgpu':
-        return platform in ['js-web', 'wasm-web', 'wasm_pthread-web']
+        return platform in ['wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -209,145 +208,11 @@ def copy_file_task(bld, src, name=None):
                name = name,
                shell = True)
 
-#   Extract api docs from source files and store the raw text in .apidoc
-#   files per file for later collation into .json and .sdoc files.
-def apidoc_extract_task(bld, src):
-    import re
-    from collections import defaultdict
-    all_docs = {}
-
-    def _strip_comment_stars(str):
-        lines = str.split('\n')
-        ret = []
-        for line in lines:
-            line = line.strip()
-            if line.startswith('*'):
-                line = line[1:]
-                if line.startswith(' '):
-                    line = line[1:]
-            ret.append(line)
-        return '\n'.join(ret)
-
-    def _parse_comment(source):
-        str = _strip_comment_stars(source)
-        # The regexp means match all strings that:
-        # * begins with line start, possible whitespace and an @
-        # * followed by non-white-space (the tag)
-        # * followed by possible spaces
-        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-        comment = {
-            "is_document": False,
-            "namespace": None,
-            "path": None
-        }
-        for (tag, value) in lst:
-            tag = tag.strip()
-            value = value.strip()
-            if tag == 'document':
-                comment["is_document"] = True
-            else:
-                comment[tag] = value
-        return comment
-
-    def _parse_source(source_path):
-        resource = bld.path.find_resource(source_path)
-        if not resource:
-            sys.exit("Couldn't find resource: %s" % resource)
-            return
-
-        elements = {}
-        resource_path = resource.abspath()
-        resource_file = os.path.basename(resource_path)
-        relative_path = resource_path.replace(defold_root, "")[1:]
-
-        with open(resource_path, encoding='utf8') as in_f:
-            source = in_f.read()
-            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
-            default_namespace = None
-            for comment_str in lst:
-                comment = _parse_comment(comment_str)
-
-                namespace = comment.get("namespace")
-                if comment["is_document"]:
-                    comment_path = comment.get("path")
-                    if not comment_path:
-                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str + ("* @path %s\n" % relative_path)
-                    else:
-                        # there really shouldn't be any files with hardcoded paths anymore
-                        # but let's keep this here for some time in case we introduce a hardcoded
-                        # path somewhere again
-                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
-
-                    comment_file = comment.get("file")
-                    if not comment_file:
-                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str + ("* @file %s\n" % resource_file)
-                    elif comment_file != resource_file:
-                        # there shouldn't be any of these, but let's keep it here anyway
-                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
-
-                    comment_language = comment.get("language")
-                    if not comment_language:
-                        print("Missing @language in %s, assuming C++" % (resource_path))
-                        comment_str = comment_str + "* @language C++\n"
-
-                    if namespace:
-                        default_namespace = namespace
-
-                if not namespace:
-                    namespace = default_namespace
-                    comment["namespace"] = default_namespace
-
-                if namespace:
-                    if namespace not in elements:
-                        elements[namespace] = []
-                    elements[namespace].append('/' + comment_str + '*/')
-                else:
-                    if resource_path not in elements:
-                        elements[resource_path] = []
-                    elements[resource_path].append('/' + comment_str + '*/')
-
-        return elements
-
-    def extract_docs(bld, src):
-        docs = defaultdict(list)
-        # Gather data
-        for s in src:
-            elements = _parse_source(s)
-            for k,v in elements.items():
-                # turn path into key which will later be used as the
-                # build target filename
-                key = "-".join(os.path.normpath(s).split(os.sep))
-                key = key.replace("..-", "")
-                docs[key] = docs[key] + v
-        all_docs.update(docs)
-        return docs
-
-    def write_docs(task):
-        for o in task.outputs:
-            name = os.path.splitext(o.name)[0] # remove .apidoc
-            docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
-                out_f.write('\n'.join(docs))
-
-    if not getattr(Options.options, 'skip_apidocs', False):
-        docs = extract_docs(bld, src)
-        target = []
-        for key in docs.keys():
-            target.append(key + '.apidoc')
-        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
-
-
 # Add single dmsdk file.
 # * 'source' file is installed into 'target' directory
 # * 'source' file is added to documentation pipeline
 def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
-    apidoc_extract_task(bld, source)
 
 # Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
@@ -368,7 +233,6 @@ def dmsdk_add_files(bld, target, source):
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
             bld.install_files(os.path.join(target, sdk_dir), f)
-    apidoc_extract_task(bld, doc_files)
 
 def getAndroidNDKArch(target_arch):
     return 'arm64' if 'arm64' == target_arch else 'arm'
@@ -437,7 +301,7 @@ def default_flags(self):
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan or Options.options.with_msan) and opt_level != '0':
         opt_level = 1
 
     FLAG_ST = '/%s' if use_cl_exe else '-%s'
@@ -457,7 +321,7 @@ def default_flags(self):
             flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
 
     if Options.options.ndebug:
-        flags += [self.env.DEFINES_ST % 'NDEBUG']
+        self.env.append_value('DEFINES', 'NDEBUG')
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
         if use_cl_exe and f == 'LINKFLAGS':
@@ -477,15 +341,13 @@ def default_flags(self):
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
-       for f in ['CFLAGS', 'CXXFLAGS']:
-           self.env.append_value(f, self.env.DEFINES_ST % "GITHUB_CI")
-           self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
+        self.env.append_value('DEFINES', 'GITHUB_CI')
+        self.env.append_value('DEFINES', 'JC_TEST_USE_COLORS=1')
 
-    for f in ['CFLAGS', 'CXXFLAGS']:
-        if '64' in target_arch:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_64BIT')
-        else:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_32BIT')
+    if '64' in target_arch:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_64BIT')
+    else:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -615,6 +477,8 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
+        self.env.append_value('DEFINES', ['DM_NO_SYSTEM_FUNCTION', 'JC_TEST_USE_COLORS=1'])
+
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
         # -lsupc++
@@ -685,6 +549,13 @@ def default_flags(self):
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']
+            if Options.options.size_analyze:
+                # Keep source attribution outside the main wasm so size measurements
+                # still reflect the optimized binary while enabling deeper analysis.
+                flags += ['-gline-tables-only']
+                for flag in ['-gsource-map', '-gseparate-dwarf']:
+                    if flag not in linkflags:
+                        linkflags += [flag]
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
@@ -840,6 +711,10 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
+    elif Options.options.with_msan and build_util.get_target_os() in ('linux', 'ps5'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('CFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=memory'])
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1276,7 +1151,8 @@ def android_package(task):
         proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % sdkinfo['path']
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        java_runtime_flags = task.env.get_flat('JAVA_RUNTIME_FLAGS')
+        ret = bld.exec_command('%s %s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], java_runtime_flags, proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
         if ret != 0:
             error('Error running proguard')
             return 1
@@ -1523,13 +1399,16 @@ def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     config.set("server", "socket", port)
 
     if config_name is None:
-        config_name = tempfile.mktemp(".cfg", "unittest_")
-    configfilepath = os.path.basename(config_name)
-    with open(configfilepath, 'w') as f:
-        config.write(f)
-        print("Wrote test config file: %s" % configfilepath)
-        return configfilepath
-    return None
+        with tempfile.NamedTemporaryFile(mode='w', suffix=".cfg", prefix="unittest_", dir=".", delete=False) as f:
+            configfilepath = os.path.basename(f.name)
+            config.write(f)
+    else:
+        configfilepath = os.path.basename(config_name)
+        with open(configfilepath, 'w') as f:
+            config.write(f)
+
+    print("Wrote test config file: %s" % configfilepath)
+    return configfilepath
 
 def _should_run_test_taskgen(ctx, taskgen):
     if not 'test' in taskgen.features:
@@ -1561,93 +1440,76 @@ def _should_run_test_taskgen(ctx, taskgen):
     return True
 
 
-def run_tests(ctx, valgrind = False, configfile = None):
+def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
-
-    # TODO: Add something similar to this
-    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-    # to find leaks and set error code
-
-    if not ctx.env['VALGRIND']:
-        valgrind = False
-
-    if not getattr(Options.options, 'with_valgrind', False):
-        valgrind = False
 
     if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
-    for t in ctx.get_all_task_gen():
-        if not _should_run_test_taskgen(ctx, t):
-            continue
+    harness = get_test_harness(ctx.env.PLATFORM)
+    cwd = os.getcwd()
 
-        if not t.tasks:
-            print("No runnable task found in generator %s" % t.name)
-            continue
+    try:
+        harness.prepare(ctx.env, cwd, configfile, folders)
+    except Exception as e:
+        print("Failed to prepare test harness for platform %s" % (ctx.env.PLATFORM))
+        raise e
 
-        task = None
-        task_type = None
-        for _task in t.tasks:
-            for attr in ['link_task', 'jar_task']:
-                if _task == getattr(t, attr, None):
-                    task = _task
-                    task_type = attr
-                    break
+    try:
+        for t in ctx.get_all_task_gen():
+            if not _should_run_test_taskgen(ctx, t):
+                continue
 
-        # Create the environment for the task
-        env = dict(os.environ)
-        merged_table = t.env.get_merged_dict()
-        keys=list(merged_table.keys())
-        for key in keys:
-            v = merged_table[key]
-            if isinstance(v, str):
-                env[key] = v
+            if not t.tasks:
+                print("No runnable task found in generator %s" % t.name)
+                continue
 
-        launch_pattern = '%s %s'
-        if task_type == 'jar_task':
-            # java -cp <classpath> <main-class>
-            mainclass = getattr(t, 'mainclass', '')
-            classpath = Utils.to_list(getattr(t, 'classpath', []))
-            java_library_paths = Utils.to_list(getattr(t, 'java_library_paths', []))
-            jar_path = task.outputs[0].abspath()
-            jar_dir = os.path.dirname(jar_path)
-            java_library_paths.append(jar_dir)
-            classpath.append(jar_path)
-            debug_flags = ''
-            #debug_flags = '-Xcheck:jni'
-            #debug_flags = '-Xcheck:jni -Xlog:library=info -verbose:class'
-            launch_pattern = f'java {debug_flags} -Djava.library.path={os.pathsep.join(java_library_paths)} -Djni.library.path={os.pathsep.join(java_library_paths)} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
-            print("launch_pattern:", launch_pattern)
+            task = None
+            task_type = None
+            for _task in t.tasks:
+                for attr in ['link_task', 'jar_task']:
+                    if _task == getattr(t, attr, None):
+                        task = _task
+                        task_type = attr
+                        break
 
-        if 'TEST_LAUNCH_PATTERN' in t.env:
-            launch_pattern = t.env.TEST_LAUNCH_PATTERN
+            # Create the environment for the task
+            env = dict(os.environ)
+            merged_table = t.env.get_merged_dict()
+            for key in merged_table:
+                env[key] = merged_table[key]
 
-        if task is None:
-            print("Skipping", t.name)
-            continue
+            if task is None:
+                print("Skipping", t.name)
+                continue
 
-        program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+            program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+            if task_type == 'jar_task':
+                if not hasattr(harness, 'run_jar_test'):
+                    print("Skipping %s, harness has no jar runner for platform %s" % (t.name, ctx.env.PLATFORM))
+                    continue
 
-        if task_type == 'jar_task':
-            cmd = launch_pattern
-        else:
-            cmd = launch_pattern % (program, configfile if configfile else '')
+                ret = harness.run_jar_test(task, env, configfile)
+            else:
+                argv = [program]
+                if configfile:
+                    argv.append(configfile)
 
-            if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
-                cmd = '%s %s' % (ctx.env['NODEJS'][0], cmd)
+                ret = harness.run_test(program, configfile, env, argv)
 
-        # disable shortly during beta release, due to issue with jctest + test_gui
-        valgrind = False
-        if valgrind:
-            dynamo_home = os.getenv('DYNAMO_HOME')
-            cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-        proc = subprocess.Popen(cmd, shell = True, env = env)
-        ret = proc.wait()
-        if ret != 0:
-            print("test failed %s" %(t.target) )
-            sys.exit(ret)
+            if ret != 0:
+                print("test failed %s" %(t.target) )
+                sys.exit(ret)
+    finally:
+        propagating = sys.exc_info()[0] is not None
+        try:
+            harness.stop(ctx.env, cwd, configfile)
+        except Exception:
+            print("Failed to stop test harness for platform %s" % (ctx.env.PLATFORM))
+            if not propagating:
+                sys.exit(1)
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1661,7 +1523,9 @@ def linux_link_flags(self):
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
-        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
+        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "web-pre.js")
+        if not os.path.exists(pre_js):
+            pre_js = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'share', 'web-pre.js'))
         self.env.append_value('LINKFLAGS', ['--pre-js', pre_js, '-lnodefs.js'])
 
 @task_gen
@@ -1758,6 +1622,8 @@ def detect(conf):
     if not platform:
         platform = host_platform
 
+    conf.env['JAVA_RUNTIME_FLAGS'] = shlex.split(os.environ.get('DM_JAVA_RUNTIME_FLAGS', ''))
+
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
 
@@ -1773,7 +1639,9 @@ def detect(conf):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
     bindirs = [build_util.get_dynamo_ext('bin', host_platform)]
-    conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
+
+    if conf.env.IS_HOST_DESKTOP:
+        conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
 
     target_os = build_util.get_target_os()
     conf.env['TARGET_OS'] = target_os
@@ -1795,7 +1663,7 @@ def detect(conf):
         print ("Codesign disabled", Options.options.skip_codesign)
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:
@@ -1949,6 +1817,9 @@ def detect(conf):
             if build_util.get_target_platform() == 'win32':
                 libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
 
+            bindirs_env = os.pathsep.join(bindirs)
+            os.environ['PATH'] = bindirs_env + os.pathsep + os.environ['PATH']
+            conf.environ['PATH'] = bindirs_env + os.pathsep + conf.environ['PATH']
             conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
             conf.env['INCLUDES'] = includes
             conf.env['LIBPATH']  = libdirs
@@ -2057,6 +1928,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.load('waf_android')
     elif TargetOS.WINDOWS == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
@@ -2253,6 +2125,7 @@ def options(opt):
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
+    opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
@@ -2264,6 +2137,7 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--size-analyze', action='store_true', default=False, dest='size_analyze', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
