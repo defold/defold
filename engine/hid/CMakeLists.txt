@@ -16,32 +16,53 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 
 # hid (native backend)
-set(hid_SOURCES )
-list(APPEND hid_SOURCES "${HID_SRC_DIR}/hid.cpp")
+set(hid_SOURCES
+    "${HID_SRC_DIR}/hid.cpp"
+    "${HID_SRC_DIR}/hid_guid.cpp"
+)
 
-# Default to the cross-platform native backend; switch to per-OS directory
-# for private vendor builds (e.g., nx64).
-set(_native_dir "native")
-if(DEFOLD_IS_PRIVATE_VENDOR)
-    set(_native_dir "${TARGET_PLATFORM_OS}")
+if(TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos|arm64-ios|x86_64-ios")
+    list(APPEND hid_SOURCES
+        "${HID_SRC_DIR}/native/hid_native.cpp"
+        "${HID_SRC_DIR}/darwin/gamepad_darwin.mm"
+    )
+    set(WITH_VULKAN OFF)
+    set(WITH_OPENGL ON)
+elseif(DEFOLD_IS_PRIVATE_VENDOR)
+    file(GLOB _hid_vendor_sources
+        "${HID_SRC_DIR}/${TARGET_PLATFORM_OS}/*.c"
+        "${HID_SRC_DIR}/${TARGET_PLATFORM_OS}/*.cpp"
+        "${HID_SRC_DIR}/${TARGET_PLATFORM_OS}/*.mm")
+    list(APPEND hid_SOURCES ${_hid_vendor_sources})
+else()
+    file(GLOB _hid_native_sources
+        "${HID_SRC_DIR}/native/*.c"
+        "${HID_SRC_DIR}/native/*.cpp"
+        "${HID_SRC_DIR}/native/*.mm")
+    list(APPEND hid_SOURCES ${_hid_native_sources})
 endif()
-
-file(GLOB _hid_native_sources
-    "${HID_SRC_DIR}/${_native_dir}/*.c"
-    "${HID_SRC_DIR}/${_native_dir}/*.cpp"
-    "${HID_SRC_DIR}/${_native_dir}/*.mm")
-list(APPEND hid_SOURCES ${_hid_native_sources})
 
 defold_add_library(hid STATIC ${hid_SOURCES})
 target_compile_definitions(hid PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
 
-target_include_directories(hid PUBLIC "${HID_SRC_DIR}") # for dmsdk/hid and local headers
+target_include_directories(hid PUBLIC
+    "${HID_SRC_DIR}"
+    "${HID_SRC_DIR}/native"
+    "${HID_SRC_DIR}/external"
+    "${HID_SRC_DIR}/default/src"
+) # match Waf include layout for hid sources
 
 defold_add_library(hid_null STATIC
     "${HID_SRC_DIR}/hid.cpp"
     "${HID_SRC_DIR}/hid_null.cpp"
 )
-target_include_directories(hid_null PUBLIC "${HID_SRC_DIR}")
+target_include_directories(hid_null PUBLIC
+    "${HID_SRC_DIR}"
+    "${HID_SRC_DIR}/native"
+    "${HID_SRC_DIR}/null"
+    "${HID_SRC_DIR}/external"
+    "${HID_SRC_DIR}/default/src"
+)
 target_compile_definitions(hid_null PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
 
 
@@ -90,10 +111,10 @@ if(BUILD_TESTS)
         set(_DM_USE_OPENGLES ON)
 
     elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
-        target_link_libraries(test_app_hid PRIVATE "-framework IOKit")
+        target_link_libraries(test_app_hid PRIVATE "-framework IOKit" "-framework GameController")
 
     elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
-        target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+        target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework GameController")
 
     elseif (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
         target_link_libraries(test_app_hid PRIVATE user32 gdi32 shell32)

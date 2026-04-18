@@ -361,9 +361,18 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_Width            = 32;
     window_params.m_Height           = 32;
     window_params.m_Title            = "hid_test_app";
-    window_params.m_GraphicsApi      = WINDOW_GRAPHICS_API_OPENGL;
     window_params.m_ContextAlphabits = 8;
     window_params.m_Hidden           = 1;
+
+    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    }
+    else
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    }
+
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
 
