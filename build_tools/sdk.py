@@ -1241,3 +1241,20 @@ def get_toolchain_root(sdkinfo, platform):
     if platform in ('x86_64-linux','arm64-linux'):
         return sdkinfo[platform]['path']
     return None
+
+
+def get_strip_executable(sdkfolder, platform, sdkinfo=None):
+    if sdkinfo is None:
+        sdkinfo = get_sdk_info(sdkfolder, platform)
+
+    if platform in ('armv7-android', 'arm64-android'):
+        return os.path.join(sdkinfo['bintools'], 'llvm-strip')
+
+    if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):
+        host_platform = get_host_platform()
+        if 'linux' in host_platform:
+            host_sdkinfo = get_sdk_info(sdkfolder, host_platform)
+            return os.path.join(get_toolchain_root(host_sdkinfo, host_platform), 'bin', 'x86_64-apple-darwin19-strip')
+        return os.path.join(get_toolchain_root(sdkinfo, platform), 'usr', 'bin', 'strip')
+
+    return 'strip'

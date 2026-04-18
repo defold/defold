@@ -1427,14 +1427,8 @@ class Configuration(object):
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
-
-        strip = "strip"
-        if 'android' in self.target_platform:
-            sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
-            strip = os.path.join(sdk_info['bintools'], 'llvm-strip')
-
-        if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
+        sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
+        strip = sdk.get_strip_executable(sdkfolder, self.target_platform, sdk_info)
 
         run.shell_command("%s %s" % (strip, path))
         return True
