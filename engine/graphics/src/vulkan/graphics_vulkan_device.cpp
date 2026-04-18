@@ -454,6 +454,12 @@ namespace dmGraphics
                 return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
 
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                // Presentation happens outside the graphics pipeline, so there is no matching
+                // access mask to wait on. BOTTOM_OF_PIPE is a conservative stage for transitions
+                // to and from the present engine.
+                return { 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+
             default:
                 assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
                 // Fallback: allow everything, conservative but safe
