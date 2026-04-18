@@ -166,6 +166,8 @@ static const char* GetSDLCompatibleControllerName(const GamepadIdentity& identit
     {
         switch (identity.m_Product)
         {
+            case USB_PRODUCT_XBOX360_WIRED_CONTROLLER:          return "Xbox 360 Controller";
+            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER:         return "Xbox 360 Controller";
             case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH: return "Xbox Elite Wireless Controller Series 2";
             case USB_PRODUCT_XBOX_SERIES_X_BLE:                 return "Xbox Wireless Controller";
             case USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH:         return "Xbox Wireless Controller";
@@ -217,6 +219,28 @@ void CreateGUIDFromIdentity(const GamepadIdentity& identity, const char* fallbac
     }
 
     CreateSDLGUID(0x0005, 0, identity.m_Vendor, identity.m_Product, signature, guid);
+}
+
+void GetGamepadDeviceNameSDL(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH])
+{
+    device_name[0] = '\0';
+
+    char fallback_name[MAX_GAMEPAD_NAME_LENGTH];
+    GetGamepadDeviceName(context, gamepad, fallback_name);
+
+    GamepadGuid guid;
+    if (!GetGamepadDeviceGuid(context, gamepad, &guid))
+    {
+        dmStrlCpy(device_name, fallback_name, MAX_GAMEPAD_NAME_LENGTH);
+        return;
+    }
+
+    GamepadIdentity identity = {};
+    identity.m_Vendor  = guid.m_Vendor;
+    identity.m_Product = guid.m_Product;
+
+    const char* sdl_name = GetSDLCompatibleControllerName(identity, fallback_name);
+    dmStrlCpy(device_name, sdl_name, MAX_GAMEPAD_NAME_LENGTH);
 }
 
 } // namespace dmHID

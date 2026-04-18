@@ -233,12 +233,15 @@ static void AppendGamepadStatus(EngineCtx* engine, char* buffer, uint32_t buffer
     char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
     dmHID::GetGamepadDeviceName(engine->m_HidContext, pad, device_name);
 
+    char device_name_sdl[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceNameSDL(engine->m_HidContext, pad, device_name_sdl);
+
     dmHID::GamepadGuid guid;
     dmHID::GetGamepadDeviceGuid(engine->m_HidContext, pad, &guid);
     char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
     dmHID::FormatGamepadGuid(guid, guid_string);
 
-    AppendStatusLine(buffer, buffer_size, offset, "Pad %u: %s - %s\n", gamepad_index, device_name, guid_string);
+    AppendStatusLine(buffer, buffer_size, offset, "Pad %u: '%s' - '%s' %s\n", gamepad_index, device_name, device_name_sdl, guid_string);
     AppendStatusLine(buffer, buffer_size, offset, "  Buttons:");
 
     uint32_t button_count = dmHID::GetGamepadButtonCount(pad);

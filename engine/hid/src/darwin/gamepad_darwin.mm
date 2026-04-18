@@ -68,7 +68,9 @@ struct AppleGamepadDevice
     uint8_t      m_HasRightThumbstickButton: 1;
     uint8_t      m_HasBackButton           : 1;
     uint8_t      m_HasStartButton          : 1;
-    uint8_t                               : 4;
+    uint8_t      m_HasGuideButton         : 1;
+    uint8_t      m_HasCaptureButton       : 1;
+    uint8_t                               : 2;
 };
 
 struct AppleGamepadDriver : GamepadDriver
@@ -254,6 +256,38 @@ static bool ElementAlreadyHandled(const GamepadIdentity& identity, NSString* ele
     }
 
     return false;
+}
+
+static GCControllerButtonInput* GetGuideButton(GCController* controller)
+{
+    if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+    {
+        GCPhysicalInputProfile* profile = controller.physicalInputProfile;
+        if (profile != nil)
+        {
+            GCControllerButtonInput* button = profile.buttons[@"Button Home"];
+            if (button != nil)
+                return button;
+        }
+    }
+
+    return nil;
+}
+
+static GCControllerButtonInput* GetCaptureButton(GCController* controller)
+{
+    if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+    {
+        GCPhysicalInputProfile* profile = controller.physicalInputProfile;
+        if (profile != nil)
+        {
+            GCControllerButtonInput* button = profile.buttons[@"Button Share"];
+            if (button != nil)
+                return button;
+        }
+    }
+
+    return nil;
 }
 
 static void ClassifyController(GCController* controller, GamepadIdentity* identity)
@@ -544,6 +578,11 @@ static bool SupportsController(GCController* controller, AppleGamepadDevice* dev
             device->m_ButtonCount += device->m_HasBackButton ? 1 : 0;
             device->m_ButtonCount += device->m_HasStartButton ? 1 : 0;
         }
+
+        device->m_HasGuideButton = GetGuideButton(controller) != nil;
+        device->m_ButtonCount += device->m_HasGuideButton ? 1 : 0;
+        device->m_HasCaptureButton = GetCaptureButton(controller) != nil;
+        device->m_ButtonCount += device->m_HasCaptureButton ? 1 : 0;
 
         return true;
     }
@@ -849,6 +888,22 @@ static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Ga
             if (extended_gamepad.buttonMenu.isPressed)
                 packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
         }
+        ++button_index;
+    }
+
+    if (apple_device->m_HasGuideButton)
+    {
+        GCControllerButtonInput* guide_button = GetGuideButton(controller);
+        if (guide_button != nil && guide_button.isPressed)
+            packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
+        ++button_index;
+    }
+
+    if (apple_device->m_HasCaptureButton)
+    {
+        GCControllerButtonInput* capture_button = GetCaptureButton(controller);
+        if (capture_button != nil && capture_button.isPressed)
+            packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
         ++button_index;
     }
 
