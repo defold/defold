@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -287,7 +288,10 @@ namespace dmGameSystem
         dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
         if (dmRig::RESULT_ANIM_NOT_FOUND == result)
         {
-            dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            if (callback_ctx->m_LuaCallback)
+            {
+                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            }
             delete callback_ctx;
             dmLogError("'%s:%s#%s' has no animation named '%s'",
                     dmMessage::GetSocketName(receiver.m_Socket),
@@ -442,7 +446,10 @@ namespace dmGameSystem
         dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
         if (dmRig::RESULT_ANIM_NOT_FOUND == result)
         {
-            dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            if (callback_ctx->m_LuaCallback)
+            {
+                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            }
             delete callback_ctx;
             dmLogError("'%s:%s#%s' has no animation named '%s'",
                     dmMessage::GetSocketName(receiver.m_Socket),
@@ -801,6 +808,118 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# get current morph (blend shape) weights
+     * Returns a table of numbers with one entry per morph target on the first mesh of the model that has morph targets.
+     * Values reflect the rig state at call time (after animation, and any active script override from [ref:model.set_blend_weights]).
+     *
+     * @name model.get_blend_weights
+     * @param url [type:string|hash|url] the model component
+     * @return weights [type:table] array of weight values, or empty table if the model has no morph targets
+     * @examples
+     *
+     * ```lua
+     * local w = model.get_blend_weights("#model")
+     * for i = 1, #w do
+     *   print(i, w[i])
+     * end
+     * -- change the data in the table and then set the weights again
+     * w[1] = 0.75
+     * w[2] = 0.25
+     * model.set_blend_weights("#model", w)
+     * ```
+     */
+    static int LuaModelComp_GetBlendWeights(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        const float* w = 0;
+        uint32_t wc = 0;
+        if (!CompModelGetBlendWeights(component, &w, &wc))
+        {
+            lua_createtable(L, 0, 0);
+            return 1;
+        }
+
+        lua_createtable(L, (int)wc, 0);
+        for (uint32_t i = 0; i < wc; ++i)
+        {
+            lua_pushnumber(L, (lua_Number)w[i]);
+            lua_rawseti(L, -2, (int)(i + 1));
+        }
+        return 1;
+    }
+
+    /*# set morph (blend shape) weights from a table
+     * Copies numeric values from `weights` into each morph target slot for every mesh on the model that has morph targets.
+     * At most as many weights are applied as each mesh has morph targets; extra entries in the table are ignored.
+     * Missing weights leave the tail zero-filled for meshes with more targets than entries.
+     *
+     * The override is re-applied every frame after animations run, until cleared by omitting `weights` or passing `nil`.
+     * To reset the weights, use `model.set_blend_weights(url)` or `model.set_blend_weights(url, nil)`.
+     *
+     * @name model.set_blend_weights
+     * @param url [type:string|hash|url] the model component
+     * @param weights [type:table|nil] array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
+     * @examples
+     *
+     * ```lua
+     * -- set the weights for the first 4 morph targets
+     * model.set_blend_weights("#model", { 0, 1, 0.5, 0 })
+     * -- clear the override, animation will continue if the weights are driven by an animation
+     * model.set_blend_weights("#model") -- clear script override
+     * ```
+     */
+    static int LuaModelComp_SetBlendWeights(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        if (lua_gettop(L) < 2 || lua_isnil(L, 2))
+        {
+            CompModelResetBlendWeights(component);
+            return 0;
+        }
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        const size_t len = lua_objlen(L, 2);
+        if (len == 0)
+        {
+            return luaL_error(L, "blend weights table must not be empty (use model.set_blend_weights without weights or pass nil to reset)");
+        }
+
+        dmArray<float> buffer;
+        buffer.SetCapacity((uint32_t)len);
+        buffer.SetSize((uint32_t)len);
+        for (size_t i = 0; i < len; ++i)
+        {
+            lua_rawgeti(L, 2, (int)(i + 1));
+            if (!lua_isnumber(L, -1))
+            {
+                lua_pop(L, 1);
+                return luaL_error(L, "blend weights must be numbers (bad value at index %d)", (int)(i + 1));
+            }
+            buffer[(uint32_t)i] = (float)lua_tonumber(L, -1);
+            lua_pop(L, 1);
+        }
+        CompModelSetBlendWeights(component, buffer.Begin(), buffer.Size());
+        return 0;
+    }
+
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
         {"play",    LuaModelComp_Play}, // Deprecated
@@ -814,6 +933,8 @@ namespace dmGameSystem
         {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
         {"get_aabb",          LuaModelComp_GetAabb},
         {"get_mesh_aabb",     LuaModelComp_GetMeshAabb},
+        {"get_blend_weights", LuaModelComp_GetBlendWeights},
+        {"set_blend_weights", LuaModelComp_SetBlendWeights},
         {0, 0}
     };
 

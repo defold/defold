@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -46,7 +46,7 @@ jobs:
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
@@ -61,7 +61,7 @@ jobs:
     steps:
         
     - name: Checkout repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -93,7 +93,7 @@ jobs:
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
@@ -107,7 +107,7 @@ jobs:
     runs-on: macOS-14
     steps:
     - name: Checkout repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -127,7 +127,7 @@ jobs:
           ls -lh share/ext/glfw || echo "Directory missing"
         fi
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz
@@ -141,7 +141,7 @@ jobs:
     runs-on: windows-2025
     steps:
     - name: Checkout repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -164,7 +164,7 @@ jobs:
         fi
       shell: bash
     - name: Archive results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: glfw-3.4-${{ matrix.platform }}.tar.gz
         path: share/ext/glfw/glfw-3.4-${{ matrix.platform }}.tar.gz

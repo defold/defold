@@ -139,11 +139,12 @@
   [drop-fn root-id select-fn action]
   (let [{:keys [^DragEvent event string gesture-target world-pos world-dir]} action]
     (ui/request-focus! gesture-target)
-    (g/let-ec [op-seq (gensym)
+    (g/let-ec [basis (:basis evaluation-context)
+               op-seq (gensym)
                env (-> gesture-target (ui/node-contexts false evaluation-context) first :env)
                {:keys [selection workspace]} env
                resource-strings (some-> string string/split-lines sort)
-               resources (e/keep #(workspace/resolve-workspace-resource workspace % evaluation-context) resource-strings)
+               resources (e/keep #(workspace/resolve-workspace-resource basis workspace %) resource-strings)
                z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
                drop-fn (partial drop-fn root-id selection workspace z-plane-pos)]
       (.consume event)
@@ -156,7 +157,7 @@
         (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
         (.setDropCompleted event true)))))
 
-(defn handle-selection-input [self action _user-data]
+(defn handle-selection-input [self _input-state action _user-data]
   (let [start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)

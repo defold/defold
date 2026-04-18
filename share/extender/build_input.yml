@@ -172,6 +172,7 @@ context:
 
 main: |
     #include <stdio.h>
+    #include <dmsdk/dlib/android.h>
 
     #if __cplusplus
     extern "C" {
@@ -220,6 +221,7 @@ main: |
         // Make sure glue isn't stripped.
         app_dummy();
         _glfwPreMain(state);
+        dmAndroid::SetAndroidApp(state);
     }
 
     #if __cplusplus
@@ -532,14 +534,7 @@ platforms:
     manifestName:     'engine_template.html'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
-  js-web:
-    context:
-        libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
-        emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
-
-    symbolsPattern:  'dmengine.js.symbols'
-    zipContentPattern: 'dmengine.js'
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}} {{#externalJsPorts}}--use-port={{dynamo_home}}/{{{.}}} {{/externalJsPorts}}'
+# js-web removed in Defold 1.13.0
 
   wasm-web:
     context:

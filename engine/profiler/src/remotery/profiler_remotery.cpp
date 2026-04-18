@@ -91,56 +91,62 @@ namespace dmProfilerRemotery
         dmSpinlock::Destroy(&g_ProfilerLock);
     }
 
-    static void SetThreadName(void*, const char* name)
+    static ProfileResult SetThreadName(void*, const char* name)
     {
         if (!IsInitialized())
-            return;
+            return PROFILE_RESULT_NOT_INITIALIZED;
         DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
         rmt_SetCurrentThreadName(name);
+        return PROFILE_RESULT_OK;
     }
 
-    static void FrameBegin(void*)
+    static ProfileResult FrameBegin(void*)
     {
+        return PROFILE_RESULT_OK;
     }
 
-    static void FrameEnd(void*)
+    static ProfileResult FrameEnd(void*)
     {
         if (!IsInitialized())
         {
-            return;
+            return PROFILE_RESULT_NOT_INITIALIZED;
         }
 
         rmt_PropertySnapshotAll();
         rmt_PropertyFrameResetAll();
+        return PROFILE_RESULT_OK;
     }
 
-    static void LogText(void*, const char* text)
+    static ProfileResult LogText(void*, const char* text)
     {
         if (!IsInitialized())
         {
-            return;
+            return PROFILE_RESULT_NOT_INITIALIZED;
         }
 
         rmt_LogText(text);
+        return PROFILE_RESULT_OK;
     }
 
-    static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+    static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
     {
         if (!IsInitialized())
         {
-            return;
+            return PROFILE_RESULT_NOT_INITIALIZED;
         }
         // By passing in 0 here, it will have to hash the string each time
         _rmt_BeginCPUSample(name, RMTSF_Aggregate, 0);
+        return PROFILE_RESULT_OK;
     }
 
-    static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
+    static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
     {
         if (!IsInitialized())
         {
-            return;
+            return PROFILE_RESULT_NOT_INITIALIZED;
         }
         rmt_EndCPUSample();
+        return PROFILE_RESULT_OK;
     }
 
 } // namespace dmProfilerRemotery

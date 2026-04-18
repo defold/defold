@@ -67,7 +67,7 @@ welcome.new-project.rive-project.description = This template uses the rive exten
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
 welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
-welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.title = Top-down Movement Tutorial
 welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components, and collections.
 welcome.new-project.movement-tutorial.title = Movement Tutorial
 welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
@@ -510,7 +510,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = Simulator (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Thread support
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
@@ -736,7 +735,8 @@ progress.cleaning = Cleaning…
 progress.generating-report = Generating report…
 progress.working = Working…
 progress.reading-classes = Reading classes…
-progress.downloading-archives = Downloading archives…
+progress.downloading-archives = Downloading {count, plural, one {# archive} other {# archives}}…
+progress.downloading-archive = Downloading {uri}…
 progress.launching-engine = Launching engine…
 progress.launched-engine = Launched {engine}
 progress.engine-launch-failed = Launch failed
@@ -1050,6 +1050,17 @@ operation.drop = Drop
 operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
+
+# Scene View Popups
+
+scene-popup.reset-defaults-button = Reset to Defaults
+scene-popup.grid.plane = Plane
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacity
+scene-popup.camera.move-speed = Move Speed
+scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.invert-y = Invert Y
+scene-popup.camera.walking-mode = Walking Mode
 
 # Properties
 
@@ -1767,6 +1778,10 @@ form.label.project.model.max_bone_matrix_texture_width = Max Bone Matrix Tex Wid
 form.help.project.model.max_bone_matrix_texture_width = Max width of the bone matrix texture, 1024 by default
 form.label.project.model.max_bone_matrix_texture_height = Max Bone Matrix Tex Height
 form.help.project.model.max_bone_matrix_texture_height = Max height of the bone matrix texture, 1024 by default
+form.label.project.model.max_morph_target_texture_width = Max Morph Target Tex Width
+form.help.project.model.max_morph_target_texture_width = Max width in pixels of the texture used per mesh for morph target deltas (positions, normals, tangents), 1024 by default. The engine uses at most this size and the GPU max texture size, whichever is smaller.
+form.label.project.model.max_morph_target_texture_height = Max Morph Target Tex Height
+form.help.project.model.max_morph_target_texture_height = Max height in pixels of the texture used per mesh for morph target deltas (positions, normals, tangents), 1024 by default. The engine uses at most this size and the GPU max texture size, whichever is smaller.
 
 form.label.project.particle_fx = ParticleFX
 form.help.project.particle_fx = ParticleFX related settings
@@ -1983,6 +1998,8 @@ form.label.project.profiler.sleep_between_server_updates = Server Sleep (ms)
 form.help.project.profiler.sleep_between_server_updates = Number of milliseconds to sleep between server updates
 form.label.project.profiler.performance_timeline_enabled = Performance Timeline
 form.help.project.profiler.performance_timeline_enabled = Enable reporting to the browser performance timeline
+form.label.project.profiler.max_sample_count = Max Sample Count
+form.help.project.profiler.max_sample_count = Maximum number of profiler samples recorded per thread and frame
 
 form.label.project.render = Render
 form.help.project.render = Render related settings
@@ -2024,6 +2041,8 @@ form.label.project.liveupdate = Live Update
 form.help.project.liveupdate = Live Update settings
 form.label.project.liveupdate.enabled = Enabled
 form.help.project.liveupdate.enabled = Enables the use of live update
+form.label.project.liveupdate.exclude_entries_from_main_manifest = Strip Live Update Entries from Main Manifest
+form.help.project.liveupdate.exclude_entries_from_main_manifest = When enabled, liveupdate-only resources are omitted from the packaged game.dmanifest. The published liveupdate.game.dmanifest remains complete.
 form.label.project.liveupdate.settings = Settings
 form.help.project.liveupdate.settings = Live Update settings resource
 form.label.project.liveupdate.mount_on_start = Mount on Start
@@ -2168,10 +2187,10 @@ form.label.liveupdate.liveupdate.output-folder-name = Output Folder
 form.help.liveupdate.liveupdate.output-folder-name = Output folder name
 form.label.liveupdate.manifest = Manifest
 form.label.liveupdate.liveupdate.publickey = Public Key
-form.help.liveupdate.liveupdate.publickey = Public key for manifest signing
+form.help.liveupdate.liveupdate.publickey = This setting is deprecated. Manifest public keys are no longer used.
 form.title.liveupdate.liveupdate.publickey = Select Manifest Public Key
 form.label.liveupdate.liveupdate.privatekey = Private Key
-form.help.liveupdate.liveupdate.privatekey = Private key for manifest signing
+form.help.liveupdate.liveupdate.privatekey = This setting is deprecated. Manifest private keys are no longer used.
 form.title.liveupdate.liveupdate.privatekey = Select Manifest Private Key
 form.label.liveupdate.liveupdate.supported-versions = Supported Engine Versions
 form.help.liveupdate.liveupdate.supported-versions = List of supported engine versions
@@ -2271,6 +2290,7 @@ error.vertex-attribute-normalize-float-data-type = Vertex attribute "{attribute}
 error.atlas-page-count-cannot-exceed = Atlas page count ({count}) cannot exceed {max} pages per atlas. GLES 2.0 support must be excluded in game.project > Runtime > Shader settings
 error.cubemap-image-sizes-differ = Cubemap image sizes differ:\n{right} = {right_size}\n{left} = {left_size}\n{top} = {top_size}\n{bottom} = {bottom_size}\n{front} = {front_size}\n{back} = {back_size}.
 error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
+error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
 error.blend-mode-add-alpha-replaced = "{old}" has been replaced by "{new}".

@@ -248,7 +248,7 @@
   (^File [] (create-temp-file! nil nil))
   (^File [prefix] (create-temp-file! prefix nil))
   (^File [prefix suffix]
-   (doto (.toFile (Files/createTempFile prefix suffix empty-file-attrs))
+   (doto (.getCanonicalFile (.toFile (Files/createTempFile prefix suffix empty-file-attrs)))
      (delete-on-exit!))))
 
 (defn create-temp-directory!
@@ -256,7 +256,7 @@
   The directory will be deleted on exit."
   (^File [] (create-temp-directory! nil))
   (^File [hint]
-   (doto (.toFile (Files/createTempDirectory hint empty-file-attrs))
+   (doto (.getCanonicalFile (.toFile (Files/createTempDirectory hint empty-file-attrs)))
      (delete-on-exit!))))
 
 ;; create directories, files
@@ -313,7 +313,7 @@
 
 (def ^:private fs-temp-dir (create-temp-directory! "moved"))
 
-(def case-sensitive?
+(def is-case-sensitive
   "Whether we're running on a case sensitive file system or not."
   (let [lower-file (io/file (io/file fs-temp-dir "casetest"))
         upper-file (io/file (io/file fs-temp-dir "CASETEST"))]
@@ -323,7 +323,7 @@
 (defn- comparable-path
   ^String [entry]
   (cond-> (-> entry io/as-file .toPath .normalize .toAbsolutePath .toString)
-          (not case-sensitive?) .toLowerCase))
+          (not is-case-sensitive) .toLowerCase))
 
 (def separator-char File/separatorChar)
 

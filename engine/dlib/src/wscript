@@ -55,8 +55,8 @@ def build(bld):
     extra_defines = []
     extra_defines.extend(zlib_conf_defines)
 
-    extra_defines +=['MINIZ_NO_TIME', 'MINIZ_NO_DEFLATE_APIS']
-    extra_defines +=['MINIZ_USE_ANSI', 'ZIP_NO_DEFLATE', 'ZIP_NO_DISC_IO']   # defold defines
+    extra_defines += ['MINIZ_NO_TIME']
+    extra_defines += ['ZIP_ENABLE_INFLATE=1', 'ZIP_ENABLE_DEFLATE=0', 'ZIP_HAVE_SYMLINK=0']
 
     if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
@@ -118,7 +118,7 @@ def build(bld):
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
         source_files = remove_files(source_files, ['sys_win32.cpp'])
-        if bld.env.PLATFORM in ('wasm-web', 'js-web'):
+        if bld.env.PLATFORM == 'wasm-web':
             source_files = remove_files(source_files, ['mutex_posix.cpp'])
         else:
             source_files = remove_files(source_files, ['mutex_empty.cpp'])
@@ -126,14 +126,21 @@ def build(bld):
     if build_util.get_target_os() in ['macos', 'ios']:
         source_files = remove_files(source_files, ['time_posix.cpp'])
 
+    if 'web' in bld.env.PLATFORM:
+        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'sslsocket.cpp', 'configfile_http.cpp'])
+        extra_defines.append('DM_NO_HTTP_CACHE')
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
                      target   = 'dlib',
+                     use      = ['zip'],
                      defines  = ['VALGRIND'] + extra_defines)
 
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
+    if 'web' in bld.env.PLATFORM:
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/sslsocket_null.cpp', 'dlib/configfile_http_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -145,6 +152,7 @@ def build(bld):
     dlib_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
                           includes    = dlib.includes,
                           defines     = dlib.defines,
+                          use         = ['zip_noasan'],
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
@@ -187,12 +195,14 @@ def build(bld):
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
-    libzip_dirs = ['zip/**/*.cpp']
+    libzip_dirs = ['zip/**/*.c']
     libzip = bld.stlib(features    = 'c cxx',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
                  defines     = ['VALGRIND'] + extra_defines)
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip.env.append_unique('CFLAGS', '-ansi') 
 
     libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
@@ -200,6 +210,8 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if bld.env.PLATFORM in ['x86_64-ps4', 'x86_64-ps5']:
+        libzip_noasan.env.append_unique('CFLAGS', '-ansi')
 
     image = bld.stlib(features  = 'c cxx',
                     includes    = '.',
@@ -245,7 +257,7 @@ def build(bld):
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
 
-    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'wasm-web', 'wasm_pthread-web'):
     libprofile_includes = '. ./dlib/profile'
     libprofile = bld.stlib(features     = libprofile_features,
                            includes     = libprofile_includes,
@@ -337,10 +349,12 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
-    bld(features='javac seq',
-        classpath=classpath  + os.pathsep + 'src/java',
-        srcdir='java_test',
-        outdir='java_test')
+    java_test_dir = bld.path.find_dir('java_test')
+    if java_test_dir and java_test_dir.ant_glob('**/*.java'):
+        bld(features='javac seq',
+            classpath=classpath  + os.pathsep + 'src/java',
+            srcdir='java_test',
+            outdir='java_test')
 
     # ************************************************************************
     if not Options.options.skip_build_tests:
@@ -384,6 +398,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mdns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_empty.h')
@@ -400,8 +415,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')

@@ -1,0 +1,991 @@
+{
+    "issues": [
+        {
+            "author": "Jhonnyg",
+            "body": "The glTF validation tool has been integrated into the asset pipeline. Building / loading a project with faulty glTF files will output errors now that needs to be addressed before they can be used in Defold. Usually, the quickest route to fixing the content is to re-export them via Blender (https://www.blender.org/).\r\n\r\nNote: Validating .gltf files inside an archive (e.g project dependency) does not validate external buffers and/or textures.",
+            "closed_issues": [
+                10478
+            ],
+            "duplicate": false,
+            "issue_number": 10478,
+            "labels": [
+                "task",
+                "editor",
+                "bob",
+                "model",
+                "gltf"
+            ],
+            "mergecommit": "1448b1735aaa8300a057f95e12ba5dd957915a07",
+            "pr_number": 12023,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add glTF validator",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12023"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Two new game.project options have been added that controls how the default type precision for floats and ints are generated for GLSL ES shaders:\r\n\r\n```yaml\r\nshader.glsl_es_default_precision_float = highp | mediump\r\nshader.glsl_es_default_precision_int = highp | mediump\r\n```\r\n\r\nThese will affect how the global type qualifiers are generated in the cross-compiled shaders:\r\n\r\n```glsl\r\n#version 300 es\r\nprecision highp float;\r\nprecision mediump int;\r\n```",
+            "closed_issues": [
+                6519
+            ],
+            "duplicate": false,
+            "issue_number": 6519,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "3d"
+            ],
+            "mergecommit": "90fe621d65d237ab7c6010eb57228cf5b4d37cd3",
+            "pr_number": 12051,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Shader precision options",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12051"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "ES2/WebGL1 shaders that have specified highp as the default precision qualifier might not work on all devices since `highp` for fragment shaders is not guaranteed to work on ES2.\r\n\r\nTo fix this, the shader build pipeline now patches the cross-compiled ES2 shaders with the following snippet:\r\n\r\n```glsl\r\n#version 100 es\r\n\r\n// If highp is specified as the default precision for floats:\r\n#ifdef GL_FRAGMENT_PRECISION_HIGH\r\n    precision highp float;\r\n#else\r\n    precision mediump float;\r\n#endif\r\n\r\n// If highp is specified as the default precision for ints:\r\n#ifdef GL_FRAGMENT_PRECISION_HIGH\r\n    precision highp int;\r\n#else\r\n    precision mediump int;\r\n#endif\r\n```",
+            "closed_issues": [
+                10552
+            ],
+            "duplicate": false,
+            "issue_number": 10552,
+            "labels": [
+                "bug",
+                "editor",
+                "bob",
+                "html5",
+                "render",
+                "pipeline",
+                "shader"
+            ],
+            "mergecommit": "90defff5345d4204ae1fc04c233aefdc2f00ce0c",
+            "pr_number": 12067,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add check for ES2/WebGL1 shaders that highp is supported in shaders",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12067"
+        },
+        {
+            "author": "AGulev",
+            "body": "Build errors coming from embedded resources now consistently open the owning file instead of ending up with an unknown or missing source.",
+            "closed_issues": [
+                11697
+            ],
+            "duplicate": false,
+            "issue_number": 11697,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "5c94a592e9247c4e25d066ae448863065caccb74",
+            "pr_number": 12061,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix build error source links for embedded resources",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12061"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes a crash when trying to create a model component with model and rig excluded using an app manifest. The engine will now shut down gracefully and the log will show that the operation is not supported:\r\n\r\n```\r\nWARNING:RESOURCE: Unable to create resource: /_generated_90739376.modelc: NOT_SUPPORTED\r\nWARNING:RESOURCE: Unable to create resource: /_generated_1f27f107.goc: NOT_SUPPORTED\r\nERROR:GAMEOBJECT: Could not instantiate game object from prototype /_generated_1f27f107.goc.\r\nWARNING:RESOURCE: Unable to create resource: /main/game/game.collectionc: FORMAT_ERROR\r\n```",
+            "closed_issues": [
+                11845
+            ],
+            "duplicate": false,
+            "issue_number": 11845,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "9f326a52fd9a0377c3f39deea3f516dcf439bff2",
+            "pr_number": 12055,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Shut down the engine gracefully when creating a model component with model and rig are excluded",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12055"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "",
+            "closed_issues": [
+                11951
+            ],
+            "duplicate": false,
+            "issue_number": 11951,
+            "labels": [
+                "bug",
+                "editor",
+                "linux"
+            ],
+            "mergecommit": "0c7b52d0a9678f6968e8767f9a4fb4207066e4d7",
+            "pr_number": 12072,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add xdg-open fallback on Linux when attempting to open a link in the browser",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12072"
+        },
+        {
+            "author": "JCash",
+            "body": "Some parts of the C++ api generation was missing some type information.\r\nFixes to our internal scripts also now make it easier to spot such errors.",
+            "closed_issues": [
+                12078
+            ],
+            "duplicate": false,
+            "issue_number": 12078,
+            "labels": [],
+            "mergecommit": "560ec8910b3dcc6d0e1526bc5cebce815d239ad6",
+            "pr_number": 12078,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Cleanup of missing argument types etc in our api documentation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12078"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Max texture units a draw call can reference has been increased from 8 to 16.",
+            "closed_issues": [
+                11750
+            ],
+            "duplicate": false,
+            "issue_number": 11750,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "3d"
+            ],
+            "mergecommit": "cd253fffb2c04afa5aa9758bdf9cf3b60f5018ed",
+            "pr_number": 12081,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Increase number of texture units per draw from 8 to 16",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12081"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Models that use .gltf files that use materials with different coordinate spaces can now be batched correctly.",
+            "closed_issues": [
+                9647
+            ],
+            "duplicate": false,
+            "issue_number": 9647,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "gltf"
+            ],
+            "mergecommit": "3adc7cfc674b38b08dc31279cf0f1f140073efa8",
+            "pr_number": 12091,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix for models with multiple meshes and mixed coordinate spaced materials",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12091"
+        },
+        {
+            "author": "matgis",
+            "body": "We now defer committing changes to the graph until the drag operation has completed when using Scene View manipulators. This can significantly improve responsiveness when the manipulated objects are referenced from a large number of scenes. An unfortunate downside of this new approach is that you won't see the drag reflected across multiple open tabs in Split View until you complete the drag.",
+            "closed_issues": [
+                11828
+            ],
+            "duplicate": false,
+            "issue_number": 11828,
+            "labels": [
+                "task",
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "3861f3a0bcfb1769d27d31716bab8039f1554ecd",
+            "pr_number": 12092,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improved Scene View manipulator performance",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12092"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "In the cases where animations coming from a .gltf file where the root node of a skeleton has non-identity transform, the skinned objects in the engine would not be correctly placed when animating. \r\n\r\nNOTE: This could mean that your projects with skinned characters might be rotated, scaled or positioned differently now when animating. If this happens, you need to fix this in your authoring package (e.g Blender) and re-export the offending .gltf files!",
+            "closed_issues": [
+                11054
+            ],
+            "duplicate": false,
+            "issue_number": 11054,
+            "labels": [
+                "bug",
+                "engine",
+                "editor",
+                "model",
+                "gltf"
+            ],
+            "mergecommit": "0eb983abf9d351390032eb5702e60fc50e1945d0",
+            "pr_number": 12100,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Apply skeleton transforms for orphaned joints",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12100"
+        },
+        {
+            "author": "AGulev",
+            "body": "Compile-time assumptions about how large audio buffers need to be for all sounds created limitations on the playback speed that could be applied and on the sound quality that could be played safely. For example, playing a `384 kHz` sound could crash on a device with a `44 kHz` output rate. A similar issue existed for playback speed: increasing the speed requires more decoded data to be fed into the resampler, and the sound system could end up with a buffer that was too small, which could also cause a crash.\r\n\r\nTo fix this, the sound system can now grow its scratch buffers dynamically to ensure that enough data fits when needed. This fixes crashes in those situations and also allows the maximum speed limit to be increased from `5` to `50`. It still makes sense to use reasonable sound sample rates, such as `44 kHz`, since higher rates increase runtime memory usage as well as using high speed sounds. To help track that memory usage, a new `Sound System` section has been added to the profiler.",
+            "closed_issues": [
+                12031,
+                9045,
+                10327
+            ],
+            "duplicate": false,
+            "issue_number": 12031,
+            "labels": [
+                "bug",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "1c73698a14586ef41f551d2fbce749f3dc4548e5",
+            "pr_number": 12079,
+            "referencecommits": [
+                "59853fcdfcdf4bcff1518b69c0f3ea9a4d7ce72a"
+            ],
+            "repository": "defold",
+            "title": "Allow the sound system to grow its used memory to increase the sound speed limit and fix possible crashes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12079"
+        },
+        {
+            "author": "AGulev",
+            "body": "Compile-time assumptions about how large audio buffers need to be for all sounds created limitations on the playback speed that could be applied and on the sound quality that could be played safely. For example, playing a `384 kHz` sound could crash on a device with a `44 kHz` output rate. A similar issue existed for playback speed: increasing the speed requires more decoded data to be fed into the resampler, and the sound system could end up with a buffer that was too small, which could also cause a crash.\r\n\r\nTo fix this, the sound system can now grow its scratch buffers dynamically to ensure that enough data fits when needed. This fixes crashes in those situations and also allows the maximum speed limit to be increased from `5` to `50`. It still makes sense to use reasonable sound sample rates, such as `44 kHz`, since higher rates increase runtime memory usage as well as using high speed sounds. To help track that memory usage, a new `Sound System` section has been added to the profiler.",
+            "closed_issues": [
+                9045
+            ],
+            "duplicate": true,
+            "issue_number": 9045,
+            "labels": [
+                "feature request",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "1c73698a14586ef41f551d2fbce749f3dc4548e5",
+            "pr_number": 12079,
+            "referencecommits": [
+                "59853fcdfcdf4bcff1518b69c0f3ea9a4d7ce72a"
+            ],
+            "repository": "defold",
+            "title": "Allow the sound system to grow its used memory to increase the sound speed limit and fix possible crashes",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12079"
+        },
+        {
+            "author": "AGulev",
+            "body": "Compile-time assumptions about how large audio buffers need to be for all sounds created limitations on the playback speed that could be applied and on the sound quality that could be played safely. For example, playing a `384 kHz` sound could crash on a device with a `44 kHz` output rate. A similar issue existed for playback speed: increasing the speed requires more decoded data to be fed into the resampler, and the sound system could end up with a buffer that was too small, which could also cause a crash.\r\n\r\nTo fix this, the sound system can now grow its scratch buffers dynamically to ensure that enough data fits when needed. This fixes crashes in those situations and also allows the maximum speed limit to be increased from `5` to `50`. It still makes sense to use reasonable sound sample rates, such as `44 kHz`, since higher rates increase runtime memory usage as well as using high speed sounds. To help track that memory usage, a new `Sound System` section has been added to the profiler.",
+            "closed_issues": [
+                10327
+            ],
+            "duplicate": true,
+            "issue_number": 10327,
+            "labels": [
+                "bug",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "1c73698a14586ef41f551d2fbce749f3dc4548e5",
+            "pr_number": 12079,
+            "referencecommits": [
+                "59853fcdfcdf4bcff1518b69c0f3ea9a4d7ce72a"
+            ],
+            "repository": "defold",
+            "title": "Allow the sound system to grow its used memory to increase the sound speed limit and fix possible crashes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12079"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes a regression where the WebGPU backend used the wrong information to setup its context, resulting in erroneous rendering.",
+            "closed_issues": [
+                12097
+            ],
+            "duplicate": false,
+            "issue_number": 12097,
+            "labels": [
+                "bug",
+                "engine",
+                "graphics"
+            ],
+            "mergecommit": "897bd83f024937038e7bf24de8afdc2000527a9d",
+            "pr_number": 12103,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added type safety to the graphics context handle",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12103"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Fixed issue on Linux and Macos where glb models weren't being rendered correctly  on systems with locales that use commas for decimal numbers.",
+            "closed_issues": [
+                11524,
+                11643
+            ],
+            "duplicate": false,
+            "issue_number": 11524,
+            "labels": [
+                "bug",
+                "editor",
+                "model",
+                "linux",
+                "scene editor"
+            ],
+            "mergecommit": "d6800c7ed6b2b2d57ed17048f9c22c7b0cb52cbd",
+            "pr_number": 12104,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix glb rendering issue",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12104"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Both editor and bob will now only allow `go.property()` in `.script` files. It never worked in `.lua` files, but now it explicitly generates a build error.\r\n\r\nAs a side effect of this, the editor now loads faster on big proejcts, where it no longer needs to parse all `.lua` files for properties. On an example big project, the observed improvement in load time was 6% (1m31s -> 1m25s).",
+            "closed_issues": [
+                12106
+            ],
+            "duplicate": false,
+            "issue_number": 12106,
+            "labels": [
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "9fbe06870c29b11f8af7b7e37e404f458fb98fea",
+            "pr_number": 12106,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Allow go.property() only in .script files",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12106"
+        },
+        {
+            "author": "AGulev",
+            "body": "Even though `http_service.cpp` and `provider_http.cpp` were unused in HTML5, they were accidentally included in the HTML5 binary. \r\n\r\nExcluding them reduces the HTML5 release build from 2 604 862 bytes to 2 469 942 bytes, saving 134\u00a0920 bytes (~5.2%)",
+            "closed_issues": [
+                12107
+            ],
+            "duplicate": false,
+            "issue_number": 12107,
+            "labels": [
+                "html5"
+            ],
+            "mergecommit": "382dd071114e9cac0306d31be269c211a75af66d",
+            "pr_number": 12107,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Exclude unused code from the HTML5 build to reduce binary size",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12107"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Accepting Lua function completions from the Lua language server now inserts the call with parentheses and arguments instead of only the function name.",
+            "closed_issues": [
+                12025
+            ],
+            "duplicate": false,
+            "issue_number": 12025,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?",
+                "lsp"
+            ],
+            "mergecommit": "be0d82f0b8088ffad202b37baa1404d00178adc8",
+            "pr_number": 12109,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Insert call arguments for LSP completions",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12109"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes some uninitialized memory and handling of cached states that was introduced in 1.12.2.",
+            "closed_issues": [
+                12110
+            ],
+            "duplicate": false,
+            "issue_number": 12110,
+            "labels": [],
+            "mergecommit": "826dedddf326f98887e1a8c526e3e8f7039a3cd7",
+            "pr_number": 12110,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix for uniform buffers on WebGPU",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12110"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "An issue has been fixed where world transforms are applied twice for static non-skinned meshes that are anchored to skeletal bones. Essentially, in some cases meshes would render in an incorrect position when playing an animation as opposed to the bind pose (i.e when no animation is playing).",
+            "closed_issues": [
+                11196
+            ],
+            "duplicate": false,
+            "issue_number": 11196,
+            "labels": [
+                "bug",
+                "engine",
+                "3d",
+                "gltf"
+            ],
+            "mergecommit": "3edf549a1bda42e0b2b66a0291499a4598e6aa7f",
+            "pr_number": 12105,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Don't apply skinning twice",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12105"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "Fixed issue on Linux and Macos where glb models weren't being rendered correctly  on systems with locales that use commas for decimal numbers.",
+            "closed_issues": [
+                11643
+            ],
+            "duplicate": true,
+            "issue_number": 11643,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "linux"
+            ],
+            "mergecommit": "d6800c7ed6b2b2d57ed17048f9c22c7b0cb52cbd",
+            "pr_number": 12104,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix glb rendering issue",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12104"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows us to use vanilla library files which will help keeping the library up-to-date.\r\nWe've also removed our `zlib` dependency, and instead rely on the `miniz` library, eliminating duplicate code. In doing this we can save on executable size.\r\nOn macOS, the combined savings of the libraries is roughly 40kb.",
+            "closed_issues": [
+                12114
+            ],
+            "duplicate": false,
+            "issue_number": 12114,
+            "labels": [
+                "engine"
+            ],
+            "mergecommit": "2ac23a0fd32c0b6fe4f76093a80372c84eaf9bc9",
+            "pr_number": 12114,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Updated to Zip v0.3.8 and miniz 3.1.0",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12114"
+        },
+        {
+            "author": "AGulev",
+            "body": "TCP/UDP isn't supported on the HTML5 platform with luasockets. Removing this functionality from the binary helps reduce the WASM binary size slightly (~1%)",
+            "closed_issues": [
+                12127
+            ],
+            "duplicate": false,
+            "issue_number": 12127,
+            "labels": [],
+            "mergecommit": "eff19215df14336f05563b14782c3b28bb33914d",
+            "pr_number": 12127,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Remove unsupported luasocket functionality from HTML5 build",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12127"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Sprite culling spends less time calculating visibility now. But memory footprint grows by 20 bytes per every sprite component.",
+            "closed_issues": [
+                12138
+            ],
+            "duplicate": false,
+            "issue_number": 12138,
+            "labels": [],
+            "mergecommit": "df3db43bfcbb5905dd6b00f9e48ed9b8ffa699a3",
+            "pr_number": 12138,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Optimize sprite culling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12138"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "The amount of time spent on frustum culling has been reduced when issuing multiple `render.draw` calls during a single frame.",
+            "closed_issues": [
+                8088
+            ],
+            "duplicate": false,
+            "issue_number": 8088,
+            "labels": [
+                "bug",
+                "engine",
+                "render",
+                "performance"
+            ],
+            "mergecommit": "b8380b6e3948f02f58074deb73c0b5968a76070e",
+            "pr_number": 12137,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Store frustum has in render items to avoid already calculated culling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12137"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                9430
+            ],
+            "duplicate": false,
+            "issue_number": 9430,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "0f0666aae4a656275b660d0a987a6bfb8bc91c9e",
+            "pr_number": 12135,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix build error log parse exception",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12135"
+        },
+        {
+            "author": "AGulev",
+            "body": "Text layout calculation is pretty expensive. To reduce its cost, we cache it once and reuse it until layout-related parameters change. This significantly speeds up text rendering (1.5x-4.5x, depending on the selected font system, classic or dynamic fonts), but increases memory consumption.",
+            "closed_issues": [
+                12136
+            ],
+            "duplicate": false,
+            "issue_number": 12136,
+            "labels": [],
+            "mergecommit": "568f39a30a6f3b90804803082d9f7b66aee9b9d1",
+            "pr_number": 12136,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Cache the text layout to speed up text rendering",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12136"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes an issue where the engine may freeze if a user calls `profiler.scope_begin(\"my_scope\")` without later closing it with `profiler.scope_end()`, or vice versa: closing without opening. In such cases, an error will be shown and scopes will be auto-closed at the moment of detection.\r\n\r\nAlso fixes occasional freezes when using `profiler.dump_frame()`.",
+            "closed_issues": [
+                8899
+            ],
+            "duplicate": false,
+            "issue_number": 8899,
+            "labels": [
+                "bug",
+                "engine",
+                "profiler"
+            ],
+            "mergecommit": "2344cc4579f1192ed77c0fe5a4a5551a6cb0bff9",
+            "pr_number": 12149,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Avoid deadlocks when the profiler stack is unbalanced",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12149"
+        },
+        {
+            "author": "AGulev",
+            "body": "Debug engine builds now advertise themselves over mDNS/DNS-SD using the `_defold._tcp` service and the editor now discovers debug targets through mDNS instead of SSDP/UPnP. iOS debug builds now publish the discovery service through Bonjour, so they can be discovered by the editor over the local network without an extra entitlements.\r\n\r\nIt fixes the issue that iOS targets can't be discovered by the editor.\r\n\r\n\u26a0\ufe0fIf you are using a custom `Info.plist` in your project, please make sure it is updated with the changes introduced in this version (new section):\r\n\r\n```xml\r\n        {{^variant_release}}\r\n        <key>NSBonjourServices</key>\r\n        <array>\r\n                <string>_defold._tcp</string>\r\n        </array>\r\n\r\n        <key>NSLocalNetworkUsageDescription</key>\r\n        <string>Discover Defold targets on the local network.</string>\r\n        {{/variant_release}}\r\n```",
+            "closed_issues": [
+                8570,
+                3660
+            ],
+            "duplicate": false,
+            "issue_number": 8570,
+            "labels": [
+                "bug",
+                "engine",
+                "editor",
+                "ios"
+            ],
+            "mergecommit": "89ed845f4b33bdc138d736741aca258ba20aab1b",
+            "pr_number": 12088,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Replace SSDP/UPnP target discovery with mDNS/DNS-SD for Defold debug targets",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12088"
+        },
+        {
+            "author": "AGulev",
+            "body": "Debug engine builds now advertise themselves over mDNS/DNS-SD using the `_defold._tcp` service and the editor now discovers debug targets through mDNS instead of SSDP/UPnP. iOS debug builds now publish the discovery service through Bonjour, so they can be discovered by the editor over the local network without an extra entitlements.\r\n\r\nIt fixes the issue that iOS targets can't be discovered by the editor.\r\n\r\n\u26a0\ufe0fIf you are using a custom `Info.plist` in your project, please make sure it is updated with the changes introduced in this version (new section):\r\n\r\n```xml\r\n        {{^variant_release}}\r\n        <key>NSBonjourServices</key>\r\n        <array>\r\n                <string>_defold._tcp</string>\r\n        </array>\r\n\r\n        <key>NSLocalNetworkUsageDescription</key>\r\n        <string>Discover Defold targets on the local network.</string>\r\n        {{/variant_release}}\r\n```",
+            "closed_issues": [
+                3660
+            ],
+            "duplicate": true,
+            "issue_number": 3660,
+            "labels": [
+                "task",
+                "engine",
+                "windows",
+                "tests"
+            ],
+            "mergecommit": "89ed845f4b33bdc138d736741aca258ba20aab1b",
+            "pr_number": 12088,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Replace SSDP/UPnP target discovery with mDNS/DNS-SD for Defold debug targets",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12088"
+        },
+        {
+            "author": "AGulev",
+            "body": "Switching the atlas previously showed an error when an animation didn't exist in the new atlas:\r\n\r\n>ERROR:GAMESYS: Atlas doesn't contain animation 'anim'. Animation 'new_0' will be used\r\n\r\nThis used to happen even when the next line after changing the atlas switched the animation, which made the error unnecessary and annoying.",
+            "closed_issues": [
+                11913
+            ],
+            "duplicate": false,
+            "issue_number": 11913,
+            "labels": [
+                "bug",
+                "engine",
+                "atlas"
+            ],
+            "mergecommit": "9c27b3beb2236a214b6e78d90c71d2fc2984e845",
+            "pr_number": 12184,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Switching the atlas in a sprite no longer throws an error if the current animation doesn't exist in the new atlas",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12184"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed a crash when `model.play_anim()` is called without a callback and attempts to play an animation that doesn't exist in the model.",
+            "closed_issues": [
+                12141
+            ],
+            "duplicate": false,
+            "issue_number": 12141,
+            "labels": [
+                "triage"
+            ],
+            "mergecommit": "24b046525c7f6637d775914ea4ebbd64e4288947",
+            "pr_number": 12155,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed crash when calling `model.play_anim()` with an animation that is not present in the model",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12155"
+        },
+        {
+            "author": "AGulev",
+            "body": "An attempt to set the render target size less than or equal to zero crashes the engine. This fix prevents it by showing a Lua error instead.",
+            "closed_issues": [
+                12134
+            ],
+            "duplicate": false,
+            "issue_number": 12134,
+            "labels": [
+                "bug",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "1405a3758c65d565fe6d6a44d1428c52bf361c57",
+            "pr_number": 12161,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show a Lua error when attempting to set the render target size <= 0",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12161"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where, when updating a texture in GUI, `go.set()` updates node parameters in debug builds but doesn't update them in release builds.",
+            "closed_issues": [
+                11572
+            ],
+            "duplicate": false,
+            "issue_number": 11572,
+            "labels": [
+                "bug",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "03b8ac99e4a2569bcb97d444054db49b8474fb8e",
+            "pr_number": 12163,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update GUI nodes if the texture has been replaced from a script",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12163"
+        },
+        {
+            "author": "matgis",
+            "body": "It seems the old version of JGit we were using has trouble with some repositories created by newer Git versions.\r\n\r\nSee: https://bugs.eclipse.org/bugs/show_bug.cgi?id=581723",
+            "closed_issues": [
+                3893,
+                12171
+            ],
+            "duplicate": false,
+            "issue_number": 3893,
+            "labels": [
+                "task",
+                "editor",
+                "version control"
+            ],
+            "mergecommit": "61d8aedb642c70df143ae8fe1a5382db8f32d274",
+            "pr_number": 12173,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update editor JGit dependency to version 7.6.0",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12173"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes an issue where the profiler may get stuck in a deadlock in some cases, which is easier to reproduce on Android.",
+            "closed_issues": [
+                12154
+            ],
+            "duplicate": false,
+            "issue_number": 12154,
+            "labels": [
+                "bug",
+                "engine",
+                "android"
+            ],
+            "mergecommit": "ef1b1198fa668e517a69da2f46f6779fed68f713",
+            "pr_number": 12179,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix occasional freezes on load in debug builds",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12179"
+        },
+        {
+            "author": "aglitchman",
+            "body": "2D physics with Box2D 3.1 could report wrong trigger enter/exit when one object overlapped more than one trigger at the same time. Exits were applied incorrectly to all overlaps of a body instead of only the pair that ended. This change fixes that tracking and adds a regression test. Sensor overlap queries used for collision callbacks also read overlap counts from Box2D correctly.",
+            "closed_issues": [
+                12093
+            ],
+            "duplicate": false,
+            "issue_number": 12093,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "6d582f6be9091abca32ceb0a487e6d6c7f643250",
+            "pr_number": 12095,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix Box2D 3.1 trigger enter/exit when one collision object overlaps several triggers",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12095"
+        },
+        {
+            "author": "sprocketc",
+            "body": "We have added a new 3D perspective free camera mode for navigating scenes! Click and hold the right mouse button to activate and move around with the WASD keys. There is a scene view popup on the perspective camera button with additional controls for the camera.  The left mouse button controls (orbit, zoom, pan) now warp around the editor window to allow you to keep going forever. There are also several smaller improvements, like smoother zooming and localization for the grid menu.\r\n\r\nShoutout to @sprocketc who started the PR and @delinx who contributed his winapi know-how to the mouse_capture_windows.cpp module.",
+            "closed_issues": [
+                11185,
+                8840
+            ],
+            "duplicate": false,
+            "issue_number": 11185,
+            "labels": [
+                "feature request",
+                "editor",
+                "scene editor",
+                "ux",
+                "3d"
+            ],
+            "mergecommit": "f1a3237dd54b6fb271a77186a2311aaa0b036924",
+            "pr_number": 11309,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Free camera mode in scene view + enhanced camera controls",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11309"
+        },
+        {
+            "author": "matgis",
+            "body": "It seems the old version of JGit we were using has trouble with some repositories created by newer Git versions.\r\n\r\nSee: https://bugs.eclipse.org/bugs/show_bug.cgi?id=581723",
+            "closed_issues": [
+                12171
+            ],
+            "duplicate": true,
+            "issue_number": 12171,
+            "labels": [
+                "triage",
+                "task",
+                "editor"
+            ],
+            "mergecommit": "61d8aedb642c70df143ae8fe1a5382db8f32d274",
+            "pr_number": 12173,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update editor JGit dependency to version 7.6.0",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12173"
+        },
+        {
+            "author": "AGulev",
+            "body": "The app used to hang if the user made a mistake and created too many scopes. That made it hard to debug. Now the profiler warns the user about the problem.\r\n\r\n\u26a0\ufe0f This introduces a breaking change to the DMSDK API:\r\n```cpp\r\nvoid ProfileSetThreadName(const char* name);\r\nvoid ProfileScopeBegin(const char* name, uint64_t name_hash);\r\nvoid ProfileFrameEnd(HProfile profile);\r\nvoid ProfileScopeEnd(const char* name, uint64_t name_hash);\r\nvoid ProfileLogText(const char* text, ...);\r\n```\r\nreplaced with \r\n```cpp\r\nProfileResult ProfileSetThreadName(const char* name);\r\nProfileResult ProfileScopeBegin(const char* name, uint64_t name_hash);\r\nProfileResult ProfileFrameEnd(HProfile profile);\r\nProfileResult ProfileScopeEnd(const char* name, uint64_t name_hash);\r\nProfileResult ProfileLogText(const char* text, ...);\r\n// The result can be one of the following values:\r\n// PROFILE_RESULT_OK\r\n// PROFILE_RESULT_NOT_INITIALIZED\r\n// PROFILE_RESULT_OUT_OF_SAMPLES\r\n```",
+            "closed_issues": [
+                12181
+            ],
+            "duplicate": false,
+            "issue_number": 12181,
+            "labels": [],
+            "mergecommit": "610b1c557b68cb833eeb7576e36ba292b0a1ed96",
+            "pr_number": 12181,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Display a warning when a profiler scope overflow occurs",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12181"
+        },
+        {
+            "author": "AGulev",
+            "body": "\u26a0\ufe0f We are deprecating old LiveUpdate functionality in favor of mount/archive-based Live Update workflows.\r\n\r\nThe following Lua API has been deprecated:\r\n```lua\r\nliveupdate.get_current_manifest()\r\nliveupdate.store_resource()\r\nliveupdate.store_manifest()\r\nliveupdate.store_archive()\r\nliveupdate.is_using_liveupdate_data()\r\ncollectionproxy.missing_resources()\r\n```\r\n`resource.*` aliases for these APIs have been removed:\r\n```lua\r\nresource.get_current_manifest()\r\nresource.is_using_liveupdate_data()\r\nresource.store_resource()\r\nresource.store_manifest()\r\nresource.store_archive()\r\n```\r\n\r\nThe deprecated API still works, giving users of the old Live Update time to migrate before it is removed later this year. However, it has been removed from the documentation, and some functionality has changed.\r\n\r\n**First**, manifest signing keys are no longer part of the pipeline, which means:\r\n* `bob.jar` no longer accepts `--manifest-private-key` or `--manifest-public-key`\r\n* `game.public.der` is no longer generated or bundled, and the `publickey` and `privatekey` fields in `liveupdate.settings` are now deprecated and unused\r\n* At runtime, deprecated Live Update manifest and archive validation now check only supported engine versions instead of using bundled public/private key signatures\r\n\r\nThis change reduces the engine's build size (for example, from 2,339,290 bytes to 2,423,041 bytes for a WASM release build, about ~3.6%).\r\n\r\n**Second**, archive builds now include a new Live Update setting, `Strip Live Update Entries from Main Manifest` in `game.project` (`liveupdate.exclude_entries_from_main_manifest`), enabled by default.\r\n\r\nWhen this option is enabled for archive builds that publish Live Update content, liveupdate-only resources are excluded from the bundled `game.dmanifest`, while the published `liveupdate.game.dmanifest` still contains the full resource list required for remote content delivery. Disable this setting only if you need the deprecated behavior where excluded entries remain in the bundled `game.dmanifest`. This reduces build size and runtime memory usage, especially for projects with a large number of resources in Live Update archives.\r\n\r\nThis option is enabled by default because mount/archive-based Live Update workflows are highly dynamic and users can replace archive content at any time, manifest data cannot be relied upon for resources excluded during the bundle build.\r\nFor the same reason, `collectionproxy.missing_resources()` is now deprecated, as it depends on manifest data to detect excluded resources. It can be partially replaced by `collectionproxy.get_resources()`, which now returns an empty table `{}` when no collection exists in any mounted archive and `Strip Live Update Entries from Main Manifest` checked, indicating that the required archive has not been mounted yet.",
+            "closed_issues": [
+                12032
+            ],
+            "duplicate": false,
+            "issue_number": 12032,
+            "labels": [
+                "feature request",
+                "engine",
+                "bob",
+                "live update"
+            ],
+            "mergecommit": "4d7fc05130c8858a21bf9f276c54fab5e52dfb5f",
+            "pr_number": 12153,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Deprecate the legacy LiveUpdate APIs",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12153"
+        },
+        {
+            "author": "AGulev",
+            "body": "In some cases, an application restart could not complete an ongoing HTTP request, which could result in the app freezing.",
+            "closed_issues": [
+                12189
+            ],
+            "duplicate": false,
+            "issue_number": 12189,
+            "labels": [],
+            "mergecommit": "f9c73f825de2d922e6d006a7790531e6b4d834e8",
+            "pr_number": 12189,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed an issue where HTTP requests could stall during app restart",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12189"
+        },
+        {
+            "author": "AGulev",
+            "body": "Added `profiler.max_sample_count` to `game.project` to allow using more than the default 4096 samples, which can be useful in rare cases.",
+            "closed_issues": [
+                12190
+            ],
+            "duplicate": false,
+            "issue_number": 12190,
+            "labels": [],
+            "mergecommit": "fe0d71ef19bd589c503af0eaf69f8abd83572ab4",
+            "pr_number": 12190,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add the ability to increase the maximum sample count in the profiler",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12190"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes issues when a folder or a filename contain Unicode characters.\r\nE.g. you could see `Failed get application support path` due to invalid conversions.",
+            "closed_issues": [
+                12191
+            ],
+            "duplicate": false,
+            "issue_number": 12191,
+            "labels": [
+                "bug",
+                "triage"
+            ],
+            "mergecommit": "a83d03ce8eb3ffc94379c5ac35e79cd9a6cb537f",
+            "pr_number": 12193,
+            "referencecommits": [
+                "c648578eec5200898ae81cf17ef6430e1af1a37f"
+            ],
+            "repository": "defold",
+            "title": "Windows fix for file operations using Unicode paths",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12193"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixed an issue where updating font data in OpenGL changes texture filtering parameters but didn't update the sampler dirty state. This caused a mismatch between the expected filtering state since the sampler settings were never applied.",
+            "closed_issues": [
+                12187
+            ],
+            "duplicate": false,
+            "issue_number": 12187,
+            "labels": [
+                "bug",
+                "engine",
+                "opengl",
+                "graphics"
+            ],
+            "mergecommit": "f6121def940c31a6ac3a4c5b529294f06fe495e3",
+            "pr_number": 12199,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Apply filter params when uploading texture data",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12199"
+        },
+        {
+            "author": "sprocketc",
+            "body": "We have added a new 3D perspective free camera mode for navigating scenes! Click and hold the right mouse button to activate and move around with the WASD keys. There is a scene view popup on the perspective camera button with additional controls for the camera.  The left mouse button controls (orbit, zoom, pan) now warp around the editor window to allow you to keep going forever. There are also several smaller improvements, like smoother zooming and localization for the grid menu.\r\n\r\nShoutout to @sprocketc who started the PR and @delinx who contributed his winapi know-how to the mouse_capture_windows.cpp module.",
+            "closed_issues": [
+                8840
+            ],
+            "duplicate": true,
+            "issue_number": 8840,
+            "labels": [
+                "bug",
+                "editor",
+                "3d",
+                "quick win?",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "f1a3237dd54b6fb271a77186a2311aaa0b036924",
+            "pr_number": 11309,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Free camera mode in scene view + enhanced camera controls",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11309"
+        }
+    ],
+    "timestamp": 1776163739.811813,
+    "version": "1.12.4"
+}

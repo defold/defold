@@ -49,6 +49,8 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
     extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
+    extern const dmhash_t SAMPLER_MORPH_TARGETS;
+    extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -177,7 +179,6 @@ namespace dmRender
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
-        uint32_t                        m_MaxLights;
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
@@ -366,6 +367,7 @@ namespace dmRender
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
+    bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -471,10 +473,12 @@ namespace dmRender
      * A light prototype can be used across many light instances, and must live as long as the lights live.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
+    void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {

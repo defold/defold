@@ -45,7 +45,7 @@
 (defn- load-scene [workspace project file-path]
   (let [resource (workspace/file-resource workspace file-path)
         node-id (project/get-resource-node project resource)]
-    (model-loader/load-scene node-id resource)))
+    (model-loader/load-scene node-id resource (project/settings project))))
 
 (deftest mesh-normals
   (test-util/with-loaded-project

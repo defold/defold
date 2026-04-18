@@ -1315,6 +1315,22 @@
 ;;--------------------------------------------------------------------
 ;; Manipulators
 
+;; TODO: Implementing the :manip-phase/preview code path is tricky due to how
+;;       the simulation is run. For now, we use :manip-phase/commit while
+;;       dragging to ensure the changes are committed to the graph.
+
+(defmethod scene-tools/manip-move ::ModifierNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (scene/manip-move-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
+(defmethod scene-tools/manip-move ::EmitterNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (scene/manip-move-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
+(defmethod scene-tools/manip-rotate ::ModifierNode [node-id ^Quat4d delta _manip-phase initial-evaluation-context]
+  (scene/manip-rotate-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
+(defmethod scene-tools/manip-rotate ::EmitterNode [node-id ^Quat4d delta _manip-phase initial-evaluation-context]
+  (scene/manip-rotate-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
 (defn- update-curve-spread-start-value
   [curve-spread f]
   (let [[first-point & rest] (properties/curve-vals curve-spread)
@@ -1323,29 +1339,27 @@
 
 (defmethod scene-tools/manip-scalable? ::ModifierNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale-manips ::ModifierNode [node-id]
+(defmethod scene-tools/manip-scale-manips ::ModifierNode [_node-id]
   [:scale-x])
 
-(defmethod scene-tools/manip-scale ::ModifierNode
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-magnitude (g/node-value node-id :magnitude evaluation-context)
+(defmethod scene-tools/manip-scale ::ModifierNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (let [old-magnitude (g/node-value node-id :magnitude initial-evaluation-context)
         new-magnitude (update-curve-spread-start-value old-magnitude #(properties/scale-and-round % (.getX delta)))]
-    (g/set-property node-id :magnitude new-magnitude)))
+    {:manip/tx-data (g/set-property node-id :magnitude new-magnitude)}))
 
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::EmitterNode
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-x (g/node-value node-id :emitter-key-size-x evaluation-context)
-        old-y (g/node-value node-id :emitter-key-size-y evaluation-context)
-        old-z (g/node-value node-id :emitter-key-size-z evaluation-context)
+(defmethod scene-tools/manip-scale ::EmitterNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (let [old-x (g/node-value node-id :emitter-key-size-x initial-evaluation-context)
+        old-y (g/node-value node-id :emitter-key-size-y initial-evaluation-context)
+        old-z (g/node-value node-id :emitter-key-size-z initial-evaluation-context)
         new-x (update-curve-spread-start-value old-x #(properties/scale-by-absolute-value-and-round % (.getX delta)))
         new-y (update-curve-spread-start-value old-y #(properties/scale-by-absolute-value-and-round % (.getY delta)))
         new-z (update-curve-spread-start-value old-z #(properties/scale-by-absolute-value-and-round % (.getZ delta)))]
-    (g/set-properties node-id
-      :emitter-key-size-x new-x
-      :emitter-key-size-y new-y
-      :emitter-key-size-z new-z)))
+    {:manip/tx-data (g/set-properties node-id
+                      :emitter-key-size-x new-x
+                      :emitter-key-size-y new-y
+                      :emitter-key-size-z new-z)}))
 
 (defn load-particle-fx [project self _resource pb]
   (concat

@@ -28,6 +28,8 @@
 #include <dlib/math.h>
 #include <dlib/image.h>
 
+#include <dmsdk/dlib/atomic.h>
+
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
 DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatches", &rmtp_Graphics);
@@ -939,7 +941,7 @@ namespace dmGraphics
         ps.m_WriteColorMask           = DM_GRAPHICS_STATE_WRITE_R | DM_GRAPHICS_STATE_WRITE_G | DM_GRAPHICS_STATE_WRITE_B | DM_GRAPHICS_STATE_WRITE_A;
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        ps.m_DepthTestEnabled         = 1;
+        ps.m_DepthTestEnabled         = 0;
         ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
@@ -1409,6 +1411,11 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+        program->m_UniformBufferLayouts.SetCapacity(0);
+        program->m_UniformBufferLayouts.SetSize(0);
+        memset(program->m_ResourceBindings, 0, sizeof(program->m_ResourceBindings));
+        program->m_MaxSet     = 0;
+        program->m_MaxBinding = 0;
 
         DestroyShaderMeta(program->m_ShaderMeta);
     }
@@ -2123,31 +2130,52 @@ namespace dmGraphics
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureWidth(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Width : 0;
     }
     uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureHeight(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Height : 0;
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureDepth(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Depth : 0;
     }
     uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureWidth(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_OriginalWidth : 0;
     }
     uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureHeight(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_OriginalHeight : 0;
     }
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureMipmapCount(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_MipMapCount : 0;
     }
     TextureType GetTextureType(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureType(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_Type : TEXTURE_TYPE_2D;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2163,7 +2191,15 @@ namespace dmGraphics
     }
     uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureStatusFlags(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        uint32_t flags = TEXTURE_STATUS_OK;
+        if (t && dmAtomicGet32(&((Texture*)t)->m_DataState))
+        {
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        }
+        return flags;
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
@@ -2204,11 +2240,21 @@ namespace dmGraphics
     }
     uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        return g_functions.m_GetNumTextureHandles(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        if (!t)
+        {
+            return 0;
+        }
+        return (uint8_t)dmMath::Min<uint32_t>(255u, (uint32_t)t->m_NumTextureIds);
     }
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureUsageHintFlags(context, texture);
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {
@@ -2248,10 +2294,13 @@ namespace dmGraphics
         g_functions.m_DisableUniformBuffer(context, uniform_buffer);
     }
 
+// TODO: Make graphics.cpp backend agnostic
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
+#if !defined(DM_GRAPHICS_NULL)
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+#endif
     }
 #endif
 

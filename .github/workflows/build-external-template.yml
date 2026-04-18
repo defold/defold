@@ -1,5 +1,8 @@
 name: Build external package
 
+permissions:
+  contents: write
+
 on:
   workflow_call:
     inputs:
@@ -27,6 +30,11 @@ on:
         default: 21
         description: 'Minimum android ABI version'
         required: false
+      push_changes:
+        type: boolean
+        default: false
+        description: 'Commit built package tarballs into ./packages on the source branch'
+        required: false
     secrets:
       dm_packages_url:
         required: true
@@ -45,7 +53,6 @@ jobs:
            { name: 'x86_64-macos', runner: 'macOS-14', target: 'macos' },
            { name: 'arm64-ios', runner: 'macOS-14', target: 'macos' },
            { name: 'x86_64-ios', runner: 'macOS-14', target: 'macos' },
-           { name: 'js-web', runner: 'ubuntu-22.04', target: 'web' },
            { name: 'wasm-web', runner: 'ubuntu-22.04', target: 'web' },
            { name: 'wasm_pthread-web', runner: 'ubuntu-22.04', target: 'web' },
            { name: 'win32', runner: 'windows-2025', target: 'windows' },
@@ -59,7 +66,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: "${{ env.BUILD_BRANCH }}"
+          ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
 
       - name: Setup NDK (r25b)
         if: "${{ matrix.platforms.target == 'android' }}"
@@ -76,12 +83,17 @@ jobs:
 
       - name: Setup emsdk
         if: "${{ matrix.platforms.target == 'web' }}"
-        uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
+        uses: mymindstorm/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e # v14
         with:
           version: "4.0.6"
 
       - name: Install dependencies
+        shell: bash
         run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
+
+      - name: Install externals
+        shell: bash
+        run: ci/ci.sh install_ext
 
       - name: Build ${{ inputs.package_name }}
         shell: bash
@@ -149,3 +161,41 @@ jobs:
           path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
           if-no-files-found: error
           retention-days: 1
+
+  push-packages:
+    if: ${{ inputs.push_changes }}
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
+          fetch-depth: 0
+
+      - name: Download artifacts to packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+        with:
+          pattern: ${{ inputs.package_name }}-${{ inputs.package_version }}*.tar.gz
+          path: packages
+          merge-multiple: true
+
+      - name: Setup git user
+        run: |
+          git config user.email "services@defold.se"
+          git config user.name "Defold Services"
+
+      - name: Commit package updates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add "packages/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-"*.tar.gz
+
+          if git diff --cached --quiet; then
+            echo "No package changes to commit"
+            exit 0
+          fi
+
+          git commit -m "packages: update ${{ inputs.result_folder_name }} ${{ inputs.package_version }}"
+          git push origin "HEAD:${{ env.BUILD_BRANCH || github.ref_name }}"

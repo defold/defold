@@ -3,6 +3,7 @@ import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension, extension
 from waf_dynamo import new_copy_task
 import zipfile
+import shutil
 
 blddir = 'build'
 
@@ -36,6 +37,14 @@ def add_to_zip_file(task):
             src = name + ext
             dst = os.path.relpath(src, cwd)
             zipf.write(src, dst)
+
+
+def copy_file_to_output(task):
+    dst = task.outputs[0].abspath()
+    dst_dir = os.path.dirname(dst)
+    if dst_dir and not os.path.exists(dst_dir):
+        os.makedirs(dst_dir)
+    shutil.copyfile(task.inputs[0].abspath(), dst)
 
 def build(bld):
     resources = bld(source = ['test.cont_pb', 'test_ref.cont_pb', 'empty.script'])
@@ -107,8 +116,14 @@ def build(bld):
 
     bld.add_group()
 
+    bld(rule = copy_file_to_output,
+        source = bld.path.find_node('files/somedata'),
+        target = bld.path.find_or_declare('somedata'))
+
+    is_web = bld.env.PLATFORM in ['wasm-web', 'wasm_pthread-web']
+
     defines = []
-    if not ('GITHUB_CI' in bld.env.DEFINES and sys.platform == 'darwin'):
+    if not is_web and not ('GITHUB_CI' in bld.env.DEFINES and sys.platform == 'darwin'):
         defines = ['DM_TEST_HTTP_SUPPORTED']
     if bld.env.PLATFORM in ['arm64-nx64']:
         defines = []
@@ -124,8 +139,10 @@ def build(bld):
     # ******************************************************************************************************************************
     # Resource providers
     skip_http_test = []
-    if bld.env.PLATFORM in ['wasm-web','wasm_pthread-web','js-web']:
+    if is_web:
         skip_http_test = ['skip_test']
+
+    resource_http_provider_symbols = ['ResourceProviderHttp']
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -160,7 +177,7 @@ def build(bld):
                 includes     = '.. ../../proto',
                 defines      = defines,
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
-                exported_symbols = ['ResourceProviderHttp'],
+                exported_symbols = resource_http_provider_symbols,
                 target       = 'test_provider_http',
                 source       = 'test_provider_http.cpp')
 
@@ -197,7 +214,7 @@ def build(bld):
                 proto_gen_py = True,
                 target       = 'test_resource_archive',
                 source       = 'test_resource_archive.cpp',
-                embed_source = embed_source + 'resources.public resources.manifest_hash'.split())
+                embed_source = embed_source + 'resources.manifest_hash'.split())
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
@@ -205,7 +222,7 @@ def build(bld):
                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderZip', 'ResourceProviderArchive'],
                 target       = 'test_resource_mounts',
                 source       = 'test_resource_mounts.cpp',
-                embed_source = embed_source + 'resources.public resources.manifest_hash'.split())
+                embed_source = embed_source + 'resources.manifest_hash'.split())
 
     bld.program(features     = ['cxx', 'embed', 'test'] + skip_http_test,
                 includes     = '.. ../../proto',
@@ -213,7 +230,7 @@ def build(bld):
                 use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA APP resource',
                 web_libs     = ['library_sys.js'],
                 proto_gen_py = True,
-                exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],
+                exported_symbols = ['ResourceProviderFile', 'ResourceProviderArchive'] + resource_http_provider_symbols,
                 target       = 'test_resource',
                 source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
                 embed_source = 'resources.arci resources.arcd resources.dmanifest')

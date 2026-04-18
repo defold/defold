@@ -55,6 +55,7 @@ import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.bob.pipeline.Modelimporter.Bone;
 import com.dynamo.bob.pipeline.Modelimporter.Material;
 import com.dynamo.bob.pipeline.Modelimporter.Mesh;
+import com.dynamo.bob.pipeline.Modelimporter.MorphTarget;
 import com.dynamo.bob.pipeline.Modelimporter.Aabb;
 import com.dynamo.bob.pipeline.Modelimporter.Model;
 import com.dynamo.bob.pipeline.Modelimporter.Node;
@@ -69,14 +70,69 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
+    /**
+     * Atlas size for morph target slices (same growth rule as engine {@code ComputeMorphTextureSize}).
+     */
+    public static void computeMorphTextureSize(int vertexCount, int maxW, int maxH, int[] outWidthHeight) {
+        int w = 1;
+        int h = 1;
+        while (w * h < vertexCount) {
+            if (w < maxW) {
+                w <<= 1;
+            } else if (h < maxH) {
+                h <<= 1;
+            } else {
+                break;
+            }
+        }
+        outWidthHeight[0] = w;
+        outWidthHeight[1] = h;
+    }
+
+    static void validateMorphTargetTextureLayout(Mesh mesh, int maxTexW, int maxTexH) throws LoaderException {
+        if (mesh.morphTargets == null || mesh.morphTargets.length == 0) {
+            return;
+        }
+        if (mesh.positions == null || mesh.positions.length < 3) {
+            throw new LoaderException("Mesh has morph targets but no base positions.");
+        }
+
+        int baseVertexCount = mesh.positions.length / 3;
+        int maxCount = baseVertexCount;
+        for (MorphTarget mt : mesh.morphTargets) {
+            if (mt.positions != null) {
+                maxCount = Math.max(maxCount, mt.positions.length / 3);
+            }
+            if (mt.normals != null) {
+                maxCount = Math.max(maxCount, mt.normals.length / 3);
+            }
+            if (mt.tangents != null) {
+                maxCount = Math.max(maxCount, mt.tangents.length / 4);
+            }
+        }
+
+        int[] wh = new int[2];
+        computeMorphTextureSize(maxCount, maxTexW, maxTexH, wh);
+        int width = wh[0];
+        int height = wh[1];
+        if (width > maxTexW || height > maxTexH || width * height < maxCount) {
+            String meshLabel = mesh.name != null && !mesh.name.isEmpty() ? mesh.name : "<unnamed>";
+            throw new LoaderException(String.format(
+                    "Morph target data for mesh '%s' needs at least %d vertices in a %d x %d atlas (limits: %d x %d from [model] max_morph_target_texture_width / max_morph_target_texture_height in game.project). "
+                            + "Raise those limits or reduce mesh / morph stream size.",
+                    meshLabel, maxCount, width, height, maxTexW, maxTexH));
+        }
+    }
+
     public static Scene loadScene(byte[] content, String path, Options options, ModelImporterJni.DataResolver dataResolver) throws IOException {
         if (options == null)
             options = new Options();
 
         Scene scene = ModelImporterJni.LoadFromBuffer(options, path, content, dataResolver);
 
-        if (scene == null)
-            return null;
+        if (scene == null) {
+            throw new IOException("Model load returned null");
+        }
 
         for (Modelimporter.Buffer buffer : scene.buffers)
         {
@@ -220,35 +276,68 @@ public class ModelUtil {
         }
     }
 
+    private static void sampleMorphWeightTrack(Rig.MorphWeightTrack.Builder weightTrackBuilder, Modelimporter.NodeAnimation nodeAnimation, double duration, double startTime, double sampleRate, double spf) {
+        int dim = nodeAnimation.morphWeightDimensions;
+
+        RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+        for (int k = 0; k < nodeAnimation.morphWeightKeyTimes.length; ++k) {
+            RigUtil.AnimationKey outKey = createKey(nodeAnimation.morphWeightKeyTimes[k], false, dim);
+            int base = k * dim;
+            for (int i = 0; i < dim; ++i) {
+                outKey.value[i] = nodeAnimation.morphWeightKeyValues[base + i];
+            }
+            sparseTrack.keys.add(outKey);
+        }
+        RigUtil.MorphWeightsBuilder wb = new RigUtil.MorphWeightsBuilder(weightTrackBuilder, dim);
+        RigUtil.sampleTrack(sparseTrack, wb, startTime, duration, sampleRate, spf, true);
+    }
+
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, Modelimporter.NodeAnimation nodeAnimation,
-                                                    String bone_name, double duration, double startTime, double sampleRate) {
+                                                    String nodeName, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
-        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneId(MurmurHash.hash64(bone_name));
+        boolean hasTranslation = nodeAnimation.translationKeys != null && nodeAnimation.translationKeys.length > 0;
+        boolean hasRotation = nodeAnimation.rotationKeys != null && nodeAnimation.rotationKeys.length > 0;
+        boolean hasScale = nodeAnimation.scaleKeys != null && nodeAnimation.scaleKeys.length > 0;
+        boolean hasMorphWeight = nodeAnimation.morphWeightKeyTimes != null && nodeAnimation.morphWeightKeyTimes.length > 0;
 
-        {
-            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
-            sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-            copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
-            samplePosTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
+        if (hasTranslation || hasRotation || hasScale) {
+            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+            animTrackBuilder.setBoneId(MurmurHash.hash64(nodeName));
+
+            {
+                RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+                sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+                copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
+                samplePosTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
+            }
+            {
+                RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+                sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+                copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
+
+                sampleRotTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
+            }
+            {
+                RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+                sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+                copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
+
+                sampleScaleTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
+            }
+
+            animBuilder.addTracks(animTrackBuilder.build());
         }
-        {
-            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
-            sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-            copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
 
-            sampleRotTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
+        if (hasMorphWeight) {
+            Rig.MorphWeightTrack.Builder weightTrackBuilder = Rig.MorphWeightTrack.newBuilder();
+            weightTrackBuilder.setModelId(MurmurHash.hash64(nodeName));
+            weightTrackBuilder.setMorphCount(nodeAnimation.morphWeightDimensions);
+
+            sampleMorphWeightTrack(weightTrackBuilder, nodeAnimation, duration, startTime, sampleRate, spf);
+
+            animBuilder.addMorphWeightTracks(weightTrackBuilder.build());
         }
-        {
-            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
-            sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-            copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
-
-            sampleScaleTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
-        }
-
-        animBuilder.addTracks(animTrackBuilder.build());
     }
 
     public static void loadAnimations(byte[] content, String suffix, Modelimporter.Options options, ModelImporterJni.DataResolver dataResolver,
@@ -318,7 +407,8 @@ public class ModelUtil {
 
                 boolean has_keys =  nodeAnimation.translationKeys.length > 0 ||
                                     nodeAnimation.rotationKeys.length > 0 ||
-                                    nodeAnimation.scaleKeys.length > 0;
+                                    nodeAnimation.scaleKeys.length > 0 ||
+                                    nodeAnimation.morphWeightKeyTimes.length > 0;
 
                 if (!has_keys) {
                     System.err.printf("Animation %s contains no keys for node %s\n", animation.name, nodeAnimation.node.name);
@@ -673,6 +763,21 @@ public class ModelUtil {
         if (inMesh.texCoords1 != null) {
             copyFloatArray(inMesh.texCoords1, inIndex, outMesh.texCoords1, outIndex, inMesh.texCoords1NumComponents);
         }
+        if (inMesh.morphTargets != null) {
+            for (int m = 0; m < inMesh.morphTargets.length; ++m) {
+                MorphTarget si = inMesh.morphTargets[m];
+                MorphTarget di = outMesh.morphTargets[m];
+                if (si.positions != null) {
+                    copyFloatArray(si.positions, inIndex, di.positions, outIndex, 3);
+                }
+                if (si.normals != null) {
+                    copyFloatArray(si.normals, inIndex, di.normals, outIndex, 3);
+                }
+                if (si.tangents != null) {
+                    copyFloatArray(si.tangents, inIndex, di.tangents, outIndex, 4);
+                }
+            }
+        }
     }
 
     public static void splitMesh(Modelimporter.Mesh inMesh, List<Modelimporter.Mesh> outMeshes) {
@@ -716,6 +821,26 @@ public class ModelUtil {
                     newMesh.texCoords0 = new float[MAX_SPLIT_VCOUNT*3];
                 if (inMesh.texCoords1 != null)
                     newMesh.texCoords1 = new float[MAX_SPLIT_VCOUNT*3];
+                if (inMesh.morphTargets != null) {
+                    newMesh.morphTargets = new MorphTarget[inMesh.morphTargets.length];
+                    for (int mi = 0; mi < inMesh.morphTargets.length; ++mi) {
+                        MorphTarget srcMt = inMesh.morphTargets[mi];
+                        MorphTarget dstMt = new MorphTarget();
+                        if (srcMt.positions != null)
+                            dstMt.positions = new float[MAX_SPLIT_VCOUNT * 3];
+                        if (srcMt.normals != null)
+                            dstMt.normals = new float[MAX_SPLIT_VCOUNT * 3];
+                        if (srcMt.tangents != null)
+                            dstMt.tangents = new float[MAX_SPLIT_VCOUNT * 4];
+                        newMesh.morphTargets[mi] = dstMt;
+                    }
+                    int nm = inMesh.morphTargets.length;
+                    newMesh.morphBaseWeights = new float[nm];
+                    if (inMesh.morphBaseWeights != null) {
+                        int c = Math.min(nm, inMesh.morphBaseWeights.length);
+                        System.arraycopy(inMesh.morphBaseWeights, 0, newMesh.morphBaseWeights, 0, c);
+                    }
+                }
             }
 
             int index0 = inMesh.indices[i*3+0];
@@ -773,6 +898,17 @@ public class ModelUtil {
                     newMesh.texCoords0 = Arrays.copyOf(newMesh.texCoords0, vcount * newMesh.texCoords0NumComponents);
                 if (newMesh.texCoords1 != null)
                     newMesh.texCoords1 = Arrays.copyOf(newMesh.texCoords1, vcount * newMesh.texCoords1NumComponents);
+                if (newMesh.morphTargets != null) {
+                    for (int mi = 0; mi < newMesh.morphTargets.length; ++mi) {
+                        MorphTarget mt = newMesh.morphTargets[mi];
+                        if (mt.positions != null)
+                            mt.positions = Arrays.copyOf(mt.positions, vcount * 3);
+                        if (mt.normals != null)
+                            mt.normals = Arrays.copyOf(mt.normals, vcount * 3);
+                        if (mt.tangents != null)
+                            mt.tangents = Arrays.copyOf(mt.tangents, vcount * 4);
+                    }
+                }
 
                 outMeshes.add(newMesh);
                 newMesh = null;
@@ -814,7 +950,8 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    public static Rig.Mesh loadMesh(Mesh mesh) {
+    public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
+        validateMorphTargetTextureLayout(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
 
         String name = mesh.name;
 
@@ -873,15 +1010,38 @@ public class ModelUtil {
         else
             meshBuilder.setMaterialIndex(0x0); // We still need to assign a material at some point!
 
+        if (mesh.morphTargets != null) {
+            for (MorphTarget morphTarget : mesh.morphTargets) {
+                Rig.MorphTarget.Builder morphTargetBuilder = Rig.MorphTarget.newBuilder();
+                if (morphTarget.positions != null) {
+                    morphTargetBuilder.addAllPositionsDelta(toList(morphTarget.positions));
+                }
+                if (morphTarget.normals != null) {
+                    morphTargetBuilder.addAllNormalsDelta(toList(morphTarget.normals));
+                }
+                if (morphTarget.tangents != null) {
+                    morphTargetBuilder.addAllTangentsDelta(toList(morphTarget.tangents));
+                }
+                meshBuilder.addMorphTargets(morphTargetBuilder);
+            }
+            int morphN = mesh.morphTargets.length;
+            float[] base = new float[morphN];
+            if (mesh.morphBaseWeights != null) {
+                int c = Math.min(morphN, mesh.morphBaseWeights.length);
+                System.arraycopy(mesh.morphBaseWeights, 0, base, 0, c);
+            }
+            meshBuilder.addAllMorphBaseWeights(toList(base));
+        }
+
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton) {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton, int maxMorphTexW, int maxMorphTexH) throws LoaderException {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh));
+            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH));
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
@@ -898,15 +1058,15 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models) {
+    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH) throws LoaderException {
 
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton));
+            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH));
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, models);
+            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH);
         }
     }
 
@@ -965,15 +1125,14 @@ public class ModelUtil {
         return scene;
     }
 
-
-    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
+    public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            loadModelInstances(root, skeleton, models);
+            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH);
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
@@ -1077,7 +1236,7 @@ public class ModelUtil {
     }
 
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, LoaderException {
         if (args.length < 1) {
             System.err.println("No model specified!");
             return;
@@ -1225,7 +1384,7 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        loadModels(scene, meshSetBuilder); // testing the function
+        loadModels(scene, meshSetBuilder, 0, 0); // testing the function
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadSkeleton(scene, skeletonBuilder); // testing the function

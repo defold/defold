@@ -35,6 +35,7 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches);
     void FinalizeTextContext(HRenderContext render_context);
+    void ClearTextEntries(HRenderContext render_context);
 
     const int MAX_FONT_RENDER_CONSTANTS = 16;
     /**
@@ -52,8 +53,10 @@ namespace dmRender
         dmVMath::Vector4 m_OutlineColor;
         /// Color of the shadow
         dmVMath::Vector4 m_ShadowColor;
-        /// Text to draw in utf8-format
+        /// Text to draw in utf8-format. Optional when m_TextLayout is set.
         const char* m_Text;
+        /// Optional prepared text layout. The render queue retains it until queued text entries are cleared.
+        HTextLayout m_TextLayout;
         /// Render constants
         dmRender::HConstant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
         /// The source blend factor

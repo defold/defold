@@ -28,6 +28,7 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
+            [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
@@ -361,6 +362,7 @@
 
   (input outline-pane-desc g/Any)
   (input properties-pane-desc g/Any)
+  (input properties-view g/NodeID)
   (input open-sidebar-panes g/Any :array :substitute gu/array-subst-remove-errors)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -474,7 +476,9 @@
              ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
+             properties-view (g/node-value app-view :properties-view evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
+             new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
 
              tx-data
              (when (and is-in-active-tab-pane
@@ -483,6 +487,8 @@
                  (concat
                    (g/set-property app-view :active-tab new-active-tab)
                    (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
+                   (when properties-view
+                     (replace-connection basis new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
                    (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
                      (replace-connection basis new-resource-node-id :scene app-view :active-scene)
                      (disconnect-sources basis app-view :active-scene)))))]
@@ -531,21 +537,31 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(defn- get-grid-settings-button
-  [^Tab tab]
+(defn- get-settings-button [^Tab tab button-id]
   (some-> tab
           .getContent
-          (.lookup "#show-grid-settings")))
+          (.lookup button-id)))
+
+(defn- show-settings-state [app-view button-id evaluation-context]
+  (some-> (g/node-value app-view :active-tab evaluation-context)
+          (get-settings-button button-id)
+          (scene-visibility/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
-  (run [app-view scene-visibility prefs]
+  (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-grid-settings-button))]
-      (grid/show-settings! app-view btn prefs)))
+                            (get-settings-button "#show-grid-settings"))]
+      (grid/show-settings! btn app-view prefs localization)))
   (state [app-view scene-visibility evaluation-context]
-    (some-> (g/node-value app-view :active-tab evaluation-context)
-            (get-grid-settings-button)
-            (scene-visibility/settings-visible?))))
+    (show-settings-state app-view "#show-grid-settings" evaluation-context)))
+
+(handler/defhandler :scene.perspective-camera.show-settings :workbench
+  (run [app-view scene-visibility prefs localization]
+    (when-some [btn (some-> (g/node-value app-view :active-tab)
+                            (get-settings-button "#show-perspective-camera-settings"))]
+      (camera/show-settings! btn prefs localization)))
+  (state [app-view scene-visibility evaluation-context]
+    (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
@@ -598,7 +614,9 @@
    {:id :perspective-camera
     :tooltip "Perspective camera"
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
-    :command :scene.toggle-camera-type}
+    :command :scene.toggle-camera-type
+    :more {:id :show-perspective-camera-settings
+           :command :scene.perspective-camera.show-settings}}
    {:id :visibility-settings
     :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
@@ -983,8 +1001,7 @@
 
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
-          (when log-stream
-            (console/set-log-service-stream log-stream))
+          (console/set-log-service-stream log-stream)
           (reboot-engine! selected-target web-server debug?))
 
         :else
@@ -2279,6 +2296,7 @@
     (g/transact
       (concat
         (view/connect-resource-node view resource-node)
+        (g/connect app-view :selected-node-properties view :selected-node-properties)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
@@ -2502,7 +2520,8 @@
        (perform-open-resource-plan! localization))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
-  (let [prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
+  (let [basis (:basis evaluation-context)
+        prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
         selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
     (coll/into-> prefs-data-per-tab-per-tab-pane []
       (coll/mapcat-indexed
@@ -2511,7 +2530,7 @@
             (coll/into-> prefs-data-per-tab :eduction
               (keep-indexed
                 (fn [tab-index [proj-path view-type-id]]
-                  (let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+                  (let [resource (workspace/find-resource basis workspace proj-path)]
                     (when (and (resource/openable-resource? resource)
                                (resource/exists? resource))
                       (let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)
@@ -3044,13 +3063,12 @@
 
 (defn file-open-user-data->openable-resources
   ([workspace x]
-   (g/with-auto-evaluation-context evaluation-context
-     (file-open-user-data->openable-resources workspace x evaluation-context)))
-  ([workspace x evaluation-context]
+   (file-open-user-data->openable-resources (g/now) workspace x))
+  ([basis workspace x]
    (cond
      (string? x)
-     (when-let [resource (workspace/find-resource workspace x evaluation-context)]
-       (recur workspace resource evaluation-context))
+     (when-let [resource (workspace/find-resource basis workspace x)]
+       (recur basis workspace resource))
 
      (resource/resource? x)
      (when (and (resource/openable? x)
@@ -3058,7 +3076,7 @@
        [x])
 
      (sequential? x)
-     (e/mapcat #(file-open-user-data->openable-resources workspace % evaluation-context) x)
+     (e/mapcat #(file-open-user-data->openable-resources basis workspace %) x)
 
      :else
      (throw (IllegalArgumentException. (str "Didn't expect file.open argument to be " x))))))
@@ -3246,7 +3264,7 @@
         (disk/async-reload! render-reload-progress! workspace [] changes-view
                             (fn [successful?]
                               (when successful?
-                                (when-some [created-resource (workspace/find-resource workspace proj-path)]
+                                (when-some [created-resource (workspace/find-resource (g/now) workspace proj-path)]
                                   (open-resource! app-view prefs localization project created-resource))))))
 
       (= :folder (resource/source-type resource))

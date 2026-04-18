@@ -18,6 +18,7 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/font/text_layout.h>
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
@@ -101,12 +102,13 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
-        uint8_t                                     m_LightBufferSet;
-        uint8_t                                     m_LightBufferBinding;
+        uint16_t                                    m_LightBufferSet;
+        uint16_t                                    m_LightBufferBinding;
         uint8_t                                     m_HasLightBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
+        uint8_t                                     m_HasMorphTargetsSampler : 1;
     };
 
     struct ComputeProgram
@@ -116,6 +118,9 @@ namespace dmRender
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        uint16_t                                    m_LightBufferSet;
+        uint16_t                                    m_LightBufferBinding;
+        uint8_t                                     m_HasLightBuffer : 1;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -155,6 +160,7 @@ namespace dmRender
         HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
         HFontMap            m_FontMap;
         HMaterial           m_Material;
+        HTextLayout         m_TextLayout;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
@@ -317,7 +323,7 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        dmhash_t                    m_FrustumHash;
+        //dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
@@ -405,9 +411,10 @@ namespace dmRender
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Lights
-    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count);
     void FinalizeLightData(HRenderContext render_context);
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
+    void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter
@@ -507,4 +514,3 @@ namespace dmRender
 }
 
 #endif
-

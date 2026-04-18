@@ -90,28 +90,17 @@ namespace dmGraphics
             uint8_t     m_LastUsedFrame;
         };
 
+        Texture           m_Base;
         VulkanHandle      m_Handle;
-        TextureType       m_Type;
-        TextureFormat     m_GraphicsFormat;
         VkFormat          m_Format;
         VkImageLayout     m_ImageLayout[16];
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
-        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         HOpaqueHandle     m_PendingUpload;
         uint32_t          m_DataSize; // for better memory profiling
-        uint16_t          m_Width;
-        uint16_t          m_Height;
-        uint16_t          m_Depth;
-        uint16_t          m_OriginalWidth;
-        uint16_t          m_OriginalHeight;
-        uint16_t          m_OriginalDepth;
-        uint16_t          m_MipMapCount         : 5;
         uint16_t          m_TextureSamplerIndex : 10;
         uint16_t          m_Destroyed           : 1;
-        uint8_t           m_UsageHintFlags;
         uint8_t           m_LayerCount;
-        uint8_t           m_PageCount; // page count of texture array
 
         const VulkanResourceType GetType();
     };
@@ -402,10 +391,9 @@ namespace dmGraphics
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        HWindow                            m_Window;
+        GraphicsContext                    m_BaseContext;
         FWindowResizeCallback              m_WindowResizeCallback;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                      m_PipelineCache;
         PipelineState                      m_PipelineState;
         SwapChain*                         m_SwapChain;
@@ -424,7 +412,6 @@ namespace dmGraphics
         // Async process resources
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
         // Per-fence resources
         dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
@@ -438,6 +425,7 @@ namespace dmGraphics
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
         uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
+        VkRenderPass                    m_MainRenderPassLoad; // Compatible with m_MainRenderPass, but uses LOAD_OP_LOAD to preserve contents when the main RT is rebound mid-frame.
         VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
@@ -456,29 +444,23 @@ namespace dmGraphics
         HTexture                        m_CurrentSwapchainTexture;
 
         // Misc state
-        TextureFilter                   m_DefaultTextureMinFilter;
-        TextureFilter                   m_DefaultTextureMagFilter;
         VulkanTexture*                  m_DefaultTexture2D;
         VulkanTexture*                  m_DefaultTexture2DArray;
         VulkanTexture*                  m_DefaultTextureCubeMap;
         VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture*                  m_DefaultStorageImage2D;
         VulkanTexture                   m_ResolveTexture;
-        uint64_t                        m_TextureFormatSupport;
         int32_atomic_t                  m_DeleteContextRequested;
         PFN_vkWaitForPresentKHR         m_WaitForPresent;
 
-        uint32_t                        m_Width;
-        uint32_t                        m_Height;
         uint32_t                        m_WindowWidth;
         uint32_t                        m_WindowHeight;
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;
+        uint32_t                        m_MainRTBegunThisFrame : 1;
         uint32_t                        m_RenderTargetBound    : 1;
-        uint32_t                        m_VerifyGraphicsCalls  : 1;
-        uint32_t                        m_PrintDeviceInfo      : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;

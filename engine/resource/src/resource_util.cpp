@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "resource_util.h"
-#include "resource_manifest_private.h"
 
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
@@ -47,17 +46,6 @@ static dmResource::Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
 dmResource::Result DecryptBuffer(void* buffer, uint32_t buffer_len)
 {
     return g_ResourceDecryption(buffer, buffer_len);
-}
-
-Result DecryptSignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
-{
-    const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
-    if (r != dmCrypt::RESULT_OK) {
-        return RESULT_INVALID_DATA;
-    }
-    return RESULT_OK;
 }
 
 uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
