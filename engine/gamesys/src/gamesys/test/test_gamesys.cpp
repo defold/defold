@@ -1376,6 +1376,8 @@ static dmhash_t GetHashProperty(dmGameObject::HInstance instance, dmhash_t comp_
     return desc.m_Variant.m_Hash;
 }
 
+static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id);
+
 static dmGameObject::PropertyResult SetHashProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t in_val, const dmGameObject::PropertyOptions* options = 0)
 {
     dmGameObject::PropertyVar prop_var(in_val);
@@ -2267,6 +2269,173 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
     }
 
     dmResource::Release(m_Factory, image_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, TextureReloadRefreshesCurrentAnimationState)
+{
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t animation_prop_id = dmHashString64("animation");
+    dmhash_t frame_count_prop_id = dmHashString64("frame_count");
+    dmhash_t image_id = dmHashString64("/sprite/image/reload_animation_state.t.texturesetc");
+    dmhash_t idle_animation_id = dmHashString64("idle");
+    dmGameSystem::TextureSetResource* image_resource = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/image/reload_animation_state.t.texturesetc", (void**) &image_resource));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    void* sprite_component = GetSpriteComponent(go, sprite_comp_id);
+    ASSERT_NE((void*)0, sprite_component);
+
+    {
+        GamesysErrorLogCapture log_capture;
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetHashProperty(go, sprite_comp_id, image_prop_id, image_id));
+        PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, idle_animation_id, 0.0f, 1.0f);
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        ASSERT_EQ(idle_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
+        ASSERT_EQ(1.0f, GetFloatProperty(go, sprite_comp_id, frame_count_prop_id));
+
+        ASSERT_TRUE(RunString(L,
+            "local data = resource.get_atlas(\"/sprite/image/reload_animation_state.t.texturesetc\")\n"
+            "data.geometries = {\n"
+            "    {\n"
+            "        vertices = { 0, 0, 0, 16, 16, 16, 16, 0 },\n"
+            "        uvs = { 0, 0, 0, 16, 16, 16, 16, 0 },\n"
+            "        indices = { 0, 1, 2, 0, 2, 3 }\n"
+            "    },\n"
+            "    {\n"
+            "        vertices = { 0, 0, 0, 16, 16, 16, 16, 0 },\n"
+            "        uvs = { 16, 0, 16, 16, 32, 16, 32, 0 },\n"
+            "        indices = { 0, 1, 2, 0, 2, 3 }\n"
+            "    }\n"
+            "}\n"
+            "data.animations = {\n"
+            "    {\n"
+            "        id = \"other\",\n"
+            "        width = 16,\n"
+            "        height = 16,\n"
+            "        frames = { 1 }\n"
+            "    },\n"
+            "    {\n"
+            "        id = \"idle\",\n"
+            "        width = 16,\n"
+            "        height = 16,\n"
+            "        frames = { 1, 2 }\n"
+            "    }\n"
+            "}\n"
+            "resource.set_atlas(\"/sprite/image/reload_animation_state.t.texturesetc\", data)\n"));
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        EXPECT_EQ(idle_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        EXPECT_EQ(1u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
+        EXPECT_EQ(2.0f, GetFloatProperty(go, sprite_comp_id, frame_count_prop_id));
+        EXPECT_TRUE(log_capture.Empty());
+    }
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmResource::Release(m_Factory, image_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, TextureReloadFallsBackToFirstTrimmedAnimationWithoutLogging)
+{
+    const char* image_path = "/tile/flipbook.t.texturesetc";
+    const char* replacement_path = "/sprite/image/stale_animation_id_in_range.t.texturesetc";
+    dmhash_t image_hash = dmHashString64(image_path);
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t image_prop_id = dmHashString64("image");
+    dmhash_t animation_prop_id = dmHashString64("animation");
+    dmhash_t frame_count_prop_id = dmHashString64("frame_count");
+    dmhash_t old_animation_id = dmHashString64("anim_loop_pingpong");
+    dmhash_t fallback_animation_id = dmHashString64("frame_0");
+    dmGameSystem::TextureSetResource* image_resource = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, image_path, (void**) &image_resource));
+    ASSERT_NE((void*)0, image_resource);
+
+    void* original_raw = 0;
+    uint32_t original_size = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, image_path, &original_raw, &original_size));
+    ASSERT_NE((void*)0, original_raw);
+
+    dmArray<uint8_t> original_data;
+    original_data.SetCapacity(original_size);
+    original_data.PushArray((const uint8_t*) original_raw, original_size);
+
+    dmGameSystem::TextureSetResource* replacement_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, replacement_path, (void**) &replacement_resource));
+    ASSERT_NE((void*)0, replacement_resource);
+    ASSERT_NE(dmGameSystemDDF::SPRITE_TRIM_MODE_OFF, replacement_resource->m_TextureSet->m_Geometries[0].m_TrimMode);
+    ASSERT_EQ((uint32_t*)0, replacement_resource->m_AnimationIds.Get(old_animation_id));
+
+    void* replacement_raw = 0;
+    uint32_t replacement_size = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, replacement_path, &replacement_raw, &replacement_size));
+    ASSERT_NE((void*)0, replacement_raw);
+
+    dmArray<uint8_t> replacement_data;
+    replacement_data.SetCapacity(replacement_size);
+    replacement_data.PushArray((const uint8_t*) replacement_raw, replacement_size);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    void* sprite_component = GetSpriteComponent(go, sprite_comp_id);
+    ASSERT_NE((void*)0, sprite_component);
+
+    {
+        GamesysErrorLogCapture log_capture;
+
+        ASSERT_EQ(image_hash, GetHashProperty(go, sprite_comp_id, image_prop_id));
+
+        PostSpritePlayAnimation(m_Collection, go_id, sprite_comp_id, old_animation_id, 0.0f, 1.0f);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        ASSERT_EQ(old_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        ASSERT_GT(dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component), 0u);
+        ASSERT_EQ(4.0f, GetFloatProperty(go, sprite_comp_id, frame_count_prop_id));
+
+        // resource.set_atlas() cannot encode trim mode, so use a precompiled trimmed
+        // textureset to drive the same in-place reload path for this regression.
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, image_hash, replacement_data.Begin(), replacement_data.Size()));
+
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        RenderCollection(m_RenderContext, m_Collection);
+
+        EXPECT_EQ(fallback_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
+        EXPECT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
+        EXPECT_EQ(1.0f, GetFloatProperty(go, sprite_comp_id, frame_count_prop_id));
+        EXPECT_TRUE(log_capture.Empty());
+    }
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, image_hash, original_data.Begin(), original_data.Size()));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmResource::Release(m_Factory, image_resource);
+    dmResource::Release(m_Factory, replacement_resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

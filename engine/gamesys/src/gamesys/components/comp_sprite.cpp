@@ -668,6 +668,20 @@ namespace dmGameSystem
         return anim_id != 0;
     }
 
+    static void RebindCurrentAnimation(SpriteComponent* component)
+    {
+        TextureSetResource* texture_set = GetFirstTextureSet(component);
+        dmhash_t current_animation = component->m_CurrentAnimation;
+        if (GetCurrentOrFirstAnimation(texture_set, current_animation, &current_animation))
+        {
+            PlayAnimation(component, current_animation, GetCursor(component), component->m_PlaybackRate);
+        }
+        else
+        {
+            ClearCurrentAnimation(component);
+        }
+    }
+
     static void ReHash(SpriteComponent* component)
     {
         // Hash material, texture set, blend mode and render constants
@@ -2541,16 +2555,7 @@ namespace dmGameSystem
             // Since the animation referred to the old texture, we need to update it
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                TextureSetResource* texture_set = GetFirstTextureSet(component);
-                dmhash_t current_animation = component->m_CurrentAnimation;
-                if (GetCurrentOrFirstAnimation(texture_set, current_animation, &current_animation))
-                {
-                    PlayAnimation(component, current_animation, GetCursor(component), component->m_PlaybackRate);
-                }
-                else
-                {
-                    ClearCurrentAnimation(component);
-                }
+                RebindCurrentAnimation(component);
             }
             return res;
         }
@@ -2710,6 +2715,7 @@ namespace dmGameSystem
                     if (texture == (uintptr_t) resource)
                     {
                         component->m_ReHash = 1;
+                        RebindCurrentAnimation(component);
                         break;
                     }
                 }
