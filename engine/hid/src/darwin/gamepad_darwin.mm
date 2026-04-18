@@ -262,10 +262,18 @@ static GCControllerButtonInput* GetGuideButton(GCController* controller)
 {
     if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
     {
+        GCExtendedGamepad* gamepad = controller.extendedGamepad;
+        if (gamepad != nil && gamepad.buttonHome != nil)
+            return gamepad.buttonHome;
+
         GCPhysicalInputProfile* profile = controller.physicalInputProfile;
         if (profile != nil)
         {
-            GCControllerButtonInput* button = profile.buttons[@"Button Home"];
+            GCControllerButtonInput* button = profile.buttons[GCInputButtonHome];
+            if (button != nil)
+                return button;
+
+            button = profile.buttons[@"Button Home"];
             if (button != nil)
                 return button;
         }
@@ -281,7 +289,13 @@ static GCControllerButtonInput* GetCaptureButton(GCController* controller)
         GCPhysicalInputProfile* profile = controller.physicalInputProfile;
         if (profile != nil)
         {
-            GCControllerButtonInput* button = profile.buttons[@"Button Share"];
+            GCControllerButtonInput* button = nil;
+            if (@available(macOS 12.0, iOS 15.0, tvOS 15.0, *))
+            {
+                button = profile.buttons[GCInputButtonShare];
+            }
+            if (button == nil)
+                button = profile.buttons[@"Button Share"];
             if (button != nil)
                 return button;
         }
@@ -894,6 +908,11 @@ static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Ga
     if (apple_device->m_HasGuideButton)
     {
         GCControllerButtonInput* guide_button = GetGuideButton(controller);
+        if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+        {
+            if (guide_button != nil)
+                guide_button.preferredSystemGestureState = GCSystemGestureStateDisabled;
+        }
         if (guide_button != nil && guide_button.isPressed)
             packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
         ++button_index;
