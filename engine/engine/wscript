@@ -114,7 +114,7 @@ def configure(conf):
         if waflib.Options.options.with_vulkan and architecture == 'arm64':
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
     elif target_os == TargetOS.ANDROID:
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
+        conf.env.append_value('LINKFLAGS', ['-lvulkan', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
 
     elif target_os == TargetOS.WINDOWS:

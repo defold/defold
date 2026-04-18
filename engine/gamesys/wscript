@@ -39,7 +39,7 @@ def configure(conf):
     elif target_os == TargetOS.IOS:
         pass
     elif target_os == TargetOS.ANDROID:
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
+        conf.env.append_value('LINKFLAGS', ['-lvulkan', '-landroid'])
     elif target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 

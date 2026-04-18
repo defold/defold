@@ -152,7 +152,7 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
-    if platform in ('arm64-nx64'):
+    if platform in ('arm64-nx64', 'armv7-android', 'arm64-android'):
         graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
         graphics_lib_symbols = ['GraphicsAdapterVulkan']
 

@@ -481,15 +481,44 @@
     (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
+(def vulkan-toggles-no-android
+  (concat
+    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
+    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
+    (libs-toggles windows ["graphics_vulkan" "vulkan"])
+    (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
+    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
+    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
+    (generic-contains-toggles (disj vulkan :armv7-android :arm64-android) :symbols ["GraphicsAdapterVulkan"])))
+
 (def graphics-setting
   (make-choice-setting
     :vulkan (concat
-              vulkan-toggles
-              (exclude-libs-toggles vulkan ["graphics"])
-              (generic-contains-toggles (disj vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              vulkan-toggles-no-android
+              (exclude-libs-toggles (disj vulkan :armv7-android :arm64-android) ["graphics"])
+              (generic-contains-toggles (disj vulkan :arm64-linux :armv7-android :arm64-android) :excludeSymbols ["GraphicsAdapterOpenGL"])
               [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
-    :both vulkan-toggles
+    :both vulkan-toggles-no-android
     :open-gl))
+
+(def open-gl-android-toggles
+  (concat
+    (libs-toggles android ["graphics"])
+    (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGL"])
+    (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
+
+(def graphics-setting-android
+  (make-choice-setting
+    :open-gl (concat
+               open-gl-android-toggles
+               (exclude-libs-toggles android ["graphics_vulkan"])
+               (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterVulkan"]))
+    :both (concat
+            (libs-toggles android ["graphics" "graphics_vulkan"])
+            (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGL" "GraphicsAdapterVulkan"])
+            (generic-contains-toggles android :dynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"]))
+    :vulkan))
 
 (def open-gl-osx-toggles
   (concat
@@ -700,6 +729,15 @@
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting-osx))
             (set (setting-property-setter graphics-setting-osx)))
+  (property graphics-android g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-android))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-android))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:vulkan "Vulkan"]
+                                                        [:open-gl "OpenGL ES"]
+                                                        [:both "OpenGL ES & Vulkan"]]}))
+            (value (setting-property-getter graphics-setting-android))
+            (set (setting-property-setter graphics-setting-android)))
   (property graphics-web g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-web))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-web))
