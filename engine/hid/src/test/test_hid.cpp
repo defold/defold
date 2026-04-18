@@ -176,6 +176,25 @@ TEST_F(HIDTest, Gamepad)
         ASSERT_FALSE(dmHID::GetGamepadButton(&packet, i));
 }
 
+TEST_F(HIDTest, GamepadMetadata)
+{
+    dmHID::Update(m_Context);
+
+    dmHID::HGamepad gamepad = dmHID::GetGamepad(m_Context, 0);
+    ASSERT_NE(dmHID::INVALID_GAMEPAD_HANDLE, gamepad);
+    ASSERT_TRUE(dmHID::IsGamepadConnected(gamepad));
+
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(m_Context, gamepad, device_name);
+    ASSERT_STREQ("null_device", device_name);
+
+    dmHID::GamepadGuid device_guid;
+    ASSERT_TRUE(dmHID::GetGamepadDeviceGuid(m_Context, gamepad, &device_guid));
+    char device_guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
+    dmHID::FormatGamepadGuid(device_guid, device_guid_string);
+    ASSERT_STREQ("00000000000000000000000000000000", device_guid_string);
+}
+
 TEST_F(HIDTest, TouchDevice)
 {
     dmHID::Update(m_Context);

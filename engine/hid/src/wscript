@@ -13,22 +13,30 @@ def build(bld):
     platform_defines = []
     platform_drivers = []
 
-    if build_util.get_target_os() in ('nx64','ps4','ps5','xbone'):
-        platform_folder = build_util.get_target_os()
+    target_os = build_util.get_target_os()
+
+    if target_os in ('macos','ios'):
+        platform_drivers = ['darwin/gamepad_darwin.mm']
+    elif target_os in ('nx64','ps4','ps5','xbone'):
+        platform_folder = target_os
     else:
         platform_drivers = ['%s/hid_gamepad_driver_glfw.cpp' % platform_folder]
 
     hid = bld.stlib(features = 'cxx',
-                    includes = [platform_folder,'.'],
+                    includes = [platform_folder,'.','external'],
                     target   = 'hid',
                     defines  = platform_defines,
-                    source   = bld.path.ant_glob(['hid.cpp', '%s/**/*.cpp' % platform_folder] + platform_drivers))
+                    source   = bld.path.ant_glob(['hid.cpp', 'hid_guid.cpp', '%s/**/*.cpp' % platform_folder] + platform_drivers))
+
+    # On macOS, we want to use a more modern gamepad "driver" than glfw
+    if target_os in ('macos','ios'):
+        hid.source = [x for x in hid.source if not 'glfw' in x.name]
 
     hid_null = bld.stlib(features = 'cxx',
-                         includes = [platform_folder, '.', 'null'],
+                         includes = [platform_folder, '.', 'null', 'external'],
                          proto_gen_py = True,
                          target = 'hid_null',
-                         source = bld.path.ant_glob(['hid.cpp', 'hid_null.cpp']))
+                         source = bld.path.ant_glob(['hid.cpp', 'hid_guid.cpp', 'hid_null.cpp']))
 
     bld.add_group()
     bld.recurse('test')
@@ -39,4 +47,3 @@ def build(bld):
 
 def configure(conf):
     pass
-

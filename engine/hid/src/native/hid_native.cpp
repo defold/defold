@@ -34,6 +34,7 @@ namespace dmHID
         dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
+#if !defined(__APPLE__)
     static void GLFWAddKeyboardChar(void* ctx, int chr)
     {
         AddKeyboardChar((HContext) ctx, chr);
@@ -54,6 +55,7 @@ namespace dmHID
             user_data->m_GamepadDrivers[i]->m_DetectDevices(context, user_data->m_GamepadDrivers[i]);
         }
     }
+#endif
 
     static uint8_t DriverToHandle(NativeContextUserData* user_data, GamepadDriver* driver)
     {
@@ -112,7 +114,11 @@ namespace dmHID
             context->m_Gamepads[i].m_Driver = DRIVER_HANDLE_FREE;
         }
 
+#if defined(__APPLE__)
+        InstallGamepadDriver(context, CreateGamepadDriverApple(context), "Apple");
+#else
         InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
+#endif
     }
 
     // Called from gamepad drivers
@@ -178,9 +184,11 @@ namespace dmHID
             }
 
             assert(context->m_Window && "No window has been set.");
+#if !defined(__APPLE__)
             dmPlatform::SetKeyboardCharCallback(context->m_Window, GLFWAddKeyboardChar, (void*) context);
             dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, GLFWSetMarkedText, (void*) context);
             dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, GLFWDeviceChangedCallback, (void*) context);
+#endif
 
             assert(context->m_NativeContextUserData == 0);
             context->m_NativeContextUserData = new NativeContextUserData();
@@ -346,6 +354,20 @@ namespace dmHID
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
         driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
+    }
+
+    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
+        {
+            return false;
+        }
+
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+        return driver->m_GetGamepadDeviceGuid(context, driver, gamepad, guid);
     }
 
     void ResetKeyboard(HContext context)

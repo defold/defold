@@ -78,6 +78,12 @@ namespace dmHID
         dmStrlCpy(name, "null_device", MAX_GAMEPAD_NAME_LENGTH);
     }
 
+    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)
+    {
+        memset(guid, 0, sizeof(*guid));
+        return true;
+    }
+
     // platform implementations
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
     {

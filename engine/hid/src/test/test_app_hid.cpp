@@ -20,6 +20,13 @@
 #include <stdarg.h>
 #include <string.h>
 
+#if defined(ANDROID)
+#include <assert.h>
+#include <android_native_app_glue.h>
+#include <glfw/glfw.h>
+#include <dmsdk/dlib/android.h>
+#endif
+
 #if defined(_WIN32)
 #include <io.h>
 #include <windows.h>
@@ -226,7 +233,12 @@ static void AppendGamepadStatus(EngineCtx* engine, char* buffer, uint32_t buffer
     char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
     dmHID::GetGamepadDeviceName(engine->m_HidContext, pad, device_name);
 
-    AppendStatusLine(buffer, buffer_size, offset, "Pad %u: %s\n", gamepad_index, device_name);
+    dmHID::GamepadGuid guid;
+    dmHID::GetGamepadDeviceGuid(engine->m_HidContext, pad, &guid);
+    char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
+    dmHID::FormatGamepadGuid(guid, guid_string);
+
+    AppendStatusLine(buffer, buffer_size, offset, "Pad %u: %s - %s\n", gamepad_index, device_name, guid_string);
     AppendStatusLine(buffer, buffer_size, offset, "  Buttons:");
 
     uint32_t button_count = dmHID::GetGamepadButtonCount(pad);
@@ -274,6 +286,43 @@ static void AppendGamepadStatus(EngineCtx* engine, char* buffer, uint32_t buffer
     AppendStatusLine(buffer, buffer_size, offset, "\n");
 }
 
+#if defined(ANDROID)
+static bool WaitForWindow()
+{
+    while (glfwAndroidWindowOpened() == 0)
+    {
+        void* data = 0;
+        int ident = ALooper_pollOnce(300, 0, 0, &data);
+
+        android_app* app = dmAndroid::GetAndroidApp();
+        if (app == 0)
+        {
+            dmLogFatal("Android app handle is unavailable while waiting for the window.");
+            return false;
+        }
+
+        if (ident >= 0 && data != 0)
+        {
+            android_poll_source* source = (android_poll_source*)data;
+            source->process(app, source);
+        }
+        if (ident == ALOOPER_POLL_ERROR)
+        {
+            dmLogFatal("ALooper_pollOnce returned an error");
+            return false;
+        }
+
+        glfwAndroidFlushEvents();
+        if (app->destroyRequested)
+        {
+            return false;
+        }
+        dmTime::Sleep(300);
+    }
+    return true;
+}
+#endif
+
 static void EngineDestroy(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
@@ -314,6 +363,15 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_Hidden           = 1;
 
     (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
+
+#if defined(ANDROID)
+    if (!WaitForWindow())
+    {
+        dmLogFatal("Unable to open the Android window.");
+        EngineDestroy(engine);
+        return 0;
+    }
+#endif
 
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -676,9 +734,15 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
     {
         char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, device_name);
+
+        dmHID::GamepadGuid guid;
+        dmHID::GetGamepadDeviceGuid(g_EngineCtx.m_HidContext, pad, &guid);
+        char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
+        dmHID::FormatGamepadGuid(guid, guid_string);
+
         if (g_EngineCtx.m_InteractiveOutput)
         {
-            SetLastEvent(&g_EngineCtx, "Gamepad %u connected: %s", gamepad_index, device_name);
+            SetLastEvent(&g_EngineCtx, "Gamepad %u connected: %s (%s)", gamepad_index, device_name, guid_string);
         }
         else
         {

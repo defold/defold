@@ -24,6 +24,18 @@ namespace dmHID
 {
     typedef uint8_t HGamepadDriver;
 
+    struct GamepadIdentity
+    {
+        uint16_t m_Vendor;
+        uint16_t m_Product;
+        uint8_t  m_HasDualshockTouchpad : 1;
+        uint8_t  m_HasXboxPaddles       : 1;
+        uint8_t  m_HasXboxShareButton   : 1;
+        uint8_t  m_IsBackboneOne        : 1;
+        uint8_t  m_IsSwitchJoyConPair   : 1;
+        uint8_t                         : 3;
+    };
+
     struct Gamepad
     {
         GamepadPacket  m_Packet;
@@ -86,11 +98,18 @@ namespace dmHID
     // TODO: start using the dmUser namespace
     // TODO: How to represent user id from/to C/Lua
     //      I.e. convert from uint32_t to platform type
+
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* user_id);
     int  GetKeyValue(Key key);
     int  GetMouseButtonValue(MouseButton button);
 
     dmhash_t CalcStateHash(HContext context);
+
+    // GUID
+    bool ParseGamepadGuid(const char* guid_string, GamepadGuid* guid);
+    void FormatGamepadGuid(const GamepadGuid& guid, char buffer[MAX_GAMEPAD_GUID_LENGTH + 1]);
+    void CreateGUIDFromProduct(uint16_t vendor, uint16_t product, uint16_t version, char guid[MAX_GAMEPAD_GUID_LENGTH + 1]);
+    void CreateGUIDFromIdentity(const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask, char guid[MAX_GAMEPAD_GUID_LENGTH + 1]);
 }
 
 #endif
