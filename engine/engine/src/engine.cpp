@@ -21,7 +21,6 @@
 #include <sys/stat.h>
 
 #include <stdio.h>
-#include <algorithm>
 
 #include <crash/crash.h>
 #include <dlib/buffer.h>
