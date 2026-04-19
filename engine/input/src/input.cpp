@@ -58,6 +58,10 @@ namespace dmInput
 
     void DeleteContext(HContext context)
     {
+        if (context->m_HidContext)
+        {
+            dmHID::SetGamepadConnectivityCallback(context->m_HidContext, 0, 0);
+        }
         delete context;
     }
 
@@ -197,8 +201,20 @@ namespace dmInput
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
 
-        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+        // For now, by default they are legacy mappings
+        dmHID::SetGamepadLayoutLegacy(gamepad, true);
+
+        // TODO: Get the gamepad guid + SDL name
+
+        GamepadConfig* selected_config = 0;
+
+        // TODO: Get the gamepad sdk mapping (if any)
+
+        if (!selected_config)
+        {
+            char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+        }
 
         if (selected_config)
         {
@@ -208,7 +224,9 @@ namespace dmInput
 
             if (selected_config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name_out);
+                char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
                 gamepad_binding->m_Unknown = 1;
             }
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
