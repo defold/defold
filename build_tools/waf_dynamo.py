@@ -2065,6 +2065,9 @@ def detect(conf):
         conf.env['STLIB_PLATFORM_VULKAN']   = ['platform_vulkan']
         conf.env['STLIB_PLATFORM_NULL']     = ['platform_null']
 
+    if target_os in [TargetOS.MACOS, TargetOS.IOS]:
+        conf.env['FRAMEWORK_HID'] = ['GameController']
+
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
 
