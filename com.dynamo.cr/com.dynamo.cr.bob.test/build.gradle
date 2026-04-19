@@ -3,7 +3,6 @@ apply from: '../com.dynamo.cr.bob/build.gradle'
 def testClassesDir = file("$testDir/build")
 def testTmpDir = file("$testDir/tmp")
 def DM_BOB_BUNDLERTEST_ONLY_HOST = project.hasProperty('DM_BOB_BUNDLERTEST_ONLY_HOST') ? project.property('DM_BOB_BUNDLERTEST_ONLY_HOST') : ''
-def DM_BOB_TEST_MAX_PARALLEL_FORKS = (project.findProperty('DM_BOB_TEST_MAX_PARALLEL_FORKS') ?: System.getenv('DM_BOB_TEST_MAX_PARALLEL_FORKS') ?: '1').toString().toInteger()
 
 task cleanTestDirs(type: Delete) {
     delete testClassesDir, testTmpDir
@@ -59,7 +58,6 @@ task createTestJar(type: Jar, dependsOn: compileTest) {
 
 task testJar(type: Test, dependsOn: createTestJar) {
     useJUnit()
-    maxParallelForks = DM_BOB_TEST_MAX_PARALLEL_FORKS
 
     // Check if running from IntelliJ IDEA - then test bundler only for the host platform
     doFirst {

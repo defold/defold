@@ -351,7 +351,6 @@ jobs:
       {
         name: 'Build bob',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
-        env: { DM_BOB_TEST_MAX_PARALLEL_FORKS: '8' },
         run: 'ci/ci.sh bob'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
