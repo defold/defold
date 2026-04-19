@@ -160,6 +160,14 @@ namespace dmHID
     bool Update(HContext context);
 
     /**
+     * Tells the gamepad to use legacy (non SDL) button/axis layout
+     *
+     * @param gamepad gamepad handle
+     * @param legacy true if the legacy layout is to be used (currently true by default)
+     */
+    void SetGamepadLayoutLegacy(HGamepad gamepad, bool legacy);
+
+    /**
      * Retrieves the number of buttons on a given gamepad.
      *
      * @param gamepad gamepad handle

@@ -15,6 +15,8 @@
 #include "hid.h"
 
 #include <assert.h>
+#include <math.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -29,6 +31,7 @@
 #endif
 
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
 #include <platform/window.hpp>
 #include <platform/platform_window_constants.h>
@@ -37,6 +40,14 @@
 
 #include "hid_private.h"
 #include "hid_native_private.h"
+
+#if TARGET_OS_OSX
+#define _GLFW_COCOA 1
+#define _glfwDefaultMappings dmHIDAppleGamepadDefaultMappings
+#include "../external/glfw/mappings.h"
+#undef _glfwDefaultMappings
+#undef _GLFW_COCOA
+#endif
 
 namespace dmHID
 {
@@ -54,23 +65,95 @@ enum AppleGamepadHatState
     APPLE_GAMEPAD_HAT_LEFT_DOWN  = APPLE_GAMEPAD_HAT_LEFT  | APPLE_GAMEPAD_HAT_DOWN,
 };
 
+enum AppleGamepadSemanticAxis
+{
+    APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X = 0,
+    APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y,
+    APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X,
+    APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y,
+    APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER,
+    APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER,
+    APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT
+};
+
+enum AppleGamepadSemanticButton
+{
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_A = 0,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_B,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_X,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_Y,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_START,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_UP,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_DOWN,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_LEFT,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_RIGHT,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE,
+    APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT
+};
+
+enum AppleGamepadSemanticHat
+{
+    APPLE_GAMEPAD_SEMANTIC_HAT_DPAD = 0,
+    APPLE_GAMEPAD_SEMANTIC_HAT_COUNT
+};
+
+enum AppleGamepadPacketLayout
+{
+    APPLE_GAMEPAD_PACKET_LAYOUT_SDL = 0,
+    APPLE_GAMEPAD_PACKET_LAYOUT_GLFW,
+};
+
+enum AppleGamepadLegacyElementType
+{
+    APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_NONE = 0,
+    APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS,
+    APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON,
+    APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT,
+};
+
+static const uint8_t APPLE_GAMEPAD_REMAP_INVALID = 0xff;
+
+struct AppleGamepadLegacyElement
+{
+    uint8_t m_Type;
+    uint8_t m_Index;
+    int8_t  m_Minimum;
+    int8_t  m_Maximum;
+};
+
 struct AppleGamepadDevice
 {
-    int          m_Id;
+    int           m_Id;
     GCController* m_Controller;
-    Gamepad*     m_Gamepad;
-    char         m_Name[MAX_GAMEPAD_NAME_LENGTH];
-    GamepadGuid  m_Guid;
-    uint8_t      m_AxisCount;
-    uint8_t      m_ButtonCount;
-    uint8_t      m_HatCount;
-    uint8_t      m_HasLeftThumbstickButton : 1;
+    Gamepad*      m_Gamepad;
+    char          m_Name[MAX_GAMEPAD_NAME_LENGTH];
+    GamepadGuid   m_Guid;
+    uint8_t       m_AxisCount;
+    uint8_t       m_ButtonCount;
+    uint8_t       m_HatCount;
+    uint8_t       m_LegacyAxisCount;
+    uint8_t       m_LegacyButtonCount;
+    uint8_t       m_LegacyHatCount;
+    uint8_t       m_PacketLayout;
+    uint8_t       m_AxisRemap[MAX_GAMEPAD_AXIS_COUNT];
+    uint8_t       m_ButtonRemap[MAX_GAMEPAD_BUTTON_COUNT];
+    uint8_t       m_HatRemap[MAX_GAMEPAD_HAT_COUNT];
+    AppleGamepadLegacyElement m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT];
+    AppleGamepadLegacyElement m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT];
+    uint8_t       m_HasLeftThumbstickButton : 1;
     uint8_t      m_HasRightThumbstickButton: 1;
     uint8_t      m_HasBackButton           : 1;
     uint8_t      m_HasStartButton          : 1;
-    uint8_t      m_HasGuideButton         : 1;
-    uint8_t      m_HasCaptureButton       : 1;
-    uint8_t                               : 2;
+    uint8_t      m_HasGuideButton          : 1;
+    uint8_t      m_HasCaptureButton        : 1;
+    uint8_t      m_HasLegacyMapping       : 1;
+    uint8_t                               : 1;
 };
 
 struct AppleGamepadDriver : GamepadDriver
@@ -565,6 +648,739 @@ static uint8_t GetHatValue(GCControllerDirectionPad* dpad)
     return hat;
 }
 
+static void ResetLegacyMapping(AppleGamepadDevice* device)
+{
+    memset(device->m_AxisRemap, APPLE_GAMEPAD_REMAP_INVALID, sizeof(device->m_AxisRemap));
+    memset(device->m_ButtonRemap, APPLE_GAMEPAD_REMAP_INVALID, sizeof(device->m_ButtonRemap));
+    memset(device->m_HatRemap, APPLE_GAMEPAD_REMAP_INVALID, sizeof(device->m_HatRemap));
+    memset(device->m_LegacyAxisMap, 0, sizeof(device->m_LegacyAxisMap));
+    memset(device->m_LegacyButtonMap, 0, sizeof(device->m_LegacyButtonMap));
+
+    device->m_LegacyAxisCount = device->m_AxisCount;
+    device->m_LegacyButtonCount = 0;
+    device->m_LegacyHatCount = device->m_HatCount;
+    device->m_HasLegacyMapping = 0;
+}
+
+static void BuildDefaultDeviceRemap(AppleGamepadDevice* device)
+{
+    device->m_AxisRemap[0] = APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X;
+    device->m_AxisRemap[1] = APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y;
+    device->m_AxisRemap[2] = APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER;
+    device->m_AxisRemap[3] = APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X;
+    device->m_AxisRemap[4] = APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y;
+    device->m_AxisRemap[5] = APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER;
+
+    uint32_t button_index = 0;
+    device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_A;
+    device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_B;
+    device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_X;
+    device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_Y;
+    device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER;
+    device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER;
+
+    if (device->m_HasLeftThumbstickButton)
+        device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB;
+    if (device->m_HasRightThumbstickButton)
+        device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB;
+    if (device->m_HasBackButton)
+        device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK;
+    if (device->m_HasStartButton)
+        device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_START;
+
+    if (device->m_HasGuideButton)
+        device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE;
+    if (device->m_HasCaptureButton)
+        device->m_ButtonRemap[button_index++] = APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE;
+
+    if (device->m_HatCount > 0)
+        device->m_HatRemap[0] = APPLE_GAMEPAD_SEMANTIC_HAT_DPAD;
+
+    device->m_LegacyButtonCount = device->m_ButtonCount + device->m_HatCount * 4;
+}
+
+static void SetButtonValue(GamepadPacket& packet, uint32_t button_index, bool value)
+{
+    if (button_index >= MAX_GAMEPAD_BUTTON_COUNT)
+        return;
+
+    if (value)
+        packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
+}
+
+static uint8_t GetLegacyButtonCount(const AppleGamepadDevice* device)
+{
+    return device->m_HasLegacyMapping ? device->m_LegacyButtonCount : (device->m_ButtonCount + device->m_HatCount * 4);
+}
+
+static uint8_t GetLegacyAxisCount(const AppleGamepadDevice* device)
+{
+    return device->m_HasLegacyMapping ? device->m_LegacyAxisCount : device->m_AxisCount;
+}
+
+static uint8_t GetLegacyHatCount(const AppleGamepadDevice* device)
+{
+    return device->m_HasLegacyMapping ? device->m_LegacyHatCount : device->m_HatCount;
+}
+
+static bool GetButtonValue(const GamepadPacket& packet, uint32_t button_index)
+{
+    if (button_index >= MAX_GAMEPAD_BUTTON_COUNT)
+        return false;
+
+    return (packet.m_Buttons[button_index / 32] & (1u << (button_index % 32))) != 0;
+}
+
+static void SetButtonState(GamepadPacket& packet, uint32_t button_index, bool value)
+{
+    if (button_index >= MAX_GAMEPAD_BUTTON_COUNT)
+        return;
+
+    const uint32_t mask = 1u << (button_index % 32);
+    if (value)
+        packet.m_Buttons[button_index / 32] |= mask;
+    else
+        packet.m_Buttons[button_index / 32] &= ~mask;
+}
+
+static uint8_t GetLegacyHatBitValue(uint8_t index)
+{
+    switch (index & 0x0f)
+    {
+        case 0x1: return APPLE_GAMEPAD_HAT_UP;
+        case 0x2: return APPLE_GAMEPAD_HAT_RIGHT;
+        case 0x4: return APPLE_GAMEPAD_HAT_DOWN;
+        case 0x8: return APPLE_GAMEPAD_HAT_LEFT;
+        default: return APPLE_GAMEPAD_HAT_CENTERED;
+    }
+}
+
+static float InverseMapLegacyAxis(const AppleGamepadLegacyElement& element, float semantic_value)
+{
+    const float minimum = (float) element.m_Minimum;
+    const float maximum = (float) element.m_Maximum;
+    const float scale = maximum - minimum;
+    if (scale == 0.0f)
+        return semantic_value;
+
+    const float raw_value = (semantic_value * scale + minimum + maximum) * 0.5f;
+    return fminf(fmaxf(raw_value, -1.0f), 1.0f);
+}
+
+static void SetMappedAxisValue(float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool axis_written[MAX_GAMEPAD_AXIS_COUNT], uint8_t axis_index, float value)
+{
+    if (axis_index >= MAX_GAMEPAD_AXIS_COUNT)
+        return;
+
+    if (!axis_written[axis_index])
+    {
+        axis_values[axis_index] = value;
+        axis_written[axis_index] = true;
+        return;
+    }
+
+    const float current = axis_values[axis_index];
+    if (current == 0.0f || fabsf(value) > fabsf(current))
+    {
+        axis_values[axis_index] = value;
+    }
+    else if ((current > 0.0f && value < 0.0f) || (current < 0.0f && value > 0.0f))
+    {
+        axis_values[axis_index] = 0.0f;
+    }
+}
+
+static void SetMappedButtonValue(GamepadPacket& packet, float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool axis_written[MAX_GAMEPAD_AXIS_COUNT], const AppleGamepadLegacyElement& element, bool pressed)
+{
+    switch (element.m_Type)
+    {
+        case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON:
+            SetButtonValue(packet, element.m_Index, pressed);
+            break;
+
+        case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT:
+            if (pressed)
+            {
+                const uint8_t hat_index = element.m_Index >> 4;
+                if (hat_index < MAX_GAMEPAD_HAT_COUNT)
+                    packet.m_Hat[hat_index] |= GetLegacyHatBitValue(element.m_Index);
+            }
+            break;
+
+        case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS:
+        {
+            const float raw_value = pressed ? (element.m_Maximum > 0 ? 1.0f : -1.0f) : 0.0f;
+            SetMappedAxisValue(axis_values, axis_written, element.m_Index, raw_value);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+static void SetMappedAxisSemanticValue(GamepadPacket& packet, float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool axis_written[MAX_GAMEPAD_AXIS_COUNT], const AppleGamepadLegacyElement& element, float semantic_value)
+{
+    switch (element.m_Type)
+    {
+        case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS:
+            SetMappedAxisValue(axis_values, axis_written, element.m_Index, InverseMapLegacyAxis(element, semantic_value));
+            break;
+
+        case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON:
+            SetButtonValue(packet, element.m_Index, semantic_value >= 0.0f);
+            break;
+
+        case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT:
+            if (semantic_value >= 0.0f)
+            {
+                const uint8_t hat_index = element.m_Index >> 4;
+                if (hat_index < MAX_GAMEPAD_HAT_COUNT)
+                    packet.m_Hat[hat_index] |= GetLegacyHatBitValue(element.m_Index);
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+static int32_t FindLegacyAxisIndex(const AppleGamepadDevice* device, uint8_t semantic_axis)
+{
+    if (device->m_HasLegacyMapping)
+    {
+        const AppleGamepadLegacyElement& element = device->m_LegacyAxisMap[semantic_axis];
+        if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS && element.m_Index < MAX_GAMEPAD_AXIS_COUNT)
+            return element.m_Index;
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < device->m_AxisCount; ++i)
+    {
+        if (device->m_AxisRemap[i] == semantic_axis)
+            return i;
+    }
+
+    return -1;
+}
+
+static int32_t FindLegacyButtonIndex(const AppleGamepadDevice* device, uint8_t semantic_button)
+{
+    if (device->m_HasLegacyMapping)
+    {
+        const AppleGamepadLegacyElement& element = device->m_LegacyButtonMap[semantic_button];
+        if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON && element.m_Index < MAX_GAMEPAD_BUTTON_COUNT)
+            return element.m_Index;
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < device->m_ButtonCount; ++i)
+    {
+        if (device->m_ButtonRemap[i] == semantic_button)
+            return i;
+    }
+
+    return -1;
+}
+
+static void PostProcessLegacyPacket(AppleGamepadDevice* apple_device, GCController* controller, GamepadPacket& packet)
+{
+    if (!IsControllerPS4(controller) && !IsControllerPS5(controller))
+        return;
+
+    const int32_t left_y_index = FindLegacyAxisIndex(apple_device, APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y);
+    const int32_t right_y_index = FindLegacyAxisIndex(apple_device, APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y);
+    if (left_y_index >= 0)
+        packet.m_Axis[left_y_index] *= -1.0f;
+    if (right_y_index >= 0)
+        packet.m_Axis[right_y_index] *= -1.0f;
+
+    const int32_t back_button_index = FindLegacyButtonIndex(apple_device, APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK);
+    const int32_t start_button_index = FindLegacyButtonIndex(apple_device, APPLE_GAMEPAD_SEMANTIC_BUTTON_START);
+    if (back_button_index >= 0 && start_button_index >= 0)
+    {
+        const bool back_value = GetButtonValue(packet, back_button_index);
+        const bool start_value = GetButtonValue(packet, start_button_index);
+        SetButtonState(packet, back_button_index, start_value);
+        SetButtonState(packet, start_button_index, back_value);
+    }
+}
+
+#if TARGET_OS_OSX
+static bool ParseLegacyMappingTarget(const char* target, AppleGamepadLegacyElement* element)
+{
+    AppleGamepadLegacyElement parsed = {};
+    parsed.m_Minimum = -1;
+    parsed.m_Maximum = 1;
+
+    if (*target == '+')
+    {
+        parsed.m_Minimum = 0;
+        ++target;
+    }
+    else if (*target == '-')
+    {
+        parsed.m_Maximum = 0;
+        ++target;
+    }
+
+    if (*target == 'a')
+        parsed.m_Type = APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS;
+    else if (*target == 'b')
+        parsed.m_Type = APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON;
+    else if (*target == 'h')
+        parsed.m_Type = APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT;
+    else
+        return false;
+
+    ++target;
+
+    char* end = 0;
+    long index = strtol(target, &end, 10);
+    if (end == target || index < 0 || index > 255)
+        return false;
+
+    if (parsed.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT)
+    {
+        if (*end != '.')
+            return false;
+
+        target = end + 1;
+        long bit = strtol(target, &end, 10);
+        if (end == target || bit < 0 || bit > 15)
+            return false;
+
+        parsed.m_Index = (uint8_t) (((uint8_t) index << 4) | (uint8_t) bit);
+    }
+    else
+    {
+        parsed.m_Index = (uint8_t) index;
+    }
+
+    *element = parsed;
+    return true;
+}
+
+static bool ParseLegacyMappingLine(const char* mapping, const char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1], AppleGamepadDevice* device)
+{
+    if (strncmp(mapping, guid_string, MAX_GAMEPAD_GUID_LENGTH) != 0 || mapping[MAX_GAMEPAD_GUID_LENGTH] != ',')
+        return false;
+
+    struct LegacyField
+    {
+        const char* m_Name;
+        AppleGamepadLegacyElement* m_Element;
+    };
+
+    LegacyField fields[] =
+    {
+        { "a",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_A] },
+        { "b",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_B] },
+        { "x",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_X] },
+        { "y",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_Y] },
+        { "back",          &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK] },
+        { "start",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_START] },
+        { "guide",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE] },
+        { "leftshoulder",  &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER] },
+        { "rightshoulder", &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER] },
+        { "leftstick",     &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB] },
+        { "rightstick",    &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB] },
+        { "dpup",          &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_UP] },
+        { "dpright",       &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_RIGHT] },
+        { "dpdown",        &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_DOWN] },
+        { "dpleft",        &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_LEFT] },
+        { "misc1",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE] },
+        { "lefttrigger",   &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER] },
+        { "righttrigger",  &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER] },
+        { "leftx",         &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X] },
+        { "lefty",         &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y] },
+        { "rightx",        &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X] },
+        { "righty",        &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y] },
+    };
+
+    const char* cursor = strchr(mapping, ',');
+    if (cursor == 0)
+        return false;
+    cursor = strchr(cursor + 1, ',');
+    if (cursor == 0)
+        return false;
+    ++cursor;
+
+    bool found_element = false;
+
+    while (*cursor)
+    {
+        const char* token_end = strchr(cursor, ',');
+        if (token_end == 0)
+            token_end = cursor + strlen(cursor);
+
+        const char* separator = (const char*) memchr(cursor, ':', token_end - cursor);
+        if (separator != 0)
+        {
+            for (uint32_t i = 0; i < sizeof(fields) / sizeof(fields[0]); ++i)
+            {
+                const size_t key_length = strlen(fields[i].m_Name);
+                if ((size_t) (separator - cursor) == key_length && strncmp(cursor, fields[i].m_Name, key_length) == 0)
+                {
+                    char target[32];
+                    const size_t target_length = (size_t) (token_end - separator - 1);
+                    if (target_length >= sizeof(target))
+                        break;
+
+                    memcpy(target, separator + 1, target_length);
+                    target[target_length] = '\0';
+
+                    AppleGamepadLegacyElement element = {};
+                    if (ParseLegacyMappingTarget(target, &element))
+                    {
+                        *fields[i].m_Element = element;
+                        found_element = true;
+                    }
+                    break;
+                }
+            }
+        }
+
+        cursor = *token_end ? token_end + 1 : token_end;
+    }
+
+    if (!found_element)
+        return false;
+
+    uint8_t axis_count = 0;
+    uint8_t button_count = 0;
+    uint8_t hat_count = 0;
+
+    for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT; ++i)
+    {
+        const AppleGamepadLegacyElement& element = device->m_LegacyAxisMap[i];
+        if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS)
+            axis_count = dmMath::Max(axis_count, (uint8_t) (element.m_Index + 1));
+        else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON)
+            button_count = dmMath::Max(button_count, (uint8_t) (element.m_Index + 1));
+        else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT)
+            hat_count = dmMath::Max(hat_count, (uint8_t) ((element.m_Index >> 4) + 1));
+    }
+
+    for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT; ++i)
+    {
+        const AppleGamepadLegacyElement& element = device->m_LegacyButtonMap[i];
+        if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS)
+            axis_count = dmMath::Max(axis_count, (uint8_t) (element.m_Index + 1));
+        else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON)
+            button_count = dmMath::Max(button_count, (uint8_t) (element.m_Index + 1));
+        else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT)
+            hat_count = dmMath::Max(hat_count, (uint8_t) ((element.m_Index >> 4) + 1));
+    }
+
+    if (axis_count > MAX_GAMEPAD_AXIS_COUNT || button_count > MAX_GAMEPAD_BUTTON_COUNT || hat_count > MAX_GAMEPAD_HAT_COUNT)
+        return false;
+
+    device->m_LegacyAxisCount = axis_count;
+    device->m_LegacyButtonCount = button_count;
+    device->m_LegacyHatCount = hat_count;
+    device->m_HasLegacyMapping = 1;
+    return true;
+}
+
+static bool BuildLegacyMappingFromGuid(AppleGamepadDevice* device, const char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1])
+{
+    const uint32_t mapping_count = sizeof(dmHIDAppleGamepadDefaultMappings) / sizeof(dmHIDAppleGamepadDefaultMappings[0]);
+    for (uint32_t i = 0; i < mapping_count; ++i)
+    {
+        if (ParseLegacyMappingLine(dmHIDAppleGamepadDefaultMappings[i], guid_string, device))
+            return true;
+    }
+
+    return false;
+}
+#endif
+
+static void BuildDeviceRemap(AppleGamepadDevice* device, const GamepadGuid& guid)
+{
+    ResetLegacyMapping(device);
+
+#if TARGET_OS_OSX
+    char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1];
+    FormatGamepadGuid(guid, guid_string);
+    if (BuildLegacyMappingFromGuid(device, guid_string))
+        return;
+#else
+    (void) guid;
+#endif
+
+    BuildDefaultDeviceRemap(device);
+}
+
+static void DisableSystemGesture(GCControllerButtonInput* button)
+{
+    if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+    {
+        if (button != nil)
+            button.preferredSystemGestureState = GCSystemGestureStateDisabled;
+    }
+}
+
+static void AppleGamepadDriverUpdateSDL(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+{
+    // Keep the raw packet order aligned with SDL's gamepad axis order:
+    // leftx, lefty, rightx, righty, lefttrigger, righttrigger.
+    packet.m_Axis[0] = extended_gamepad.leftThumbstick.xAxis.value;
+    packet.m_Axis[1] = -extended_gamepad.leftThumbstick.yAxis.value;
+    packet.m_Axis[2] = extended_gamepad.rightThumbstick.xAxis.value;
+    packet.m_Axis[3] = -extended_gamepad.rightThumbstick.yAxis.value;
+    packet.m_Axis[4] = extended_gamepad.leftTrigger.value * 2.0f - 1.0f;
+    packet.m_Axis[5] = extended_gamepad.rightTrigger.value * 2.0f - 1.0f;
+
+    uint32_t button_index = 0;
+    SetButtonValue(packet, button_index++, extended_gamepad.buttonA.isPressed);
+    SetButtonValue(packet, button_index++, extended_gamepad.buttonB.isPressed);
+    SetButtonValue(packet, button_index++, extended_gamepad.buttonX.isPressed);
+    SetButtonValue(packet, button_index++, extended_gamepad.buttonY.isPressed);
+
+    if (apple_device->m_HasBackButton)
+    {
+        bool pressed = false;
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(extended_gamepad.buttonOptions);
+            pressed = extended_gamepad.buttonOptions.isPressed;
+        }
+        SetButtonValue(packet, button_index++, pressed);
+    }
+
+    if (apple_device->m_HasStartButton)
+    {
+        bool pressed = false;
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(extended_gamepad.buttonMenu);
+            pressed = extended_gamepad.buttonMenu.isPressed;
+        }
+        SetButtonValue(packet, button_index++, pressed);
+    }
+
+    if (apple_device->m_HasLeftThumbstickButton)
+    {
+        bool pressed = false;
+        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
+            pressed = extended_gamepad.leftThumbstickButton.isPressed;
+        SetButtonValue(packet, button_index++, pressed);
+    }
+
+    if (apple_device->m_HasRightThumbstickButton)
+    {
+        bool pressed = false;
+        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
+            pressed = extended_gamepad.rightThumbstickButton.isPressed;
+        SetButtonValue(packet, button_index++, pressed);
+    }
+
+    SetButtonValue(packet, button_index++, extended_gamepad.leftShoulder.isPressed);
+    SetButtonValue(packet, button_index++, extended_gamepad.rightShoulder.isPressed);
+
+    if (apple_device->m_HasGuideButton)
+    {
+        GCControllerButtonInput* guide_button = GetGuideButton(controller);
+        DisableSystemGesture(guide_button);
+        SetButtonValue(packet, button_index++, guide_button != nil && guide_button.isPressed);
+    }
+
+    if (apple_device->m_HasCaptureButton)
+    {
+        GCControllerButtonInput* capture_button = GetCaptureButton(controller);
+        SetButtonValue(packet, button_index++, capture_button != nil && capture_button.isPressed);
+    }
+
+    packet.m_Hat[0] = GetHatValue(extended_gamepad.dpad);
+}
+
+static void AppleGamepadDriverUpdateLegacyFallback(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+{
+    float semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT] = {};
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X] = extended_gamepad.leftThumbstick.xAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y] = extended_gamepad.leftThumbstick.yAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X] = extended_gamepad.rightThumbstick.xAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y] = extended_gamepad.rightThumbstick.yAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER] = extended_gamepad.leftTrigger.value * 2.0f - 1.0f;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER] = extended_gamepad.rightTrigger.value * 2.0f - 1.0f;
+
+    for (uint32_t i = 0; i < apple_device->m_AxisCount; ++i)
+    {
+        uint8_t semantic_index = apple_device->m_AxisRemap[i];
+        if (semantic_index != APPLE_GAMEPAD_REMAP_INVALID)
+            packet.m_Axis[i] = semantic_axis[semantic_index];
+    }
+
+    bool semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT] = {};
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_A] = extended_gamepad.buttonA.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_B] = extended_gamepad.buttonB.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_X] = extended_gamepad.buttonX.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_Y] = extended_gamepad.buttonY.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER] = extended_gamepad.leftShoulder.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER] = extended_gamepad.rightShoulder.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_UP] = extended_gamepad.dpad.up.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_DOWN] = extended_gamepad.dpad.down.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_LEFT] = extended_gamepad.dpad.left.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_RIGHT] = extended_gamepad.dpad.right.isPressed;
+
+    if (apple_device->m_HasBackButton)
+    {
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(extended_gamepad.buttonOptions);
+            DisableSystemGesture(extended_gamepad.buttonMenu);
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK] = extended_gamepad.buttonMenu.isPressed;
+        }
+    }
+
+    if (apple_device->m_HasStartButton)
+    {
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(extended_gamepad.buttonMenu);
+            DisableSystemGesture(extended_gamepad.buttonOptions);
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_START] = extended_gamepad.buttonOptions.isPressed;
+        }
+    }
+
+    if (apple_device->m_HasLeftThumbstickButton)
+    {
+        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB] = extended_gamepad.leftThumbstickButton.isPressed;
+    }
+
+    if (apple_device->m_HasRightThumbstickButton)
+    {
+        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB] = extended_gamepad.rightThumbstickButton.isPressed;
+    }
+
+    if (apple_device->m_HasGuideButton)
+    {
+        GCControllerButtonInput* guide_button = GetGuideButton(controller);
+        DisableSystemGesture(guide_button);
+        semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE] = guide_button != nil && guide_button.isPressed;
+    }
+
+    if (apple_device->m_HasCaptureButton)
+    {
+        GCControllerButtonInput* capture_button = GetCaptureButton(controller);
+        semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE] = capture_button != nil && capture_button.isPressed;
+    }
+
+    for (uint32_t i = 0; i < apple_device->m_ButtonCount; ++i)
+    {
+        uint8_t semantic_index = apple_device->m_ButtonRemap[i];
+        if (semantic_index != APPLE_GAMEPAD_REMAP_INVALID)
+            SetButtonValue(packet, i, semantic_buttons[semantic_index]);
+    }
+
+    for (uint32_t i = 0; i < apple_device->m_HatCount; ++i)
+    {
+        uint8_t semantic_index = apple_device->m_HatRemap[i];
+        if (semantic_index == APPLE_GAMEPAD_SEMANTIC_HAT_DPAD)
+        {
+            packet.m_Hat[i] = GetHatValue(extended_gamepad.dpad);
+            uint32_t button_base = apple_device->m_ButtonCount + i * 4;
+            SetButtonValue(packet, button_base + 0, extended_gamepad.dpad.up.isPressed);
+            SetButtonValue(packet, button_base + 1, extended_gamepad.dpad.down.isPressed);
+            SetButtonValue(packet, button_base + 2, extended_gamepad.dpad.left.isPressed);
+            SetButtonValue(packet, button_base + 3, extended_gamepad.dpad.right.isPressed);
+        }
+    }
+}
+
+static void AppleGamepadDriverUpdateLegacyMapped(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+{
+    float axis_values[MAX_GAMEPAD_AXIS_COUNT] = {};
+    bool axis_written[MAX_GAMEPAD_AXIS_COUNT] = {};
+
+    float semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT] = {};
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X] = extended_gamepad.leftThumbstick.xAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y] = extended_gamepad.leftThumbstick.yAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X] = extended_gamepad.rightThumbstick.xAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y] = extended_gamepad.rightThumbstick.yAxis.value;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER] = extended_gamepad.leftTrigger.value * 2.0f - 1.0f;
+    semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER] = extended_gamepad.rightTrigger.value * 2.0f - 1.0f;
+
+    bool semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT] = {};
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_A] = extended_gamepad.buttonA.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_B] = extended_gamepad.buttonB.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_X] = extended_gamepad.buttonX.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_Y] = extended_gamepad.buttonY.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER] = extended_gamepad.leftShoulder.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER] = extended_gamepad.rightShoulder.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_UP] = extended_gamepad.dpad.up.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_DOWN] = extended_gamepad.dpad.down.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_LEFT] = extended_gamepad.dpad.left.isPressed;
+    semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_RIGHT] = extended_gamepad.dpad.right.isPressed;
+
+    if (apple_device->m_HasBackButton)
+    {
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(extended_gamepad.buttonOptions);
+            DisableSystemGesture(extended_gamepad.buttonMenu);
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK] = extended_gamepad.buttonMenu.isPressed;
+        }
+    }
+
+    if (apple_device->m_HasStartButton)
+    {
+        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
+        {
+            DisableSystemGesture(extended_gamepad.buttonMenu);
+            DisableSystemGesture(extended_gamepad.buttonOptions);
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_START] = extended_gamepad.buttonOptions.isPressed;
+        }
+    }
+
+    if (apple_device->m_HasLeftThumbstickButton)
+    {
+        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB] = extended_gamepad.leftThumbstickButton.isPressed;
+    }
+
+    if (apple_device->m_HasRightThumbstickButton)
+    {
+        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
+            semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB] = extended_gamepad.rightThumbstickButton.isPressed;
+    }
+
+    if (apple_device->m_HasGuideButton)
+    {
+        GCControllerButtonInput* guide_button = GetGuideButton(controller);
+        DisableSystemGesture(guide_button);
+        semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE] = guide_button != nil && guide_button.isPressed;
+    }
+
+    if (apple_device->m_HasCaptureButton)
+    {
+        GCControllerButtonInput* capture_button = GetCaptureButton(controller);
+        semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE] = capture_button != nil && capture_button.isPressed;
+    }
+
+    for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT; ++i)
+        SetMappedAxisSemanticValue(packet, axis_values, axis_written, apple_device->m_LegacyAxisMap[i], semantic_axis[i]);
+
+    for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT; ++i)
+        SetMappedButtonValue(packet, axis_values, axis_written, apple_device->m_LegacyButtonMap[i], semantic_buttons[i]);
+
+    for (uint32_t i = 0; i < apple_device->m_LegacyAxisCount; ++i)
+        packet.m_Axis[i] = axis_values[i];
+}
+
+static void AppleGamepadDriverUpdateGlfw(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
+{
+    if (apple_device->m_HasLegacyMapping)
+        AppleGamepadDriverUpdateLegacyMapped(apple_device, controller, extended_gamepad, packet);
+    else
+        AppleGamepadDriverUpdateLegacyFallback(apple_device, controller, extended_gamepad, packet);
+
+    PostProcessLegacyPacket(apple_device, controller, packet);
+}
+
 static bool SupportsController(GCController* controller, AppleGamepadDevice* device)
 {
     memset(device, 0, sizeof(*device));
@@ -597,6 +1413,8 @@ static bool SupportsController(GCController* controller, AppleGamepadDevice* dev
         device->m_ButtonCount += device->m_HasGuideButton ? 1 : 0;
         device->m_HasCaptureButton = GetCaptureButton(controller) != nil;
         device->m_ButtonCount += device->m_HasCaptureButton ? 1 : 0;
+        device->m_PacketLayout = APPLE_GAMEPAD_PACKET_LAYOUT_SDL;
+        ResetLegacyMapping(device);
 
         return true;
     }
@@ -758,6 +1576,8 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
         CreateAppleGameControllerGUID(controller, new_device.m_Name, &new_device.m_Guid);
     }
 
+    BuildDeviceRemap(&new_device, new_device.m_Guid);
+
     if (driver->m_Devices.Full())
     {
         driver->m_Devices.OffsetCapacity(1);
@@ -834,10 +1654,6 @@ static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Ga
     memset(packet.m_Buttons, 0, sizeof(packet.m_Buttons));
     memset(packet.m_Hat, 0, sizeof(packet.m_Hat));
 
-    gamepad->m_AxisCount = apple_device->m_AxisCount;
-    gamepad->m_ButtonCount = apple_device->m_ButtonCount;
-    gamepad->m_HatCount = apple_device->m_HatCount;
-
     GCController* controller = apple_device->m_Controller;
     if (controller == nil)
     {
@@ -850,83 +1666,24 @@ static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Ga
         return;
     }
 
-    packet.m_Axis[0] = extended_gamepad.leftThumbstick.xAxis.value;
-    packet.m_Axis[1] = -extended_gamepad.leftThumbstick.yAxis.value;
-    packet.m_Axis[2] = extended_gamepad.leftTrigger.value * 2.0f - 1.0f;
-    packet.m_Axis[3] = extended_gamepad.rightThumbstick.xAxis.value;
-    packet.m_Axis[4] = -extended_gamepad.rightThumbstick.yAxis.value;
-    packet.m_Axis[5] = extended_gamepad.rightTrigger.value * 2.0f - 1.0f;
-
-    uint32_t button_index = 0;
-    if (extended_gamepad.buttonA.isPressed)             packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32); ++button_index;
-    if (extended_gamepad.buttonB.isPressed)             packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32); ++button_index;
-    if (extended_gamepad.buttonX.isPressed)             packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32); ++button_index;
-    if (extended_gamepad.buttonY.isPressed)             packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32); ++button_index;
-    if (extended_gamepad.leftShoulder.isPressed)        packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32); ++button_index;
-    if (extended_gamepad.rightShoulder.isPressed)       packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32); ++button_index;
-
-    if (apple_device->m_HasLeftThumbstickButton)
+    apple_device->m_PacketLayout = gamepad->m_LayoutLegacy ? APPLE_GAMEPAD_PACKET_LAYOUT_GLFW : APPLE_GAMEPAD_PACKET_LAYOUT_SDL;
+    if (apple_device->m_PacketLayout == APPLE_GAMEPAD_PACKET_LAYOUT_GLFW)
     {
-        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
-        {
-            if (extended_gamepad.leftThumbstickButton.isPressed)
-                packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-        }
-        ++button_index;
+        gamepad->m_AxisCount = GetLegacyAxisCount(apple_device);
+        gamepad->m_ButtonCount = GetLegacyButtonCount(apple_device);
+        gamepad->m_HatCount = GetLegacyHatCount(apple_device);
+    }
+    else
+    {
+        gamepad->m_AxisCount = apple_device->m_AxisCount;
+        gamepad->m_ButtonCount = apple_device->m_ButtonCount;
+        gamepad->m_HatCount = apple_device->m_HatCount;
     }
 
-    if (apple_device->m_HasRightThumbstickButton)
-    {
-        if (@available(macOS 10.14.1, iOS 12.1, tvOS 12.1, *))
-        {
-            if (extended_gamepad.rightThumbstickButton.isPressed)
-                packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-        }
-        ++button_index;
-    }
-
-    if (apple_device->m_HasBackButton)
-    {
-        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
-        {
-            if (extended_gamepad.buttonOptions.isPressed)
-                packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-        }
-        ++button_index;
-    }
-
-    if (apple_device->m_HasStartButton)
-    {
-        if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
-        {
-            if (extended_gamepad.buttonMenu.isPressed)
-                packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-        }
-        ++button_index;
-    }
-
-    if (apple_device->m_HasGuideButton)
-    {
-        GCControllerButtonInput* guide_button = GetGuideButton(controller);
-        if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
-        {
-            if (guide_button != nil)
-                guide_button.preferredSystemGestureState = GCSystemGestureStateDisabled;
-        }
-        if (guide_button != nil && guide_button.isPressed)
-            packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-        ++button_index;
-    }
-
-    if (apple_device->m_HasCaptureButton)
-    {
-        GCControllerButtonInput* capture_button = GetCaptureButton(controller);
-        if (capture_button != nil && capture_button.isPressed)
-            packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-        ++button_index;
-    }
-
-    packet.m_Hat[0] = GetHatValue(extended_gamepad.dpad);
+    if (apple_device->m_PacketLayout == APPLE_GAMEPAD_PACKET_LAYOUT_GLFW)
+        AppleGamepadDriverUpdateGlfw(apple_device, controller, extended_gamepad, packet);
+    else
+        AppleGamepadDriverUpdateSDL(apple_device, controller, extended_gamepad, packet);
 }
 
 static void InstallObservers(void)

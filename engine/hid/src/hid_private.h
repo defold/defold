@@ -40,7 +40,8 @@ namespace dmHID
     {
         GamepadPacket  m_Packet;
         HGamepadDriver m_Driver;
-        uint8_t        m_AxisCount;
+        uint8_t        m_AxisCount:7;
+        uint8_t        m_LayoutLegacy:1;     // If true, use the legacy layout scheme
         uint8_t        m_ButtonCount;
         uint8_t        m_HatCount    : 7;
         uint8_t        m_Connected   : 1;

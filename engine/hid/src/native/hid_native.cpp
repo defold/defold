@@ -157,6 +157,8 @@ namespace dmHID
             {
                 context->m_Gamepads[i].m_Driver = DriverToHandle(user_data, driver);
                 assert(context->m_Gamepads[i].m_Driver != DRIVER_HANDLE_FREE);
+
+                context->m_Gamepads[i].m_LayoutLegacy = true; // TODO: For the next task of supporting SDL layouts
                 return &context->m_Gamepads[i];
             }
         }
