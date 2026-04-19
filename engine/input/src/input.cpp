@@ -21,6 +21,7 @@
 #include <dlib/platform.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
+#include <dlib/static_assert.h>
 
 #include "input.h"
 #include "input_private.h"
@@ -30,6 +31,7 @@ namespace dmInput
     const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashString32("UNKNOWN_GAMEPAD_CONFIG_ID");
     static const uint16_t INVALID_INDEX = 0xFFFF;
 
+    DM_STATIC_ASSERT(sizeof(Action) == 448, InvalidStructSize); // Make sure we don't accidentally grow the struct
 
     dmHID::Key KEY_MAP[dmInputDDF::MAX_KEY_COUNT];
     dmHID::MouseButton MOUSE_BUTTON_MAP[dmInputDDF::MAX_KEY_COUNT];

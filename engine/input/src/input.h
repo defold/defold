@@ -25,25 +25,26 @@ namespace dmInput
 {
     struct Action
     {
+        union {
+            dmHID::Touch    m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char            m_Text[dmHID::MAX_CHAR_COUNT];
+        };
+        dmHID::GamepadPacket m_GamepadPacket;
         float m_Value;
         float m_PrevValue;
         float m_RepeatTimer;
+        float m_AccX;
+        float m_AccY;
+        float m_AccZ;
         int16_t m_X;
         int16_t m_Y;
         int16_t m_DX;
         int16_t m_DY;
-        float m_AccX;
-        float m_AccY;
-        float m_AccZ;
-        union {
-            dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-            char         m_Text[dmHID::MAX_CHAR_COUNT];
-        };
+
         /// Text or touch count
-        int16_t      m_Count;
-        uint16_t     m_GamepadIndex;
-        uint16_t     m_UserID;
-        dmHID::GamepadPacket m_GamepadPacket;
+        int16_t  m_Count;
+        uint16_t m_GamepadIndex;
+        uint16_t m_UserID;
 
         uint16_t m_IsGamepad : 1;
         uint16_t m_GamepadUnknown : 1;

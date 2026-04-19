@@ -488,7 +488,6 @@ namespace dmHID
      * @struct
      * @name Touch
      * @member m_TapCount [type: int32_t] Single-click, double, etc
-     * @member m_Phase [type: Phase] Begin, end, etc
      * @member m_X [type: int32_t] Current x
      * @member m_Y [type: int32_t] Current y
      * @member m_ScreenX [type: int32_t] Current x, in screen space
@@ -498,13 +497,12 @@ namespace dmHID
      * @member m_ScreenDX [type: int32_t] Current dx, in screen space
      * @member m_ScreenDY [type: int32_t] Current dy, in screen space
      * @member m_Id [type: int32_t] Touch id
+     * @member m_Phase [type: Phase] Begin, end, etc
      */
     struct Touch
     {
         /// Single-click, double, etc
         uint16_t m_TapCount;
-        /// Begin, end, etc
-        Phase   m_Phase;
         /// Current x
         int16_t m_X;
         /// Current y
@@ -523,6 +521,8 @@ namespace dmHID
         int16_t m_ScreenDY;
         /// Touch id
         int16_t m_Id;
+        /// Begin, end, etc
+        Phase   m_Phase;
     };
 
     /*# gets a keyboard handle
