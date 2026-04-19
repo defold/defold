@@ -83,6 +83,15 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::
 static void PropertyTreeCallback(void* _ctx, dmProfiler::HProperty root);
 static ExtensionResult PreRenderProfiler(dmExtension::Params* params);
 
+static void DeleteProfilerUI()
+{
+    if (gRenderProfile)
+    {
+        dmProfileRender::DeleteRenderProfile(gRenderProfile);
+        gRenderProfile = 0;
+    }
+}
+
 static LuaProfilerScopeState* FindLuaProfilerScopeState(lua_State* L)
 {
     for (LuaProfilerScopeState* state = g_LuaProfilerScopeStates; state != 0; state = state->m_Next)
@@ -267,8 +276,7 @@ void ToggleProfiler()
 {
     if (gRenderProfile)
     {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
+        DeleteProfilerUI();
     }
     else
     {
@@ -468,10 +476,9 @@ static int EnableProfilerUI(lua_State* L)
     {
         gRenderProfile = dmProfileRender::NewRenderProfile(gUpdateFrequency);
     }
-    else if (!enabled && gRenderProfile)
+    else if (!enabled)
     {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
+        DeleteProfilerUI();
     }
 
     return 0;
@@ -1046,12 +1053,7 @@ static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
     AutoCloseLuaProfilerScopes();
     DeleteLuaProfilerScopeStates();
-
-    if (gRenderProfile)
-    {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
-    }
+    DeleteProfilerUI();
     return dmExtension::RESULT_OK;
 }
 
@@ -1097,6 +1099,9 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
     }
 
     dmProfiler::SetEnabled(false);
+    // The profiler UI is process-static, so app-finalize must also tear it
+    // down to avoid carrying prepared text layouts across engine reboots.
+    DeleteProfilerUI();
 
     if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {

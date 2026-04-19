@@ -163,6 +163,8 @@ max_count = 64
 split_meshes = 1
 max_bone_matrix_texture_width = 512
 max_bone_matrix_texture_height = 512
+max_morph_target_texture_width = 1024
+max_morph_target_texture_height = 1024
 
 [particle_fx]
 max_count = 128
@@ -256,6 +258,7 @@ sub_step_count = 3
 track_cpu = 1
 sleep_between_server_updates = 10
 performance_timeline_enabled = 0
+max_sample_count = 8192
 enabled = 1
 
 [render]

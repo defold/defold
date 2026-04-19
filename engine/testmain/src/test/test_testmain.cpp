@@ -12,34 +12,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob;
+#include <stdlib.h>
+#include <string.h>
 
-public class NullProgress implements IProgress {
+#include "../common/testmain.h"
 
-    @Override
-    public IProgress subProgress(int work) {
-        return new NullProgress();
-    }
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
-    @Override
-    public void worked(int amount) {
-    }
+TEST(dmTestMain, PlatformInit)
+{
+    ASSERT_TRUE(TestMainPlatformInit());
 
-    @Override
-    public void beginTask(Task name, int work) {
-    }
+    bool is_attached = TestMainIsDebuggerAttached();
+    printf("DebuggerAttached: %d", is_attached?1:0);
+    fflush(stdout);
+}
 
-    @Override
-    public void done() {
-    }
-
-    @Override
-    public boolean isCanceled() {
-        return false;
-    }
-
-    @Override
-    public void setCanceled(boolean canceled) {
-    }
-
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

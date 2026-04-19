@@ -509,7 +509,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
@@ -735,7 +734,6 @@ progress.cleaning = Limpando…
 progress.generating-report = Gerando relatório…
 progress.working = Trabalhando…
 progress.reading-classes = Lendo classes…
-progress.downloading-archives = Baixando arquivos…
 progress.launching-engine = Lançando motor…
 progress.launched-engine = Lançado {engine}
 progress.engine-launch-failed = Lançamento falhou
@@ -1046,6 +1044,9 @@ operation.drop = Descartar
 operation.paste = Colar
 operation.select = Selecionar
 operation.tile-map.add-layer = Adicionar Camada
+
+# Scene View Popups
+
 
 # Properties
 

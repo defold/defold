@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
+
 #include <dmsdk/dlib/atomic.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
@@ -2293,10 +2294,13 @@ namespace dmGraphics
         g_functions.m_DisableUniformBuffer(context, uniform_buffer);
     }
 
+// TODO: Make graphics.cpp backend agnostic
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
+#if !defined(DM_GRAPHICS_NULL)
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);
+#endif
     }
 #endif
 

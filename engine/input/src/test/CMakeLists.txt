@@ -99,4 +99,7 @@ defold_target_link_graphics(test_input "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
 
 # Register into global build_tests and run_tests with working directory set to engine/input
-defold_register_test_target(test_input ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+defold_register_test_target(test_input ON "${CMAKE_CURRENT_LIST_DIR}/../.."
+    STAGE_FILES
+        "build/src/test/build" "build/src/test/build"
+)

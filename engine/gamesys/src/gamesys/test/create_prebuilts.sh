@@ -78,3 +78,10 @@ cp build/default/model/one_mesh_two_materials.modelc ../model/one_mesh_two_mater
 cp build/default/model/one_mesh_two_materials.rigscenec ../model/one_mesh_two_materials.prebuilt_rigscenec
 cp build/default/model/one_mesh_two_materials.meshsetc ../model/one_mesh_two_materials.prebuilt_meshsetc
 cp build/default/model/one_mesh_two_materials.skeletonc ../model/one_mesh_two_materials.prebuilt_skeletonc
+
+# Morph blend weights (script_model.get_blend_weights / set_blend_weights)
+cp build/default/model/morph_blend_weights.modelc ../model/morph_blend_weights.prebuilt_modelc
+cp build/default/model/morph_blend_weights.rigscenec ../model/morph_blend_weights.prebuilt_rigscenec
+cp build/default/model/morph_weights_anim.meshsetc ../model/morph_weights_anim.prebuilt_meshsetc
+cp build/default/model/morph_weights_anim.skeletonc ../model/morph_weights_anim.prebuilt_skeletonc
+cp build/default/model/morph_weights_anim_generated_0.animationsetc ../model/morph_weights_anim_generated_0.prebuilt_animationsetc

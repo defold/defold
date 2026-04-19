@@ -29,8 +29,8 @@ import java.util.List;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.ConsoleProgress;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -134,7 +134,7 @@ public class JarTest {
         p.scan(scanner, "com.dynamo.bob");
         p.scan(scanner, "com.dynamo.bob.pipeline");
 
-        List<TaskResult> result = p.build(new ConsoleProgress(), "distclean", "build");
+        List<TaskResult> result = p.build(Progress.console(), "distclean", "build");
         assertFalse(result.isEmpty());
         boolean res = true;
         for (TaskResult taskResult : result) {

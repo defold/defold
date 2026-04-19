@@ -14,6 +14,7 @@
 
 #include "text_layout.h"
 #include "fontcollection.h"
+#include <assert.h>
 #include <dmsdk/dlib/utf8.h>
 
 uint32_t TextLayoutGetGlyphCount(HTextLayout layout)
@@ -42,9 +43,21 @@ void TextLayoutGetBounds(HTextLayout layout, float* width, float* height)
     *height = layout->m_Height;
 }
 
-void TextLayoutFree(HTextLayout layout)
+void TextLayoutAcquire(HTextLayout layout)
 {
-    layout->m_Free(layout);
+    assert(layout);
+    assert(layout->m_RefCount > 0);
+    ++layout->m_RefCount;
+}
+
+void TextLayoutRelease(HTextLayout layout)
+{
+    assert(layout);
+    assert(layout->m_RefCount > 0);
+    if (--layout->m_RefCount == 0)
+    {
+        layout->m_Destroy(layout);
+    }
 }
 
 uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints)

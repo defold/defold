@@ -111,7 +111,7 @@ jobs:
   bld-eng-web:
     strategy:
       matrix:
-        platform: [js-web, wasm-web, wasm_pthread-web]
+        platform: [wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps: [
@@ -144,8 +144,12 @@ jobs:
   bld-eng-android:
     strategy:
       matrix:
-        platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-22.04
+        include:
+          - platform: armv7-android
+            skip_tests: true
+          - platform: arm64-android
+            skip_tests: true
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -154,11 +158,19 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      {
+        name: 'Set up Android SDK',
+        uses: defold/github-actions-common/.github/actions/android@master,
+        with: {
+          android-ndk: '25.2.9519653',
+          android-api-level: '36',
+          android-build-tools: '36.1.0'
+        }
+      },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs engine'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {

@@ -37,7 +37,7 @@ def build(bld):
         './script/script_engine.cpp',
         '../proto/engine/engine_ddf.proto']
 
-    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
         source.append('engine_web.cpp')
     elif 'arm64-nx64' in bld.env.PLATFORM:
         source.append('nx64/main_nx64.cpp nx64/engine_nx64.cpp')
@@ -47,7 +47,7 @@ def build(bld):
         source.append('engine_xbox.cpp')
 
     engine_defines = []
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
         engine_defines.append('DM_NO_HTTP_CACHE')
 
     bld.stlib(features = 'cxx ddf embed',
@@ -90,7 +90,7 @@ def build(bld):
                         'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp', 'ScriptFont']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'wasm-web', 'wasm_pthread-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
     elif bld.env['PLATFORM'] in ['x86_64-ps4','x86_64-ps5','x86_64-xbone']:
         pass # dont't add tremolo
@@ -142,11 +142,11 @@ def build(bld):
         profile_lib = ['PROFILE', 'PROFILEREXT']
 
     # remotery isn't supported on all platforms
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
+    if bld.env['PLATFORM'] not in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'):
         profile_lib += ['PROFILER_REMOTERY']
         profile_symbols += ['ProfilerRemotery']
 
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
         profile_lib += ['PROFILER_JS']
         profile_symbols += ['ProfilerJS']
         web_libs += ['library_profile.js']
@@ -225,7 +225,7 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS_NULL'
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-ios', 'x86_64-ios'):
-        graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
+        graphics_lib = 'GRAPHICS_NULL DMGLFW' # glfwAndroidHandleCommand etc are in glfw. UIApplicationMain is currently in glfw
 
     bld.add_group()
 

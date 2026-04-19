@@ -37,7 +37,6 @@ mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
 # mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
-# mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
 mkdir -p libexec/wasm_pthread-web
 
@@ -198,10 +197,6 @@ copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
 # copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
-# copy js-web/dmengine.js js-web/dmengine.js
-# copy js-web/dmengine.js.mem js-web/dmengine.js.mem
-# copy js-web/dmengine_release.js js-web/dmengine_release.js
-# copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
 copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js

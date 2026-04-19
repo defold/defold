@@ -40,8 +40,8 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.util.FileUtil;
@@ -97,7 +97,7 @@ public class ProjectBuildTest {
         }
 
         // project.setOption("platform", Platform.X86Win32.getPair());
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
+        List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }

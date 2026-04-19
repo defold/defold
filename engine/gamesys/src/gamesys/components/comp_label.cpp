@@ -164,7 +164,7 @@ namespace dmGameSystem
     {
         if (component->m_TextLayout)
         {
-            TextLayoutFree(component->m_TextLayout);
+            TextLayoutRelease(component->m_TextLayout);
             component->m_TextLayout = 0;
         }
         component->m_TextLayoutFontVersion = 0;
@@ -205,7 +205,7 @@ namespace dmGameSystem
         if (r != TEXT_RESULT_OK)
         {
             if (layout)
-                TextLayoutFree(layout);
+                TextLayoutRelease(layout);
             return 0;
         }
 

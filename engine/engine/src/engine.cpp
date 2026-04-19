@@ -25,6 +25,7 @@
 
 #include <crash/crash.h>
 #include <dlib/buffer.h>
+#include <dlib/dalloca.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -36,7 +37,6 @@
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
-#include <platform/window.hpp>
 #include <dlib/time.h>
 #include <graphics/graphics.h>
 #include <extension/extension.hpp>
@@ -47,6 +47,7 @@
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/res_lua.h>
 #include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
 #include <sound/sound.h>
@@ -98,10 +99,7 @@ extern uint32_t      DEBUG_SPC_SIZE;
 // before the keyboard is brought up. This choice is stored as a
 // game.project config and used in dmEngine::Init(), passed along to
 // the GLFW Android implementation.
-extern "C" {
-    extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetFullscreenParameters(int, int);
-}
+#include <platform/platform_window_android.h>
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_Script);
@@ -317,6 +315,65 @@ namespace dmEngine
             component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
     }
+
+#if !defined(DM_RELEASE)
+    static bool LoadDebugInitScripts(HEngine engine)
+    {
+        const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
+        if (!init_script || init_script[0] == 0)
+        {
+            return true;
+        }
+
+        dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
+
+        const uint32_t init_script_length = (uint32_t) strlen(init_script);
+        if (init_script_length >= 4096)
+        {
+            dmLogWarning("bootstrap.debug_init_script is too long (%u)", init_script_length);
+            return false;
+        }
+
+        char* init_script_buffer = (char*) dmAlloca(init_script_length + 1);
+        dmStrlCpy(init_script_buffer, init_script, init_script_length + 1);
+
+        char* iter = 0;
+        char* filename = dmStrTok(init_script_buffer, ",", &iter);
+        do
+        {
+            if (!filename || filename[0] == 0)
+            {
+                continue;
+            }
+
+            dmLuaDDF::LuaModule* lua_module = 0;
+            dmResource::Result r = dmGameObject::LoadLuaModule(engine->m_Factory, filename, &lua_module);
+            if (r != dmResource::RESULT_OK)
+            {
+                dmLogWarning("Failed to load script: %s (%d)", filename, r);
+                return false;
+            }
+
+            // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
+            // Here, we have an already resolved filename string.
+            if (engine->m_SharedScriptContext)
+            {
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
+            }
+            else
+            {
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
+            }
+
+            dmDDF::FreeMessage(lua_module);
+
+        } while( (filename = dmStrTok(0, ",", &iter)) );
+
+        return true;
+    }
+#endif
 
     Stats::Stats()
     : m_FrameCount(0)
@@ -1433,6 +1490,8 @@ namespace dmEngine
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
         engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
         engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
+        engine->m_ModelContext.m_MaxMorphTargetTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_width", 1024);
+        engine->m_ModelContext.m_MaxMorphTargetTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_height", 1024);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1485,7 +1544,7 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context, &engine->m_ModelContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
@@ -1508,57 +1567,9 @@ namespace dmEngine
         }
 
 #if !defined(DM_RELEASE)
+        if (!LoadDebugInitScripts(engine))
         {
-            const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
-            if (init_script && init_script[0] != 0)
-            {
-                dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
-                char* tmp = strdup(init_script);
-                char* iter = 0;
-                char* filename = dmStrTok(tmp, ",", &iter);
-                do
-                {
-                    if (!filename || strlen(filename) == 0) {
-                        continue;
-                    }
-
-                    // We need the size, in order to send it as a proper LuaModule message
-                    void* data;
-                    uint32_t datasize;
-                    dmResource::Result r = dmResource::GetRaw(engine->m_Factory, filename, (void**)&data, &datasize);
-                    if (r != dmResource::RESULT_OK) {
-                        dmLogWarning("Failed to load script: %s (%d)", filename, r);
-                        free(tmp);
-                        return false;
-                    }
-
-
-                    dmLuaDDF::LuaModule* lua_module = 0;
-                    dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(data, datasize, &lua_module);
-                    if ( e != dmDDF::RESULT_OK ) {
-                        free(tmp);
-                        free(data);
-                        dmLogWarning("Failed to load LuaModule message from: %s (%d)", filename, r);
-                        return false;
-                    }
-
-                    // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
-                    // Here, we have an already resolved filename string.
-                    if (engine->m_SharedScriptContext) {
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
-                    }
-                    else {
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
-                    }
-
-                    dmDDF::FreeMessage(lua_module);
-                    free(data);
-
-                } while( (filename = dmStrTok(0, ",", &iter)) );
-                free(tmp);
-            }
+            return false;
         }
 #endif
 
@@ -1681,18 +1692,19 @@ namespace dmEngine
         {
             const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
 
-            int use_hidden_inputfield = 0;
+            bool use_hidden_inputfield = false;
             if (!strcmp(input_method, "HiddenInputField"))
-                use_hidden_inputfield = 1;
+                use_hidden_inputfield = true;
             else if (strcmp(input_method, "KeyEvents"))
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
 
-            _glfwAndroidSetInputMethod(use_hidden_inputfield);
+            dmPlatform::SetAndroidInputMethod(use_hidden_inputfield);
         }
         {
-            int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
-            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
+            bool immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0) != 0;
+            bool display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1) != 0;
+
+            dmPlatform::SetAndroidFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 

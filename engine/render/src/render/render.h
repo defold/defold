@@ -49,6 +49,8 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
     extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
+    extern const dmhash_t SAMPLER_MORPH_TARGETS;
+    extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -365,6 +367,7 @@ namespace dmRender
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
+    bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
