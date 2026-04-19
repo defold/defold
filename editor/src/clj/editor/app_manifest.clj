@@ -511,7 +511,8 @@
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. Do not require excludeLibs /
 ;; excludeSymbols (see vulkan.appmanifest vs vulkan_and_opengl.appmanifest — the latter
 ;; leaves those empty on Android while still shipping GLES+Vulkan on desktop).
-;; :both must be listed before :vulkan so GLES+Vulkan manifests match :both first.
+;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
+;; Final :vulkan is :none — empty / unspecified Android context defaults to Vulkan (engine default).
 (def vulkan-android-toggles
   (concat
     (libs-toggles android ["graphics_vulkan"])
@@ -523,12 +524,12 @@
             (libs-toggles android ["graphics" "graphics_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGL" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :dynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"]))
-    :vulkan vulkan-android-toggles
     :open-gl (concat
                open-gl-android-toggles
                (exclude-libs-toggles android ["graphics_vulkan"])
                (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterVulkan"]))
-    :open-gl))
+    :vulkan vulkan-android-toggles
+    :vulkan))
 
 (def open-gl-osx-toggles
   (concat
