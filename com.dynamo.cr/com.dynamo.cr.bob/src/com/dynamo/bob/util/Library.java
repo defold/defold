@@ -64,7 +64,7 @@ public final class Library {
     public static List<Result> cached(Collection<URI> uris, Path libDir) {
         Objects.requireNonNull(uris, "uris");
         Objects.requireNonNull(libDir, "libDir");
-        var taggedResults = scanInstalledArchives(uniqueUris(uris), libDir);
+        var taggedResults = scanInstalledArchives(uniqueValidUris(uris), libDir);
         var results = new ArrayList<Result>(taggedResults.size());
         for (var taggedResult : taggedResults) {
             results.add(taggedResult.result());
@@ -89,7 +89,7 @@ public final class Library {
             Objects.requireNonNull(libDir, "libDir");
             Objects.requireNonNull(progress, "progress");
 
-            var uniqueUris = uniqueUris(uris);
+            var uniqueUris = uniqueValidUris(uris);
             progress.message(new IProgress.Message.DownloadingArchives(uniqueUris.size()));
             var split = progress.split(uniqueUris.size());
 
@@ -101,14 +101,25 @@ public final class Library {
             try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 Files.createDirectories(libDir);
                 var tasks = new ArrayList<Future<Result>>(uniqueUris.size());
-                var hostLimits = new ConcurrentHashMap<String, Semaphore>();
+                var downloadTasksByHost = new HashMap<URI, List<Future<Result>>>();
+                var hostLimits = new ConcurrentHashMap<URI, Semaphore>();
                 for (var uri : uniqueUris) {
                     var cachedResult = cachedByUri.get(uri);
-                    tasks.add(executor.submit(() -> fetchTask(uri, cachedResult, libDir, email, auth, split.subtask(), hostLimits)));
+                    var task = executor.submit(() -> fetchTask(uri, cachedResult, libDir, email, auth, split.subtask(), hostLimits));
+                    tasks.add(task);
+                    downloadTasksByHost.computeIfAbsent(hostKey(uri), _ -> new ArrayList<>()).add(task);
                 }
+
+                downloadTasksByHost.forEach((host, downloadTasks) -> executor.execute(() -> probeHost(host, downloadTasks)));
+
                 var results = new ArrayList<Result>(tasks.size());
-                for (var task : tasks) {
-                    results.add(task.get());
+                for (var i = 0; i < tasks.size(); i++) {
+                    try {
+                        results.add(tasks.get(i).get());
+                    } catch (CancellationException e) {
+                        var uri = uniqueUris.get(i);
+                        results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed()));
+                    }
                 }
                 return results;
             } catch (InterruptedException | ExecutionException | IOException e) {
@@ -137,8 +148,21 @@ public final class Library {
         return inspection.archive();
     }
 
+    private static void probeHost(URI host, List<Future<Result>> downloadTasks) {
+        try {
+            var request = HttpRequest.newBuilder(host).method("HEAD", HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofSeconds(5)).build();
+            HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding());
+        } catch (IOException e) {
+            for (var downloadTask : downloadTasks) {
+                downloadTask.cancel(true);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private static Result fetchTask(URI uri, TaggedResult cachedResult, Path libDir, String email, String auth, IProgress progress,
-                                    ConcurrentHashMap<String, Semaphore> hostLimits) {
+                                    ConcurrentHashMap<URI, Semaphore> hostLimits) {
         try (progress) {
             URI sanitizedUri;
             try {
@@ -147,10 +171,7 @@ public final class Library {
                 sanitizedUri = URI.create(uri.getScheme() + "://" + uri.getHost() + uri.getPath());
             }
             progress.message(new IProgress.Message.DownloadingArchive(sanitizedUri));
-            var hostKey = uri.getHost() != null
-                    ? uri.getScheme() + "://" + uri.getHost() + ':' + uri.getPort()
-                    : (uri.getAuthority() != null ? uri.getAuthority() : uri.toString());
-            var permit = hostLimits.computeIfAbsent(hostKey, _ -> new Semaphore(FETCHES_PER_HOST));
+            var permit = hostLimits.computeIfAbsent(hostKey(uri), _ -> new Semaphore(FETCHES_PER_HOST));
             permit.acquire();
             try {
                 return fetchOne(uri, cachedResult, libDir, email, auth);
@@ -299,12 +320,29 @@ public final class Library {
         return null;
     }
 
-    private static LinkedHashSet<URI> uniqueUris(Collection<URI> uris) {
-        var unique = new LinkedHashSet<URI>();
+    private static List<URI> uniqueValidUris(Collection<URI> uris) {
+        var uniqueUris = new ArrayList<URI>();
+        var seenUris = new HashSet<URI>();
         for (var uri : uris) {
-            unique.add(Objects.requireNonNull(uri, "uri"));
+            Objects.requireNonNull(uri, "uri");
+            if (!seenUris.add(uri)) {
+                continue;
+            }
+            var scheme = uri.getScheme();
+            if ((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) || uri.isOpaque() || uri.getHost() == null) {
+                throw new IllegalArgumentException("Library URI must be an HTTP(S) URI with a host: " + uri);
+            }
+            uniqueUris.add(uri);
         }
-        return unique;
+        return uniqueUris;
+    }
+
+    private static URI hostKey(URI uri) {
+        try {
+            return new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), null, null, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("Invalid host URI " + uri, e);
+        }
     }
 
     private static List<TaggedResult> scanInstalledArchives(Collection<URI> uniqueUris, Path libDir) {
