@@ -21,6 +21,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -386,7 +387,7 @@
                 render-args (assoc render-args :view-proj (:world-view-proj render-args))
                 vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-              (shader/bind-preview-lights-for-shader! gl shader render-args)
+              (light/bind-preview-lights-for-shader! gl shader render-args)
               (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
               #_(if selected

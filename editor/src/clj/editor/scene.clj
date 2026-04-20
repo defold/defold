@@ -26,6 +26,7 @@
             [editor.fxui :as fxui]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
@@ -669,7 +670,7 @@
     {:renderables filtered-additional-renderables-by-pass}))
 
 (g/defnk produce-pass->render-args [^Region viewport camera scene-render-data]
-  (let [preview-lights (shader/packed-lights-from-scene (:renderables scene-render-data))]
+  (let [preview-lights (light/packed-lights-from-scene (:renderables scene-render-data))]
     (into {}
           (map (fn [pass]
                  [pass (assoc (pass-render-args viewport camera pass)
