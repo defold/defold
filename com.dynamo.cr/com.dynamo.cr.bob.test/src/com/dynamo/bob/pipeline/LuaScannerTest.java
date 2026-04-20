@@ -187,13 +187,22 @@ public class LuaScannerTest {
         assertProperty(properties, "prop2", Double.valueOf(1.0), 1);
         assertProperty(properties, "prop3", Double.valueOf(.1), 2);
         assertProperty(properties, "prop4", Double.valueOf(-1.0E2), 3);
+
+        properties = getPropertiesFromString(
+                "go.property(\"hex\", 0x1)\n" +
+                "go.property(\"hex_float\", 0x1.8)\n" +
+                "go.property(\"negative_hex\", -0x1)");
+        assertEquals(3, properties.size());
+        assertProperty(properties, "hex", Double.valueOf(1.0), 0);
+        assertProperty(properties, "hex_float", Double.valueOf(1.5), 1);
+        assertProperty(properties, "negative_hex", Double.valueOf(-1.0), 2);
     }
 
     @Test
     public void testPropsFail() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_fail.lua");
 
-        assertTrue(properties.size() >= 1);
+        assertEquals(2, properties.size());
         for (Property property : properties) {
             assertEquals(Status.INVALID_VALUE, property.status());
         }
@@ -241,6 +250,16 @@ public class LuaScannerTest {
         assertProperty(properties, "prop1", new Vector3d(), 0);
         assertProperty(properties, "prop2", new Vector3d(1, 2, 3), 1);
         assertPropertyStatus(properties, "prop3", Status.INVALID_VALUE, 2);
+
+        var result = LuaScanner.parse("go.property('hex', vmath.vector3(0x1, 0x1.8, 0x1p2))");
+        assertEquals(0, result.errors().size());
+        assertEquals(1, result.properties().size());
+        assertProperty(result.properties(), "hex", new Vector3d(1, 1.5, 4), 0);
+
+        result = LuaScanner.parse("go.property('vec', vmath.vector3(1,,2))");
+        assertEquals(1, result.properties().size());
+        assertPropertyStatus(result.properties(), "vec", Status.INVALID_VALUE, 0);
+        assertTrue(result.errors().stream().noneMatch(error -> error.message().startsWith("wrong number format")));
     }
 
     @Test
@@ -612,19 +631,14 @@ public class LuaScannerTest {
         assertEquals(8, errors.size());
 
         errors = LuaScanner.parse("go.property('foo', vmath.vector3(1a, 2, 3))").errors();
-        assertEquals(4, errors.size());
+        assertEquals(3, errors.size());
         assertEquals("missing ')' at '('", errors.get(0).message());
         assertEquals("mismatched input '2' expecting {'(', NAME}", errors.get(1).message());
         assertEquals("mismatched input '3' expecting {'(', NAME}", errors.get(2).message());
-        assertEquals("expecting a function", errors.get(3).message());
 
         errors = LuaScanner.parse("go.property('local', resource.atlas(atlas_path))").errors();
         assertEquals(1, errors.size());
         assertEquals("expected a string literal resource argument", errors.get(0).message());
-
-        errors = LuaScanner.parse("go.property('hex', vmath.vector3(0x1, 2, 3))").errors();
-        assertEquals(1, errors.size());
-        assertEquals("wrong number format: '0x1'", errors.get(0).message());
 
         errors = LuaScanner.parse("go.property('vec', vmath.vector3(1, 2, 3, 4))").errors();
         assertEquals(1, errors.size());
