@@ -19,17 +19,19 @@ import com.dynamo.bob.archive.EngineVersion;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FilenameUtils;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -44,9 +46,11 @@ import java.util.zip.ZipFile;
 /// values and keep mount/reload policy outside this class.
 public final class Library {
     private static final Logger logger = Logger.getLogger(Library.class.getName());
-    private static final int CONNECT_TIMEOUT_MS = 2000;
-    private static final int READ_TIMEOUT_MS = 15000;
     private static final int FETCHES_PER_HOST = 4;
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofMillis(2000))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
 
     private Library() {
     }
@@ -88,8 +92,6 @@ public final class Library {
             var uniqueUris = uniqueUris(uris);
             progress.message(new IProgress.Message.DownloadingArchives(uniqueUris.size()));
             var split = progress.split(uniqueUris.size());
-            var hostLimits = new ConcurrentHashMap<String, Semaphore>();
-            var tasks = new ArrayList<Future<Result>>(uniqueUris.size());
 
             var cachedResults = scanInstalledArchives(uniqueUris, libDir);
             var cachedByUri = new HashMap<URI, TaggedResult>(cachedResults.size());
@@ -98,6 +100,8 @@ public final class Library {
             }
             try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 Files.createDirectories(libDir);
+                var tasks = new ArrayList<Future<Result>>(uniqueUris.size());
+                var hostLimits = new ConcurrentHashMap<String, Semaphore>();
                 for (var uri : uniqueUris) {
                     var cachedResult = cachedByUri.get(uri);
                     tasks.add(executor.submit(() -> fetchTask(uri, cachedResult, libDir, email, auth, split.subtask(), hostLimits)));
@@ -160,72 +164,53 @@ public final class Library {
     }
 
     private static Result fetchOne(URI uri, TaggedResult cachedResult, Path libDir, String email, String auth) {
-        HttpURLConnection connection = null;
-        Path stagedPath = null;
         var cachedArchive = cachedResult.result().archive();
         try {
-            connection = (HttpURLConnection) uri.toURL().openConnection();
-            connection.setRequestProperty("Accept", "application/zip");
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
+            var request = HttpRequest.newBuilder(uri).GET().header("Accept", "application/zip");
             var userInfo = uri.getUserInfo();
             if (userInfo != null) {
                 var parts = userInfo.split(":", 2);
                 var user = replaceUserInfoEnv(parts[0]);
-                var resolvedUserInfo = parts.length == 1
-                        ? user
-                        : user + ':' + replaceUserInfoEnv(parts[1]);
-                connection.setRequestProperty("Authorization",
-                        "Basic " + Base64.getEncoder().encodeToString(resolvedUserInfo.getBytes(StandardCharsets.UTF_8)));
+                var resolvedUserInfo = parts.length == 1 ? user : user + ':' + replaceUserInfoEnv(parts[1]);
+                request.header("Authorization", "Basic " + Base64.getEncoder().encodeToString(resolvedUserInfo.getBytes(StandardCharsets.UTF_8)));
             } else if (email != null && auth != null) {
-                connection.setRequestProperty("X-Email", email);
-                connection.setRequestProperty("X-Auth", auth);
+                request.header("X-Email", email);
+                request.header("X-Auth", auth);
             }
-
             if (cachedResult.tag() != null && !cachedResult.tag().isEmpty()) {
-                connection.setRequestProperty("If-None-Match", cachedResult.tag());
+                request.header("If-None-Match", cachedResult.tag());
             }
+            var stagedPath = Files.createTempFile(libDir, cacheKey(uri) + '-', ".zip.tmp");
+            try {
+                var response = HTTP_CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofFile(stagedPath));
+                var code = response.statusCode();
+                if (code == 304) {
+                    return cachedResult.result();
+                }
+                if (code >= 400) {
+                    return new Result(uri, cachedArchive, new Problem.FetchFailed());
+                }
+                // Validate and inspect the downloaded archive before replacing the
+                // installed copy in the shared cache.
+                var stagedInspection = inspectArchive(stagedPath);
+                if (stagedInspection.problem() != null) {
+                    return new Result(uri, cachedArchive, stagedInspection.problem());
+                }
 
-            connection.connect();
-            var code = connection.getResponseCode();
-            if (code == HttpURLConnection.HTTP_NOT_MODIFIED) {
-                return cachedResult.result();
-            }
-            if (code >= 400) {
-                return new Result(uri, cachedArchive, new Problem.FetchFailed());
-            }
-
-            var tag = connection.getHeaderField("ETag");
-            if (tag == null) {
-                tag = "";
-            }
-
-            stagedPath = Files.createTempFile(libDir, cacheKey(uri) + '-', ".zip.tmp");
-            try (InputStream input = new BufferedInputStream(connection.getInputStream())) {
-                Files.copy(input, stagedPath, StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            // Validate and inspect the downloaded archive before replacing the
-            // installed copy in the shared cache.
-            var stagedInspection = inspectArchive(stagedPath);
-            if (stagedInspection.problem() != null) {
-                return new Result(uri, cachedArchive, stagedInspection.problem());
-            }
-
-            return install(uri, libDir, stagedPath, stagedInspection.archive(), tag, cachedArchive);
-        } catch (IOException e) {
-            return new Result(uri, cachedArchive, new Problem.FetchFailed());
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-            if (stagedPath != null) {
+                var tag = response.headers().firstValue("ETag").orElse("");
+                return install(uri, libDir, stagedPath, stagedInspection.archive(), tag, cachedArchive);
+            } finally {
                 try {
                     Files.deleteIfExists(stagedPath);
                 } catch (IOException e) {
                     logger.log(Level.FINE, "Failed to clean staged library " + stagedPath, e);
                 }
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return new Result(uri, cachedArchive, new Problem.FetchFailed());
+        } catch (IOException e) {
+            return new Result(uri, cachedArchive, new Problem.FetchFailed());
         }
     }
 
