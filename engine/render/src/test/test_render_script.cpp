@@ -41,7 +41,7 @@ namespace
 {
     // NOTE: we don't generate actual bytecode for this test-data, so
     // just pass in regular lua source instead.
-    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    dmLuaDDF::LuaSource *LuaSourceFromStringAndFilename(const char *source, const char* filename)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
@@ -51,8 +51,13 @@ namespace
         tmp.m_Bytecode.m_Count = strlen(source);
         tmp.m_Bytecode64.m_Data = (uint8_t*)source;
         tmp.m_Bytecode64.m_Count = strlen(source);
-        tmp.m_Filename = "render-dummy";
+        tmp.m_Filename = filename;
         return &tmp;
+    }
+
+    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    {
+        return LuaSourceFromStringAndFilename(source, "render-dummy");
     }
 }
 
@@ -235,6 +240,40 @@ TEST_F(dmRenderScriptTest, TestReload)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// https://github.com/defold/defold/issues/12218
+TEST_F(dmRenderScriptTest, TestReloadPreservesInstanceReferenceAndUpdatesSourceFileName)
+{
+    const char* script_a =
+        "function init(self)\n"
+        "end\n";
+    const char* script_b =
+        "function update(self, dt)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromStringAndFilename(script_a, "render-a"));
+    ASSERT_NE((void*)0, render_script);
+
+    int instance_reference = render_script->m_InstanceReference;
+    const char* initial_source_file_name = render_script->m_SourceFileName;
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+
+    ASSERT_NE(LUA_NOREF, instance_reference);
+    ASSERT_STREQ("render-a", initial_source_file_name);
+
+    ASSERT_TRUE(dmRender::ReloadRenderScript(m_Context, render_script, LuaSourceFromStringAndFilename(script_b, "render-b")));
+
+    ASSERT_EQ(instance_reference, render_script->m_InstanceReference);
+    ASSERT_NE((const char*)0, render_script->m_SourceFileName);
+    ASSERT_STREQ("render-b", render_script->m_SourceFileName);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+    ASSERT_TRUE(lua_isuserdata(L, -1));
+    ASSERT_EQ((void*)render_script, lua_touserdata(L, -1));
+    lua_pop(L, 1);
+
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
