@@ -65,6 +65,8 @@ namespace dmGraphics
     static void           VulkanSetTextureParamsInternal(VulkanContext* context, VulkanTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     static void           CopyToTexture(VulkanContext* context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut);
     static VkFormat       GetVulkanFormatFromTextureFormat(TextureFormat format);
+    static bool           EndRenderPass(VulkanContext* context);
+    static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -251,6 +253,28 @@ namespace dmGraphics
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
+    }
+
+    static void FlushPendingRenderTargetClear(VulkanContext* context, HRenderTarget render_target)
+    {
+        if (render_target == 0x0 || context->m_RenderTargetBound)
+        {
+            return;
+        }
+
+        bool has_pending_clear = false;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            has_pending_clear = rt && rt->m_HasPendingClearColor;
+        }
+
+        if (has_pending_clear)
+        {
+            // Materialize clear-only passes before command order moves on to another target.
+            BeginRenderPass(context, render_target);
+            EndRenderPass(context);
+        }
     }
 
     static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t frame_resource_count, FrameResource* frame_resources_out)
@@ -2416,6 +2440,16 @@ bail:
         return 0x0;
     }
 
+    static inline VulkanTexture* ResolveTextureDescriptorTexture(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding)
+    {
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_handle);
+        if (texture == 0x0)
+        {
+            texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
+        }
+        return texture;
+    }
+
     static inline VkDescriptorType TextureTypeToDescriptorType(ShaderDesc::ShaderDataType type)
     {
         switch(type)
@@ -2464,12 +2498,7 @@ bail:
 
     static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
-        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_handle);
-
-        if (texture == 0x0)
-        {
-            texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
-        }
+        VulkanTexture* texture = ResolveTextureDescriptorTexture(context, texture_handle, binding);
 
         if (texture->m_PendingUpload != INVALID_OPAQUE_HANDLE)
         {
@@ -2696,8 +2725,25 @@ bail:
             {
                 case BINDING_FAMILY_TEXTURE:
                 {
-                    HTexture texture = context->m_TextureUnits[next->m_TextureUnit];
-                    dmHashUpdateBuffer64(&hash_state, &texture, sizeof(texture));
+                    VulkanTexture* texture = ResolveTextureDescriptorTexture(context, context->m_TextureUnits[next->m_TextureUnit], res);
+                    VkImageView image_view = texture ? texture->m_Handle.m_ImageView : VK_NULL_HANDLE;
+                    VkSampler image_sampler = texture ? context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler : VK_NULL_HANDLE;
+
+                    if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+                    {
+                        image_sampler = VK_NULL_HANDLE;
+                    }
+                    else if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_IMAGE2D || res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_UIMAGE2D)
+                    {
+                        image_sampler = VK_NULL_HANDLE;
+                    }
+                    else if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    {
+                        image_view = VK_NULL_HANDLE;
+                    }
+
+                    dmHashUpdateBuffer64(&hash_state, &image_view, sizeof(image_view));
+                    dmHashUpdateBuffer64(&hash_state, &image_sampler, sizeof(image_sampler));
                 } break;
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
@@ -4186,6 +4232,8 @@ bail:
             // if not, the next Clear/DrawSetup will open it lazily.
             return;
         }
+
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
 
         // End the currently open render pass (if any) without eagerly beginning the new one.
         // The new pass is opened on demand by VulkanClear / DrawSetup, which both call
