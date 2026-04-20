@@ -259,7 +259,8 @@ public class LuaScannerTest {
         result = LuaScanner.parse("go.property('vec', vmath.vector3(1,,2))");
         assertEquals(1, result.properties().size());
         assertPropertyStatus(result.properties(), "vec", Status.INVALID_VALUE, 0);
-        assertTrue(result.errors().stream().noneMatch(error -> error.message().startsWith("wrong number format")));
+        assertEquals(1, result.errors().size());
+        assertEquals("extraneous input ','", result.errors().get(0).message().substring(0, "extraneous input ','".length()));
     }
 
     @Test
