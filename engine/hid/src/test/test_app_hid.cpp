@@ -239,7 +239,7 @@ static void AppendGamepadStatus(EngineCtx* engine, char* buffer, uint32_t buffer
     dmHID::GamepadGuid guid;
     dmHID::GetGamepadDeviceGuid(engine->m_HidContext, pad, &guid);
     char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
-    dmHID::FormatGamepadGuid(guid, guid_string);
+    dmHID::FormatGamepadGuid(&guid, guid_string);
 
     AppendStatusLine(buffer, buffer_size, offset, "Pad %u: '%s' - '%s' %s\n", gamepad_index, device_name, device_name_sdl, guid_string);
     AppendStatusLine(buffer, buffer_size, offset, "  Buttons:");
@@ -750,7 +750,7 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
         dmHID::GamepadGuid guid;
         dmHID::GetGamepadDeviceGuid(g_EngineCtx.m_HidContext, pad, &guid);
         char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
-        dmHID::FormatGamepadGuid(guid, guid_string);
+        dmHID::FormatGamepadGuid(&guid, guid_string);
 
         if (g_EngineCtx.m_InteractiveOutput)
         {

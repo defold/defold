@@ -71,9 +71,9 @@ bool ParseGamepadGuid(const char* guid_string, GamepadGuid* guid)
     return true;
 }
 
-void FormatGamepadGuid(const GamepadGuid& guid, char buffer[MAX_GAMEPAD_GUID_LENGTH + 1])
+void FormatGamepadGuid(const GamepadGuid* guid, char buffer[MAX_GAMEPAD_GUID_LENGTH + 1])
 {
-    EncodeGamepadGUID((const uint8_t*) &guid, buffer);
+    EncodeGamepadGUID((const uint8_t*)guid, buffer);
 }
 
 static uint16_t UpdateCRC16(uint16_t crc, const uint8_t* data, uint32_t data_length)

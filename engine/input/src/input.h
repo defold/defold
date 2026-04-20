@@ -30,6 +30,9 @@ namespace dmInput
             char            m_Text[dmHID::MAX_CHAR_COUNT];
         };
         dmHID::GamepadPacket m_GamepadPacket;
+        union {
+            dmHID::HGamepad m_Gamepad;
+        };
         float m_Value;
         float m_PrevValue;
         float m_RepeatTimer;

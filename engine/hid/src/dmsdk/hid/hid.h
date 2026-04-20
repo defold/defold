@@ -124,6 +124,11 @@ namespace dmHID
      * @name dmHID::MAX_CHAR_COUNT
      */
     const static uint32_t MAX_CHAR_COUNT = 256;
+    /*# max number of characters for a guid
+     * @constant
+     * @name dmHID::MAX_GAMEPAD_GUID_LENGTH
+     */
+    const uint8_t MAX_GAMEPAD_GUID_LENGTH = 32;
 
     /*# touch phase enumeration
      * @note By convention the enumeration corresponds to the iOS values
@@ -525,6 +530,34 @@ namespace dmHID
         Phase   m_Phase;
     };
 
+    /*#
+     * Parsed SDL-style gamepad guid.
+     * The struct matches SDL's 16-byte guid layout and can be converted back to
+     * the 32-character hexadecimal guid string with dmHID::FormatGamepadGuid().
+     *
+     * @struct
+     * @name GamepadGuid
+     * @member m_Bus [type: uint16_t] How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.
+     * @member m_CRC16 [type: uint16_t] SDL CRC16 signature, typically used when vendor and product ids are unavailable
+     * @member m_Vendor [type: uint16_t] USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e
+     * @member m_Product [type: uint16_t] USB product id
+     * @member m_Version [type: uint16_t] Device or firmware version encoded in the guid
+     * @member m_DriverSignature [type: uint8_t] Driver signature byte from the SDL guid layout
+     * @member m_DriverData [type: uint8_t] Driver-specific data byte from the SDL guid layout
+     */
+    struct GamepadGuid
+    {
+        uint16_t m_Bus;
+        uint16_t m_CRC16;
+        uint16_t m_Vendor;
+        uint16_t :16;
+        uint16_t m_Product;
+        uint16_t :16;
+        uint16_t m_Version;
+        uint8_t  m_DriverSignature;
+        uint8_t  m_DriverData;
+    };
+
     /*# gets a keyboard handle
      * @name GetKeyboard
      * @param context [type: dmHID::HContext] context in which to find the gamepad
@@ -561,11 +594,32 @@ namespace dmHID
     /*# gets a gamepad device handle
      *
      * @name GetGamePad
+     * @param context [type: dmHID::HContext] context in which to find the gamepad
      * @param gamepad [type: dmHID::HGamepad] Handle to gamepad
      * @param out [type: void**] Platform specific user id data
      * @return result [type: boolean] true if gamepad has a user id data assigned to it
      */
     bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out);
+
+    /*#
+     * Retrieves the guid of a given gamepad.
+     *
+     * @name GetGamepadDeviceGuid
+     * @param context [type: dmHID::HContext] context in which to find the gamepad
+     * @param gamepad [type: dmHID::HGamepad] Handle to gamepad
+     * @param guid [type: GamepadGuid*] (out) the guid
+     * @return result [type: boold] true if the gamepad had a guid
+     */
+    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid);
+
+    /*#
+     * Formats a gamepad guid into the 32-character SDL hex representation.
+     *
+     * @name FormatGamepadGuid
+     * @param guid [type: GamepadGuid*] the parsed guid
+     * @param buffer [type: char*] output buffer of size dmHID::MAX_GAMEPAD_GUID_LENGTH + 1
+     */
+    void FormatGamepadGuid(const GamepadGuid* guid, char buffer[MAX_GAMEPAD_GUID_LENGTH + 1]);
 
     /*# Adds a touch event touch.
      * @name AddTouch

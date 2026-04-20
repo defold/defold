@@ -32,20 +32,6 @@ namespace dmHID
     const HContext INVALID_CONTEXT = 0;
     const uint8_t MAX_GAMEPAD_NAME_LENGTH = 128;
     const uint8_t MAX_GAMEPAD_NAME_COUNT  = 2;
-    const uint8_t MAX_GAMEPAD_GUID_LENGTH = 32;
-
-    struct GamepadGuid
-    {
-        uint16_t m_Bus;
-        uint16_t m_CRC16;
-        uint16_t m_Vendor;
-        uint16_t m_Reserved0;
-        uint16_t m_Product;
-        uint16_t m_Reserved1;
-        uint16_t m_Version;
-        uint8_t  m_DriverSignature;
-        uint8_t  m_DriverData;
-    };
 
     enum KeyboardType
     {
@@ -204,24 +190,6 @@ namespace dmHID
      * @param buffer a pointer to memory where the name should be stored (size dmHID::MAX_GAMEPAD_NAME_LENGTH)
      */
     void GetGamepadDeviceNameSDL(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
-
-    /**
-     * Retrieves the guid of a given gamepad.
-     *
-     * @name GetGamepadDeviceGuid
-     * @param context the hid context
-     * @param gamepad gamepad handle
-     * @param guid a pointer to a guid struct that will be filled in
-     */
-    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid);
-
-    /**
-     * Formats a gamepad guid into the 32-character SDL hex representation.
-     *
-     * @param guid the parsed guid
-     * @param buffer output buffer of size dmHID::MAX_GAMEPAD_GUID_LENGTH + 1
-     */
-    void FormatGamepadGuid(const GamepadGuid& guid, char buffer[MAX_GAMEPAD_GUID_LENGTH + 1]);
 
     /**
      * Check if a keyboard is connected.

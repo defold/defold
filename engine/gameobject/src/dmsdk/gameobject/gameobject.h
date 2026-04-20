@@ -433,6 +433,15 @@ namespace dmGameObject
     {
         InputAction();
 
+        union {
+            dmHID::Touch         m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char                 m_Text[dmHID::MAX_CHAR_COUNT];  /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
+            dmHID::GamepadPacket m_GamepadPacket;
+        };
+        union {
+            dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
+        };
+
         /// Action id, hashed action name
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
@@ -459,36 +468,32 @@ namespace dmGameObject
         float m_AccY;
         /// Accelerometer z value (if present)
         float m_AccZ;
-        /// Touch data
-        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-        /// Number of m_Touch
-        int32_t  m_TouchCount;
-        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
-        char     m_Text[dmHID::MAX_CHAR_COUNT];
-        uint32_t m_TextCount;
-        uint32_t m_GamepadIndex;
-        uint32_t m_UserID;
-        dmHID::GamepadPacket m_GamepadPacket;
 
-        uint8_t  m_IsGamepad : 1;
-        uint8_t  m_GamepadUnknown : 1;
-        uint8_t  m_GamepadDisconnected : 1;
-        uint8_t  m_GamepadConnected : 1;
-        uint8_t  m_HasGamepadPacket : 1;
+        /// Text or touch count
+        int16_t m_Count;
+        uint16_t m_GamepadIndex;
+        uint16_t m_UserID;
+
+        uint16_t  m_IsGamepad : 1;
+        uint16_t  m_GamepadUnknown : 1;
+        uint16_t  m_GamepadDisconnected : 1;
+        uint16_t  m_GamepadConnected : 1;
+        uint16_t  m_HasGamepadPacket : 1;
         /// If input has a text payload (can be true even if text count is 0)
-        uint8_t  m_HasText : 1;
+        uint16_t  m_HasText : 1;
         /// If the input was 0 last update
-        uint8_t  m_Pressed : 1;
+        uint16_t  m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint8_t  m_Released : 1;
+        uint16_t  m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint8_t  m_Repeated : 1;
+        uint16_t  m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
-        uint8_t  m_PositionSet : 1;
+        uint16_t  m_PositionSet : 1;
         /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
-        uint8_t  m_AccelerationSet : 1;
+        uint16_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
-        uint8_t  m_Consumed : 1;
+        uint16_t  m_Consumed : 1;
+        uint16_t  : 4;
     };
 
     /*#

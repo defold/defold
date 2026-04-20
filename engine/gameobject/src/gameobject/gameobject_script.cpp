@@ -2934,7 +2934,8 @@ bail:
      * ----------------- | ----------------------------------------------------------
      * `gamepad`         | The index of the gamepad device that provided the input.
      * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
-     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_guid`    | The guid of the gamepad controller. Only passed with "connected" action.
+     * `gamepad_unknown` | True if the input originated from an unknown/unmapped gamepad.
      * `gamepad_name`    | Name of the gamepad
      * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
      * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
@@ -2955,6 +2956,17 @@ bail:
      * `acc_x`     | Accelerometer x value (if present).
      * `acc_y`     | Accelerometer y value (if present).
      * `acc_z`     | Accelerometer z value (if present).
+     *
+     * Guid info table:
+     * This info is only passed with a `connected` action.
+     *
+     * Field     | Description
+     * --------- | ----------------------------------------------------------
+     * `vendor`  | USB vendor id. E.g. Nintendo 0x057e, Sony 0x054c, or Microsoft 0x045e
+     * `product` | USB product id
+     * `bus`     | How device is communicating. E.g.0x0003 for USB devices and 0x0005 for Bluetooth devices.
+     * `crc`     | SDL CRC16 signature, typically used when vendor and product ids are unavailable
+     * `version` | The device or firmware version
      *
      * @name on_input
      * @param self [type:userdata] reference to the script state to be used for storing data

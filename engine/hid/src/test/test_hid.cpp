@@ -191,7 +191,7 @@ TEST_F(HIDTest, GamepadMetadata)
     dmHID::GamepadGuid device_guid;
     ASSERT_TRUE(dmHID::GetGamepadDeviceGuid(m_Context, gamepad, &device_guid));
     char device_guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
-    dmHID::FormatGamepadGuid(device_guid, device_guid_string);
+    dmHID::FormatGamepadGuid(&device_guid, device_guid_string);
     ASSERT_STREQ("00000000000000000000000000000000", device_guid_string);
 }
 

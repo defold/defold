@@ -252,7 +252,7 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
         dmHID::GamepadGuid guid;
         dmHID::GetGamepadDeviceGuid(g_HidContext, pad, &guid);
         char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
-        dmHID::FormatGamepadGuid(guid, guid_string);
+        dmHID::FormatGamepadGuid(&guid, guid_string);
 
         dmLogInfo("Gamepad %u connected: '%s' - '%s' '%s'", gamepad_index, device_name, device_name_sdl, guid_string);
     }
@@ -369,7 +369,7 @@ retry:
             dmHID::GamepadGuid guid;
             dmHID::GetGamepadDeviceGuid(g_HidContext, gamepads[i], &guid);
             char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
-            dmHID::FormatGamepadGuid(guid, guid_string);
+            dmHID::FormatGamepadGuid(&guid, guid_string);
             printf("%d: '%s' - '%s'\n", i+1, device_name, guid_string);
             fflush(stdout);
         }
@@ -403,7 +403,7 @@ retry:
     dmHID::GamepadGuid guid;
     dmHID::GetGamepadDeviceGuid(g_HidContext, gamepad, &guid);
     char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
-    dmHID::FormatGamepadGuid(guid, guid_string);
+    dmHID::FormatGamepadGuid(&guid, guid_string);
 
     printf("\n'%s' - '%s' will be added to %s\n\n", device_name, guid_string, filename);
 

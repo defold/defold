@@ -267,7 +267,7 @@ TEST_F(InputTest, TextComponentTextInput)
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString64("test_action");
     action.m_HasText = 0;
-    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+    action.m_Count = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     // Test normal text input action
     dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
@@ -276,7 +276,7 @@ TEST_F(InputTest, TextComponentTextInput)
     // Test marked text input action
     action.m_ActionId = dmHashString64("test_action");
     action.m_HasText = 1;
-    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+    action.m_Count = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     r = dmGameObject::DispatchInput(m_Collection, &action, 1);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);

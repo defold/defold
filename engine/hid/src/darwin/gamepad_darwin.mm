@@ -1096,7 +1096,7 @@ static bool BuildLegacyMappingFromGuid(AppleGamepadDevice* device, const char gu
 }
 #endif
 
-static void BuildDeviceRemap(AppleGamepadDevice* device, const GamepadGuid& guid)
+static void BuildDeviceRemap(AppleGamepadDevice* device, const GamepadGuid* guid)
 {
     ResetLegacyMapping(device);
 
@@ -1576,7 +1576,7 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
         CreateAppleGameControllerGUID(controller, new_device.m_Name, &new_device.m_Guid);
     }
 
-    BuildDeviceRemap(&new_device, new_device.m_Guid);
+    BuildDeviceRemap(&new_device, &new_device.m_Guid);
 
     if (driver->m_Devices.Full())
     {

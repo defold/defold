@@ -526,8 +526,39 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_GamepadConnected)
             {
-                lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_TextCount);
+                lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_Count);
                 lua_setfield(L, action_table, "gamepad_name");
+
+                // TODO: ADD GUID
+
+                const dmHID::GamepadGuid& guid = params.m_InputAction->m_GamepadGuid;
+                char guid_str[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
+                dmHID::FormatGamepadGuid(&guid, guid_str);
+
+                lua_pushstring(L, guid_str);
+                lua_setfield(L, action_table, "gamepad_guid"); // SDL format
+
+                lua_pushliteral(L, "gamepad_guid_info");
+                lua_createtable(L, 0, 0);
+
+                {
+                    lua_pushinteger(L, guid.m_Bus);
+                    lua_setfield(L, -2, "bus");
+
+                    lua_pushinteger(L, guid.m_CRC16);
+                    lua_setfield(L, -2, "crc");
+
+                    lua_pushinteger(L, guid.m_Vendor);
+                    lua_setfield(L, -2, "vendor");
+
+                    lua_pushinteger(L, guid.m_Product);
+                    lua_setfield(L, -2, "product");
+
+                    lua_pushinteger(L, guid.m_Version);
+                    lua_setfield(L, -2, "version");
+
+                    lua_settable(L, -3);
+                }
             }
 
             if (params.m_InputAction->m_HasGamepadPacket)
@@ -641,9 +672,9 @@ namespace dmGameObject
                 lua_settable(L, action_table);
             }
 
-            if (params.m_InputAction->m_TouchCount > 0)
+            if (params.m_InputAction->m_Count > 0 && !params.m_InputAction->m_HasText)
             {
-                int tc = params.m_InputAction->m_TouchCount;
+                int tc = params.m_InputAction->m_Count;
                 lua_pushliteral(L, "touch");
                 lua_createtable(L, tc, 0);
                 for (int i = 0; i < tc; ++i)
@@ -708,7 +739,7 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_HasText)
             {
-                int tc = params.m_InputAction->m_TextCount;
+                int tc = params.m_InputAction->m_Count;
                 lua_pushliteral(L, "text");
                 if (tc == 0) {
                     lua_pushliteral(L, "");
