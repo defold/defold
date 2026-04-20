@@ -113,6 +113,8 @@
     typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
     typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
     typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLBLENDFUNCSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLBLENDEQUATIONSEPARATEPROC) (GLenum, GLenum);
     typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
     typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
     typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
@@ -142,6 +144,8 @@
     PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
     PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
     PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
+    PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate = NULL;
+    PFNGLBLENDEQUATIONSEPARATEPROC glBlendEquationSeparate = NULL;
 
     PFNGLGETACTIVEATTRIBPROC glGetActiveAttrib = NULL;
     PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
@@ -1370,6 +1374,8 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
         GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
         GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glBlendFuncSeparate, "glBlendFuncSeparate", PFNGLBLENDFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glBlendEquationSeparate, "glBlendEquationSeparate", PFNGLBLENDEQUATIONSEPARATEPROC);
         GET_PROC_ADDRESS(glTexSubImage3D, "glTexSubImage3D", PFNGLTEXSUBIMAGE3DPROC);
         GET_PROC_ADDRESS(glTexImage3D, "glTexImage3D", PFNGLTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
