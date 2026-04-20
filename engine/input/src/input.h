@@ -23,15 +23,16 @@
 
 namespace dmInput
 {
+    // TODO: Make proper subtypes, to keep the combinations apart, and struct small
     struct Action
     {
         union {
-            dmHID::Touch    m_Touch[dmHID::MAX_TOUCH_COUNT];
-            char            m_Text[dmHID::MAX_CHAR_COUNT];
+            dmHID::Touch         m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char                 m_Text[dmHID::MAX_CHAR_COUNT];
+            dmHID::GamepadPacket m_GamepadPacket;
         };
-        dmHID::GamepadPacket m_GamepadPacket;
         union {
-            dmHID::HGamepad m_Gamepad;
+            dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
         };
         float m_Value;
         float m_PrevValue;
