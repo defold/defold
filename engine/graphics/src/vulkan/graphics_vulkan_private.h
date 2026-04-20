@@ -161,6 +161,13 @@ namespace dmGraphics
         struct VulkanHandle
         {
             VkRenderPass  m_RenderPass;
+            // Render-pass variant compatible with m_RenderPass but with LOAD_OP_CLEAR on all color
+            // attachments. Used to fold a render.clear() call issued between SetRenderTarget and
+            // the first Draw into the attachment load op, avoiding vkCmdClearAttachments in the
+            // common post-process case.
+            // For the main RT this aliases context->m_MainRenderPass.
+            // For offscreen RTs this is a distinct, RT-owned render pass.
+            VkRenderPass  m_RenderPassClear;
             VkFramebuffer m_Framebuffer;
             uint8_t       m_LastUsedFrame;
         };
@@ -184,6 +191,10 @@ namespace dmGraphics
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
+        // Set by VulkanClear when the pass has not yet been begun and all color attachments
+        // are being cleared. Consumed by the next BeginRenderPass which picks the CLEAR
+        // variant render pass and uses m_ColorAttachmentClearValue as load-op clear colors.
+        uint32_t       m_HasPendingClearColor : 1;
         uint32_t       m_ColorAttachmentCount : 7;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;

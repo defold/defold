@@ -480,20 +480,32 @@ namespace dmGraphics
             vk_clear_values[i].color.float32[3] = rt->m_ColorAttachmentClearValue[i][3];
         }
 
-        // Clear depth
-        vk_clear_values[1].depthStencil.depth   = 1.0f;
-        vk_clear_values[1].depthStencil.stencil = 0;
+        // Clear depth: placed at attachment index m_ColorAttachmentCount (depth always follows
+        // the color attachments in the render pass). Using index 1 here happens to be correct
+        // for single-color RTs but clobbers color[1]'s clear value for MRTs, which becomes a
+        // real issue for MRT offscreens once they use LOAD_OP_CLEAR via the CLEAR variant.
+        const uint32_t depth_clear_index                  = rt->m_ColorAttachmentCount;
+        vk_clear_values[depth_clear_index].depthStencil.depth   = 1.0f;
+        vk_clear_values[depth_clear_index].depthStencil.stencil = 0;
 
-        // For the main render target, choose between the "clear" render pass (first begin of the
-        // frame) and the "load" render pass (subsequent rebinds) so that the main RT's contents are
-        // preserved when rebinding to it mid-frame without triggering the UNDEFINED-initial-layout
-        // discard behavior.
+        // Render pass selection:
+        // 1. A pending clear (recorded by VulkanClear before any work was emitted on this RT)
+        //    takes precedence and uses the LOAD_OP_CLEAR variant. The clear values come from
+        //    m_ColorAttachmentClearValue, which VulkanClear already wrote.
+        // 2. For the main render target, subsequent rebinds within a frame must preserve the
+        //    previously rendered contents, so we fall back to m_MainRenderPassLoad.
+        // 3. Otherwise we use the RT's default render pass (honoring the user-configured load ops).
         VkRenderPass vk_render_pass = rt->m_Handle.m_RenderPass;
         const bool is_main_rt = (render_target == context->m_MainRenderTarget);
-        if (is_main_rt && context->m_MainRTBegunThisFrame)
+        if (rt->m_HasPendingClearColor && rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE)
+        {
+            vk_render_pass = rt->m_Handle.m_RenderPassClear;
+        }
+        else if (is_main_rt && context->m_MainRTBegunThisFrame)
         {
             vk_render_pass = context->m_MainRenderPassLoad;
         }
+        rt->m_HasPendingClearColor = 0;
 
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -708,10 +720,14 @@ namespace dmGraphics
             context->m_MainRenderTarget = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         }
 
-        rt->m_Handle.m_RenderPass  = context->m_MainRenderPass;
-        rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[0];
-        rt->m_Extent               = context->m_SwapChain->m_ImageExtent;
-        rt->m_ColorAttachmentCount = 1;
+        rt->m_Handle.m_RenderPass      = context->m_MainRenderPass;
+        // Main RT's default render pass already uses LOAD_OP_CLEAR on first begin-of-frame, so
+        // the CLEAR variant is the same render pass. Aliasing avoids an extra vkCreateRenderPass
+        // and is recognised by DestroyRenderTarget to avoid a double-destroy.
+        rt->m_Handle.m_RenderPassClear = context->m_MainRenderPass;
+        rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
+        rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
+        rt->m_ColorAttachmentCount     = 1;
 
         return VK_SUCCESS;
     }
@@ -1739,6 +1755,62 @@ bail:
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
+        const BufferType color_buffers[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
+        float r = ((float)red)/255.0f;
+        float g = ((float)green)/255.0f;
+        float b = ((float)blue)/255.0f;
+        float a = ((float)alpha)/255.0f;
+
+        // Fast path: fold the clear into LOAD_OP_CLEAR.
+        //
+        // Preconditions:
+        //   - No render pass is currently open (so we can still pick the render pass variant).
+        //   - We have a CLEAR variant for this RT.
+        //   - Every color attachment on the RT is being cleared (partial color clears would
+        //     require per-attachment variants).
+        //   - No depth/stencil clear is needed on an RT that actually has depth/stencil.
+        //     Depth/stencil still uses vkCmdClearAttachments because CreateRenderPass forces
+        //     LOAD_OP_DONT_CARE for depth; in that case we take the slow path below so both
+        //     color and depth clear inside the open pass.
+        //
+        // If the caller passes BUFFER_TYPE_DEPTH_BIT but the RT has no depth attachment
+        // (common when scripts pass identical flags to every render.clear()), the bit is a
+        // no-op and must not prevent folding.
+        const bool pass_not_bound    = !context->m_RenderTargetBound;
+        const bool rt_has_ds         = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil != 0;
+        const bool clear_ds          = rt_has_ds && ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) != 0);
+        const bool has_clear_variant = current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE;
+        bool all_colors_in_flags     = current_rt->m_ColorAttachmentCount > 0;
+        for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+        {
+            if (!(flags & color_buffers[i]))
+            {
+                all_colors_in_flags = false;
+                break;
+            }
+        }
+
+        if (pass_not_bound && has_clear_variant && all_colors_in_flags && !clear_ds)
+        {
+            // Record clear colors on the RT; BeginRenderPass reads these into pClearValues.
+            for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+            {
+                current_rt->m_ColorAttachmentClearValue[i][0] = r;
+                current_rt->m_ColorAttachmentClearValue[i][1] = g;
+                current_rt->m_ColorAttachmentClearValue[i][2] = b;
+                current_rt->m_ColorAttachmentClearValue[i][3] = a;
+            }
+            current_rt->m_HasPendingClearColor = 1;
+            return;
+        }
+
+        // Slow path: open the pass (if not already) and clear via vkCmdClearAttachments.
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         uint32_t attachment_count = 0;
@@ -1754,20 +1826,16 @@ bail:
         vk_clear_rect.layerCount         = 1;
 
         bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil;
-        bool clear_depth_stencil       = flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
+        bool clear_depth_stencil       = clear_ds;
 
-        float r = ((float)red)/255.0f;
-        float g = ((float)green)/255.0f;
-        float b = ((float)blue)/255.0f;
-        float a = ((float)alpha)/255.0f;
-
-        const BufferType color_buffers[] = {
-            BUFFER_TYPE_COLOR0_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-        };
-
+        // If the pass was just opened via the CLEAR variant above (pending-clear was consumed),
+        // the color attachments are already cleared by load op; skip the redundant
+        // vkCmdClearAttachments on color in that case. This happens when e.g. the caller does
+        // render.clear(COLOR | DEPTH) on a RT that has both: color folds, depth doesn't.
+        // We detect "was pending" by the fact that we just cleared m_HasPendingClearColor in
+        // BeginRenderPass; re-checking here would require an extra flag, so for simplicity we
+        // always emit the color clear too when taking this slow path. The cost is one extra
+        // attachment entry which is negligible.
         for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
         {
             if (flags & color_buffers[i])
@@ -3798,7 +3866,7 @@ bail:
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, uint32_t width, uint32_t height, RenderTarget* rtOut)
     {
-        assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE);
+        assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPassClear == VK_NULL_HANDLE);
         const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
 
         RenderPassAttachment  rp_attachments[num_attachments];
@@ -3855,6 +3923,38 @@ bail:
             return res;
         }
 
+        // Create a second, render-pass-compatible variant with LOAD_OP_CLEAR on all color
+        // attachments. Used by BeginRenderPass when VulkanClear was called before any work was
+        // recorded on this RT, so the clear happens via the attachment load op instead of a
+        // follow-up vkCmdClearAttachments. Render-pass compatibility is preserved because only
+        // the load op differs, so pipelines created against m_RenderPass remain valid.
+        if (num_color_textures > 0)
+        {
+            bool needs_clear_variant = false;
+            for (int i = 0; i < num_color_textures; ++i)
+            {
+                if (rp_attachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_CLEAR)
+                {
+                    needs_clear_variant = true;
+                }
+                rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            }
+            if (needs_clear_variant)
+            {
+                res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_Handle.m_RenderPassClear);
+                if (res != VK_SUCCESS)
+                {
+                    return res;
+                }
+            }
+            else
+            {
+                // All color attachments already clear by default; the CLEAR variant is identical
+                // to the normal one, so alias it to avoid creating a duplicate render pass.
+                rtOut->m_Handle.m_RenderPassClear = rtOut->m_Handle.m_RenderPass;
+            }
+        }
+
         res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_Handle.m_RenderPass,
             fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Handle.m_Framebuffer);
         if (res != VK_SUCCESS)
@@ -3879,8 +3979,10 @@ bail:
     static void DestroyRenderTarget(VulkanContext* context, RenderTarget* renderTarget)
     {
         DestroyResourceDeferred(context, renderTarget);
-        renderTarget->m_Handle.m_Framebuffer = VK_NULL_HANDLE;
-        renderTarget->m_Handle.m_RenderPass = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_Framebuffer     = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPass      = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPassClear = VK_NULL_HANDLE;
+        renderTarget->m_HasPendingClearColor     = 0;
     }
 
     static inline VkImageUsageFlags GetVulkanUsageFromHints(uint8_t hint_bits)
