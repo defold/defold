@@ -80,7 +80,7 @@
 (def ^:private icon-spot-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-spot-gpu-texture "icons/scene/light_spot.png"))
 (def ^:private icon-sun-gpu-texture-delay (make-icon-gpu-texture-delay ::icon-sun-gpu-texture "icons/scene/light_sun.png"))
 
-;; Property inspector and form choicebox: [value label] pairs (see editor.properties-view/make-control-view :choicebox).
+;; Property inspector and form choicebox: [value label] pairs.
 (def ^:private light-type-options
   [[:point "Point"]
    [:directional "Directional"]
@@ -257,34 +257,32 @@
   ([vbuf x y z cr cg cb ca]
    (conj! vbuf [(double x) (double y) (double z) (double cr) (double cg) (double cb) (double ca)])))
 
+(defn- billboard-point-from-axes
+  "World position = center + coeff-right * right + coeff-up * up (same basis as billboard-axes)."
+  [^Vector3d center ^Vector3d right ^Vector3d up coeff-right coeff-up]
+  (let [ar (double coeff-right)
+        au (double coeff-up)]
+    [(+ (.x center) (* ar (.x right)) (* au (.x up)))
+     (+ (.y center) (* ar (.y right)) (* au (.y up)))
+     (+ (.z center) (* ar (.z right)) (* au (.z up)))]))
+
+(defn- billboard-quad-corners
+  "World-space corners of a camera-facing quad: bottom-left, top-left, top-right, bottom-right."
+  [^Vector3d c ^Vector3d right ^Vector3d up h]
+  (let [h (double h)
+        bl (billboard-point-from-axes c right up (- h) (- h))
+        tl (billboard-point-from-axes c right up (- h) h)
+        tr (billboard-point-from-axes c right up h h)
+        br (billboard-point-from-axes c right up h (- h))]
+    [bl tl tr br]))
+
 (defn- fill-light-icon-quad!
   [vbuf ^Vector3d c ^Vector3d right ^Vector3d up h cr cg cb]
-  (let [h (double h)
-        cr (double cr)
+  (let [cr (double cr)
         cg (double cg)
         cb (double cb)
         ca 1.0
-        rx (* h (.x right))
-        ry (* h (.y right))
-        rz (* h (.z right))
-        ux (* h (.x up))
-        uy (* h (.y up))
-        uz (* h (.z up))
-        cx (.x c)
-        cy (.y c)
-        cz (.z c)
-        blx (- cx rx ux)
-        bly (- cy ry uy)
-        blz (- cz rz uz)
-        tlx (+ (- cx rx) ux)
-        tly (+ (- cy ry) uy)
-        tlz (+ (- cz rz) uz)
-        trx (+ cx rx ux)
-        try_ (+ cy ry uy)
-        trz (+ cz rz uz)
-        brx (- (+ cx rx) ux)
-        bry (- (+ cy ry) uy)
-        brz (- (+ cz rz) uz)]
+        [[blx bly blz] [tlx tly tlz] [trx try_ trz] [brx bry brz]] (billboard-quad-corners c right up h)]
     (-> vbuf
         (conj! [blx bly blz 0.0 0.0 cr cg cb ca])
         (conj! [tlx tly tlz 0.0 1.0 cr cg cb ca])
@@ -295,32 +293,11 @@
 
 (defn- fill-solid-billboard-quad!
   [vbuf ^Vector3d c ^Vector3d right ^Vector3d up h cr cg cb ca]
-  (let [h (double h)
-        cr (double cr)
+  (let [cr (double cr)
         cg (double cg)
         cb (double cb)
         ca (double ca)
-        rx (* h (.x right))
-        ry (* h (.y right))
-        rz (* h (.z right))
-        ux (* h (.x up))
-        uy (* h (.y up))
-        uz (* h (.z up))
-        cx (.x c)
-        cy (.y c)
-        cz (.z c)
-        blx (- cx rx ux)
-        bly (- cy ry uy)
-        blz (- cz rz uz)
-        tlx (+ (- cx rx) ux)
-        tly (+ (- cy ry) uy)
-        tlz (+ (- cz rz) uz)
-        trx (+ cx rx ux)
-        try_ (+ cy ry uy)
-        trz (+ cz rz uz)
-        brx (- (+ cx rx) ux)
-        bry (- (+ cy ry) uy)
-        brz (- (+ cz rz) uz)]
+        [[blx bly blz] [tlx tly tlz] [trx try_ trz] [brx bry brz]] (billboard-quad-corners c right up h)]
     (-> vbuf
         (conj-line-vertex! blx bly blz cr cg cb ca)
         (conj-line-vertex! tlx tly tlz cr cg cb ca)
@@ -405,12 +382,10 @@
                     t1 (* 2.0 Math/PI (/ (double (unchecked-inc i)) segments))
                     cos0 (Math/cos t0) sin0 (Math/sin t0)
                     cos1 (Math/cos t1) sin1 (Math/sin t1)
-                    x0 (+ (.x center) (* radius (+ (* (.x right) cos0) (* (.x up) sin0))))
-                    y0 (+ (.y center) (* radius (+ (* (.y right) cos0) (* (.y up) sin0))))
-                    z0 (+ (.z center) (* radius (+ (* (.z right) cos0) (* (.z up) sin0))))
-                    x1 (+ (.x center) (* radius (+ (* (.x right) cos1) (* (.x up) sin1))))
-                    y1 (+ (.y center) (* radius (+ (* (.y right) cos1) (* (.y up) sin1))))
-                    z1 (+ (.z center) (* radius (+ (* (.z right) cos1) (* (.z up) sin1))))]
+                    ar0 (* radius cos0) au0 (* radius sin0)
+                    ar1 (* radius cos1) au1 (* radius sin1)
+                    [x0 y0 z0] (billboard-point-from-axes center right up ar0 au0)
+                    [x1 y1 z1] (billboard-point-from-axes center right up ar1 au1)]
                 (-> vbuf
                     (conj-line-vertex! x0 y0 z0 cr cg cb)
                     (conj-line-vertex! x1 y1 z1 cr cg cb))))
@@ -824,8 +799,12 @@
 (defn- canonicalize-light-read [light-desc]
   {:pre [(map? light-desc)]}
   (let [m (parse-data-desc light-desc)]
-    (build-data-desc (:light-type m) (:color m) (:intensity m) (:range m)
-                     (:inner-cone-angle m) (:outer-cone-angle m))))
+    (build-data-desc (:light-type m)
+                     (:color m)
+                     (:intensity m)
+                     (:range m)
+                     (:inner-cone-angle m)
+                     (:outer-cone-angle m))))
 
 (defn load-light [_project self _resource light-desc]
   {:pre [(map? light-desc)]} ; DataProto$Data in map format.
@@ -951,7 +930,7 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-    :ext "light"
+    :ext light-component-type-ext
     :node-type LightNode
     :ddf-type DataProto$Data
     :load-fn load-light

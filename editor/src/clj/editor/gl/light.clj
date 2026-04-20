@@ -98,6 +98,8 @@
        :direction_range (Vector4d. 0.0 0.0 0.0 0.0)
        :params (Vector4d. tidx intensity 0.0 0.0)})))
 
+;; Turns the editor scene's light renderables into a small, stable, engine-shaped list so
+;; the viewport shaders can produce light data consistently with the runtime layout.
 (defn packed-lights-from-scene
   [renderables-by-pass]
   (let [visible-with-preview (filterv #(get-in % [:user-data :editor-preview-light])
