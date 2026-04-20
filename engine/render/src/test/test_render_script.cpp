@@ -525,7 +525,11 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetSetSizeInvalid)
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
     "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
-    "    render.set_render_target_size(self.rt, %s, 4)\n"
+    "    local ok, err = pcall(render.set_render_target_size, self.rt, %s, 4)\n"
+    "    render.delete_render_target(self.rt)\n"
+    "    self.rt = nil\n"
+    "    assert(not ok, \"expected render.set_render_target_size to fail\")\n"
+    "    error(err, 0)\n"
     "end\n";
 
     const char* invalid_widths[] = { "0", "-1", "1000000000" };
