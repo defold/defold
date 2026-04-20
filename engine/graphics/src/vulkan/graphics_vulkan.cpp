@@ -4076,8 +4076,27 @@ bail:
     {
         (void) transient_buffer_types;
         VulkanContext* context = (VulkanContext*) _context;
-        context->m_ViewportChanged = 1;
-        BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
+        HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+
+        if (context->m_CurrentRenderTarget == new_rt)
+        {
+            // Same target: nothing to do. If a pass is already open on it we keep it open;
+            // if not, the next Clear/DrawSetup will open it lazily.
+            return;
+        }
+
+        // End the currently open render pass (if any) without eagerly beginning the new one.
+        // The new pass is opened on demand by VulkanClear / DrawSetup, which both call
+        // BeginRenderPass as their first step. Deferring the begin avoids emitting empty
+        // begin/end render-pass pairs when scripts rebind targets without issuing any work
+        // on every intermediate target (very common in post-process chains).
+        if (context->m_RenderTargetBound)
+        {
+            EndRenderPass(context);
+        }
+
+        context->m_CurrentRenderTarget = new_rt;
+        context->m_ViewportChanged     = 1;
     }
 
     static HTexture VulkanGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
