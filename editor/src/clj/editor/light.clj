@@ -55,8 +55,11 @@
   (vec2 texcoord0)
   (vec4 color))
 
-(def ^:private outline-shader shaders/basic-color-world-space)
+(def ^:private light-component-type-ext "light")
+(def ^:private light-range-scale-manips [:scale-uniform])
+(def ^:private default-component-scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
+(def ^:private outline-shader shaders/basic-color-world-space)
 (def ^:private light-icon-shader shaders/basic-texture-color-world-space)
 
 (def ^:private ^:const billboard-circle-segments 32)
@@ -145,8 +148,7 @@
      :inner-cone-angle (get-number fields "inner_cone_angle" 0.0)
      :outer-cone-angle (get-number fields "outer_cone_angle" 45.0)}))
 
-(defn- build-data-desc
-  [light-type color intensity range inner-cone-angle outer-cone-angle]
+(defn- build-data-desc [light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [intensity (non-negative intensity)
         range (non-negative range)
         [inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
@@ -179,8 +181,7 @@
       :build-fn build-light
       :user-data {:pb-map save-value}})])
 
-(g/defnk produce-save-value
-  [light-type color intensity range inner-cone-angle outer-cone-angle]
+(g/defnk produce-save-value [light-type color intensity range inner-cone-angle outer-cone-angle]
   (build-data-desc light-type color intensity range inner-cone-angle outer-cone-angle))
 
 (g/defnk produce-outline-data [_node-id]
@@ -355,20 +356,6 @@
     (.transform R tv)
     (.add tv p)
     tv))
-
-(defn- fill-directional-move-arrow! [vbuf-tris vbuf-lines ^Vector3d p ^Vector3d d-world cr cg cb total-len]
-  ;; No ^double on total-len: any primitive param hint limits fns to 4 args in Clojure; this has 8 params.
-  (let [^Matrix3d R (mat3-x-axis-to-dir d-world)
-        s (/ (double total-len) 100.0)
-        cr (double cr)
-        cg (double cg)
-        cb (double cb)]
-    (doseq [[mode vs] directional-arrow-vertex-groups]
-      (doseq [v vs]
-        (let [^Vector3d w (transform-local-arrow-point R p s (double (nth v 0)) (double (nth v 1)) (double (nth v 2)))]
-          (if (= mode GL/GL_TRIANGLES)
-            (conj-line-vertex! vbuf-tris (.x w) (.y w) (.z w) cr cg cb)
-            (conj-line-vertex! vbuf-lines (.x w) (.y w) (.z w) cr cg cb)))))))
 
 (defn- fill-point-billboard-circle! [vbuf ^Vector3d center ^Vector3d right ^Vector3d up radius cr cg cb]
   (let [segments (long billboard-circle-segments)
@@ -614,8 +601,7 @@
 (def ^:private render-spot-outline-scaled (wrap-uniform-scale render-spot-outline))
 (def ^:private render-spot-volume-scaled (wrap-uniform-scale render-spot-volume))
 
-(defn- preview-light-user-data
-  [light-type color intensity range inner-cone-angle outer-cone-angle]
+(defn- preview-light-user-data [light-type color intensity range inner-cone-angle outer-cone-angle]
   {:editor-preview-light {:light-type light-type
                          :color color
                          :intensity intensity
@@ -623,8 +609,7 @@
                          :inner-cone-angle inner-cone-angle
                          :outer-cone-angle outer-cone-angle}})
 
-(defn- point-light-preview-fn
-  [visibility-aabb user-data prop-kw->override-value]
+(defn- point-light-preview-fn [visibility-aabb user-data prop-kw->override-value]
   (if-some [range-override (:range prop-kw->override-value)]
     (let [r (max (double range-override) 0.01)
           point-scale (float-array [(float r) (float r) (float r) 1.0])
@@ -653,8 +638,7 @@
       [visibility-aabb user-data])
     [visibility-aabb user-data]))
 
-(g/defnk produce-light-scene
-  [_node-id light-type color intensity range outer-cone-angle inner-cone-angle]
+(g/defnk produce-light-scene [_node-id light-type color intensity range outer-cone-angle inner-cone-angle]
   (let [preview (preview-light-user-data light-type color intensity range inner-cone-angle outer-cone-angle)
         rgb-base {:color color
                   :light-rgb [(double (nth color 0 1.0))
@@ -745,8 +729,7 @@
       {:node-id _node-id
        :aabb geom/empty-bounding-box})))
 
-(g/defnk produce-form-data
-  [_node-id light-type color intensity range inner-cone-angle outer-cone-angle]
+(g/defnk produce-form-data [_node-id light-type color intensity range inner-cone-angle outer-cone-angle]
   (let [[inner-cone-angle outer-cone-angle] (sanitize-spot-cone-angles inner-cone-angle outer-cone-angle)
         hidden-range (= :directional light-type)
         hidden-cones (not= :spot light-type)]
@@ -864,15 +847,10 @@
   (output scene g/Any :cached produce-light-scene)
   (output node-outline outline/OutlineData :cached produce-outline-data))
 
-(def ^:private light-component-type-ext "light")
-(def ^:private light-range-scale-manips [:scale-uniform])
-(def ^:private default-component-scale-manips [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
-
 (defn- property-effective-value [{:keys [value original-value]}]
   (if (some? value) value original-value))
 
-(defn- light-component-range-property
-  [component-node-id evaluation-context]
+(defn- light-component-range-property [component-node-id evaluation-context]
   (when (= light-component-type-ext
            (some-> (g/node-value component-node-id :source-resource evaluation-context)
                    resource/type-ext))
@@ -882,8 +860,7 @@
                  (:visible range-property true))
         range-property))))
 
-(defn- light-component-range-endpoint
-  [component-node-id evaluation-context]
+(defn- light-component-range-endpoint [component-node-id evaluation-context]
   (when-some [range-property (light-component-range-property component-node-id evaluation-context)]
     (let [target-node-id (:node-id range-property)
           target-prop-kw (or (:prop-kw range-property) :range)]
