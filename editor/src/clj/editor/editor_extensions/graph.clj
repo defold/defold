@@ -34,6 +34,7 @@
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [editor.types :as types]
+            [editor.url :as url]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
@@ -44,7 +45,6 @@
   (:import [com.dynamo.particle.proto Particle$ModifierType]
            [editor.editor_extensions.tile_map Tiles]
            [editor.properties Curve CurveSpread]
-           [java.net URI URISyntaxException]
            [java.util ArrayDeque HashSet]
            [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils]
@@ -633,7 +633,7 @@
         :url
         (coercing-meta-setting-converter
           (-> coerce/string
-              (coerce/wrap-transform #(try (URI. %) (catch URISyntaxException _)))
+              (coerce/wrap-transform url/try-parse)
               (coerce/wrap-with-pred some? "is not a valid URL")))
 
         :resource

@@ -37,7 +37,6 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
@@ -46,13 +45,14 @@
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
+            [editor.url :as url]
             [editor.workspace :as workspace]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.path :as path])
   (:import [com.defold.editor.luart DefoldLuaFn]
-           [java.net URI URISyntaxException]
+           [java.net URI]
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.beans.property ReadOnlyProperty]
@@ -318,7 +318,7 @@
       (when (resource/exists? resource)
         (with-open [is (io/input-stream resource)]
           (Image. is))))
-    (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
+    (when-let [^URI uri (url/try-parse s)]
       (when (.getScheme uri)
         (Image. s #_background-loading true)))))
 
