@@ -451,8 +451,16 @@
         k
         (safe-assoc-in (if is-map (m k) {}) (subvec p 1) v)))))
 
-(defn- incorporate-updated-storage [{:keys [events storage] :as current-state} updated-storage]
-  (let [merged-storage (conj storage updated-storage)]
+(defn- incorporate-updated-storage [{:keys [events removals storage] :as current-state} updated-storage]
+  (let [merged-storage (conj storage updated-storage)
+        merged-storage (if removals
+                         (reduce-kv
+                           (fn [acc file-path removal-paths]
+                             (update acc file-path
+                                     #(reduce util/dissoc-in % removal-paths)))
+                           merged-storage
+                           removals)
+                         merged-storage)]
     (assoc current-state
       :storage (if events
                  ;; new events might have appeared while we were busy with file IO.
@@ -468,18 +476,26 @@
 (defonce io-lock (Object.))
 
 (defn- sync-state! [global-state]
-  (when (:events @global-state)
+  (when (or (:events @global-state) (:removals @global-state))
     (when-let [updated-storage
                (locking io-lock
-                 (let [{:keys [events storage]} (first (swap-vals! global-state dissoc :events))]
-                   (when events
-                     (reduce-kv
-                       (fn [acc file-path path->val]
-                         (let [config (reduce-kv safe-assoc-in (read-config! file-path) path->val)]
+                 (let [{:keys [events removals storage]} (first (swap-vals! global-state dissoc :events :removals))]
+                   (when (or events removals)
+                     (reduce
+                       (fn [acc file-path]
+                         (let [removal-paths (clojure.core/get removals file-path)
+                               path->val (clojure.core/get events file-path)
+                               config (read-config! file-path)
+                               ;; NOTE: Order here matters, we first need to perform all dissoc's because if there is a config value
+                               ;; we need to write, that came afterwards and it can overwrite the removal
+                               config (if (not (identical? config ::not-found))
+                                        (reduce util/dissoc-in config removal-paths)
+                                        config)
+                               config (reduce-kv safe-assoc-in config path->val)]
                            (write-config! file-path config)
                            (assoc acc file-path config)))
                        storage
-                       events))))]
+                       (keys (merge events removals))))))]
       (swap! global-state incorporate-updated-storage updated-storage)))
   nil)
 
@@ -492,8 +508,8 @@
           (.setName "editor.preferences/sync-executor"))))))
 
 (defn- global-state-watcher [_ global-state old-state new-state]
-  (when (and (not (:events old-state))
-             (:events new-state))
+  (when (and (not (or (:events old-state) (:removals old-state)))
+             (or (:events new-state) (:removals new-state)))
     (.schedule sync-executor ^Runnable #(sync-state! global-state) 30 TimeUnit/SECONDS)))
 
 (defn- resolve-schema
@@ -520,6 +536,11 @@
   ;;                events map is a map with absolute file Path keys, and a map
   ;;                of assoc-in paths to valid config values, i.e.:
   ;;                {java.nio.Path {assoc-in-path value}}
+  ;;   :removals    a map of removal events to clear existing prefs from disk,
+  ;;                nil when there is nothing to sync; removals map is a map
+  ;;                with absolute file Path keys, and a set of paths to valid
+  ;;                config values, i.e.:
+  ;;                {java.nio.Path #{value}}
   (let [ret (atom {:storage {}
                    ;; we put default schema into state to use the same schema
                    ;; access pattern, but it is not modifiable (register-schema!
@@ -787,42 +808,33 @@
 (defn reset-path!
   "Remove a stored value at the specified path, reverting to the default
 
-  Will throw if invalid (unregistered) path is provided. Performs file IO
-  immediately.
-
   Using [] as a path allows resetting the whole preference state"
   [prefs path]
   {:pre [(vector? path)]}
   (let [{:keys [scopes]} prefs]
-    (locking io-lock
-      (let [{:keys [registry]} @global-state
-            schema (combined-schema-at-path registry prefs path)
-            entries (reset-path-entries scopes schema path)]
-        (swap! global-state
-               (fn [m]
-                 (reduce
-                   (fn [acc [file-path config-path]]
-                     (-> acc
-                         (update-in [:storage file-path] util/dissoc-in config-path)
-                         (update :events
-                                 (fn [events]
-                                   (when events
-                                     (let [updated (update events file-path
-                                                           (fn [path->val]
-                                                             (when path->val
-                                                               (into {}
-                                                                     (remove #(path-prefix? config-path (key %)))
-                                                                     path->val))))]
-                                       (when (some seq (vals updated))
-                                         updated)))))))
-                   m
-                   entries)))
-        (doseq [[file-path config-path] entries]
-          (let [config (read-config! file-path)
-                config (if (identical? config ::not-found) {} config)
-                updated (util/dissoc-in config config-path)]
-            (when-not (= config updated)
-              (write-config! file-path updated))))))))
+    (let [{:keys [registry]} @global-state
+          schema (combined-schema-at-path registry prefs path)
+          entries (reset-path-entries scopes schema path)]
+      (swap! global-state
+             (fn [m]
+               (reduce
+                 (fn [acc [file-path config-path]]
+                   (-> acc
+                       (update-in [:storage file-path] util/dissoc-in config-path)
+                       (update-in [:removals file-path] (fnil conj #{}) config-path)
+                       (update :events
+                               (fn [events]
+                                 (when events
+                                   (let [updated (update events file-path
+                                                         (fn [path->val]
+                                                           (when path->val
+                                                             (into {}
+                                                                   (remove #(path-prefix? config-path (key %)))
+                                                                   path->val))))]
+                                     (when (some seq (vals updated))
+                                       updated)))))))
+                 m
+                 entries))))))
 
 (defn schema
   "Get a preference schema at a specified get-in path"

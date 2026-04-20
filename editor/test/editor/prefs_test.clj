@@ -665,6 +665,7 @@
         (is (= {:size {:x 5.0} :opacity 0.75 :active-plane :x}
                (edn/read-string (slurp file))))
         (prefs/reset-path! p [:size :x])
+        (prefs/sync!)
         (is (= {:opacity 0.75 :active-plane :x}
                (edn/read-string (slurp file)))))
 
@@ -673,17 +674,30 @@
         (prefs/set! p [:color] [1.0 0.0 0.0 1.0])
         (prefs/sync!)
         (prefs/reset-path! p [:size])
+        (prefs/sync!)
         (is (= {:opacity 0.75 :active-plane :x :color [1.0 0.0 0.0 1.0]}
                (edn/read-string (slurp file)))))
+
       (testing "reset clears pending events so sync doesn't re-write"
         (prefs/set! p [:size :x] 99.0)
         (prefs/set! p [:size :y] 99.0)
         (prefs/set! p [:size :z] 99.0)
-        ;; don't sync — event is pending
         (prefs/reset-path! p [:size])
+        (is (not (prefs/set? p [:size])))
         (prefs/sync!)
         (let [stored (edn/read-string (slurp file))]
           (is (nil? (get stored :size)))))
+
+      (testing "reset doesn't clobber pending events that were added post reset"
+        (prefs/set! p [:size :x] 99.0)
+        (prefs/set! p [:size :y] 99.0)
+        (prefs/set! p [:size :z] 99.0)
+        (prefs/reset-path! p [:size])
+        (prefs/set! p [:size :x] 99.0)
+        (is (prefs/set? p [:size]))
+        (prefs/sync!)
+        (let [stored (edn/read-string (slurp file))]
+          (is (= {:x 99.0} (get stored :size)))))
 
       (testing "reset on already-default path is a no-op"
         (prefs/reset-path! p [:opacity])
@@ -711,6 +725,7 @@
         (is (not (prefs/set? p [:active-plane])))
         (is (not (prefs/set? p [:color])))
         (is (not (prefs/set? p [])))
+        (prefs/sync!)
         (is (= {} (edn/read-string (slurp file)))))
 
       (testing "reset on unregistered path throws"
@@ -748,5 +763,6 @@
           (is (not (prefs/set? p [:theme])))
           (is (not (prefs/set? p [:indent])))
 
+          (prefs/sync!)
           (is (= {} (edn/read-string (slurp global-file))))
           (is (= {} (edn/read-string (slurp project-file)))))))))
