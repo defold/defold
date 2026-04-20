@@ -39,12 +39,11 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.url :as url]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.net URI URLDecoder]
+  (:import [java.net URI URISyntaxException URLDecoder]
            [javafx.scene.control ContextMenu MenuItem ScrollPane]
            [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
@@ -391,7 +390,7 @@
 
 (defn- construct-image [src base-resource]
   (when-not (coll/empty? src)
-    (when-let [^URI uri (url/try-parse src)]
+    (when-let [^URI uri (try (URI. src) (catch URISyntaxException _))]
       (if (or (.getAuthority uri) (.getScheme uri))
         (Image. src #_background-loading true)
         (when-let [base-resource base-resource]

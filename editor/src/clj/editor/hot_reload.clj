@@ -14,11 +14,10 @@
 
 (ns editor.hot-reload
   (:require [clojure.string :as string]
-            [editor.url :as url]
             [editor.workspace :as workspace]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.net URI]))
+  (:import [java.net URI URISyntaxException]))
 
 (set! *warn-on-reflection* true)
 
@@ -27,7 +26,10 @@
 
 (defn- string->url
   ^URI [^String str]
-  (when (some? str) (url/try-parse str)))
+  (when (some? str)
+    (try
+      (URI. str)
+      (catch URISyntaxException _ nil))))
 
 (defn- body->valid-entries [workspace body-string]
   (into []

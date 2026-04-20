@@ -45,14 +45,13 @@
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
-            [editor.url :as url]
             [editor.workspace :as workspace]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.path :as path])
   (:import [com.defold.editor.luart DefoldLuaFn]
-           [java.net URI]
+           [java.net URI URISyntaxException]
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.beans.property ReadOnlyProperty]
@@ -318,7 +317,7 @@
       (when (resource/exists? resource)
         (with-open [is (io/input-stream resource)]
           (Image. is))))
-    (when-let [^URI uri (url/try-parse s)]
+    (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
       (when (.getScheme uri)
         (Image. s #_background-loading true)))))
 

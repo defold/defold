@@ -13,8 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.url
-  (:import [java.net URI URISyntaxException]))
+  (:import [java.net MalformedURLException URI URISyntaxException URL]))
 
 (defn try-parse
   ^URI [^String s]
-  (try (URI. s) (catch URISyntaxException _)))
+  (try (.toURI (URL. s))
+       (catch MalformedURLException _ nil)
+       (catch URISyntaxException _ nil)))
