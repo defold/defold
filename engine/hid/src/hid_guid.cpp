@@ -32,9 +32,7 @@ static_assert(sizeof(GamepadGuid) == 16, "GamepadGuid must match the 16-byte SDL
 static_assert(offsetof(GamepadGuid, m_Bus) == 0, "GamepadGuid layout mismatch");
 static_assert(offsetof(GamepadGuid, m_CRC16) == 2, "GamepadGuid layout mismatch");
 static_assert(offsetof(GamepadGuid, m_Vendor) == 4, "GamepadGuid layout mismatch");
-static_assert(offsetof(GamepadGuid, m_Reserved0) == 6, "GamepadGuid layout mismatch");
 static_assert(offsetof(GamepadGuid, m_Product) == 8, "GamepadGuid layout mismatch");
-static_assert(offsetof(GamepadGuid, m_Reserved1) == 10, "GamepadGuid layout mismatch");
 static_assert(offsetof(GamepadGuid, m_Version) == 12, "GamepadGuid layout mismatch");
 static_assert(offsetof(GamepadGuid, m_DriverSignature) == 14, "GamepadGuid layout mismatch");
 static_assert(offsetof(GamepadGuid, m_DriverData) == 15, "GamepadGuid layout mismatch");

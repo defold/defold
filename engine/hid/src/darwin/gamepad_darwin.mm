@@ -174,6 +174,8 @@ static AppleGamepadDriver* g_AppleGamepadDriver = 0;
 static void GetGamepadDeviceNameInternal(HContext context, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
 static bool GetGamepadDeviceGuidInternal(HContext context, int gamepad_id, GamepadGuid* guid);
 
+// Controller-family predicates used to normalize Apple's product categories into
+// stable vendor/product pairs for GUID generation and legacy remapping.
 static bool IsControllerPS4(GCController* controller)
 {
     if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
@@ -268,6 +270,8 @@ static bool IsControllerBackboneOne(GCController* controller)
     return [controller.vendorName hasPrefix:@"Backbone One"];
 }
 
+// Filters out duplicate or synthetic GameController elements so the GUID
+// signature only includes the canonical controls for the device.
 static bool ElementAlreadyHandled(const GamepadIdentity& identity, NSString* element, NSDictionary<NSString*, GCControllerElement*>* elements)
 {
     if ([element isEqualToString:@"Left Thumbstick Left"] ||
@@ -341,6 +345,8 @@ static bool ElementAlreadyHandled(const GamepadIdentity& identity, NSString* ele
     return false;
 }
 
+// Resolves the guide/home button across the different APIs and string aliases
+// Apple has used over time.
 static GCControllerButtonInput* GetGuideButton(GCController* controller)
 {
     if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
@@ -365,6 +371,7 @@ static GCControllerButtonInput* GetGuideButton(GCController* controller)
     return nil;
 }
 
+// Resolves the capture/share button when the platform exposes one.
 static GCControllerButtonInput* GetCaptureButton(GCController* controller)
 {
     if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
@@ -387,6 +394,8 @@ static GCControllerButtonInput* GetCaptureButton(GCController* controller)
     return nil;
 }
 
+// Converts Apple's controller metadata into the SDL-style identity used by the
+// GUID builder and controller-name normalization.
 static void ClassifyController(GCController* controller, GamepadIdentity* identity)
 {
     memset(identity, 0, sizeof(*identity));
@@ -485,6 +494,8 @@ static void ClassifyController(GCController* controller, GamepadIdentity* identi
         identity->m_Product = 1;
 }
 
+// Builds a legacy button presence mask for platforms where the detailed
+// physical-input profile is not available to seed the GUID signature.
 static uint16_t GetLegacyButtonMask(GCController* controller)
 {
     uint16_t button_mask = 0;
@@ -517,6 +528,7 @@ static uint16_t GetLegacyButtonMask(GCController* controller)
 }
 
 #if TARGET_OS_OSX
+// Reads a numeric IOHID property into an unsigned integer.
 static bool GetDeviceNumberProperty(IOHIDDeviceRef device_ref, CFStringRef key, uint32_t* value)
 {
     CFTypeRef property = IOHIDDeviceGetProperty(device_ref, key);
@@ -528,26 +540,71 @@ static bool GetDeviceNumberProperty(IOHIDDeviceRef device_ref, CFStringRef key, 
     return CFNumberGetValue((CFNumberRef) property, kCFNumberSInt32Type, value);
 }
 
-static bool BuildGamepadGUID(IOHIDDeviceRef device_ref, GamepadGuid* guid)
+// Extracts the raw USB identity fields from a HID device for GUID generation.
+static bool GetDeviceIdentity(IOHIDDeviceRef device_ref, uint32_t* vendor, uint32_t* product, uint32_t* version)
 {
-    uint32_t vendor = 0;
-    uint32_t product = 0;
-    uint32_t version = 0;
+    *vendor = 0;
+    *product = 0;
+    *version = 0;
 
-    GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDVendorIDKey), &vendor);
-    GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDProductIDKey), &product);
-    GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDVersionNumberKey), &version);
+    GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDVendorIDKey), vendor);
+    GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDProductIDKey), product);
+    GetDeviceNumberProperty(device_ref, CFSTR(kIOHIDVersionNumberKey), version);
 
-    if (vendor && product)
+    return *vendor != 0 && *product != 0;
+}
+
+// Converts raw vendor/product/version values to the parsed SDL GUID struct.
+static bool BuildGamepadGUID(uint32_t vendor, uint32_t product, uint32_t version, GamepadGuid* guid)
+{
+    char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1];
+    CreateGUIDFromProduct((uint16_t) vendor, (uint16_t) product, (uint16_t) version, guid_string);
+    return ParseGamepadGuid(guid_string, guid);
+}
+
+// Checks whether a candidate HID device identity is plausible for the supplied
+// GCController before we trust it as that controller's GUID source.
+static bool MatchesControllerHIDDevice(GCController* controller, uint32_t vendor, uint32_t product)
+{
+    if (IsControllerBackboneOne(controller))
     {
-        char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1];
-        CreateGUIDFromProduct((uint16_t) vendor, (uint16_t) product, (uint16_t) version, guid_string);
-        return ParseGamepadGuid(guid_string, guid);
+        if (vendor != USB_VENDOR_BACKBONE)
+            return false;
+
+        if (IsControllerPS5(controller))
+            return product == USB_PRODUCT_BACKBONE_ONE_IOS_PS5;
+
+        return product == USB_PRODUCT_BACKBONE_ONE_IOS;
     }
+
+    if (IsControllerPS4(controller))
+        return vendor == USB_VENDOR_SONY && (product == USB_PRODUCT_SONY_DS4 || product == USB_PRODUCT_SONY_DS4_SLIM);
+
+    if (IsControllerPS5(controller))
+        return vendor == USB_VENDOR_SONY && (product == USB_PRODUCT_SONY_DS5 || product == USB_PRODUCT_SONY_DS5_EDGE);
+
+    if (IsControllerXbox(controller))
+        return vendor == USB_VENDOR_MICROSOFT &&
+            (product == USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH ||
+             product == USB_PRODUCT_XBOX_SERIES_X_BLE ||
+             product == USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH);
+
+    if (IsControllerSwitchPro(controller))
+        return vendor == USB_VENDOR_NINTENDO && product == USB_PRODUCT_NINTENDO_SWITCH_PRO;
+
+    if (IsControllerSwitchJoyConPair(controller))
+        return vendor == USB_VENDOR_NINTENDO && product == USB_PRODUCT_NINTENDO_SWITCH_JOYCON_PAIR;
+
+    if (IsControllerSwitchJoyConL(controller))
+        return vendor == USB_VENDOR_NINTENDO && product == USB_PRODUCT_NINTENDO_SWITCH_JOYCON_LEFT;
+
+    if (IsControllerSwitchJoyConR(controller))
+        return vendor == USB_VENDOR_NINTENDO && product == USB_PRODUCT_NINTENDO_SWITCH_JOYCON_RIGHT;
 
     return false;
 }
 
+// Creates an IOHID matching dictionary for the requested usage page/usage pair.
 static CFMutableDictionaryRef CreateMatchingDictionary(long usage_page, long usage)
 {
     CFMutableDictionaryRef dict = CFDictionaryCreateMutable(kCFAllocatorDefault,
@@ -575,6 +632,9 @@ static CFMutableDictionaryRef CreateMatchingDictionary(long usage_page, long usa
     return dict;
 }
 
+// On macOS, attempts to build the controller GUID from the backing IOHID
+// device. The match must be unique; otherwise the caller falls back to the
+// GameController-profile-based GUID path.
 static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controller, const char* fallback_name, GamepadGuid* guid)
 {
     (void) fallback_name;
@@ -599,6 +659,8 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
     }
 
     CFIndex count = CFSetGetCount(devices);
+    bool found_guid = false;
+    uint32_t matching_device_count = 0;
     if (count > 0)
     {
         IOHIDDeviceRef* device_refs = new IOHIDDeviceRef[count];
@@ -617,8 +679,23 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
             {
                 if ([GCController supportsHIDDevice:device_ref])
                 {
-                    if (BuildGamepadGUID(device_ref, guid))
+                    uint32_t vendor = 0;
+                    uint32_t product = 0;
+                    uint32_t version = 0;
+                    if (!GetDeviceIdentity(device_ref, &vendor, &product, &version))
+                        continue;
+
+                    if (!MatchesControllerHIDDevice(controller, vendor, product))
+                        continue;
+
+                    ++matching_device_count;
+                    if (matching_device_count > 1)
+                    {
+                        found_guid = false;
                         break;
+                    }
+
+                    found_guid = BuildGamepadGUID(vendor, product, version, guid);
                 }
             }
         }
@@ -627,10 +704,12 @@ static bool CreateGamePadGuid(AppleGamepadDriver* driver, GCController* controll
     }
 
     CFRelease(devices);
-    return true;
+    return found_guid;
 }
 #endif
 
+// Converts Apple's pressed-state dpad to the packed hat representation used by
+// the engine packet.
 static uint8_t GetHatValue(GCControllerDirectionPad* dpad)
 {
     uint8_t hat = APPLE_GAMEPAD_HAT_CENTERED;
@@ -648,6 +727,8 @@ static uint8_t GetHatValue(GCControllerDirectionPad* dpad)
     return hat;
 }
 
+// Resets all legacy remap state before applying either a database mapping or
+// the default semantic layout.
 static void ResetLegacyMapping(AppleGamepadDevice* device)
 {
     memset(device->m_AxisRemap, APPLE_GAMEPAD_REMAP_INVALID, sizeof(device->m_AxisRemap));
@@ -662,6 +743,8 @@ static void ResetLegacyMapping(AppleGamepadDevice* device)
     device->m_HasLegacyMapping = 0;
 }
 
+// Builds the default semantic-to-packet remap used when no legacy database
+// mapping is available.
 static void BuildDefaultDeviceRemap(AppleGamepadDevice* device)
 {
     device->m_AxisRemap[0] = APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X;
@@ -699,6 +782,7 @@ static void BuildDefaultDeviceRemap(AppleGamepadDevice* device)
     device->m_LegacyButtonCount = device->m_ButtonCount + device->m_HatCount * 4;
 }
 
+// Writes a button bit into the packet if the index is in range.
 static void SetButtonValue(GamepadPacket& packet, uint32_t button_index, bool value)
 {
     if (button_index >= MAX_GAMEPAD_BUTTON_COUNT)
@@ -708,6 +792,8 @@ static void SetButtonValue(GamepadPacket& packet, uint32_t button_index, bool va
         packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
 }
 
+// Returns the current packet counts for the active layout, accounting for
+// loaded legacy mappings.
 static uint8_t GetLegacyButtonCount(const AppleGamepadDevice* device)
 {
     return device->m_HasLegacyMapping ? device->m_LegacyButtonCount : (device->m_ButtonCount + device->m_HatCount * 4);
@@ -723,6 +809,8 @@ static uint8_t GetLegacyHatCount(const AppleGamepadDevice* device)
     return device->m_HasLegacyMapping ? device->m_LegacyHatCount : device->m_HatCount;
 }
 
+// Reads or writes button bits without exposing the packet bitset layout at call
+// sites.
 static bool GetButtonValue(const GamepadPacket& packet, uint32_t button_index)
 {
     if (button_index >= MAX_GAMEPAD_BUTTON_COUNT)
@@ -743,6 +831,7 @@ static void SetButtonState(GamepadPacket& packet, uint32_t button_index, bool va
         packet.m_Buttons[button_index / 32] &= ~mask;
 }
 
+// Decodes the low nibble of a legacy hat mapping token into the engine hat bit.
 static uint8_t GetLegacyHatBitValue(uint8_t index)
 {
     switch (index & 0x0f)
@@ -755,6 +844,8 @@ static uint8_t GetLegacyHatBitValue(uint8_t index)
     }
 }
 
+// Converts a normalized semantic axis value back to the raw axis range expected
+// by a legacy mapping target.
 static float InverseMapLegacyAxis(const AppleGamepadLegacyElement& element, float semantic_value)
 {
     const float minimum = (float) element.m_Minimum;
@@ -767,6 +858,8 @@ static float InverseMapLegacyAxis(const AppleGamepadLegacyElement& element, floa
     return fminf(fmaxf(raw_value, -1.0f), 1.0f);
 }
 
+// Merges multiple semantic sources into a single legacy axis while keeping the
+// strongest non-conflicting input.
 static void SetMappedAxisValue(float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool axis_written[MAX_GAMEPAD_AXIS_COUNT], uint8_t axis_index, float value)
 {
     if (axis_index >= MAX_GAMEPAD_AXIS_COUNT)
@@ -790,6 +883,8 @@ static void SetMappedAxisValue(float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool a
     }
 }
 
+// Applies a semantic button to whichever raw target a legacy mapping points at:
+// button, axis-as-button, or hat bit.
 static void SetMappedButtonValue(GamepadPacket& packet, float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool axis_written[MAX_GAMEPAD_AXIS_COUNT], const AppleGamepadLegacyElement& element, bool pressed)
 {
     switch (element.m_Type)
@@ -819,6 +914,7 @@ static void SetMappedButtonValue(GamepadPacket& packet, float axis_values[MAX_GA
     }
 }
 
+// Applies a semantic axis to the mapped raw packet element type.
 static void SetMappedAxisSemanticValue(GamepadPacket& packet, float axis_values[MAX_GAMEPAD_AXIS_COUNT], bool axis_written[MAX_GAMEPAD_AXIS_COUNT], const AppleGamepadLegacyElement& element, float semantic_value)
 {
     switch (element.m_Type)
@@ -845,6 +941,7 @@ static void SetMappedAxisSemanticValue(GamepadPacket& packet, float axis_values[
     }
 }
 
+// Finds the raw packet index that currently represents a semantic axis/button.
 static int32_t FindLegacyAxisIndex(const AppleGamepadDevice* device, uint8_t semantic_axis)
 {
     if (device->m_HasLegacyMapping)
@@ -883,6 +980,8 @@ static int32_t FindLegacyButtonIndex(const AppleGamepadDevice* device, uint8_t s
     return -1;
 }
 
+// Applies platform-specific compatibility adjustments for legacy packets after
+// the generic mapping step.
 static void PostProcessLegacyPacket(AppleGamepadDevice* apple_device, GCController* controller, GamepadPacket& packet)
 {
     if (!IsControllerPS4(controller) && !IsControllerPS5(controller))
@@ -907,6 +1006,8 @@ static void PostProcessLegacyPacket(AppleGamepadDevice* apple_device, GCControll
 }
 
 #if TARGET_OS_OSX
+// Parses a single SDL mapping target token such as "a3", "+a2", "b5", or
+// "h0.4" into a raw packet destination.
 static bool ParseLegacyMappingTarget(const char* target, AppleGamepadLegacyElement* element)
 {
     AppleGamepadLegacyElement parsed = {};
@@ -961,6 +1062,8 @@ static bool ParseLegacyMappingTarget(const char* target, AppleGamepadLegacyEleme
     return true;
 }
 
+// Parses one SDL controller database line into semantic-to-raw remap tables for
+// this device when the GUID matches.
 static bool ParseLegacyMappingLine(const char* mapping, const char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1], AppleGamepadDevice* device)
 {
     if (strncmp(mapping, guid_string, MAX_GAMEPAD_GUID_LENGTH) != 0 || mapping[MAX_GAMEPAD_GUID_LENGTH] != ',')
@@ -1083,6 +1186,7 @@ static bool ParseLegacyMappingLine(const char* mapping, const char guid_string[M
     return true;
 }
 
+// Looks up the device GUID in the baked SDL mapping database.
 static bool BuildLegacyMappingFromGuid(AppleGamepadDevice* device, const char guid_string[MAX_GAMEPAD_GUID_LENGTH + 1])
 {
     const uint32_t mapping_count = sizeof(dmHIDAppleGamepadDefaultMappings) / sizeof(dmHIDAppleGamepadDefaultMappings[0]);
@@ -1096,6 +1200,8 @@ static bool BuildLegacyMappingFromGuid(AppleGamepadDevice* device, const char gu
 }
 #endif
 
+// Chooses the packet remap strategy for the device: database-driven legacy
+// mapping on macOS when available, otherwise the default semantic layout.
 static void BuildDeviceRemap(AppleGamepadDevice* device, const GamepadGuid* guid)
 {
     ResetLegacyMapping(device);
@@ -1112,6 +1218,8 @@ static void BuildDeviceRemap(AppleGamepadDevice* device, const GamepadGuid* guid
     BuildDefaultDeviceRemap(device);
 }
 
+// Prevents the OS from consuming guide/menu button presses that the engine
+// wants to observe itself.
 static void DisableSystemGesture(GCControllerButtonInput* button)
 {
     if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
@@ -1121,6 +1229,8 @@ static void DisableSystemGesture(GCControllerButtonInput* button)
     }
 }
 
+// Writes the modern SDL-style packet layout directly from the extended gamepad
+// profile.
 static void AppleGamepadDriverUpdateSDL(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     // Keep the raw packet order aligned with SDL's gamepad axis order:
@@ -1195,6 +1305,8 @@ static void AppleGamepadDriverUpdateSDL(AppleGamepadDevice* apple_device, GCCont
     packet.m_Hat[0] = GetHatValue(extended_gamepad.dpad);
 }
 
+// Builds a GLFW/legacy-style packet using the default semantic remap when no
+// explicit SDL database mapping exists.
 static void AppleGamepadDriverUpdateLegacyFallback(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     float semantic_axis[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT] = {};
@@ -1291,6 +1403,8 @@ static void AppleGamepadDriverUpdateLegacyFallback(AppleGamepadDevice* apple_dev
     }
 }
 
+// Builds a GLFW/legacy-style packet using the parsed SDL database mapping for
+// the device GUID.
 static void AppleGamepadDriverUpdateLegacyMapped(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     float axis_values[MAX_GAMEPAD_AXIS_COUNT] = {};
@@ -1371,6 +1485,7 @@ static void AppleGamepadDriverUpdateLegacyMapped(AppleGamepadDevice* apple_devic
         packet.m_Axis[i] = axis_values[i];
 }
 
+// Selects the legacy packet builder and then applies controller-family fixups.
 static void AppleGamepadDriverUpdateGlfw(AppleGamepadDevice* apple_device, GCController* controller, GCExtendedGamepad* extended_gamepad, GamepadPacket& packet)
 {
     if (apple_device->m_HasLegacyMapping)
@@ -1381,6 +1496,8 @@ static void AppleGamepadDriverUpdateGlfw(AppleGamepadDevice* apple_device, GCCon
     PostProcessLegacyPacket(apple_device, controller, packet);
 }
 
+// Probes whether this GCController exposes a profile we can translate and
+// populates the static packet capabilities for the device.
 static bool SupportsController(GCController* controller, AppleGamepadDevice* device)
 {
     memset(device, 0, sizeof(*device));
@@ -1422,6 +1539,8 @@ static bool SupportsController(GCController* controller, AppleGamepadDevice* dev
     return false;
 }
 
+// Builds a synthetic GUID from the GameController profile when the platform
+// does not expose a unique HID device match.
 static void CreateAppleGameControllerGUID(GCController* controller, const char* fallback_name, GamepadGuid* guid)
 {
     GamepadIdentity identity = {};
@@ -1480,6 +1599,7 @@ static void CreateAppleGameControllerGUID(GCController* controller, const char* 
     ParseGamepadGuid(guid_string, guid);
 }
 
+// Driver-local lookup helpers for devices and their owning Gamepad handles.
 static AppleGamepadDevice* GetAppleGamepadDevice(AppleGamepadDriver* driver, int gamepad_id)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
@@ -1508,6 +1628,7 @@ static Gamepad* GetGamepad(AppleGamepadDriver* driver, int gamepad_id)
     return device ? device->m_Gamepad : 0;
 }
 
+// Maps an engine gamepad handle back to the AppleGamepadDevice metadata entry.
 static int UnpackGamepad(AppleGamepadDriver* driver, Gamepad* gamepad, AppleGamepadDevice** gamepad_device_out)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
@@ -1523,6 +1644,7 @@ static int UnpackGamepad(AppleGamepadDriver* driver, Gamepad* gamepad, AppleGame
     return -1;
 }
 
+// Allocates the lowest free logical gamepad slot.
 static int AllocateGamepadId(AppleGamepadDriver* driver)
 {
     for (int gamepad_id = 0; gamepad_id < MAX_GAMEPAD_COUNT; ++gamepad_id)
@@ -1534,6 +1656,8 @@ static int AllocateGamepadId(AppleGamepadDriver* driver)
     return -1;
 }
 
+// Creates the engine-side gamepad object and associated Apple metadata on first
+// sight of a GCController.
 static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_id, GCController* controller)
 {
     Gamepad* gp = GetGamepad(driver, gamepad_id);
@@ -1588,6 +1712,7 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
     return gp;
 }
 
+// Tears down one connected gamepad and releases Objective-C ownership.
 static void RemoveGamepad(AppleGamepadDriver* driver, int gamepad_id)
 {
     for (int i = 0; i < driver->m_Devices.Size(); ++i)
@@ -1609,6 +1734,8 @@ static void RemoveGamepad(AppleGamepadDriver* driver, int gamepad_id)
     }
 }
 
+// Notification handlers keep the engine device table in sync with the
+// GameController connection set.
 static void AppleGamepadControllerConnected(GCController* controller)
 {
     AppleGamepadDriver* driver = g_AppleGamepadDriver;
@@ -1641,6 +1768,8 @@ static void AppleGamepadControllerDisconnected(GCController* controller)
     }
 }
 
+// Per-frame driver update that converts the live GameController state into the
+// requested packet layout for the engine.
 static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
 {
     (void) context;
@@ -1686,6 +1815,7 @@ static void AppleGamepadDriverUpdate(HContext context, GamepadDriver* driver, Ga
         AppleGamepadDriverUpdateSDL(apple_device, controller, extended_gamepad, packet);
 }
 
+// Registers GameController connect/disconnect observers once per driver.
 static void InstallObservers(void)
 {
     if (g_AppleGamepadConnectObserver != nil || g_AppleGamepadDisconnectObserver != nil)
@@ -1710,6 +1840,7 @@ static void InstallObservers(void)
     }];
 }
 
+// Removes any previously installed GameController observers.
 static void RemoveObservers(void)
 {
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
@@ -1727,6 +1858,8 @@ static void RemoveObservers(void)
     }
 }
 
+// Polls the current controller list and installs observers so new connections
+// arrive through notifications after the first scan.
 static void AppleGamepadDriverDetectDevices(HContext context, GamepadDriver* _driver)
 {
     (void) context;
@@ -1747,6 +1880,8 @@ static void AppleGamepadDriverDetectDevices(HContext context, GamepadDriver* _dr
     }
 }
 
+// Internal accessors for the device name and GUID exported through the driver
+// vtable.
 static void GetGamepadDeviceNameInternal(HContext context, int gamepad_id, char name[MAX_GAMEPAD_NAME_LENGTH])
 {
     (void) context;
@@ -1788,6 +1923,8 @@ static bool AppleGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriv
     return GetGamepadDeviceGuidInternal(context, gamepad_index, guid);
 }
 
+// Initializes the Apple driver and, on macOS, the HID manager used for
+// building stable USB-style GUIDs.
 static bool AppleGamepadDriverInitialize(HContext context, GamepadDriver* driver)
 {
     if (!dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
@@ -1845,6 +1982,7 @@ static bool AppleGamepadDriverInitialize(HContext context, GamepadDriver* driver
     return true;
 }
 
+// Releases all device state, observers, and the macOS HID manager.
 static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
 {
     (void) context;
@@ -1876,6 +2014,7 @@ static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
     g_AppleGamepadDriver = 0;
 }
 
+// Creates and wires up the GameController-backed gamepad driver instance.
 GamepadDriver* CreateGamepadDriverApple(HContext context)
 {
     AppleGamepadDriver* driver = new AppleGamepadDriver();
