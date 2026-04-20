@@ -37,7 +37,7 @@ task compileTest(type: JavaCompile, dependsOn: distBob) {
     }
 }
 
-task createTestJar(type: Jar, dependsOn: [compileTest, 'compileJava']) {
+task createTestJar(type: Jar, dependsOn: compileTest) {
     archiveFileName = 'bob-tests.jar'
     destinationDirectory = testTmpDir
     includeEmptyDirs = false
