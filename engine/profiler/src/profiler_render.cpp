@@ -157,7 +157,7 @@ namespace dmProfileRender
         uint32_t count = render_profile->m_TransientTextLayouts.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
-            TextLayoutFree(render_profile->m_TransientTextLayouts[i]);
+            TextLayoutRelease(render_profile->m_TransientTextLayouts[i]);
         }
         render_profile->m_TransientTextLayouts.SetSize(0);
         render_profile->m_TextCodePoints.SetSize(0);
@@ -171,7 +171,7 @@ namespace dmProfileRender
         dmHashTable64<HTextLayout>::Iterator iter = render_profile->m_LabelTextLayouts.GetIterator();
         while (iter.Next())
         {
-            TextLayoutFree(iter.GetValue());
+            TextLayoutRelease(iter.GetValue());
         }
         render_profile->m_LabelTextLayouts.Clear();
         render_profile->m_TextLayoutFontMap = 0;
@@ -196,7 +196,7 @@ namespace dmProfileRender
         if (r != TEXT_RESULT_OK)
         {
             if (layout)
-                TextLayoutFree(layout);
+                TextLayoutRelease(layout);
             return false;
         }
 

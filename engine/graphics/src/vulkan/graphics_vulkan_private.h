@@ -412,6 +412,7 @@ namespace dmGraphics
         ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
+        VkRenderPass                    m_MainRenderPassLoad; // Compatible with m_MainRenderPass, but uses LOAD_OP_LOAD to preserve contents when the main RT is rebound mid-frame.
         VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
@@ -443,6 +444,7 @@ namespace dmGraphics
         uint32_t                        m_WindowHeight;
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
+        uint32_t                        m_MainRTBegunThisFrame : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_ViewportChanged      : 1;

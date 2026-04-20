@@ -391,7 +391,7 @@ namespace dmRender
         // Also see FontRenderListDispatch in font_renderer.cpp
         context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
-        context->m_TextContext.m_TextEntries.SetSize(0);
+        ClearTextEntries(context);
 
         return RESULT_OK;
     }
