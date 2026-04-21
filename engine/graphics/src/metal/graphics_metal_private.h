@@ -84,7 +84,7 @@ namespace dmGraphics
 
     struct MetalUniformBuffer
     {
-        UniformBuffer    m_BaseUniformBuffer;
+        UniformBuffer     m_BaseUniformBuffer;
         MetalDeviceBuffer m_DeviceBuffer;
     };
 
@@ -144,25 +144,12 @@ namespace dmGraphics
 
     struct MetalTexture
     {
+        Texture            m_Base;
         MTL::Texture*      m_Texture;
         MTL::ResourceUsage m_Usage;
-
-        TextureType       m_Type;
-        TextureFormat     m_GraphicsFormat;
-
-        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        uint16_t          m_Width;
-        uint16_t          m_Height;
-        uint16_t          m_Depth;
-        uint16_t          m_OriginalWidth;
-        uint16_t          m_OriginalHeight;
-        uint16_t          m_OriginalDepth;
-        uint16_t          m_MipMapCount         : 5;
-        uint16_t          m_TextureSamplerIndex : 10;
-        uint32_t          m_Destroyed           : 1;
-        uint32_t          m_UsageHintFlags      : 8;
-        uint8_t           m_LayerCount;
-        uint8_t           m_PageCount; // page count of texture array
+        uint16_t           m_TextureSamplerIndex : 10;
+        uint32_t           m_Destroyed           : 1;
+        uint8_t            m_LayerCount;
 
         const static MetalResourceType GetType()
         {
@@ -258,10 +245,11 @@ namespace dmGraphics
         dmArray<ClearShader> m_ClearShaderPermutations;
     };
 
-    struct MetalContext : public GraphicsContext
+    struct MetalContext
     {
         MetalContext(const ContextParams& params);
 
+        GraphicsContext                    m_BaseContext;
         NSView*                            m_View;
         CAMetalLayer*                      m_Layer;
         MetalFrameResource                 m_FrameResources[MAX_FRAMES_IN_FLIGHT];

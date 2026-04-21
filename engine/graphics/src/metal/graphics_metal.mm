@@ -45,7 +45,7 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable MetalRegisterFunctionTable();
     static bool                         MetalIsSupported();
     static HContext                     MetalGetContext();
-    static bool                         MetalInitialize(HContext _context);
+    static bool                         MetalInitialize(MetalContext* context);
     static GraphicsAdapter g_Metal_adapter(ADAPTER_FAMILY_METAL);
     static MetalContext*   g_MetalContext = 0x0;
 
@@ -69,23 +69,23 @@ namespace dmGraphics
     {
         memset(this, 0, sizeof(*this));
 
-        m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-        m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        m_Window                  = params.m_Window;
-        m_Width                   = params.m_Width;
-        m_Height                  = params.m_Height;
-        m_JobContext              = params.m_JobContext;
+        m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+        m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+        m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_BaseContext.m_Width                   = params.m_Width;
+        m_BaseContext.m_Height                  = params.m_Height;
+        m_BaseContext.m_Window                  = params.m_Window;
+        m_JobContext                            = params.m_JobContext;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
 
-        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
-            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
-        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
-            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_BaseContext.m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_BaseContext.m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static HContext MetalNewContext(const ContextParams& params)
@@ -96,10 +96,10 @@ namespace dmGraphics
 
             if (MetalInitialize(g_MetalContext))
             {
-                return g_MetalContext;
+                return (HContext) g_MetalContext;
             }
 
-            DeleteContext(g_MetalContext);
+            DeleteContext((HContext) g_MetalContext);
         }
         return 0x0;
     }
@@ -126,7 +126,7 @@ namespace dmGraphics
 
     static HContext MetalGetContext()
     {
-        return g_MetalContext;
+        return (HContext) g_MetalContext;
     }
 
     static bool MetalIsSupported()
@@ -313,15 +313,15 @@ namespace dmGraphics
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
 
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         if (rt == 0x0)
         {
             rt                          = new MetalRenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
-            context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+            context->m_MainRenderTarget = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
             MetalTexture* color         = new MetalTexture();
-            rt->m_TextureColor[0]       = StoreAssetInContainer(context->m_AssetHandleContainer, color, ASSET_TYPE_TEXTURE);
+            rt->m_TextureColor[0]       = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, color, ASSET_TYPE_TEXTURE);
             MetalTexture* depth         = new MetalTexture();
-            rt->m_TextureDepthStencil   = StoreAssetInContainer(context->m_AssetHandleContainer, depth, ASSET_TYPE_TEXTURE);
+            rt->m_TextureDepthStencil   = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, depth, ASSET_TYPE_TEXTURE);
         }
 
         rt->m_ColorFormat[0]       = MTL::PixelFormatBGRA8Unorm;
@@ -332,16 +332,16 @@ namespace dmGraphics
     static void SetupSupportedTextureFormats(MetalContext* context)
     {
         // PVRTC is always supported on Apple GPUs
-        context->m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-        context->m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-        context->m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-        context->m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
 
         // ETC2 support
         if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
         {
-            context->m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_ETC1);
-            context->m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_ETC2);
+            context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_ETC1);
+            context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_ETC2);
         }
 
         // ASTC support
@@ -366,12 +366,12 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(base_formats); ++i)
         {
-            context->m_TextureFormatSupport |= 1 << base_formats[i];
+            context->m_BaseContext.m_TextureFormatSupport |= 1 << base_formats[i];
         }
 
         // RGB isn't supported as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
-        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
     }
 
     static MTL::Texture* CreateMSAATexture(MetalContext* ctx, uint32_t width, uint32_t height, MTL::PixelFormat fmt, uint32_t sampleCount)
@@ -673,16 +673,15 @@ namespace dmGraphics
     }
     */
 
-    static bool MetalInitialize(HContext _context)
+    static bool MetalInitialize(MetalContext* context)
     {
-        MetalContext* context        = (MetalContext*) _context;
         context->m_Device            = MTL::CreateSystemDefaultDevice();
         context->m_CommandQueue      = context->m_Device->newCommandQueue();
         context->m_NumFramesInFlight = MAX_FRAMES_IN_FLIGHT;
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
-        context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupMainRenderTarget(context);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
@@ -691,8 +690,8 @@ namespace dmGraphics
 
         SetupSupportedTextureFormats(context);
 
-        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
-        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
+        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
@@ -723,7 +722,7 @@ namespace dmGraphics
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
-            context->m_AssetHandleContainerMutex = dmMutex::New();
+            context->m_BaseContext.m_AssetHandleContainerMutex = dmMutex::New();
         }
 
         // Create default texture sampler
@@ -802,7 +801,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
 
-        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
         }
     }
@@ -815,7 +814,7 @@ namespace dmGraphics
     static HWindow MetalGetWindow(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
-        return context->m_Window;
+        return context->m_BaseContext.m_Window;
     }
 
     static uint32_t MetalGetDisplayDpi(HContext _context)
@@ -826,22 +825,22 @@ namespace dmGraphics
     static uint32_t MetalGetWidth(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
-        return context->m_Width;
+        return context->m_BaseContext.m_Width;
     }
 
     static uint32_t MetalGetHeight(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
-        return context->m_Height;
+        return context->m_BaseContext.m_Height;
     }
 
     static void MetalSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
         MetalContext* context = (MetalContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
     }
 
@@ -849,17 +848,17 @@ namespace dmGraphics
     {
         assert(_context);
         MetalContext* context = (MetalContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
     }
 
     static void MetalGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         MetalContext* context = (MetalContext*) _context;
-        out_min_filter = context->m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_DefaultTextureMagFilter;
+        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void EndRenderPass(MetalContext* context)
@@ -870,7 +869,7 @@ namespace dmGraphics
         context->m_RenderCommandEncoder->endEncoding();
         context->m_RenderCommandEncoder = nullptr;
 
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         if (rt)
         {
@@ -880,10 +879,10 @@ namespace dmGraphics
 
     static void BeginRenderPass(MetalContext* context, HRenderTarget render_target)
     {
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
-        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
-        MetalRenderTarget* rt         = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, render_target);
+        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        MetalRenderTarget* rt         = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (current_rt && current_rt->m_Id == rt->m_Id && current_rt->m_IsBound)
             return;
@@ -905,7 +904,7 @@ namespace dmGraphics
             if (!rt->m_TextureColor[i])
                 continue;
 
-            MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+            MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
             if (!tex || !tex->m_Texture)
                 continue;
 
@@ -929,7 +928,7 @@ namespace dmGraphics
         // --- Configure depth/stencil attachment ---
         if (rt->m_TextureDepthStencil)
         {
-            MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             if (tex && tex->m_Texture)
             {
                 MTL::RenderPassDepthAttachmentDescriptor* depthAttachment = rpDesc->depthAttachment();
@@ -997,9 +996,9 @@ namespace dmGraphics
         context->m_RenderPassDescriptor  = NULL;
         context->m_RenderCommandEncoder  = NULL;
 
-        MetalRenderTarget* rt   = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-        MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[0]);
-        MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+        MetalRenderTarget* rt   = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
+        MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
         color_tex->m_Texture    = context->m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
@@ -1043,7 +1042,7 @@ namespace dmGraphics
                            float depth, uint32_t stencil)
     {
         MetalContext* context = (MetalContext*) _context;
-        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
@@ -1989,7 +1988,7 @@ namespace dmGraphics
 
                 case BINDING_FAMILY_TEXTURE:
                 {
-                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
+                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
 
                     if (texture == 0x0)
                     {
@@ -2078,7 +2077,7 @@ namespace dmGraphics
 
     static void DrawSetup(MetalContext* context)
     {
-        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         MTL::RenderCommandEncoder* encoder = context->m_RenderCommandEncoder;
@@ -2250,8 +2249,8 @@ namespace dmGraphics
 
     static inline bool IsRenderTargetbound(MetalContext* context, HRenderTarget rt)
     {
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, rt);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
     }
 
@@ -2792,8 +2791,8 @@ namespace dmGraphics
 
             // Create engine texture object using your NewTexture helper (keeps bookkeeping consistent)
             // The Vulkan path used params.m_ColorBufferCreationParams[i]; mirror that here.
-            HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
-            MetalTexture* new_texture_color = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, new_texture_color_handle);
+            HTexture new_texture_color_handle = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
+            MetalTexture* new_texture_color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
             assert(new_texture_color);
 
             CreateMetalTexture(context, new_texture_color, color_buffer_params, MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
@@ -2810,8 +2809,8 @@ namespace dmGraphics
             const TextureParams& ds_params = has_depth ? params.m_DepthBufferParams : params.m_StencilBufferParams;
 
             // create engine texture wrapper for depth/stencil
-            texture_depth_stencil = NewTexture(context, ds_create_params);
-            MetalTexture* depth_texture_ptr = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture_depth_stencil);
+            texture_depth_stencil = NewTexture(_context, ds_create_params);
+            MetalTexture* depth_texture_ptr = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);
             assert(depth_texture_ptr);
 
             CreateMetalDepthStencilTexture(context, depth_texture_ptr, ds_params, MTL::TextureUsageRenderTarget);
@@ -2831,26 +2830,26 @@ namespace dmGraphics
         }
 
         // store the RT in the asset container and return handle
-        return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void MetalDeleteRenderTarget(HContext _context, HRenderTarget render_target)
     {
         MetalContext* context = (MetalContext*) _context;
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, render_target);
-        context->m_AssetHandleContainer.Release(render_target);
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_TextureColor[i])
             {
-                DeleteTexture(context, rt->m_TextureColor[i]);
+                DeleteTexture(_context, rt->m_TextureColor[i]);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
-            DeleteTexture(context, rt->m_TextureDepthStencil);
+            DeleteTexture(_context, rt->m_TextureDepthStencil);
         }
 
         delete rt;
@@ -2867,7 +2866,7 @@ namespace dmGraphics
     static HTexture MetalGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
     {
         MetalContext* context = (MetalContext*)_context;
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, render_target);
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
 
         if (IsColorBufferType(buffer_type))
         {
@@ -2883,7 +2882,7 @@ namespace dmGraphics
     static void MetalGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         MetalContext* context = (MetalContext*)_context;
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, render_target);
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
 
         if (IsColorBufferType(buffer_type))
@@ -2913,14 +2912,7 @@ namespace dmGraphics
     static bool MetalIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         MetalContext* context = (MetalContext*) _context;
-        return (context->m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
-    }
-
-    static inline void InitializeMetalTexture(MetalTexture* t)
-    {
-        memset(t, 0, sizeof(MetalTexture));
-        t->m_Type           = TEXTURE_TYPE_2D;
-        t->m_GraphicsFormat = TEXTURE_FORMAT_RGBA;
+        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static inline MTL::ResourceUsage GetMetalUsageFromHints(uint8_t hints)
@@ -2941,33 +2933,32 @@ namespace dmGraphics
     static MetalTexture* MetalNewTextureInternal(const TextureCreationParams& params)
     {
         MetalTexture* tex = new MetalTexture;
-        InitializeMetalTexture(tex);
-
-        tex->m_Type           = params.m_Type;
-        tex->m_Width          = params.m_Width;
-        tex->m_Height         = params.m_Height;
-        tex->m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
-        tex->m_LayerCount     = dmMath::Max((uint8_t)1, params.m_LayerCount);
-        tex->m_MipMapCount    = params.m_MipMapCount;
-        tex->m_UsageHintFlags = params.m_UsageHintBits;
-        tex->m_PageCount      = params.m_LayerCount;
-        tex->m_DataState      = 0;
+        tex->m_Base.m_Type           = params.m_Type;
+        tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
+        tex->m_Base.m_Width          = params.m_Width;
+        tex->m_Base.m_Height         = params.m_Height;
+        tex->m_Base.m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
+        tex->m_Base.m_MipMapCount    = params.m_MipMapCount;
+        tex->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_Base.m_PageCount      = params.m_LayerCount;
+        tex->m_Base.m_DataState      = 0;
+        tex->m_LayerCount            = dmMath::Max((uint8_t)1, params.m_LayerCount);
 
         // TODO
         // tex->m_PendingUpload  = INVALID_OPAQUE_HANDLE;
-        tex->m_Usage     = GetMetalUsageFromHints(params.m_UsageHintBits);
+        tex->m_Usage = GetMetalUsageFromHints(params.m_UsageHintBits);
 
         if (params.m_OriginalWidth == 0)
         {
-            tex->m_OriginalWidth  = params.m_Width;
-            tex->m_OriginalHeight = params.m_Height;
-            tex->m_OriginalDepth  = params.m_Depth;
+            tex->m_Base.m_OriginalWidth  = params.m_Width;
+            tex->m_Base.m_OriginalHeight = params.m_Height;
+            tex->m_Base.m_OriginalDepth  = params.m_Depth;
         }
         else
         {
-            tex->m_OriginalWidth  = params.m_OriginalWidth;
-            tex->m_OriginalHeight = params.m_OriginalHeight;
-            tex->m_OriginalDepth  = params.m_OriginalDepth;
+            tex->m_Base.m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_Base.m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         }
         return tex;
     }
@@ -2976,8 +2967,8 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalTexture* texture = MetalNewTextureInternal(params);
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        return StoreAssetInContainer(context->m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
     }
 
     static void MetalDeleteTextureInternal(MetalContext* context, MetalTexture* texture)
@@ -2989,9 +2980,9 @@ namespace dmGraphics
     static void MetalDeleteTexture(HContext _context, HTexture texture)
     {
         MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalDeleteTextureInternal(context, GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture));
-        context->m_AssetHandleContainer.Release(texture);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalDeleteTextureInternal(context, GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
+        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
     }
 
     // Helper to compute aligned pitch
@@ -3024,8 +3015,8 @@ namespace dmGraphics
         const uint32_t layerCount = dmMath::Max((uint32_t)texture->m_LayerCount, (uint32_t)params.m_LayerCount);
 
         // Base dims (full-size level 0)
-        const uint32_t baseWidth  = texture->m_Width;
-        const uint32_t baseHeight = texture->m_Height;
+        const uint32_t baseWidth  = texture->m_Base.m_Width;
+        const uint32_t baseHeight = texture->m_Base.m_Height;
 
         // Compute mip dims for the target mip
         auto MipDim = [] (uint32_t base, uint32_t mip) -> uint32_t {
@@ -3164,19 +3155,19 @@ namespace dmGraphics
         texture->m_Texture = context->m_Device->newTexture(desc);
         desc->release();
 
-        texture->m_Width          = params.m_Width;
-        texture->m_Height         = params.m_Height;
-        texture->m_GraphicsFormat = params.m_Format;
-        texture->m_Depth          = 1;
-        texture->m_LayerCount     = 1;
-        texture->m_MipMapCount    = 1;
+        texture->m_Base.m_Width       = params.m_Width;
+        texture->m_Base.m_Height      = params.m_Height;
+        texture->m_Base.m_Format      = params.m_Format;
+        texture->m_Base.m_Depth       = 1;
+        texture->m_Base.m_MipMapCount = 1;
+        texture->m_LayerCount  = 1; // TODO: Move to base texture
     }
 
     static void CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage)
     {
         uint8_t tex_layer_count  = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
         uint8_t tex_array_length = tex_layer_count;
-        uint16_t tex_depth       = dmMath::Max(texture->m_Depth, params.m_Depth);
+        uint16_t tex_depth       = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
         uint8_t tex_mip_count    = 1;
 
         // Note:
@@ -3186,14 +3177,14 @@ namespace dmGraphics
         // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
         // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
 
-        if (texture->m_MipMapCount > 1)
+        if (texture->m_Base.m_MipMapCount > 1)
         {
-            tex_mip_count = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
+            tex_mip_count = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Base.m_Width, texture->m_Base.m_Height));
         }
 
         MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
 
-        switch(texture->m_Type)
+        switch(texture->m_Base.m_Type)
         {
             case TEXTURE_TYPE_2D:
             case TEXTURE_TYPE_IMAGE_2D:
@@ -3239,12 +3230,12 @@ namespace dmGraphics
         texture->m_Texture = context->m_Device->newTexture(desc);
         desc->release();
 
-        texture->m_Width          = params.m_Width;
-        texture->m_Height         = params.m_Height;
-        texture->m_Depth          = params.m_Depth;
-        texture->m_LayerCount     = tex_layer_count;
-        texture->m_GraphicsFormat = params.m_Format;
-        texture->m_MipMapCount    = tex_mip_count;
+        texture->m_Base.m_Width       = params.m_Width;
+        texture->m_Base.m_Height      = params.m_Height;
+        texture->m_Base.m_Depth       = params.m_Depth;
+        texture->m_Base.m_Format      = params.m_Format;
+        texture->m_Base.m_MipMapCount = tex_mip_count;
+        texture->m_LayerCount         = tex_layer_count;
     }
 
     static void MetalSetTextureInternal(MetalContext* context, MetalTexture* texture, const TextureParams& params)
@@ -3257,17 +3248,17 @@ namespace dmGraphics
         }
 
         // Clamp size to Metal limits
-        uint32_t maxSize = GetMaxTextureSize(context);
+        uint32_t maxSize = GetMaxTextureSize((HContext) context);
         assert(params.m_Width  <= maxSize);
         assert(params.m_Height <= maxSize);
 
         // Compute layer count, depth, and bits per pixel
         uint8_t tex_layer_count = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
-        uint16_t tex_depth      = dmMath::Max(texture->m_Depth, params.m_Depth);
+        uint16_t tex_depth      = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
         uint8_t tex_bpp         = GetTextureFormatBitsPerPixel(params.m_Format);
         size_t tex_data_size    = params.m_DataSize * tex_layer_count * 8; // bits
         void* tex_data_ptr      = (void*)params.m_Data;
-        texture->m_MipMapCount  = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        texture->m_Base.m_MipMapCount = dmMath::Max(texture->m_Base.m_MipMapCount, (uint8_t)(params.m_MipMap+1));
 
         // Expand RGB to RGBA if needed
         TextureFormat format_orig = params.m_Format;
@@ -3293,10 +3284,10 @@ namespace dmGraphics
         }
         else if (params.m_MipMap == 0)
         {
-            if (texture->m_GraphicsFormat != params.m_Format ||
-                texture->m_Width != params.m_Width ||
-                texture->m_Height != params.m_Height ||
-                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
+            if (texture->m_Base.m_Format != params.m_Format ||
+                texture->m_Base.m_Width != params.m_Width ||
+                texture->m_Base.m_Height != params.m_Height ||
+                (IsTextureType3D(texture->m_Base.m_Type) && (texture->m_Base.m_Depth != params.m_Depth)))
             {
                 DestroyResourceDeferred(context, texture);
             }
@@ -3323,8 +3314,8 @@ namespace dmGraphics
     {
         DM_PROFILE(__FUNCTION__);
         MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         MetalSetTextureInternal(context, tex, params);
     }
 
@@ -3332,11 +3323,11 @@ namespace dmGraphics
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
         {
-            minfilter = context->m_DefaultTextureMinFilter;
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
         }
         if (magfilter == TEXTURE_FILTER_DEFAULT)
         {
-            magfilter = context->m_DefaultTextureMagFilter;
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
         }
 
         for (uint32_t i=0; i < context->m_TextureSamplers.Size(); i++)
@@ -3470,10 +3461,10 @@ namespace dmGraphics
         {
             // Resolve defaults
             if (magFilter == TEXTURE_FILTER_DEFAULT)
-                magFilter = context->m_DefaultTextureMagFilter;
+                magFilter = context->m_BaseContext.m_DefaultTextureMagFilter;
 
             if (minFilter == TEXTURE_FILTER_DEFAULT)
-                minFilter = context->m_DefaultTextureMinFilter;
+                minFilter = context->m_BaseContext.m_DefaultTextureMinFilter;
 
             // Determine Metal min/mip filters (based on minFilter)
             MTL::SamplerMinMagFilter metalMinFilter;
@@ -3527,17 +3518,17 @@ namespace dmGraphics
         const MetalTextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
         float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
 
-        if (sampler.m_MinFilter     != minfilter              ||
-            sampler.m_MagFilter     != magfilter              ||
-            sampler.m_AddressModeU  != uwrap                  ||
-            sampler.m_AddressModeV  != vwrap                  ||
-            sampler.m_MaxLod        != texture->m_MipMapCount ||
+        if (sampler.m_MinFilter     != minfilter                     ||
+            sampler.m_MagFilter     != magfilter                     ||
+            sampler.m_AddressModeU  != uwrap                         ||
+            sampler.m_AddressModeV  != vwrap                         ||
+            sampler.m_MaxLod        != texture->m_Base.m_MipMapCount ||
             sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_Base.m_MipMapCount, anisotropy_clamped);
             }
             texture->m_TextureSamplerIndex = sampler_index;
         }
@@ -3556,88 +3547,32 @@ namespace dmGraphics
     static void MetalSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         MetalSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
     static uint32_t MetalGetTextureResourceSize(HContext _context, HTexture texture)
     {
         MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         if (!tex)
         {
             return 0;
         }
         uint32_t size_total = 0;
-        uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_GraphicsFormat)/8);
-        for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)
+        uint32_t size = tex->m_Base.m_Width * tex->m_Base.m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Base.m_Format)/8);
+        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
         {
             size_total += size;
             size >>= 2;
         }
-        if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        if (tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
         {
             size_total *= 6;
         }
         return size_total + sizeof(MetalTexture);
-    }
-
-    static uint16_t MetalGetTextureWidth(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Width : 0;
-    }
-
-    static uint16_t MetalGetTextureHeight(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Height : 0;
-    }
-
-    static uint16_t MetalGetTextureDepth(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Depth : 0;
-    }
-
-    static uint16_t MetalGetOriginalTextureWidth(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_OriginalWidth : 0;
-    }
-
-    static uint16_t MetalGetOriginalTextureHeight(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_OriginalHeight : 0;
-    }
-
-    static uint8_t MetalGetTextureMipmapCount(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_MipMapCount : 0;
-    }
-
-    static TextureType MetalGetTextureType(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, texture);
-        return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
     static void MetalEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
@@ -3661,11 +3596,6 @@ namespace dmGraphics
             return 16384;
         }
         return 8192;
-    }
-
-    static uint32_t MetalGetTextureStatusFlags(HContext _context, HTexture texture)
-    {
-        return TEXTURE_STATUS_OK;
     }
 
     static void MetalReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
@@ -3709,21 +3639,11 @@ namespace dmGraphics
         return context->m_PipelineState;
     }
 
-    static uint8_t MetalGetNumTextureHandles(HContext _context, HTexture texture)
-    {
-        return 1;
-    }
-
-    static uint32_t MetalGetTextureUsageHintFlags(HContext _context, HTexture texture)
-    {
-        return 0;
-    }
-
     static uint8_t MetalGetTexturePageCount(HTexture texture)
     {
-        DM_MUTEX_SCOPED_LOCK(g_MetalContext->m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(g_MetalContext->m_AssetHandleContainer, texture);
-        return tex ? tex->m_PageCount : 0;
+        DM_MUTEX_SCOPED_LOCK(g_MetalContext->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(g_MetalContext->m_BaseContext.m_AssetHandleContainer, texture);
+        return tex ? tex->m_Base.m_PageCount : 0;
     }
 
     static bool MetalIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
@@ -3736,14 +3656,14 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
-        DM_MUTEX_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
-            return GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<MetalRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }
