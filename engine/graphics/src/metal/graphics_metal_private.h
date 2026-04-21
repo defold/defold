@@ -264,6 +264,7 @@ namespace dmGraphics
         HRenderTarget                      m_MainRenderTarget;
         MTL::Texture*                      m_MainDepthStencilTexture;
         MetalClearData                     m_ClearData;
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         // Async process resources
         HJobContext                        m_JobContext;
