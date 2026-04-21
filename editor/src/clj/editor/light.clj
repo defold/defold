@@ -194,7 +194,9 @@
   (let [{:keys [^Quat4d world-rotation
                 ^Vector3d world-scale
                 ^Vector3d world-translation]} renderable
-        min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
+        min-scale (min (Math/abs (.-x world-scale))
+                       (Math/abs (.-y world-scale))
+                       (Math/abs (.-z world-scale)))
         physics-world-transform (doto (Matrix4d.)
                                 (.setIdentity)
                                 (.setScale min-scale)
@@ -218,7 +220,9 @@
 
 (defn- renderable-min-scale [renderable]
   (if-some [^Vector3d ws (:world-scale renderable)]
-    (min (.-x ws) (.-y ws) (.-z ws))
+    (min (Math/abs (.-x ws))
+         (Math/abs (.-y ws))
+         (Math/abs (.-z ws)))
     1.0))
 
 (defn- v3-normalize! [^Vector3d v ^Vector3d fallback]
@@ -625,7 +629,9 @@
   [visibility-aabb user-data prop-kw->override-value]
   (if-some [range-override (:range prop-kw->override-value)]
     (let [h (max (double range-override) 0.01)
-          outer-cone-angle (double (or (:outer-cone-angle user-data) 45.0))
+          outer-cone-angle (double (or (get-in user-data [:editor-preview-light :outer-cone-angle])
+                                       (:outer-cone-angle user-data)
+                                       45.0))
           half-outer (* 0.5 (Math/toRadians outer-cone-angle))
           base-r (max (* h (Math/tan half-outer)) 0.02)
           point-scale (float-array [(float base-r) (float base-r) (float h) 1.0])

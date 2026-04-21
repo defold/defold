@@ -669,8 +669,19 @@
               additional-renderables-by-pass)]
     {:renderables filtered-additional-renderables-by-pass}))
 
-(g/defnk produce-pass->render-args [^Region viewport camera scene-render-data]
-  (let [preview-lights (light/packed-lights-from-scene (:renderables scene-render-data))]
+(g/defnk produce-pass->render-args [^Region viewport camera scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths local-camera]
+  (let [preview-lights
+        (if-let [error (:error scene)]
+          []
+          (let [preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
+                view-matrix (c/camera-view-matrix local-camera)
+                preview-light-renderables (:renderables (flatten-scene scene
+                                                                      preview-overrides
+                                                                      #{}
+                                                                      preview-light-hidden-renderable-tags
+                                                                      hidden-node-outline-key-paths
+                                                                      view-matrix))]
+            (light/packed-lights-from-scene preview-light-renderables)))]
     (into {}
           (map (fn [pass]
                  [pass (assoc (pass-render-args viewport camera pass)

@@ -44,7 +44,9 @@
 
 (defn- preview-renderable-min-scale ^double [renderable]
   (if-some [^Vector3d ws (:world-scale renderable)]
-    (min (.x ws) (.y ws) (.z ws))
+    (min (Math/abs (.x ws))
+         (Math/abs (.y ws))
+         (Math/abs (.z ws)))
     1.0))
 
 (defn renderable->std140-light [renderable]

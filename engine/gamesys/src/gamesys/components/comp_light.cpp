@@ -149,7 +149,10 @@ namespace dmGameSystem
             dmVMath::Point3 position = dmGameObject::GetPosition(light->m_Instance);
             dmVMath::Quat rotation = dmGameObject::GetRotation(light->m_Instance);
             dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(light->m_Instance);
-            float scale = dmMath::Min(world_scale.getX(), dmMath::Min(world_scale.getY(), world_scale.getZ()));
+            float scale_x = dmMath::Abs(world_scale.getX());
+            float scale_y = dmMath::Abs(world_scale.getY());
+            float scale_z = dmMath::Abs(world_scale.getZ());
+            float scale = dmMath::Min(scale_x, dmMath::Min(scale_y, scale_z));
 
             dmRender::SetLightInstance(context->m_RenderContext, light->m_LightInstance, position, rotation, scale);
         }
