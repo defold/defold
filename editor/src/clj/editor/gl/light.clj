@@ -110,29 +110,37 @@
                           :direction_range "direction_range"
                           :params "params")))
 
+(def ^:private lights-count-uniform-name "lights_count")
+
+(defn- set-preview-light-uniform-at-index! [^GL2 gl program uniform-info uniform-name uniform-value]
+  (try
+    (shader/set-uniform-at-index gl program (:location uniform-info) uniform-value)
+    (catch IllegalArgumentException e
+      (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e)))))
+
 (defn bind-preview-lights-for-shader! [^GL2 gl shader-lifecycle render-args]
-  (let [packed-lights (or (:editor/preview-lights render-args) [])
-        lights (take default-max-preview-lights packed-lights)
-        light-count (long (count lights))
-        count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)
-        pairs (into [["lights_count" count-v4]]
-                    (mapcat
-                      (fn [^long i]
-                        (let [light (nth lights i)]
-                          (map (fn [field]
-                                 [(gl-light-uniform-name i field) (field light)])
-                               [:position :color :direction_range :params])))
-                      (range light-count)))]
-    (when-let [{:keys [^int program uniform-infos]}
-               (scene-cache/request-object! ::shader/shader
-                                            (:request-id shader-lifecycle)
-                                            gl
-                                            (:request-data shader-lifecycle))]
-      (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-        (doseq [[name val] pairs
-                :when (and (string? (not-empty name)) (some? val) (uniform-infos name))]
-          (let [uniform-info (uniform-infos name)]
-            (try
-              (shader/set-uniform-at-index gl program (:location uniform-info) val)
-              (catch IllegalArgumentException e
-                (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." name) e))))))))))
+  (when (shader/uses-preview-light-buffer? shader-lifecycle)
+    (let [packed-lights (or (:editor/preview-lights render-args) [])
+          lights (take default-max-preview-lights packed-lights)
+          light-count (long (count lights))
+          count-v4 (Vector4d. (double light-count) 0.0 0.0 0.0)]
+      (when-let [{:keys [^int program uniform-infos]}
+                 (scene-cache/request-object! ::shader/shader
+                                              (:request-id shader-lifecycle)
+                                              gl
+                                              (:request-data shader-lifecycle))]
+        (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
+          (when-some [uniform-info (uniform-infos lights-count-uniform-name)]
+            (set-preview-light-uniform-at-index! gl program uniform-info lights-count-uniform-name count-v4))
+
+          (when (pos? light-count)
+            (doseq [^long i (range light-count)
+                    :let [light (nth lights i)]
+                    field [:position :color :direction_range :params]
+                    :let [uniform-name (gl-light-uniform-name i field)
+                          uniform-value (field light)
+                          uniform-info (uniform-infos uniform-name)]
+                    :when (and (string? (not-empty uniform-name))
+                               (some? uniform-value)
+                               uniform-info)]
+              (set-preview-light-uniform-at-index! gl program uniform-info uniform-name uniform-value))))))))

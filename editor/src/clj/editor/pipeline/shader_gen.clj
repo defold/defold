@@ -19,7 +19,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
@@ -151,6 +151,56 @@
   (pos? (bit-and (.-stageFlags shader-resource)
                  vertex-shader-stage-flag)))
 
+(def ^:private preview-light-buffer-type-name "LightBuffer")
+(def ^:private preview-light-type-name "Light")
+(def ^:private preview-light-instance-name "lights")
+(def ^:private preview-lights-count-buffer-type-name "fs_uniforms")
+
+(defn- resource-type-at ^Shaderc$ResourceTypeInfo [types ^long type-index]
+  (when (<= 0 type-index (dec (count types)))
+    (.get ^java.util.ArrayList types type-index)))
+
+(defn- resource-type-from-shader-resource [types ^Shaderc$ShaderResource shader-resource]
+  (when (.. shader-resource -type -useTypeIndex)
+    (resource-type-at types (.. shader-resource -type -typeIndex))))
+
+(defn- resource-type-name [types ^Shaderc$ShaderResource shader-resource]
+  (some-> ^Shaderc$ResourceTypeInfo (resource-type-from-shader-resource types shader-resource) .-name))
+
+(defn- preview-light-type? [^Shaderc$ResourceTypeInfo resource-type]
+  (and resource-type
+       (= preview-light-type-name (.-name resource-type))))
+
+(defn- preview-light-buffer-wrapper-resource? [types ^Shaderc$ShaderResource uniform-buffer]
+  (= preview-light-buffer-type-name
+     (resource-type-name types uniform-buffer)))
+
+(defn- preview-light-block-array-resource? [types ^Shaderc$ShaderResource uniform-buffer]
+  (let [instance-name (or (some-> uniform-buffer .-instanceName not-empty)
+                          (some-> uniform-buffer .-name not-empty))]
+    (and (= preview-light-type-name
+            (resource-type-name types uniform-buffer))
+         (= preview-light-instance-name instance-name))))
+
+(defn- lights-count-resource? [types ^Shaderc$ShaderResource uniform-buffer]
+  (= preview-lights-count-buffer-type-name
+     (resource-type-name types uniform-buffer)))
+
+(defn- uses-preview-light-buffer? [^SPIRVReflector spirv-reflector]
+  (let [types (.getTypes spirv-reflector)
+        uniform-buffers (.getUBOs spirv-reflector)
+        has-light-type (boolean
+                         (some preview-light-type?
+                               types))]
+    (and has-light-type
+         (boolean
+           (or (some (partial preview-light-buffer-wrapper-resource? types)
+                     uniform-buffers)
+               (and (some (partial preview-light-block-array-resource? types)
+                          uniform-buffers)
+                    (some (partial lights-count-resource? types)
+                          uniform-buffers)))))))
+
 (defn transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
@@ -183,6 +233,7 @@
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
+        uses-preview-light-buffer (uses-preview-light-buffer? spirv-reflector)
 
         attribute-reflection-infos
         (coll/into-> (.getInputs spirv-reflector) []
@@ -193,6 +244,7 @@
      :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
+     :uses-preview-light-buffer uses-preview-light-buffer
      :array-sampler-names array-sampler-names
      :attribute-reflection-infos attribute-reflection-infos}))
 
@@ -258,11 +310,16 @@
 
         location+attribute-name-pairs
         (mapv (coll/pair-fn :location :name)
-              attribute-reflection-infos)]
+              attribute-reflection-infos)
+
+        uses-preview-light-buffer
+        (boolean
+          (some :uses-preview-light-buffer augmented-shader-infos))]
 
     {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
      :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
      :max-page-count max-page-count
      :shader-type+source-pairs shader-type+source-pairs
+     :uses-preview-light-buffer uses-preview-light-buffer
      :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))

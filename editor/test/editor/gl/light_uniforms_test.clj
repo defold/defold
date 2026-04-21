@@ -15,10 +15,13 @@
 (ns editor.gl.light-uniforms-test
   (:require [clojure.test :refer :all]
             [editor.camera :as camera]
+            [editor.gl :as gl]
             [editor.geom :as geom]
             [editor.gl.light :as light]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.light :as editor-light]
+            [editor.scene-cache :as scene-cache]
             [editor.scene :as scene]
             [editor.types :as types])
   (:import [javax.vecmath Matrix4d Vector3d Vector4d]))
@@ -181,3 +184,37 @@
                                                             :local-camera camera})]
     (is (= [] (get (:renderables scene-render-data) pass/transparent [])))
     (is (= 1 (count (:editor/preview-lights (get pass->render-args pass/transparent)))))))
+
+(deftest bind-preview-lights-for-shader-skips-shaders-without-preview-light-uniforms-test
+  (let [request-object-call-count (atom 0)
+        test-shader (shader/make-shader
+                      ::no-preview-lights
+                      "void main() { gl_Position = vec4(0.0); }"
+                      "void main() { gl_FragColor = vec4(1.0); }")]
+    (with-redefs [scene-cache/request-object! (fn [& _]
+                                                (swap! request-object-call-count inc)
+                                                (throw (ex-info "Should not request shader object." {})))]
+      (light/bind-preview-lights-for-shader! nil test-shader {:editor/preview-lights []}))
+    (is (zero? @request-object-call-count))))
+
+(deftest bind-preview-lights-for-shader-only-resets-count-when-no-preview-lights-exist-test
+  (let [uniform-updates (atom [])
+        shader-request-data (shader/make-shader-request-data [] [] {} nil true)
+        test-shader (shader/make-shader-lifecycle ::preview-lights-count-only shader-request-data [] {})]
+    (with-redefs [scene-cache/request-object! (fn [& _]
+                                                {:program 7
+                                                 :uniform-infos {"lights_count" {:location 3}
+                                                                 "lights[0].position" {:location 4}}})
+                  gl/gl-current-program (fn ^long [_gl] 7)
+                  shader/set-uniform-at-index (fn [_gl program location value]
+                                                (swap! uniform-updates conj [program location value]))]
+      (light/bind-preview-lights-for-shader! nil test-shader {:editor/preview-lights []}))
+    (is (= 1 (count @uniform-updates)))
+    (let [[program location value] (first @uniform-updates)]
+      (is (= 7 program))
+      (is (= 3 location))
+      (is (instance? Vector4d value))
+      (is (zero? (.x ^Vector4d value)))
+      (is (zero? (.y ^Vector4d value)))
+      (is (zero? (.z ^Vector4d value)))
+      (is (zero? (.w ^Vector4d value))))))
