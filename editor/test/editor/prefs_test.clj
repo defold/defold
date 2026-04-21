@@ -678,6 +678,13 @@
         (is (= {:opacity 0.75 :active-plane :x :color [1.0 0.0 0.0 1.0]}
                (edn/read-string (slurp file)))))
 
+      (testing "sync clears :removals"
+        (prefs/set! p [:opacity] 0.75)
+        (prefs/reset-path! p [:size])
+        (is (= 1 (count (:removals @prefs/global-state))))
+        (prefs/sync!)
+        (is (nil? (:removals @prefs/global-state))))
+
       (testing "reset clears pending events so sync doesn't re-write"
         (prefs/set! p [:size :x] 99.0)
         (prefs/set! p [:size :y] 99.0)
