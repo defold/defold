@@ -64,7 +64,7 @@ public final class Library {
     public static List<Result> cached(Collection<URI> uris, Path libDir) {
         Objects.requireNonNull(uris, "uris");
         Objects.requireNonNull(libDir, "libDir");
-        var taggedResults = scanInstalledArchives(uniqueValidUris(uris), libDir);
+        var taggedResults = scanInstalledArchives(uniqueUris(uris), libDir);
         var results = new ArrayList<Result>(taggedResults.size());
         for (var taggedResult : taggedResults) {
             results.add(taggedResult.result());
@@ -89,7 +89,7 @@ public final class Library {
             Objects.requireNonNull(libDir, "libDir");
             Objects.requireNonNull(progress, "progress");
 
-            var uniqueUris = uniqueValidUris(uris);
+            var uniqueUris = uniqueUris(uris);
             progress.message(new IProgress.Message.DownloadingArchives(uniqueUris.size()));
             var split = progress.split(uniqueUris.size());
 
@@ -98,7 +98,8 @@ public final class Library {
             for (var result : cachedResults) {
                 cachedByUri.put(result.result().uri(), result);
             }
-            try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var executor = Executors.newVirtualThreadPerTaskExecutor();
+            try {
                 Files.createDirectories(libDir);
                 var tasks = new ArrayList<Future<Result>>(uniqueUris.size());
                 var downloadTasksByHost = new HashMap<URI, List<Future<Result>>>();
@@ -107,10 +108,13 @@ public final class Library {
                     var cachedResult = cachedByUri.get(uri);
                     var task = executor.submit(() -> fetchTask(uri, cachedResult, libDir, email, auth, split.subtask(), hostLimits));
                     tasks.add(task);
-                    downloadTasksByHost.computeIfAbsent(hostKey(uri), _ -> new ArrayList<>()).add(task);
+                    var host = hostKey(uri);
+                    if (host != null) {
+                        downloadTasksByHost.computeIfAbsent(host, _ -> new ArrayList<>()).add(task);
+                    }
                 }
 
-                downloadTasksByHost.forEach((host, downloadTasks) -> executor.execute(() -> probeHost(host, downloadTasks)));
+                downloadTasksByHost.forEach((host, downloadTasks) -> executor.submit(() -> hostProbeTask(host, downloadTasks, executor)));
 
                 var results = new ArrayList<Result>(tasks.size());
                 for (var i = 0; i < tasks.size(); i++) {
@@ -133,6 +137,8 @@ public final class Library {
                     results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed()));
                 }
                 return results;
+            } finally {
+                executor.shutdownNow();
             }
         }
     }
@@ -148,16 +154,18 @@ public final class Library {
         return inspection.archive();
     }
 
-    private static void probeHost(URI host, List<Future<Result>> downloadTasks) {
+    private static void hostProbeTask(URI host, List<Future<Result>> downloadTasks, ExecutorService executor) {
         try {
             var request = HttpRequest.newBuilder(host).method("HEAD", HttpRequest.BodyPublishers.noBody()).timeout(Duration.ofSeconds(5)).build();
-            HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding());
-        } catch (IOException e) {
+            // Unfortunately, 5 second timeout on an HTTP request does not mean that send will abort after
+            // 5 seconds, so we separately do a hard timeout
+            executor.submit(() -> HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding())).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | TimeoutException e) {
             for (var downloadTask : downloadTasks) {
                 downloadTask.cancel(true);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 
@@ -171,67 +179,62 @@ public final class Library {
                 sanitizedUri = URI.create(uri.getScheme() + "://" + uri.getHost() + uri.getPath());
             }
             progress.message(new IProgress.Message.DownloadingArchive(sanitizedUri));
-            var permit = hostLimits.computeIfAbsent(hostKey(uri), _ -> new Semaphore(FETCHES_PER_HOST));
+            var host = hostKey(uri);
+            if (host == null) {
+                throw new IllegalArgumentException("Invalid host URI " + uri);
+            }
+            var permit = hostLimits.computeIfAbsent(host, _ -> new Semaphore(FETCHES_PER_HOST));
             permit.acquire();
             try {
-                return fetchOne(uri, cachedResult, libDir, email, auth);
+                var cachedArchive = cachedResult.result().archive();
+                var request = HttpRequest.newBuilder(uri).GET().header("Accept", "application/zip");
+                var userInfo = uri.getUserInfo();
+                if (userInfo != null) {
+                    var parts = userInfo.split(":", 2);
+                    var user = replaceUserInfoEnv(parts[0]);
+                    var resolvedUserInfo = parts.length == 1 ? user : user + ':' + replaceUserInfoEnv(parts[1]);
+                    request.header("Authorization", "Basic " + Base64.getEncoder().encodeToString(resolvedUserInfo.getBytes(StandardCharsets.UTF_8)));
+                } else if (email != null && auth != null) {
+                    request.header("X-Email", email);
+                    request.header("X-Auth", auth);
+                }
+                if (cachedResult.tag() != null && !cachedResult.tag().isEmpty()) {
+                    request.header("If-None-Match", cachedResult.tag());
+                }
+                var stagedPath = Files.createTempFile(libDir, cacheKey(uri) + '-', ".zip.tmp");
+                try {
+                    var response = HTTP_CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofFile(stagedPath));
+                    var code = response.statusCode();
+                    if (code == 304) {
+                        return cachedResult.result();
+                    }
+                    if (code >= 400) {
+                        return new Result(uri, cachedArchive, new Problem.FetchFailed());
+                    }
+                    // Validate and inspect the downloaded archive before replacing the
+                    // installed copy in the shared cache.
+                    var stagedInspection = inspectArchive(stagedPath);
+                    if (stagedInspection.problem() != null) {
+                        return new Result(uri, cachedArchive, stagedInspection.problem());
+                    }
+
+                    var tag = response.headers().firstValue("ETag").orElse("");
+                    return install(uri, libDir, stagedPath, stagedInspection.archive(), tag, cachedArchive);
+                } finally {
+                    try {
+                        Files.deleteIfExists(stagedPath);
+                    } catch (IOException e) {
+                        logger.log(Level.FINE, "Failed to clean staged library " + stagedPath, e);
+                    }
+                }
             } finally {
                 permit.release();
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             return new Result(uri, cachedResult.result().archive(), new Problem.FetchFailed());
-        }
-    }
-
-    private static Result fetchOne(URI uri, TaggedResult cachedResult, Path libDir, String email, String auth) {
-        var cachedArchive = cachedResult.result().archive();
-        try {
-            var request = HttpRequest.newBuilder(uri).GET().header("Accept", "application/zip");
-            var userInfo = uri.getUserInfo();
-            if (userInfo != null) {
-                var parts = userInfo.split(":", 2);
-                var user = replaceUserInfoEnv(parts[0]);
-                var resolvedUserInfo = parts.length == 1 ? user : user + ':' + replaceUserInfoEnv(parts[1]);
-                request.header("Authorization", "Basic " + Base64.getEncoder().encodeToString(resolvedUserInfo.getBytes(StandardCharsets.UTF_8)));
-            } else if (email != null && auth != null) {
-                request.header("X-Email", email);
-                request.header("X-Auth", auth);
-            }
-            if (cachedResult.tag() != null && !cachedResult.tag().isEmpty()) {
-                request.header("If-None-Match", cachedResult.tag());
-            }
-            var stagedPath = Files.createTempFile(libDir, cacheKey(uri) + '-', ".zip.tmp");
-            try {
-                var response = HTTP_CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofFile(stagedPath));
-                var code = response.statusCode();
-                if (code == 304) {
-                    return cachedResult.result();
-                }
-                if (code >= 400) {
-                    return new Result(uri, cachedArchive, new Problem.FetchFailed());
-                }
-                // Validate and inspect the downloaded archive before replacing the
-                // installed copy in the shared cache.
-                var stagedInspection = inspectArchive(stagedPath);
-                if (stagedInspection.problem() != null) {
-                    return new Result(uri, cachedArchive, stagedInspection.problem());
-                }
-
-                var tag = response.headers().firstValue("ETag").orElse("");
-                return install(uri, libDir, stagedPath, stagedInspection.archive(), tag, cachedArchive);
-            } finally {
-                try {
-                    Files.deleteIfExists(stagedPath);
-                } catch (IOException e) {
-                    logger.log(Level.FINE, "Failed to clean staged library " + stagedPath, e);
-                }
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return new Result(uri, cachedArchive, new Problem.FetchFailed());
-        } catch (IOException e) {
-            return new Result(uri, cachedArchive, new Problem.FetchFailed());
         }
     }
 
@@ -320,19 +323,14 @@ public final class Library {
         return null;
     }
 
-    private static List<URI> uniqueValidUris(Collection<URI> uris) {
+    private static List<URI> uniqueUris(Collection<URI> uris) {
         var uniqueUris = new ArrayList<URI>();
         var seenUris = new HashSet<URI>();
         for (var uri : uris) {
             Objects.requireNonNull(uri, "uri");
-            if (!seenUris.add(uri)) {
-                continue;
+            if (seenUris.add(uri)) {
+                uniqueUris.add(uri);
             }
-            var scheme = uri.getScheme();
-            if ((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) || uri.isOpaque() || uri.getHost() == null) {
-                throw new IllegalArgumentException("Library URI must be an HTTP(S) URI with a host: " + uri);
-            }
-            uniqueUris.add(uri);
         }
         return uniqueUris;
     }
@@ -341,7 +339,7 @@ public final class Library {
         try {
             return new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), null, null, null);
         } catch (URISyntaxException e) {
-            throw new IllegalStateException("Invalid host URI " + uri, e);
+            return null;
         }
     }
 

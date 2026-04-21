@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.HashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipFile;
 
@@ -62,7 +63,7 @@ import com.dynamo.bob.test.util.MockFileSystem;
 
 public class ProjectTest {
     private static final class RecordingReporter implements Progress.Reporter {
-        private final List<IProgress.Message> messages = new ArrayList<>();
+        private final List<IProgress.Message> messages = new CopyOnWriteArrayList<>();
 
         @Override
         public void report(IProgress.Message message, double fraction) {
