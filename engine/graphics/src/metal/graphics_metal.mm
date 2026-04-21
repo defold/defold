@@ -56,6 +56,7 @@ namespace dmGraphics
     static void          CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage);
     static void          CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage);
     static int16_t       CreateTextureSampler(MetalContext* context, TextureFilter minFilter, TextureFilter magFilter, TextureWrap uWrap, TextureWrap vWrap, uint8_t maxLod, float maxAnisotropy);
+    static void          FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list);
 
     struct ClearParams
     {
@@ -111,13 +112,34 @@ namespace dmGraphics
         {
             MetalContext* context = (MetalContext*) _context;
 
+            for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+            {
+                MetalFrameResource& frame = context->m_FrameResources[i];
+
+                if (frame.m_CommandBuffer && frame.m_InFlight)
+                {
+                    frame.m_CommandBuffer->waitUntilCompleted();
+                }
+
+                FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
+
+                if (frame.m_MSAAColorTexture)
+                    frame.m_MSAAColorTexture->release();
+                if (frame.m_MSAADepthTexture)
+                    frame.m_MSAADepthTexture->release();
+
+                delete frame.m_ResourcesToDestroy;
+                frame.m_ResourcesToDestroy = 0;
+
+                if (frame.m_AutoReleasePool)
+                {
+                    frame.m_AutoReleasePool->release();
+                    frame.m_AutoReleasePool = 0;
+                }
+            }
+
             context->m_Device->release();
             context->m_CommandQueue->release();
-
-            // for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_FrameResources); i++)
-            // {
-            //     FlushResourcesToDestroy(context->m_FrameResources[i]);
-            // }
 
             delete (MetalContext*) context;
             g_MetalContext = 0x0;
@@ -127,6 +149,11 @@ namespace dmGraphics
     static HContext MetalGetContext()
     {
         return (HContext) g_MetalContext;
+    }
+
+    static inline MetalFrameResource& GetCurrentFrameResource(MetalContext* context)
+    {
+        return context->m_FrameResources[context->m_CurrentFrameInFlight];
     }
 
     static bool MetalIsSupported()
@@ -171,7 +198,7 @@ namespace dmGraphics
                 break;
         }
 
-        MetalFrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
 
         if (frame.m_ResourcesToDestroy->Full())
         {
@@ -678,6 +705,7 @@ namespace dmGraphics
         context->m_Device            = MTL::CreateSystemDefaultDevice();
         context->m_CommandQueue      = context->m_Device->newCommandQueue();
         context->m_NumFramesInFlight = MAX_FRAMES_IN_FLIGHT;
+        context->m_FrameBoundarySemaphore = dispatch_semaphore_create(context->m_NumFramesInFlight);
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
@@ -698,6 +726,12 @@ namespace dmGraphics
         {
             context->m_FrameResources[i].m_ResourcesToDestroy = new ResourcesToDestroyList;
             context->m_FrameResources[i].m_ResourcesToDestroy->SetCapacity(8);
+            context->m_FrameResources[i].m_CommandBuffer = 0;
+            context->m_FrameResources[i].m_Drawable = 0;
+            context->m_FrameResources[i].m_AutoReleasePool = 0;
+            context->m_FrameResources[i].m_RenderPassDescriptor = 0;
+            context->m_FrameResources[i].m_RenderCommandEncoder = 0;
+            context->m_FrameResources[i].m_InFlight = 0;
 
             if (context->m_MSAASampleCount > 1)
             {
@@ -863,11 +897,13 @@ namespace dmGraphics
 
     static void EndRenderPass(MetalContext* context)
     {
-        if (!context->m_RenderCommandEncoder)
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+
+        if (!frame.m_RenderCommandEncoder)
             return;
 
-        context->m_RenderCommandEncoder->endEncoding();
-        context->m_RenderCommandEncoder = nullptr;
+        frame.m_RenderCommandEncoder->endEncoding();
+        frame.m_RenderCommandEncoder = 0;
 
         MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
@@ -891,7 +927,7 @@ namespace dmGraphics
             EndRenderPass(context);
 
         // Use the frame’s command buffer
-        MetalFrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
         MTL::CommandBuffer* commandBuffer = frame.m_CommandBuffer;
         assert(commandBuffer);
 
@@ -972,9 +1008,9 @@ namespace dmGraphics
         encoder->setScissorRect(scissor);
 
         // Track the active encoder
-        context->m_RenderCommandEncoder = encoder;
-        context->m_CurrentRenderTarget  = render_target;
-        rt->m_IsBound                   = 1;
+        frame.m_RenderCommandEncoder = encoder;
+        context->m_CurrentRenderTarget = render_target;
+        rt->m_IsBound = 1;
 
         rpDesc->release();
     }
@@ -982,59 +1018,75 @@ namespace dmGraphics
     static void MetalBeginFrame(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
+        dispatch_semaphore_wait(context->m_FrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
 
-        MetalFrameResource& frame       = context->m_FrameResources[context->m_CurrentFrameInFlight];
-        context->m_AutoReleasePool      = NS::AutoreleasePool::alloc()->init();
-        context->m_Drawable             = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
-        context->m_FrameBegun           = 1;
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        assert(!frame.m_InFlight);
+
+        frame.m_AutoReleasePool = NS::AutoreleasePool::alloc()->init();
+        frame.m_Drawable = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
+        frame.m_InFlight = 1;
+        context->m_FrameBegun = 1;
 
         frame.m_CommandBuffer = context->m_CommandQueue->commandBuffer();
         frame.m_ConstantScratchBuffer.Rewind();
         frame.m_ArgumentBufferPool.Rewind();
 
         // Setup the initial render pass state
-        context->m_RenderPassDescriptor  = NULL;
-        context->m_RenderCommandEncoder  = NULL;
+        frame.m_RenderPassDescriptor = 0;
+        frame.m_RenderCommandEncoder = 0;
 
         MetalRenderTarget* rt   = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
         MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
-        color_tex->m_Texture    = context->m_Drawable->texture();
+        color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
 
-        rt->m_ColorTextureParams[0].m_Width  = context->m_Drawable->texture()->width();
-        rt->m_ColorTextureParams[0].m_Height = context->m_Drawable->texture()->height();
+        rt->m_ColorTextureParams[0].m_Width  = frame.m_Drawable->texture()->width();
+        rt->m_ColorTextureParams[0].m_Height = frame.m_Drawable->texture()->height();
     }
 
-    static void MetalCommandBufferCompleted(MTL::CommandBuffer* cb, void* userData)
+    static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
     {
-        MetalFrameResource* frame = (MetalFrameResource*) userData;
+        MetalFrameResource& frame = context->m_FrameResources[frame_index];
 
-        FlushResourcesToDestroy(g_MetalContext, frame->m_ResourcesToDestroy);
+        FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
+
+        frame.m_CommandBuffer = 0;
+        frame.m_Drawable = 0;
+        frame.m_RenderPassDescriptor = 0;
+        frame.m_RenderCommandEncoder = 0;
+        frame.m_InFlight = 0;
+
+        dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
     }
 
     static void MetalFlip(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
+        assert(context->m_FrameBegun);
 
         // End the current render pass
         EndRenderPass(context);
 
-        MetalFrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        const uint32_t frame_index = context->m_CurrentFrameInFlight;
+        MetalFrameResource& frame = context->m_FrameResources[frame_index];
 
-        frame.m_CommandBuffer->presentDrawable(context->m_Drawable);
+        frame.m_CommandBuffer->presentDrawable(frame.m_Drawable);
 
         // Register completion callback
         frame.m_CommandBuffer->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
-            MetalCommandBufferCompleted(cb, &frame);
+            MetalCommandBufferCompleted(context, frame_index);
         });
 
         frame.m_CommandBuffer->commit();
 
-        context->m_AutoReleasePool->release();
+        frame.m_AutoReleasePool->release();
+        frame.m_AutoReleasePool = 0;
 
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
+        context->m_FrameBegun = 0;
     }
 
     static void MetalClear(HContext _context, uint32_t flags,
@@ -1047,7 +1099,8 @@ namespace dmGraphics
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         // BeginRenderPass must have already bound the RT and created a MTLRenderCommandEncoder
-        MTL::RenderCommandEncoder* enc = context->m_RenderCommandEncoder;
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        MTL::RenderCommandEncoder* enc = frame.m_RenderCommandEncoder;
         assert(enc);
 
         // Determine which buffers to clear
@@ -2072,7 +2125,7 @@ namespace dmGraphics
 
     static void DrawSetupCompute(MetalContext* context, MTL::ComputeCommandEncoder* encoder)
     {
-        MetalFrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
 
         frame.m_ConstantScratchBuffer.EnsureSize(context, context->m_CurrentProgram->m_UniformDataSizeAligned);
 
@@ -2089,7 +2142,8 @@ namespace dmGraphics
         MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
-        MTL::RenderCommandEncoder* encoder = context->m_RenderCommandEncoder;
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        MTL::RenderCommandEncoder* encoder = frame.m_RenderCommandEncoder;
 
         VertexDeclaration* vx_declarations[MAX_VERTEX_BUFFERS] = {};
         uint32_t num_vx_buffers = 0;
@@ -2106,8 +2160,6 @@ namespace dmGraphics
                 num_vx_buffers++;
             }
         }
-
-        MetalFrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
 
         frame.m_ConstantScratchBuffer.EnsureSize(context, context->m_CurrentProgram->m_UniformDataSizeAligned);
 
@@ -2222,15 +2274,16 @@ namespace dmGraphics
         NSUInteger index_offset = first;
 
         MTL::PrimitiveType metal_prim_type = ConvertPrimitiveType(prim_type);
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
 
         // Perform the draw
         if (instance_count > 1)
         {
-            context->m_RenderCommandEncoder->drawIndexedPrimitives(metal_prim_type, count, metal_index_type, ib->m_Buffer, index_offset, instance_count);
+            frame.m_RenderCommandEncoder->drawIndexedPrimitives(metal_prim_type, count, metal_index_type, ib->m_Buffer, index_offset, instance_count);
         }
         else
         {
-            context->m_RenderCommandEncoder->drawIndexedPrimitives(metal_prim_type, count, metal_index_type, ib->m_Buffer, index_offset);
+            frame.m_RenderCommandEncoder->drawIndexedPrimitives(metal_prim_type, count, metal_index_type, ib->m_Buffer, index_offset);
         }
     }
 
@@ -2245,14 +2298,15 @@ namespace dmGraphics
         DrawSetup(context);
 
         MTL::PrimitiveType metal_prim_type = ConvertPrimitiveType(prim_type);
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
 
         if (instance_count > 1)
         {
-            context->m_RenderCommandEncoder->drawPrimitives(metal_prim_type, first, count, instance_count);
+            frame.m_RenderCommandEncoder->drawPrimitives(metal_prim_type, first, count, instance_count);
         }
         else
         {
-            context->m_RenderCommandEncoder->drawPrimitives(metal_prim_type, first, count);
+            frame.m_RenderCommandEncoder->drawPrimitives(metal_prim_type, first, count);
         }
     }
 
@@ -2278,7 +2332,7 @@ namespace dmGraphics
             EndRenderPass(context);
         }
 
-        MetalFrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
 
         MTL::ComputeCommandEncoder* encoder = frame.m_CommandBuffer->computeCommandEncoder();
 

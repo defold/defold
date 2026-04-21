@@ -15,6 +15,7 @@
 #ifndef DMGRAPHICS_GRAPHICS_DEVICE_METAL_H
 #define DMGRAPHICS_GRAPHICS_DEVICE_METAL_H
 
+#include <dispatch/dispatch.h>
 #include <Metal.hpp>
 
 #include <dmsdk/dlib/atomic.h>
@@ -31,7 +32,11 @@ namespace dmGraphics
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
 
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1; // In flight frames - number of concurrent frames being processed
+#if defined(DM_PLATFORM_MACOS)
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
+#else
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
+#endif
     const static uint32_t UNIFORM_BUFFER_ALIGNMENT = 256;
     const static uint32_t STORAGE_BUFFER_ALIGNMENT = 16;
 
@@ -214,8 +219,13 @@ namespace dmGraphics
         MetalConstantScratchBuffer m_ConstantScratchBuffer;
         MetalArgumentBufferPool    m_ArgumentBufferPool;
         MTL::CommandBuffer*        m_CommandBuffer;
+        CA::MetalDrawable*         m_Drawable;
+        NS::AutoreleasePool*       m_AutoReleasePool;
+        MTL::RenderPassDescriptor* m_RenderPassDescriptor;
+        MTL::RenderCommandEncoder* m_RenderCommandEncoder;
         MTL::Texture*              m_MSAAColorTexture;
         MTL::Texture*              m_MSAADepthTexture;
+        uint8_t                    m_InFlight;
     };
 
     struct MetalClearData
@@ -269,12 +279,7 @@ namespace dmGraphics
         // Async process resources
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
-
-        // Per-frame metal resources
-        CA::MetalDrawable*                 m_Drawable;
-        NS::AutoreleasePool*               m_AutoReleasePool;
-        MTL::RenderPassDescriptor*         m_RenderPassDescriptor;
-        MTL::RenderCommandEncoder*         m_RenderCommandEncoder;
+        dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state
         MetalDeviceBuffer*                 m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
