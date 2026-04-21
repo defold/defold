@@ -3338,21 +3338,29 @@ bail:
         }
     }
 
-    static void ReleaseRenderScript(HRenderContext render_context, HRenderScript render_script)
+    static void ClearRenderScript(HRenderContext render_context, HRenderScript render_script, bool release_instance_reference)
     {
         lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
-            if (render_script->m_FunctionReferences[i])
+            if (render_script->m_FunctionReferences[i] != LUA_NOREF)
+            {
                 dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
+                render_script->m_FunctionReferences[i] = LUA_NOREF;
+            }
         }
-        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        if (release_instance_reference)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+            render_script->m_InstanceReference = LUA_NOREF;
+        }
         free((void*)render_script->m_SourceFileName);
+        render_script->m_SourceFileName = 0;
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
     {
-        ReleaseRenderScript(render_context, render_script);
+        ClearRenderScript(render_context, render_script, true);
         render_script->~RenderScript();
         ResetRenderScript(render_script);
     }
@@ -3386,7 +3394,7 @@ bail:
 
     bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
-        ReleaseRenderScript(render_context, render_script);
+        ClearRenderScript(render_context, render_script, false);
         return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
     }
 
