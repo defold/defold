@@ -2349,6 +2349,19 @@ namespace dmGraphics
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Textures.Size(); ++i)
+        {
+            const ShaderResourceBinding& shader_res = program->m_BaseProgram.m_ShaderMeta.m_Textures[i];
+            ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
+
+            if (shader_res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+            {
+                const ShaderResourceBinding& texture_shader_res = program->m_BaseProgram.m_ShaderMeta.m_Textures[shader_res.m_BindingInfo.m_SamplerTextureIndex];
+                const ProgramResourceBinding& texture_pgm_res   = program->m_BaseProgram.m_ResourceBindings[texture_shader_res.m_Set][texture_shader_res.m_Binding];
+                shader_pgm_res.m_TextureUnit                    = texture_pgm_res.m_TextureUnit;
+            }
+        }
+
         BuildUniforms(&program->m_BaseProgram);
     }
 
@@ -2951,6 +2964,7 @@ namespace dmGraphics
         tex->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
         tex->m_Base.m_PageCount      = params.m_LayerCount;
         tex->m_Base.m_DataState      = 0;
+        tex->m_Base.m_NumTextureIds  = 1;
         tex->m_LayerCount            = dmMath::Max((uint8_t)1, params.m_LayerCount);
 
         // TODO
