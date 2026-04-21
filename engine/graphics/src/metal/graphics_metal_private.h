@@ -82,6 +82,12 @@ namespace dmGraphics
         }
     };
 
+    struct MetalUniformBuffer
+    {
+        UniformBuffer    m_BaseUniformBuffer;
+        MetalDeviceBuffer m_DeviceBuffer;
+    };
+
     struct MetalConstantScratchBuffer
     {
         MetalDeviceBuffer m_DeviceBuffer;
@@ -252,11 +258,10 @@ namespace dmGraphics
         dmArray<ClearShader> m_ClearShaderPermutations;
     };
 
-    struct MetalContext
+    struct MetalContext : public GraphicsContext
     {
         MetalContext(const ContextParams& params);
 
-        dmPlatform::HWindow                m_Window;
         NSView*                            m_View;
         CAMetalLayer*                      m_Layer;
         MetalFrameResource                 m_FrameResources[MAX_FRAMES_IN_FLIGHT];
@@ -266,7 +271,6 @@ namespace dmGraphics
         PipelineCache                      m_PipelineCache;
         dmArray<MetalTextureSampler>       m_TextureSamplers;
         HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
         MetalViewport                      m_MainViewport;
         HRenderTarget                      m_MainRenderTarget;
@@ -274,9 +278,8 @@ namespace dmGraphics
         MetalClearData                     m_ClearData;
 
         // Async process resources
-        dmJobThread::HContext              m_JobThread;
+        HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
         // Per-frame metal resources
         CA::MetalDrawable*                 m_Drawable;
@@ -289,20 +292,16 @@ namespace dmGraphics
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        MetalUniformBuffer*                m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalProgram*                      m_CurrentProgram;
         MetalPipeline*                     m_CurrentPipeline;
         HRenderTarget                      m_CurrentRenderTarget;
 
-        uint64_t                           m_TextureFormatSupport;
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
         MetalTexture*                      m_DefaultTexture2D;
         MetalTexture*                      m_DefaultTexture2DArray;
         MetalTexture*                      m_DefaultTextureCubeMap;
         MetalTexture*                      m_DefaultTexture2D32UI;
         MetalTexture*                      m_DefaultStorageImage2D;
-        uint32_t                           m_Width;
-        uint32_t                           m_Height;
 
         uint32_t                           m_MSAASampleCount         : 8;
         uint32_t                           m_CurrentFrameInFlight    : 2;

@@ -29,6 +29,8 @@
 #include <dlib/log.h>
 #include <dlib/thread.h>
 
+#include <platform/window.hpp>
+
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -67,18 +69,16 @@ namespace dmGraphics
     {
         memset(this, 0, sizeof(*this));
 
-        // m_NumFramesInFlight       = MAX_FRAMES_IN_FLIGHT;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        // m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        // m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
-        m_JobThread               = params.m_JobThread;
-        // m_UseValidationLayers     = params.m_UseValidationLayers;
+        m_JobContext              = params.m_JobContext;
 
-        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+        assert(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
 
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
             m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
@@ -682,7 +682,7 @@ namespace dmGraphics
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
-        context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupMainRenderTarget(context);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
@@ -719,7 +719,7 @@ namespace dmGraphics
             context->m_FrameResources[i].m_ArgumentBufferPool.Initialize(context, argument_buffer_size);
         }
 
-        context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
+        context->m_AsyncProcessingSupport = context->m_JobContext != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
@@ -802,7 +802,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
 
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
         }
     }
@@ -812,7 +812,7 @@ namespace dmGraphics
 
     }
 
-    static dmPlatform::HWindow MetalGetWindow(HContext _context)
+    static HWindow MetalGetWindow(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
         return context->m_Window;
@@ -839,7 +839,7 @@ namespace dmGraphics
     {
         assert(_context);
         MetalContext* context = (MetalContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
@@ -849,7 +849,7 @@ namespace dmGraphics
     {
         assert(_context);
         MetalContext* context = (MetalContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (dmPlatform::GetWindowStateParam(context->m_Window, WINDOW_STATE_OPENED))
         {
             dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
@@ -1174,6 +1174,89 @@ namespace dmGraphics
         DeviceBufferUploadHelper(context, data, size, 0, buffer);
     }
 
+    static HUniformBuffer MetalNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    {
+        MetalContext* context      = (MetalContext*) _context;
+        MetalUniformBuffer* ubo    = new MetalUniformBuffer();
+        memset(ubo, 0, sizeof(MetalUniformBuffer));
+        ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_DeviceBuffer.m_StorageMode       = MTL::StorageModeShared;
+
+        if (layout.m_Size > 0)
+        {
+            DeviceBufferUploadHelper(context, 0, layout.m_Size, 0, &ubo->m_DeviceBuffer);
+        }
+
+        return (HUniformBuffer) ubo;
+    }
+
+    static void MetalSetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        MetalContext* context       = (MetalContext*) _context;
+        MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+
+        if (ubo->m_DeviceBuffer.m_Buffer == 0x0)
+        {
+            ubo->m_DeviceBuffer.m_StorageMode = MTL::StorageModeShared;
+            DeviceBufferUploadHelper(context, 0, ubo->m_BaseUniformBuffer.m_Layout.m_Size, 0, &ubo->m_DeviceBuffer);
+        }
+
+        memcpy(reinterpret_cast<uint8_t*>(ubo->m_DeviceBuffer.m_Buffer->contents()) + offset, data, size);
+    }
+
+    static void MetalDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        MetalContext* context       = (MetalContext*) _context;
+        MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
+
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        {
+            return;
+        }
+
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+        }
+
+        ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
+        ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+    }
+
+    static void MetalEnableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set)
+    {
+        MetalContext* context       = (MetalContext*) _context;
+        MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
+
+        ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
+        ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            MetalDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
+
+        context->m_CurrentUniformBuffers[set][binding] = ubo;
+    }
+
+    static void MetalDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
+    {
+        MetalContext* context       = (MetalContext*) _context;
+        MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
+
+        MetalDisableUniformBuffer(_context, uniform_buffer);
+
+        if (!ubo->m_DeviceBuffer.m_Destroyed)
+        {
+            DestroyResourceDeferred(context, &ubo->m_DeviceBuffer);
+        }
+
+        delete ubo;
+    }
+
     static void MetalSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
@@ -1285,9 +1368,11 @@ namespace dmGraphics
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
+        uint32_t stream_count = stream_declaration->m_Streams.Size();
+        vd->m_StreamCount = stream_count;
+        vd->m_Streams     = new VertexDeclaration::Stream[stream_count];
 
-        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
+        for (uint32_t i = 0; i < stream_count; ++i)
         {
             VertexStream& stream = stream_declaration->m_Streams[i];
 
@@ -1862,25 +1947,47 @@ namespace dmGraphics
 
             switch (res->m_BindingFamily)
             {
-                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    const uint32_t uniform_size = DM_ALIGN(res->m_BindingInfo.m_BlockSize, alignment);
-                    uint32_t offset = DM_ALIGN(scratch_buffer->m_MappedDataCursor, alignment);
+                    MetalUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
 
-                    //copy data into scratch buffer
-                    memcpy(reinterpret_cast<uint8_t*>(scratch_buffer->m_DeviceBuffer.m_Buffer->contents()) + offset,
-                           &program->m_UniformData[next->m_DataOffset],
-                           res->m_BindingInfo.m_BlockSize);
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        {
+                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
+                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                res->m_Name,
+                                pgm_layout->m_Hash);
+                            bound_ubo = 0;
+                        }
+                    }
 
-                    // encode the pointer for this binding (msl_index is the index inside the argument encoder,
-                    // i.e. the [[id(N)]] for the field inside the argument struct)
-                    arg_encoder->setBuffer(scratch_buffer->m_DeviceBuffer.m_Buffer, (NSUInteger) offset, (NSUInteger) msl_index);
+                    if (bound_ubo)
+                    {
+                        arg_encoder->setBuffer(bound_ubo->m_DeviceBuffer.m_Buffer, 0, (NSUInteger) msl_index);
 
-                    // Advance cursor in scratch
-                    scratch_buffer->m_MappedDataCursor = offset + uniform_size;
+                        if (is_compute)
+                            cenc->useResource(bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                        else
+                            renc->useResource(bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                    }
+                    else
+                    {
+                        const uint32_t uniform_size = DM_ALIGN(res->m_BindingInfo.m_BlockSize, alignment);
+                        uint32_t offset = DM_ALIGN(scratch_buffer->m_MappedDataCursor, alignment);
+
+                        memcpy(reinterpret_cast<uint8_t*>(scratch_buffer->m_DeviceBuffer.m_Buffer->contents()) + offset,
+                               &program->m_UniformData[next->m_UniformBufferOffset],
+                               res->m_BindingInfo.m_BlockSize);
+
+                        arg_encoder->setBuffer(scratch_buffer->m_DeviceBuffer.m_Buffer, (NSUInteger) offset, (NSUInteger) msl_index);
+                        scratch_buffer->m_MappedDataCursor = offset + uniform_size;
+                    }
                 } break;
 
-                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                case BINDING_FAMILY_TEXTURE:
                 {
                     MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
 
@@ -1912,10 +2019,10 @@ namespace dmGraphics
                         renc->useResource(texture->m_Texture, texture->m_Usage);
                 } break;
 
-                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                case BINDING_FAMILY_STORAGE_BUFFER:
                     // TODO
                     break;
-                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                case BINDING_FAMILY_GENERIC:
                     break;
 
                 default:
@@ -2446,7 +2553,7 @@ namespace dmGraphics
 
         ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -2464,7 +2571,7 @@ namespace dmGraphics
 
         ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
+        uint32_t offset = pgm_res.m_UniformBufferOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 

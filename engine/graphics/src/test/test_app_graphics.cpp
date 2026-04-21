@@ -228,9 +228,9 @@ struct MslArgumentBuffersTest : ITest
         AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) fs_buffer, sizeof(graphics_assets::msl_fragment_program));
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(shader_desc, "sprite_140_vs");
-        AddShaderTypeMember(shader_desc, type_info, "view_proj", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_MAT4);
+        AddShaderTypeMember(shader_desc, type_info, "view_proj", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_MAT4, 0, 1);
         AddShaderResourceUniformBuffer(shader_desc, "sprite_140_vs", 0, 0, 0, sizeof(dmVMath::Matrix4));
-        AddShaderResource(shader_desc, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT);
+        AddShaderResource(shader_desc, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
 
         char error_buffer[1024] = {};
 
@@ -495,11 +495,11 @@ struct ComputeTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
+            AddShaderWithType(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
         }
         else
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
+            AddShaderWithType(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&compute_desc, "buf");
@@ -713,13 +713,13 @@ struct UniformBufferTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
+            AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
+            AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
         }
         else
         {
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::spirv_fragment_program_ubo, sizeof(graphics_assets::spirv_fragment_program_ubo));
+            AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
+            AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program_ubo, sizeof(graphics_assets::spirv_fragment_program_ubo));
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_data = AddShaderType(shader_desc, "LightData");
