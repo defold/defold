@@ -27,6 +27,7 @@
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
+           [com.dynamo.system.proto System$Exit]
            [java.io BufferedReader File IOException InputStream]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util.zip ZipEntry ZipFile]))
@@ -119,6 +120,20 @@
         (.write os ^bytes (protobuf/map->bytes
                             com.dynamo.system.proto.System$Reboot
                             (zipmap (map #(keyword (str "arg" (inc %))) (range)) args))))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
+      :ok
+      (finally
+        (.disconnect conn)))))
+
+(defn exit! [target code]
+  (let [uri (URI. (format "%s/post/@system/exit" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [os (.getOutputStream conn)]
+        (.write os ^bytes (protobuf/map->bytes
+                            System$Exit
+                            {:code code})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       :ok
@@ -285,7 +300,7 @@
       (catch Exception _))))
 
 (defn launch! [^File engine project-directory prefs debug? instance-index]
-  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+  (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)

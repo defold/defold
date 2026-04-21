@@ -85,7 +85,6 @@
   an enum field in the specified protobuf type."
   {'dmBufferDDF.StreamDesc "value_type"
    'dmGameObjectDDF.PropertyDesc "type"
-   'dmGameSystemDDF.LightDesc "type"
    'dmGraphics.VertexAttribute "data_type"
    'dmGuiDDF.NodeDesc "type"
    'dmInputDDF.GamepadMapEntry "type"
@@ -187,13 +186,6 @@
    'dmGameSystemDDF.LabelDesc
    {:default
     {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
-
-   ['dmGameSystemDDF.LightDesc "[POINT]"]
-   {:default
-    {"type" :allowed-default
-     "cone_angle" :unused
-     "drop_off" :unused
-     "penumbra_angle" :unused}}
 
    'dmGameSystemDDF.SpineSceneDesc
    {:default
@@ -743,6 +735,19 @@
                              :texture tex1-resource}]
                  :attributes {}}]
                (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "rivemodel"
+      (let [deprecated-fields-rive-model (project/get-resource-node project "/silently_migrated/deprecated_fields.rivemodel")]
+        (is (= (g/node-value deprecated-fields-rive-model :source-value)
+               (g/node-value deprecated-fields-rive-model :save-value))))
+      (let [fullscreen-coordinate-system-rive-model (project/get-resource-node project "/silently_migrated/fullscreen_coordinate_system.rivemodel")]
+        (is (= (g/node-value fullscreen-coordinate-system-rive-model :source-value)
+               (g/node-value fullscreen-coordinate-system-rive-model :save-value)))))
+
+    (testing "rivescene"
+      (let [deprecated-fields-rive-scene (project/get-resource-node project "/silently_migrated/deprecated_fields.rivescene")]
+        (is (= (g/node-value deprecated-fields-rive-scene :source-value)
+               (g/node-value deprecated-fields-rive-scene :save-value)))))
 
     (testing "sprite"
       (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]

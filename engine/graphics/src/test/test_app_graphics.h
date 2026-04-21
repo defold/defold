@@ -29,14 +29,7 @@ enum BindingType
 
 static inline void AddShaderWithType(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ShaderType type, dmGraphics::ShaderDesc::Language language, uint8_t* source, int source_size)
 {
-    if (desc->m_Shaders.m_Data == 0)
-    {
-        desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) malloc(sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
-    }
-    else
-    {
-        desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
-    }
+    desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
 
     dmGraphics::ShaderDesc::Shader* shader = desc->m_Shaders.m_Data + desc->m_Shaders.m_Count;
     memset(shader, 0, sizeof(dmGraphics::ShaderDesc::Shader));

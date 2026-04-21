@@ -32,11 +32,14 @@
 
 #include "android_joystick.h"
 #include "android_log.h"
+#include "android_jni.h"
 #include "android_util.h"
 
 #include <android/sensor.h>
 
 #include <math.h> // ceil
+#include <stdlib.h>
+#include <string.h>
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
@@ -47,6 +50,9 @@
 //========================================================================
 
 struct android_app* g_AndroidApp;
+int g_AndroidArgc = 0;
+char** g_AndroidArgv = 0;
+char g_AndroidCommandLineProgramName[] = "defold-app";
 
 extern int main(int argc, char** argv);
 
@@ -69,6 +75,236 @@ int g_MaxAppInputEvents = 0;
 int g_NumAppInputEvents = 0;
 pthread_t g_MainThread = 0;
 bool g_AppResumed = false;
+
+#define COMMAND_LINE_ARGUMENTS_EXTRA "com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS"
+
+void JNIAndroidFreeCommandLine(int argc, char** argv)
+{
+    int i;
+    if (argv == NULL)
+        return;
+
+    for (i = 0; i < argc; ++i)
+    {
+        free(argv[i]);
+    }
+    free(argv);
+}
+
+static JNIEnv* getJNIEnv(ANativeActivity* activity)
+{
+    JNIEnv* env = activity->env;
+    if (env != NULL) {
+        return env;
+    }
+
+    if (activity->vm != NULL && (*activity->vm)->AttachCurrentThread(activity->vm, &env, NULL) == JNI_OK) {
+        return env;
+    }
+
+    return NULL;
+}
+
+static int isAndroidPackageDebuggable(JNIEnv* env, ANativeActivity* activity)
+{
+    jobject application_info = NULL;
+    jclass activity_class = NULL;
+    jclass application_info_class = NULL;
+    jmethodID get_application_info_method = NULL;
+    jfieldID flags_field = NULL;
+    jfieldID flag_debuggable_field = NULL;
+    jint flags = 0;
+    jint flag_debuggable = 0;
+    int result = 0;
+
+    activity_class = (*env)->GetObjectClass(env, activity->clazz);
+    if (activity_class == NULL) {
+        goto done;
+    }
+
+    get_application_info_method = (*env)->GetMethodID(env, activity_class, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+    if (get_application_info_method == NULL) {
+        goto done;
+    }
+
+    application_info = (*env)->CallObjectMethod(env, activity->clazz, get_application_info_method);
+    if (application_info == NULL) {
+        goto done;
+    }
+
+    application_info_class = (*env)->GetObjectClass(env, application_info);
+    if (application_info_class == NULL) {
+        goto done;
+    }
+
+    flags_field = (*env)->GetFieldID(env, application_info_class, "flags", "I");
+    flag_debuggable_field = (*env)->GetStaticFieldID(env, application_info_class, "FLAG_DEBUGGABLE", "I");
+    if (flags_field == NULL || flag_debuggable_field == NULL) {
+        goto done;
+    }
+
+    flags = (*env)->GetIntField(env, application_info, flags_field);
+    flag_debuggable = (*env)->GetStaticIntField(env, application_info_class, flag_debuggable_field);
+    result = (flags & flag_debuggable) != 0;
+
+done:
+    if (application_info != NULL) {
+        (*env)->DeleteLocalRef(env, application_info);
+    }
+    if (application_info_class != NULL) {
+        (*env)->DeleteLocalRef(env, application_info_class);
+    }
+    if (activity_class != NULL) {
+        (*env)->DeleteLocalRef(env, activity_class);
+    }
+    return result;
+}
+
+int JNIAndroidSetCommandLine(ANativeActivity* activity)
+{
+    char** command_line = NULL;
+    jobject intent = NULL;
+    jobjectArray extra_args = NULL;
+    jstring extra_key = NULL;
+    JNIEnv* env = NULL;
+    jclass activity_class = NULL;
+    jclass intent_class = NULL;
+    jmethodID get_intent_method = NULL;
+    jmethodID get_string_array_extra_method = NULL;
+    int argc = 1;
+    int extra_count = 0;
+    int use_extra_args = 0;
+    int result = 0;
+    int i;
+    size_t program_name_length = 0;
+
+    env = getJNIEnv(activity);
+    if (env == NULL) {
+        goto done;
+    }
+
+    if (!isAndroidPackageDebuggable(env, activity)) {
+        result = 1;
+        goto done;
+    }
+
+    activity_class = (*env)->GetObjectClass(env, activity->clazz);
+    if (activity_class == NULL) {
+        goto done;
+    }
+
+    get_intent_method = (*env)->GetMethodID(env, activity_class, "getIntent", "()Landroid/content/Intent;");
+    if (get_intent_method == NULL) {
+        goto done;
+    }
+
+    intent = (*env)->CallObjectMethod(env, activity->clazz, get_intent_method);
+    if (intent != NULL) {
+        intent_class = (*env)->GetObjectClass(env, intent);
+        if (intent_class == NULL) {
+            goto done;
+        }
+
+        get_string_array_extra_method = (*env)->GetMethodID(
+            env, intent_class, "getStringArrayExtra", "(Ljava/lang/String;)[Ljava/lang/String;");
+        if (get_string_array_extra_method == NULL) {
+            goto done;
+        }
+
+        extra_key = (*env)->NewStringUTF(env, COMMAND_LINE_ARGUMENTS_EXTRA);
+        if (extra_key == NULL) {
+            goto done;
+        }
+
+        extra_args = (jobjectArray)(*env)->CallObjectMethod(env, intent, get_string_array_extra_method, extra_key);
+        if (extra_args != NULL) {
+            extra_count = (*env)->GetArrayLength(env, extra_args);
+            if (extra_count > 0) {
+                argc += extra_count;
+                use_extra_args = 1;
+            }
+        }
+    }
+
+    command_line = (char**)calloc((size_t)argc + 1, sizeof(char*));
+    if (command_line == NULL) {
+        goto done;
+    }
+
+    program_name_length = strlen(g_AndroidCommandLineProgramName) + 1;
+    command_line[0] = (char*)malloc(program_name_length);
+    if (command_line[0] == NULL) {
+        goto done;
+    }
+    memcpy(command_line[0], g_AndroidCommandLineProgramName, program_name_length);
+
+    if (use_extra_args) {
+        for (i = 0; i < extra_count; ++i) {
+            jstring arg = (jstring)(*env)->GetObjectArrayElement(env, extra_args, i);
+            const char* utf = NULL;
+            jsize len = 0;
+
+            if (arg != NULL) {
+                utf = (*env)->GetStringUTFChars(env, arg, 0);
+                if (utf == NULL) {
+                    (*env)->DeleteLocalRef(env, arg);
+                    goto done;
+                }
+                len = (*env)->GetStringUTFLength(env, arg);
+            }
+
+            command_line[i + 1] = (char*)malloc((size_t)len + 1);
+            if (command_line[i + 1] == NULL) {
+                if (utf != NULL) {
+                    (*env)->ReleaseStringUTFChars(env, arg, utf);
+                }
+                if (arg != NULL) {
+                    (*env)->DeleteLocalRef(env, arg);
+                }
+                goto done;
+            }
+
+            if (len > 0) {
+                memcpy(command_line[i + 1], utf, (size_t)len);
+            }
+            command_line[i + 1][len] = '\0';
+
+            if (utf != NULL) {
+                (*env)->ReleaseStringUTFChars(env, arg, utf);
+            }
+            if (arg != NULL) {
+                (*env)->DeleteLocalRef(env, arg);
+            }
+        }
+    }
+
+    JNIAndroidFreeCommandLine(g_AndroidArgc, g_AndroidArgv);
+    g_AndroidArgc = argc;
+    g_AndroidArgv = command_line;
+    command_line = NULL;
+    result = 1;
+
+done:
+    if (command_line != NULL) {
+        JNIAndroidFreeCommandLine(argc, command_line);
+    }
+    if (env != NULL && extra_key != NULL) {
+        (*env)->DeleteLocalRef(env, extra_key);
+    }
+    if (env != NULL && extra_args != NULL) {
+        (*env)->DeleteLocalRef(env, extra_args);
+    }
+    if (env != NULL && intent != NULL) {
+        (*env)->DeleteLocalRef(env, intent);
+    }
+    if (env != NULL && intent_class != NULL) {
+        (*env)->DeleteLocalRef(env, intent_class);
+    }
+    if (env != NULL && activity_class != NULL) {
+        (*env)->DeleteLocalRef(env, activity_class);
+    }
+    return result;
+}
 
 static void initThreads( void )
 {
@@ -889,10 +1125,20 @@ void _glfwPreMain(struct android_app* state)
 
     _glfwWin.opened = 0;
 
-    char* argv[] = {0};
-    argv[0] = strdup("defold-app");
-    int ret = main(1, argv);
-    free(argv[0]);
+    int ret;
+
+    if (g_AndroidArgc <= 0 || g_AndroidArgv == NULL)
+    {
+        LOGV("_glfwPreMain arg fallback");
+        char* fallback_argv[] = {g_AndroidCommandLineProgramName, NULL};
+        ret = main(1, fallback_argv);
+        _exit(ret);
+    }
+
+    ret = main(g_AndroidArgc, g_AndroidArgv);
+    JNIAndroidFreeCommandLine(g_AndroidArgc, g_AndroidArgv);
+    g_AndroidArgc = 0;
+    g_AndroidArgv = NULL;
     // NOTE: _exit due to a dead-lock in glue code.
     _exit(ret);
 }

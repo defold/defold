@@ -16,19 +16,28 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
+           [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
-           [java.util ArrayList]
-           [java.io InputStream]))
+           [java.io InputStream]
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 
-(defn- load-collada-scene [^InputStream stream]
+(defn- morph-target-texture-limits [project-settings]
+  (mapv #(int (get project-settings %))
+        [["model" "max_morph_target_texture_width"]
+         ["model" "max_morph_target_texture_height"]]))
+
+(defn- load-collada-scene
+  "Collada has no morph-target support in the importer; do not read game.project morph atlas limits here."
+  [^InputStream stream]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         scene (ColladaUtil/loadScene stream)
@@ -45,7 +54,9 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-model-scene [resource ^InputStream stream]
+(defn- load-model-scene
+  "glTF/glb only: mesh build runs morph atlas size checks against game.project limits."
+  [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
@@ -59,7 +70,7 @@
         animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder)
+    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
@@ -69,17 +80,49 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-scene-internal [resource]
-  (with-open [stream (io/input-stream resource)]
-    (let [ext (string/lower-case (resource/ext resource))]
+(defn- format-gltf-validation-errors [^java.util.List validation-errors]
+  (string/join "\n"
+               (mapv (fn [^GLTFValidator$ValidateError error]
+                       (format "  - %s (pointer=%s, code=%s)"
+                               (.message error)
+                               (.pointer error)
+                               (.code error)))
+                     validation-errors)))
+
+(defn- handle-gltf-validation-result [resource ^GLTFValidator$ValidateResult gltf-validation-result]
+  (when-not (.result gltf-validation-result)
+    (let [gltf-validation-errors (.errors gltf-validation-result)
+          formatted-gltf-validation-error (format-gltf-validation-errors gltf-validation-errors)]
+      (throw (ex-info (str "glTF validation failed:\n" formatted-gltf-validation-error)
+                      {:resource resource
+                       :errors gltf-validation-errors})))))
+
+(defn- load-scene-internal [resource project-settings]
+  (let [[morph-tex-w morph-tex-h] (morph-target-texture-limits project-settings)
+        ext (string/lower-case (resource/ext resource))
+        is-zip-resource? (resource/zip-resource? resource)]
+    ;; First, run glTF/glb files through the bob validator.
+    ;; For zip resources we validate from a stream and avoid validating external
+    ;; resources (buffers on disk). For regular filesystem resources we validate
+    ;; by absolute path and allow external resource validation.
+    (when (or (= ext "gltf") (= ext "glb"))
+      (if is-zip-resource?
+        (with-open [stream (io/input-stream resource)]
+          (handle-gltf-validation-result resource (GLTFValidator/validateGltf stream ext false)))
+        (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
+    ;; Then, open a new stream for actually loading the scene.
+    (with-open [stream (io/input-stream resource)]
       (if (= "dae" ext)
         (load-collada-scene stream)
-        (load-model-scene resource stream)))))
+        (load-model-scene resource stream morph-tex-w morph-tex-h)))))
 
-(defn load-scene [node-id resource]
+(defn load-scene [node-id resource project-settings]
   (try
-    (load-scene-internal resource)
+    (load-scene-internal resource project-settings)
     (catch Exception e
-      (let [msg (format "The file '%s' failed to load:\n%s" (resource/proj-path resource) (.getMessage e))]
-        (log/error :message msg :exception e)
-        (g/->error node-id nil :fatal nil msg {:type :invalid-content :resource resource})))))
+      (let [path (resource/proj-path resource)
+            message (.getMessage e)]
+        (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
+        (g/->error node-id nil :fatal nil
+                   (localization/message "error.model-load-failed" {"file" path "error" message})
+                   {:type :invalid-content :resource resource})))))

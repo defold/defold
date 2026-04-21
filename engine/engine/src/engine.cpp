@@ -25,20 +25,18 @@
 
 #include <crash/crash.h>
 #include <dlib/buffer.h>
+#include <dlib/dalloca.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
 #include <dlib/path.h>
 #include <dlib/profile.h>
 #include <dlib/socket.h>
-#include <dlib/sslsocket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
-#include <platform/platform_window.h>
 #include <dlib/time.h>
 #include <graphics/graphics.h>
 #include <extension/extension.hpp>
@@ -49,6 +47,7 @@
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/res_lua.h>
 #include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
 #include <sound/sound.h>
@@ -56,7 +55,7 @@
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <particle/particle.h>
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
@@ -72,6 +71,9 @@
 #if defined(__EMSCRIPTEN__)
     #include "engine_web.h"
 #endif
+
+#include <dlib/http_client.h>
+#include <dlib/sslsocket.h>
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -97,10 +99,7 @@ extern uint32_t      DEBUG_SPC_SIZE;
 // before the keyboard is brought up. This choice is stored as a
 // game.project config and used in dmEngine::Init(), passed along to
 // the GLFW Android implementation.
-extern "C" {
-    extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetFullscreenParameters(int, int);
-}
+#include <platform/platform_window_android.h>
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_Script);
@@ -181,7 +180,7 @@ namespace dmEngine
                 ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
 
             if (engine->m_JobThreadContext)
-                ExtensionParamsSetContext(&m_Params, "job_thread", engine->m_JobThreadContext);
+                ExtensionParamsSetContext(&m_Params, "jobs", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -203,8 +202,8 @@ namespace dmEngine
 
     static void UpdateGuiSafeAreaAdjust(Engine* engine, uint32_t window_width, uint32_t window_height)
     {
-        dmPlatform::HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
-        dmPlatform::SafeArea safe_area;
+        HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
+        WindowSafeArea safe_area;
         if (!dmPlatform::GetSafeArea(window, &safe_area))
         {
             safe_area.m_InsetLeft = 0;
@@ -254,17 +253,20 @@ namespace dmEngine
             dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
         }
 
-        UpdateGuiSafeAreaAdjust(engine, width, height);
+        if (engine->m_GraphicsContext)
+        {
+            UpdateGuiSafeAreaAdjust(engine, width, height);
+        }
 
         dmGameSystem::OnWindowResized(width, height);
     }
 
-    static bool OnWindowClose(void* user_data)
+    static int OnWindowClose(void* user_data)
     {
         Engine* engine = (Engine*)user_data;
         engine->m_Alive = false;
         // Never allow closing the window here, clean up and then close manually
-        return false;
+        return 0;
     }
 
     static void Dispatch(dmMessage::Message *message_object, void* user_ptr);
@@ -313,6 +315,65 @@ namespace dmEngine
             component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
     }
+
+#if !defined(DM_RELEASE)
+    static bool LoadDebugInitScripts(HEngine engine)
+    {
+        const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
+        if (!init_script || init_script[0] == 0)
+        {
+            return true;
+        }
+
+        dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
+
+        const uint32_t init_script_length = (uint32_t) strlen(init_script);
+        if (init_script_length >= 4096)
+        {
+            dmLogWarning("bootstrap.debug_init_script is too long (%u)", init_script_length);
+            return false;
+        }
+
+        char* init_script_buffer = (char*) dmAlloca(init_script_length + 1);
+        dmStrlCpy(init_script_buffer, init_script, init_script_length + 1);
+
+        char* iter = 0;
+        char* filename = dmStrTok(init_script_buffer, ",", &iter);
+        do
+        {
+            if (!filename || filename[0] == 0)
+            {
+                continue;
+            }
+
+            dmLuaDDF::LuaModule* lua_module = 0;
+            dmResource::Result r = dmGameObject::LoadLuaModule(engine->m_Factory, filename, &lua_module);
+            if (r != dmResource::RESULT_OK)
+            {
+                dmLogWarning("Failed to load script: %s (%d)", filename, r);
+                return false;
+            }
+
+            // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
+            // Here, we have an already resolved filename string.
+            if (engine->m_SharedScriptContext)
+            {
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
+            }
+            else
+            {
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
+                dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
+            }
+
+            dmDDF::FreeMessage(lua_module);
+
+        } while( (filename = dmStrTok(0, ",", &iter)) );
+
+        return true;
+    }
+#endif
 
     Stats::Stats()
     : m_FrameCount(0)
@@ -484,7 +545,7 @@ namespace dmEngine
         // // Stop processing graphics requests before deleting the graphics context
         // if (engine->m_JobThreadContext)
         // {
-        //     dmJobThread::Destroy(engine->m_JobThreadContext);
+        //     JobSystemDestroy(engine->m_JobThreadContext);
         // }
 
         if (engine->m_GraphicsContext)
@@ -511,8 +572,10 @@ namespace dmEngine
         ScopedExtensionAppParams app_params(engine);
         dmExtension::AppFinalize(app_params);
 
+#if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
+#endif
 
         dmBuffer::DeleteContext();
 
@@ -698,22 +761,22 @@ namespace dmEngine
         }
     }
 
-    static dmPlatform::PlatformGraphicsApi AdapterFamilyToGraphicsAPI(dmGraphics::AdapterFamily family)
+    static WindowsGraphicsApi AdapterFamilyToGraphicsAPI(dmGraphics::AdapterFamily family)
     {
         switch(family)
         {
-            case dmGraphics::ADAPTER_FAMILY_NULL:     return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGL:   return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
-            case dmGraphics::ADAPTER_FAMILY_VULKAN:   return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
-            case dmGraphics::ADAPTER_FAMILY_VENDOR:   return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
-            case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return dmPlatform::PLATFORM_GRAPHICS_API_WEBGPU;
-            case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return dmPlatform::PLATFORM_GRAPHICS_API_DIRECTX;
-            case dmGraphics::ADAPTER_FAMILY_METAL:    return dmPlatform::PLATFORM_GRAPHICS_API_METAL;
+            case dmGraphics::ADAPTER_FAMILY_NULL:     return WINDOW_GRAPHICS_API_NULL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGL:   return WINDOW_GRAPHICS_API_OPENGL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return WINDOW_GRAPHICS_API_OPENGLES;
+            case dmGraphics::ADAPTER_FAMILY_VULKAN:   return WINDOW_GRAPHICS_API_VULKAN;
+            case dmGraphics::ADAPTER_FAMILY_VENDOR:   return WINDOW_GRAPHICS_API_VENDOR;
+            case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return WINDOW_GRAPHICS_API_WEBGPU;
+            case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return WINDOW_GRAPHICS_API_DIRECTX;
+            case dmGraphics::ADAPTER_FAMILY_METAL:    return WINDOW_GRAPHICS_API_METAL;
             default:break;
         }
         assert(0);
-        return (dmPlatform::PlatformGraphicsApi) -1;
+        return (WindowsGraphicsApi) -1;
     }
 
     // TODO: Can this be moved from engine.cpp to res_sound_data.cpp?
@@ -901,10 +964,8 @@ namespace dmEngine
         if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1))
             verify_graphics_calls = false;
 
-        bool renderdoc_support = false;
         bool use_validation_layers = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
-        const char renderdoc_support_arg[] = "--renderdoc";
         const char validation_layers_support_arg[] = "--use-validation-layers";
         const char verbose_long[] = "--verbose";
         const char verbose_short[] = "-v";
@@ -921,10 +982,6 @@ namespace dmEngine
                 } else {
                     dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
                 }
-            }
-            else if (strncmp(renderdoc_support_arg, arg, sizeof(renderdoc_support_arg)-1) == 0)
-            {
-                renderdoc_support = true;
             }
             else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
             {
@@ -1048,7 +1105,8 @@ namespace dmEngine
         engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
         engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
-        dmPlatform::WindowParams window_params  = {};
+        WindowCreateParams window_params;
+        WindowCreateParamsInitialize(&window_params);
         window_params.m_ResizeCallback          = OnWindowResize;
         window_params.m_ResizeCallbackUserData  = engine;
         window_params.m_CloseCallback           = OnWindowClose;
@@ -1071,7 +1129,7 @@ namespace dmEngine
         window_params.m_ContextAlphabits        = 8;
 #endif
 
-        if (window_params.m_GraphicsApi == dmPlatform::PLATFORM_GRAPHICS_API_OPENGL)
+        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
         {
             window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
@@ -1079,8 +1137,8 @@ namespace dmEngine
 
         engine->m_Window = dmPlatform::NewWindow();
 
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
-        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
+        WindowResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
+        if (platform_result != WINDOW_RESULT_OK)
         {
             dmLogFatal("Could not open window (%d).", platform_result);
             return false;
@@ -1093,24 +1151,29 @@ namespace dmEngine
             swap_interval = 0;
         }
 
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        JobSystemCreateParams job_thread_create_param;
         job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
         job_thread_create_param.m_ThreadCount       = 1;
-        engine->m_JobThreadContext                  = dmJobThread::Create(job_thread_create_param);
+        engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
         graphics_context_params.m_UseValidationLayers     = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize      = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
         graphics_context_params.m_Window                  = engine->m_Window;
         graphics_context_params.m_Width                   = engine->m_Width;
         graphics_context_params.m_Height                  = engine->m_Height;
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
-        graphics_context_params.m_JobThread               = engine->m_JobThreadContext;
+        graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
+
+        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+        {
+            graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
+            graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
+        }
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -1419,6 +1482,7 @@ namespace dmEngine
 #endif
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpriteContext.m_Factory = engine->m_Factory;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
@@ -1427,6 +1491,8 @@ namespace dmEngine
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
         engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
         engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
+        engine->m_ModelContext.m_MaxMorphTargetTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_width", 1024);
+        engine->m_ModelContext.m_MaxMorphTargetTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_height", 1024);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1473,12 +1539,13 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
+        engine->m_ResourceTypeContexts.Put(dmHashString64("lightc"), engine->m_RenderContext);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context, &engine->m_ModelContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
@@ -1501,57 +1568,9 @@ namespace dmEngine
         }
 
 #if !defined(DM_RELEASE)
+        if (!LoadDebugInitScripts(engine))
         {
-            const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
-            if (init_script && init_script[0] != 0)
-            {
-                dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
-                char* tmp = strdup(init_script);
-                char* iter = 0;
-                char* filename = dmStrTok(tmp, ",", &iter);
-                do
-                {
-                    if (!filename || strlen(filename) == 0) {
-                        continue;
-                    }
-
-                    // We need the size, in order to send it as a proper LuaModule message
-                    void* data;
-                    uint32_t datasize;
-                    dmResource::Result r = dmResource::GetRaw(engine->m_Factory, filename, (void**)&data, &datasize);
-                    if (r != dmResource::RESULT_OK) {
-                        dmLogWarning("Failed to load script: %s (%d)", filename, r);
-                        free(tmp);
-                        return false;
-                    }
-
-
-                    dmLuaDDF::LuaModule* lua_module = 0;
-                    dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(data, datasize, &lua_module);
-                    if ( e != dmDDF::RESULT_OK ) {
-                        free(tmp);
-                        free(data);
-                        dmLogWarning("Failed to load LuaModule message from: %s (%d)", filename, r);
-                        return false;
-                    }
-
-                    // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
-                    // Here, we have an already resolved filename string.
-                    if (engine->m_SharedScriptContext) {
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
-                    }
-                    else {
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
-                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
-                    }
-
-                    dmDDF::FreeMessage(lua_module);
-                    free(data);
-
-                } while( (filename = dmStrTok(0, ",", &iter)) );
-                free(tmp);
-            }
+            return false;
         }
 #endif
 
@@ -1584,7 +1603,7 @@ namespace dmEngine
         script_lib_context.m_Register        = engine->m_Register;
         script_lib_context.m_HidContext      = engine->m_HidContext;
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
-        script_lib_context.m_JobThread       = engine->m_JobThreadContext;
+        script_lib_context.m_JobContext      = engine->m_JobThreadContext;
         script_lib_context.m_ConfigFile      = engine->m_Config;
         script_lib_context.m_Window          = engine->m_Window;
 
@@ -1674,18 +1693,19 @@ namespace dmEngine
         {
             const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
 
-            int use_hidden_inputfield = 0;
+            bool use_hidden_inputfield = false;
             if (!strcmp(input_method, "HiddenInputField"))
-                use_hidden_inputfield = 1;
+                use_hidden_inputfield = true;
             else if (strcmp(input_method, "KeyEvents"))
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
 
-            _glfwAndroidSetInputMethod(use_hidden_inputfield);
+            dmPlatform::SetAndroidInputMethod(use_hidden_inputfield);
         }
         {
-            int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
-            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
+            bool immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0) != 0;
+            bool display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1) != 0;
+
+            dmPlatform::SetAndroidFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 
@@ -1878,7 +1898,7 @@ bail:
 
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
-        if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
+        if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
             && !dmRender::IsRenderPaused(engine->m_RenderContext))
         {
             if (!engine->m_WasIconified)
@@ -1932,7 +1952,7 @@ bail:
                 }
 
                 if (!engine->m_RunWhileIconified) {
-                    if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+                    if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED))
                     {
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
@@ -1948,7 +1968,7 @@ bail:
                 // Note that it will always process at least one item if available
                 uint64_t jobthread_max_time_us = 3 * 1000;
 #endif
-                dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
+                JobSystemUpdate(engine->m_JobThreadContext, jobthread_max_time_us);
 
                 {
                     DM_PROFILE("Resource");
@@ -2009,7 +2029,7 @@ bail:
                     esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
                 }
 
-                if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
+                if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_OPENED))
                 {
                     Exit(engine, 0);
                     return;
@@ -2046,9 +2066,12 @@ bail:
                 dmSound::Update();
 
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
-                    && do_render)
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    // Update renderer with current time since engine start and frame delta-time.
+                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    dmRender::SetFrameTime(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
                     // if any extension wants to render on under of the game.
@@ -2123,7 +2146,7 @@ bail:
                 // We do it here at the end of the frame (before swap buffers/flip)
                 // in case any extension wants to render just before the Flip().
                 // Don't do this while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED))
                 {
                     ScopedExtensionParams ext_params(engine);
                     dmExtension::PostRender(ext_params);

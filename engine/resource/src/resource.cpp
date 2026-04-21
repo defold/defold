@@ -29,7 +29,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memory.h>
@@ -104,8 +104,6 @@ struct ResourceFactory
 
     dmURI::Parts                                 m_UriParts;
 
-    const char*                                  m_PublicKeyPath; // path to game.public.der
-
     dmArray<char>                                m_Buffer;
 
     // Resource manifest
@@ -114,7 +112,7 @@ struct ResourceFactory
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
 
     // Streaming chunked reading support
-    dmJobThread::HContext                        m_JobThreadContext;
+    HJobContext                                  m_JobThreadContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -130,9 +128,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
 const char* BUNDLE_INDEX_FILENAME               = "game.arci";
 const char* BUNDLE_DATA_FILENAME                = "game.arcd";
-const char* BUNDLE_PUBLIC_KEY_FILENAME          = "game.public.der";
-
-
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
 
@@ -237,13 +232,12 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         const char* m_Scheme;
         const char* m_ProviderType;
-        bool        m_CheckPublicKey;
     } type_pairs[] = {
-        {"http", "http", false},
-        {"https", "http", false},
-        {"archive", "archive", true},
-        {"dmanif", "archive", true},
-        {"file", "file", true},
+        {"http", "http"},
+        {"https", "http"},
+        {"archive", "archive"},
+        {"dmanif", "archive"},
+        {"file", "file"},
     };
 
     dmResourceProvider::ArchiveLoaderParams archive_loader_params;
@@ -254,6 +248,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_JobThreadContext = params->m_JobThreadContext;
 
     int num_mounted = 0;
+    bool mount_unsupported = false;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
     {
         if (strcmp(factory->m_UriParts.m_Scheme, type_pairs[i].m_Scheme) != 0)
@@ -268,6 +263,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             dmResourceProvider::Result provider_result = dmResourceProvider::CreateMount(loader, &factory->m_UriParts, 0, &archive);
             if (dmResourceProvider::RESULT_OK != provider_result)
             {
+                if (provider_result == dmResourceProvider::RESULT_NOT_SUPPORTED)
+                {
+                    mount_unsupported = true;
+                    continue;
+                }
                 dmLogError("Failed to mount base archive: %d for mount %s://%s%s", provider_result, factory->m_UriParts.m_Scheme, factory->m_UriParts.m_Location, factory->m_UriParts.m_Path);
                 continue;
             }
@@ -286,33 +286,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 // We want access to this later on (mostly for liveupdate, that wants the app ID to use as a folder name for liveupdate content)
                 factory->m_BaseArchiveMount = archive;
             }
-
-            if (type_pairs[i].m_CheckPublicKey)
-            {
-                size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
-                char* app_path = (char*)alloca(manifest_path_len+1);
-                dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
-                char* app_path_end = strrchr(app_path, '/');
-                if (app_path_end)
-                    *app_path_end = 0;
-                else
-                    app_path[0] = 0; // it only contained a filename
-
-                char public_key_path[DMPATH_MAX_PATH];
-                dmPath::Concat(app_path, BUNDLE_PUBLIC_KEY_FILENAME, public_key_path, DMPATH_MAX_PATH);
-
-                if (dmSys::ResourceExists(public_key_path))
-                {
-                    factory->m_PublicKeyPath = strdup(public_key_path);
-                }
-            }
             break;
         }
     }
 
     if (!num_mounted)
     {
-        dmLogWarning("No resource loaders mounted that could match uri %s", uri);
+        if (!mount_unsupported)
+        {
+            dmLogWarning("No resource loaders mounted that could match uri %s", uri);
+        }
         DeleteFactory(factory);
         dmMessage::DeleteSocket(socket);
         return 0;
@@ -406,7 +389,6 @@ void DeleteFactory(HFactory factory)
         factory->m_Resources->Iterate<>(&ResourceIteratorCallback, (void*)0);
     }
 
-    free((void*)factory->m_PublicKeyPath);
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     if (factory->m_ResourceHashToFilename)
@@ -617,11 +599,6 @@ dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGe
     return dmResourceMounts::GetDependencies(factory->m_Mounts, &params, ResourceDependencyCallback, &ctx);
 }
 
-const char* GetPublicKeyPath(HFactory factory)
-{
-    return factory->m_PublicKeyPath;
-}
-
 dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
 {
     return factory->m_BaseArchiveMount;
@@ -810,7 +787,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
             if(create_error != RESULT_PENDING)
                 break;
             // As we're stalling on the main thread here, we also need to finish any potential resource tasks here.
-            dmJobThread::Update(factory->m_JobThreadContext, 1000);
+            JobSystemUpdate(factory->m_JobThreadContext, 1000);
             dmTime::Sleep(1000);
         }
     }
@@ -1199,7 +1176,8 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
                 pair.m_Callback(&reload_params);
             }
         }
-        if (rd->m_PrevResource) {
+        if (rd->m_PrevResource)
+        {
             ResourceDescriptor tmp_resource = *rd;
             tmp_resource.m_Resource = rd->m_PrevResource;
             ResourceDestroyParams params;
@@ -1348,6 +1326,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 params.m_Resource = rd;
                 params.m_Filename = 0;
                 params.m_FilenameHash = hashed_name;
+                params.m_Type = resource_type;
                 pair.m_Callback(&params);
             }
         }
@@ -1606,7 +1585,7 @@ Result RemoveFile(HFactory factory, const char* path)
     return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
 }
 
-dmJobThread::HContext GetJobThread(const dmResource::HFactory factory)
+HJobContext GetJobThread(const dmResource::HFactory factory)
 {
     return factory->m_JobThreadContext;
 }

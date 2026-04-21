@@ -138,7 +138,8 @@
 
 (defn set-log-service-stream [log-stream]
   (reset-console-stream! log-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream))))
+  (reset-remote-log-pump-thread! (when log-stream
+                                   (start-log-pump! log-stream (make-remote-log-sink log-stream)))))
 
 (defn pipe-log-stream-to-console! [input-stream]
   (reset-console-stream! input-stream)
@@ -527,7 +528,7 @@
   (gutter-metrics [_this _lines _regions _glyph-metrics]
     (gutter-metrics))
 
-  (draw-gutter! [_this gc gutter-rect layout _hovered-ui-element font color-scheme lines regions _visible-cursors _hovered-row]
+  (draw-gutter! [_this gc gutter-rect layout _hovered-element font color-scheme lines regions _visible-cursor-ranges _focus-state]
     (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
@@ -656,7 +657,8 @@
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
     (when (or clear (seq entries))
-      (g/let-ec [resource-map (g/node-value workspace :resource-map evaluation-context)
+      (g/let-ec [basis (:basis evaluation-context)
+                 resource-map (g/raw-property-value basis workspace :resource-map)
                  ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
                  prev-lines (g/node-value view-node :lines evaluation-context)
                  prev-regions (g/node-value view-node :regions evaluation-context)
@@ -746,7 +748,7 @@
                                                                    {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                                         (open-resource-fn resource opts))))
                                    resource-candidates (into []
-                                                             (comp (keep (partial workspace/find-resource workspace))
+                                                             (comp (keep (partial workspace/find-resource (g/now) workspace))
                                                                    (filter openable-resource?))
                                                              (:proj-path-candidates region))]
                                (case (count resource-candidates)
@@ -806,5 +808,34 @@
 (defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    {"/console" {"GET" (bound-fn [_]
-                         (g/node-value console-node :request-response))}}))
+    {"/console"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (g/node-value console-node :request-response))
+              {:openapi
+               {:summary "Read console output"
+                :responses
+                {"200"
+                 {:description "Console lines and regions"
+                  :content
+                  {"application/json"
+                   {:schema
+                    {:type "object"
+                     :required ["lines" "regions"]
+                     :properties
+                     {:lines {:type "array"
+                              :items {:type "string"}}
+                      :regions {:type "array"
+                                :items {:type "object"
+                                        :required ["from" "to" "type"]
+                                        :properties
+                                        {:from {:type "object"
+                                                :required ["row" "col"]
+                                                :properties {:row {:type "integer"}
+                                                             :col {:type "integer"}}}
+                                         :to {:type "object"
+                                              :required ["row" "col"]
+                                              :properties {:row {:type "integer"}
+                                                           :col {:type "integer"}}}
+                                         :type {:type "string"
+                                                :description "Region type, e.g. extension-output, extension-error, resource-reference, repeat, eval-expression, eval-result, or eval-error."}}}}}}}}}}}})}}))

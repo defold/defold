@@ -108,7 +108,7 @@
   (let [errors (util/group-into
                  {} []
                  :path identity
-                 (coll/transfer (fs/class-path-walker java/class-loader "localization") :eduction
+                 (coll/into-> (fs/class-path-walker java/class-loader "localization") :eduction
                    (filter #(.endsWith (str %) ".editor_localization"))
                    (mapcat (fn [path]
                              (e/map #(-> {:path (str (.getFileName (path/of path))) :key (key %) :string (val %)})
@@ -117,7 +117,7 @@
     (is (empty? errors)
         (coll/join-to-string
           "\n"
-          (coll/transfer errors :eduction
+          (coll/into-> errors :eduction
             (map (fn [path+error]
                    (str "Triple dots (...) instead of ellipsis (…) in " (key path+error) ":\n"
                         (coll/join-to-string "\n" (e/map #(str (:key %) " = " (:string %)) (val path+error)))))))))))

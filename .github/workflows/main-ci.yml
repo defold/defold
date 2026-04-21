@@ -5,7 +5,6 @@ on:
     branches-ignore:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
-      - 'editor-dev'
 
   repository_dispatch: {}
 
@@ -37,16 +36,16 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 30
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       {
@@ -77,17 +76,17 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@7f352e61cbe8130c957c3bc898c4fb025784ea1e, with: { xcode-version: '26.2.0' } },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.2.0' } },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       {
@@ -112,21 +111,21 @@ jobs:
   bld-eng-web:
     strategy:
       matrix:
-        platform: [js-web, wasm-web, wasm_pthread-web]
+        platform: [wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
-      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '4.0.6'}},
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e, with: {version: '4.0.6'}}, # v14
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
       },
-      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@v2, with: {version: "13.0"}},
+      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0, with: {version: "13.0"}}, # v2.0.9
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -145,21 +144,33 @@ jobs:
   bld-eng-android:
     strategy:
       matrix:
-        platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-22.04
+        include:
+          - platform: armv7-android
+            skip_tests: true
+          - platform: arm64-android
+            skip_tests: true
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      {
+        name: 'Set up Android SDK',
+        uses: defold/github-actions-common/.github/actions/android@master,
+        with: {
+          android-ndk: '25.2.9519653',
+          android-api-level: '36',
+          android-build-tools: '36.1.0'
+        }
+      },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs engine'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -177,17 +188,17 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Cache lein installation for docs', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: 'editor/build/lein', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-\n${{ runner.os }}-lein-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Cache lein installation for docs', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: 'editor/build/lein', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-\n${{ runner.os }}-lein-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       {
@@ -217,12 +228,12 @@ jobs:
     runs-on: ubuntu-22.04-arm
     timeout-minutes: 30
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -245,12 +256,12 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 60
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -274,12 +285,41 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 60
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@v4.1.1 },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Build engine',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        shell: bash,
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
+      },
+      { name: 'Stop Gradle Daemon', run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
+      {
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+      }]
+
+
+  bld-eng-xbox:
+    strategy:
+      matrix:
+        platform: [x86_64-xbone]
+    runs-on: windows-latest
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -299,15 +339,15 @@ jobs:
   # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps, bld-eng-xbox]
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       {
         name: 'Build bob',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
@@ -317,7 +357,7 @@ jobs:
       {
         name: 'Upload test results',
         if: failure(),
-        uses: actions/upload-artifact@v4,
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f, # v7.0.0
         with: {
           name: 'test-result',
           path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob.test/build/reports/tests/',
@@ -333,14 +373,14 @@ jobs:
       }]
 
   build-sdk:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps, bld-eng-xbox]
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
       {
         name: 'Build SDK',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
@@ -363,16 +403,16 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
@@ -403,16 +443,16 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       {
         name: 'Install dependencies',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
@@ -447,16 +487,16 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
-      { name: 'Install Java', uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } },
       {
         name: 'Install dependencies',
@@ -493,15 +533,15 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd,
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Cache Defold downloads', uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@main, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
+      { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
+      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -516,7 +556,7 @@ jobs:
       },
       {
         name: 'Publish updated API ref',
-        uses: defold/repository-dispatch@1.2.1,
+        uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3, # 1.2.1
         if: (github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
         with: {
           repo: 'defold/defold.github.io',

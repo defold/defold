@@ -15,7 +15,7 @@
 #ifndef DMSDK_MEMORY_H
 #define DMSDK_MEMORY_H
 
-/*# SDK Memory API documentation
+/*# Memory API documentation
  * Memory allocation functions
  *
  * @document

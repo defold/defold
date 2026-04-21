@@ -105,6 +105,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [editor.gl :as gl]
             [editor.gl.types :as gl.types]
             [editor.graphics.types :as graphics.types]
+            [editor.localization :as localization]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.scene-cache :as scene-cache]
             [internal.util :as util]
@@ -681,12 +682,11 @@ These forms should be quoted, as if they came from a macro."
 
 (defn read-combined-shader-info [shader-paths opts shader-path->source]
   (let [max-page-count (long (or (:max-page-count opts) 0))
-
         augmented-shader-infos
-        (coll/transfer shader-paths []
+        (coll/into-> shader-paths []
           (map (fn [^String shader-path]
                  (let [shader-source (shader-path->source shader-path)]
-                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count)))))]
+                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count "mediump" "highp")))))]
 
     (shader-gen/combined-shader-info augmented-shader-infos)))
 
@@ -754,7 +754,7 @@ These forms should be quoted, as if they came from a macro."
 (def vertex-shader-source (partial first-shader-source-of-type :shader-type-vertex))
 (def fragment-shader-source (partial first-shader-source-of-type :shader-type-fragment))
 
-(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count image-property-name]
+(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 image-property-message]
   (when (and (some? texture-page-count)
              (some? material-max-page-count))
     (let [texture-page-count (int texture-page-count)
@@ -762,14 +762,15 @@ These forms should be quoted, as if they came from a macro."
       (cond
         (and is-paged-material
              (zero? texture-page-count))
-        (str "The Material expects a paged Atlas, but the selected " image-property-name " is not paged")
+        (localization/message "error.material-expects-paged-atlas" {"property" image-property-message})
 
         (and (not is-paged-material)
              (pos? texture-page-count))
-        (str "The Material does not support paged Atlases, but the selected " image-property-name " is paged")
+        (localization/message "error.material-does-not-support-paged-atlases" {"property" image-property-message})
 
-        (< material-max-page-count texture-page-count)
-        (str "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected " image-property-name)))))
+        (and (< material-max-page-count texture-page-count)
+             (not exclude-gles-sm100))
+        (localization/message "error.material-max-page-count-insufficient" {"property" image-property-message})))))
 
 (def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))
 

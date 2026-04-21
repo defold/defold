@@ -40,6 +40,14 @@
 
 (def supported-audio-formats #{"wav" "ogg" "opus"})
 
+(def ^:private sound-message (properties/label-message :sound :sound))
+(def ^:private loopcount-message (properties/label-message :sound :loopcount))
+(def ^:private gain-message (properties/label-message :sound :gain))
+(def ^:private pan-message (properties/label-message :sound :pan))
+(def ^:private speed-message (properties/label-message :sound :speed))
+
+(def ^:private error-invalid-ogg-file-message (localization/message "error.sound.invalid-ogg-file"))
+
 (defn oggz-validate-path []
   (let [platform (Platform/getHostPlatform)]
     (format "%s/libexec/%s/oggz-validate%s"
@@ -58,9 +66,8 @@
           (when-not (zero? (process/await-exit-code p))
             (g/->error _node-id :resource :fatal resource
                        (if output
-                         (str "Invalid ogg file (oggz-validate):\n"
-                              (string/replace output #"^[^\n]+\n" "")) ;; remove first line
-                         "Invalid ogg file"))))
+                         (localization/message "error.sound.invalid-ogg-file-details" {"output" (string/replace output #"^[^\n]+\n" "")}) ;; remove first line
+                         error-invalid-ogg-file-message))))
         (finally
           (fs/delete! temp-file {:fail :silently}))))))
 
@@ -69,7 +76,9 @@
     (or (validate-if-ogg _node-id resource)
         [(pipeline/make-source-bytes-build-target _node-id resource)])
     (catch Exception _
-      (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
+      (g/->error _node-id :resource :fatal resource
+                 (localization/message "error.sound.could-not-read-audio-file"
+                                       {"resource" (resource/resource->proj-path resource)})))))
 
 (g/defnode SoundSourceNode
   (inherits resource-node/ResourceNode)
@@ -139,13 +148,14 @@
 
 (g/defnk produce-build-targets
   [_node-id resource sound dep-build-targets save-value]
-  (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound "Sound")
-      (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) "Sound")
+  (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound sound-message)
+      (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) sound-message)
       [(make-sound-desc-build-target _node-id resource save-value dep-build-targets)]))
 
 (defn load-sound [_project self resource sound-desc]
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Sound$SoundDesc sound-desc
       sound (resolve-resource :sound)
       looping (protobuf/int->boolean :looping)
@@ -155,7 +165,7 @@
       speed :speed
       loopcount :loopcount)))
 
-(def prop-sound_speed? (partial validation/prop-outside-range? [0.1 5.0]))
+(def prop-sound-speed? (partial validation/prop-outside-range? [0.0 50.0]))
 
 (g/defnode SoundNode
   (inherits resource-node/ResourceNode)
@@ -170,8 +180,8 @@
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id sound]
-                             (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
-                                 (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
+                             (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound sound-message)
+                                 (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound sound-message))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats}))
             (dynamic label (properties/label-dynamic :sound :sound))
             (dynamic tooltip (properties/tooltip-dynamic :sound :sound)))
@@ -182,7 +192,7 @@
             (value (g/fnk [looping loopcount]
                      (if (not looping) 0 loopcount)))
             (dynamic error (g/fnk [_node-id loopcount]
-                             (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount "Loopcount")))
+                             (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount loopcount-message)))
             (dynamic read-only? (g/fnk [looping]
                                    (not looping)))
             (dynamic label (properties/label-dynamic :sound :loopcount))
@@ -191,15 +201,18 @@
             (dynamic label (properties/label-dynamic :sound :group))
             (dynamic tooltip (properties/tooltip-dynamic :sound :group)))
   (property gain g/Num (default (protobuf/default Sound$SoundDesc :gain))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain))
+            (dynamic error (g/fnk [_node-id gain]
+                             (validation/prop-error :fatal _node-id :gain validation/prop-negative? gain gain-message)))
             (dynamic label (properties/label-dynamic :sound :gain))
             (dynamic tooltip (properties/tooltip-dynamic :sound :gain)))
   (property pan g/Num (default (protobuf/default Sound$SoundDesc :pan))
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan))
+            (dynamic error (g/fnk [_node-id pan]
+                             (validation/prop-error :fatal _node-id :pan validation/prop-1-1? pan pan-message)))
             (dynamic label (properties/label-dynamic :sound :pan))
             (dynamic tooltip (properties/tooltip-dynamic :sound :pan)))
   (property speed g/Num (default (protobuf/default Sound$SoundDesc :speed))
-            (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed))
+            (dynamic error (g/fnk [_node-id speed]
+                             (validation/prop-error :fatal _node-id :speed prop-sound-speed? speed speed-message)))
             (dynamic label (properties/label-dynamic :sound :speed))
             (dynamic tooltip (properties/tooltip-dynamic :sound :speed)))
 

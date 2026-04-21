@@ -671,7 +671,7 @@
 (defn vecmath-matrix-pprint-strings [matrix]
   (let [dim (vecmath-matrix-dim matrix)
         fmt-num #(eutil/format* "%.3f" %)
-        num-strs (coll/transfer (range dim) []
+        num-strs (coll/into-> (range dim) []
                    (mapcat (fn [^long row-index]
                              (let [row (vecmath-matrix-row matrix row-index)]
                                (map fmt-num row)))))
@@ -691,7 +691,7 @@
                               first-col-width-fmt
                               rest-col-width-fmt)]
                     (eutil/format* fmt num-str)))]
-    (coll/transfer num-strs []
+    (coll/into-> num-strs []
       (partition-all dim)
       (map (partial into [] (map-indexed fmt-col))))))
 

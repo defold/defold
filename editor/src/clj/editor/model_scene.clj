@@ -295,8 +295,8 @@
 (g/defnk produce-bones [content]
   (:bones content))
 
-(g/defnk produce-content [_node-id resource]
-  (model-loader/load-scene _node-id resource))
+(g/defnk produce-content [_node-id resource project-settings]
+  (model-loader/load-scene _node-id resource project-settings))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
@@ -475,7 +475,7 @@
         model-transform (math/clj->mat4 translation rotation scale)
 
         renderable-meshes
-        (coll/transfer (:meshes model) []
+        (coll/into-> (:meshes model) []
           (map-indexed
             (fn [mesh-index mesh]
               (let [mesh-request-id (assoc model-request-id :mesh-index mesh-index)]
@@ -585,8 +585,8 @@
   (make-scene _node-id renderable-mesh-set))
 
 (defn- finalize-claim-scene [scene _old-node-id new-node-id]
-  (update scene :children coll/mapv>
-          update :children coll/mapv>
+  (update scene :children coll/mapv->
+          update :children coll/mapv->
           update-in [:renderable :user-data :attribute-bindings]
           attribute/claim-transformed-attribute-buffer-bindings
           assoc :scene-node-id new-node-id))
@@ -672,8 +672,17 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
+(defn load-model-scene-node [project self resource]
+  (let [workspace-node (resource/workspace resource)
+        disk-sha256 (resource/resource->sha256-hex resource)]
+    (concat
+      (g/connect project :settings self :project-settings)
+      (workspace/set-disk-sha256 workspace-node self disk-sha256))))
+
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
+
+  (input project-settings g/Any)
 
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
@@ -691,6 +700,7 @@
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
+    :load-fn load-model-scene-node
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

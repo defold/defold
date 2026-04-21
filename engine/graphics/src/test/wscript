@@ -16,6 +16,7 @@ def build(bld):
 
         extra_libs = []
         extra_symbols = []
+        extra_sources = []
 
         graphics_libs = ['GRAPHICS', 'graphics_transcoder_basisu']
         platform_lib = ['PLATFORM']
@@ -40,7 +41,7 @@ def build(bld):
             if platform_glfw_version(bld.env.PLATFORM) == 3:
                 platform_lib = ['PLATFORM_VULKAN']
 
-        if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}) and waflib.Options.options.with_dx12:
+        if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}) and (bld.env.PLATFORM in ['x86_64-xbone'] or waflib.Options.options.with_dx12):
             extra_libs += ['DX12', 'graphics_dx12']
             extra_symbols += ['GraphicsAdapterDX12']
 

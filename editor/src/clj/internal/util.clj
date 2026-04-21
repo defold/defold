@@ -438,7 +438,7 @@
     (select-keys-deep value kept-keys)
 
     (coll? value)
-    (coll/transform value
+    (coll/transform-> value
       (map (partial select-keys-deep-value-helper kept-keys)))
 
     :else
@@ -472,14 +472,14 @@
 
      (map? value)
      (finalize-coll-value-fn
-       (coll/transform value
+       (coll/transform-> value
          (map (fn [[k v]]
                 (let [v' (deep-map finalize-coll-value-fn value-fn v)]
                   (pair k v'))))))
 
      (coll? value)
      (finalize-coll-value-fn
-       (coll/transform value
+       (coll/transform-> value
          (map #(deep-map finalize-coll-value-fn value-fn %))))
 
      :else
@@ -492,14 +492,14 @@
 
     (map? value)
     (finalize-coll-value-fn
-      (coll/transform value
+      (coll/transform-> value
         (map (fn [[k v]]
                (let [v' (deep-map-kv-helper finalize-coll-value-fn value-fn k v)]
                  (pair k v'))))))
 
     (coll? value)
     (finalize-coll-value-fn
-      (coll/transform value
+      (coll/transform-> value
         (map-indexed #(deep-map-kv-helper finalize-coll-value-fn value-fn %1 %2))))
 
     :else
@@ -533,14 +533,14 @@
 
      (map? value)
      (finalize-coll-value-fn
-       (coll/transform value
+       (coll/transform-> value
          (keep (fn [entry]
                  (when-some [v' (deep-keep finalize-coll-value-fn value-fn (val entry))]
                    (pair (key entry) v'))))))
 
      (coll? value)
      (finalize-coll-value-fn
-       (coll/transform value
+       (coll/transform-> value
          (keep #(deep-keep finalize-coll-value-fn value-fn %))))
 
      :else
@@ -553,14 +553,14 @@
 
     (map? value)
     (finalize-coll-value-fn
-      (coll/transform value
+      (coll/transform-> value
         (keep (fn [[k v]]
                 (when-some [v' (deep-keep-kv-helper finalize-coll-value-fn value-fn k v)]
                   (pair k v'))))))
 
     (coll? value)
     (finalize-coll-value-fn
-      (coll/transform value
+      (coll/transform-> value
         (keep-indexed #(deep-keep-kv-helper finalize-coll-value-fn value-fn %1 %2))))
 
     :else

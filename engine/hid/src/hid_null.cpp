@@ -17,7 +17,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 
 #include "hid_private.h"
 #include "hid.h"

@@ -288,7 +288,6 @@ namespace dmHttpService
             url.m_Path[1] = '\0';
         }
 
-
         dmURI::Parts proxy_url;
         if (request->m_Proxy)
         {
@@ -298,6 +297,10 @@ namespace dmHttpService
                 SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0, 0, 0, 0);
                 return;
             }
+        }
+        else
+        {
+            memset(&proxy_url, 0, sizeof(proxy_url));
         }
 
         if (worker->m_Client == 0 ||

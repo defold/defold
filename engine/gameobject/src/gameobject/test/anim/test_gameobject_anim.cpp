@@ -107,6 +107,7 @@ static dmhash_t hash(const char* s)
 TEST_F(AnimTest, AnimateAndStop)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");

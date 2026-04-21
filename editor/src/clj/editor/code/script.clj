@@ -200,33 +200,6 @@
           :script-property-type-boolean
           :script-property-type-resource))
 
-(def script-defs [{:ext "script"
-                   :label (localization/message "resource.type.script")
-                   :icon "icons/32/Icons_12-Script-type.png"
-                   :icon-class :script
-                   :category (localization/message "resource.category.scripts")
-                   :tags #{:component :debuggable :non-embeddable :overridable-properties}
-                   :tag-opts {:component {:transform-properties #{}}}}
-                  {:ext "render_script"
-                   :label (localization/message "resource.type.render-script")
-                   :icon "icons/32/Icons_12-Script-type.png"
-                   :icon-class :script
-                   :category (localization/message "resource.category.scripts")
-                   :tags #{:debuggable}}
-                  {:ext "gui_script"
-                   :label (localization/message "resource.type.gui-script")
-                   :icon "icons/32/Icons_12-Script-type.png"
-                   :icon-class :script
-                   :category (localization/message "resource.category.scripts")
-                   :tags #{:debuggable}}
-                  {:ext "lua"
-                   :label (localization/message "resource.type.lua")
-                   :icon "icons/32/Icons_11-Script-general.png"
-                   :icon-class :script
-                   :category (localization/message "resource.category.scripts")
-                   :annotations true
-                   :tags #{:debuggable}}])
-
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
@@ -405,16 +378,31 @@
               (update :properties into (map (partial lift-error _node-id)) script-property-entries)
               (update :display-order into (map prop->key) script-properties))))
 
-(g/defnk produce-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
+(g/defnk produce-script-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
   (let [basis (:basis _evaluation-context)
         project (project/get-project basis _node-id)]
     (script-compilation/build-targets
       _node-id
       resource
       lines
+      true
       lua-preprocessors
       script-properties
       original-resource-property-build-targets
+      #(project/get-resource-node project % _evaluation-context)
+      _evaluation-context)))
+
+(g/defnk produce-lua-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors]
+  (let [basis (:basis _evaluation-context)
+        project (project/get-project basis _node-id)]
+    (script-compilation/build-targets
+      _node-id
+      resource
+      lines
+      false
+      lua-preprocessors
+      []
+      []
       #(project/get-resource-node project % _evaluation-context)
       _evaluation-context)))
 
@@ -427,15 +415,33 @@
       (assoc :condition condition))))
 
 (g/defnk produce-breakpoints [resource regions]
-  (coll/transfer regions []
+  (coll/into-> regions []
     (filter data/breakpoint-region?)
     (map (partial region->breakpoint resource))))
 
-(g/defnode ScriptNode
+(g/defnode LuaCodeNode
   (inherits r/CodeEditorResourceNode)
 
   (input lua-preprocessors g/Any)
   (input script-intelligence-completions script-intelligence/ScriptCompletions)
+
+  ;; Breakpoints output only consumed by project (array input of all code files)
+  ;; and already cached there. Changing breakpoints and pulling project breakpoints
+  ;; does imply a pass over all code nodes to produce new breakpoints, but does
+  ;; not seem to be much of a perf issue.
+  (output breakpoints project/Breakpoints produce-breakpoints)
+
+  (output completions g/Any :cached (gu/passthrough script-intelligence-completions))
+  (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret)))
+
+(g/defnode LuaNode
+  (inherits LuaCodeNode)
+
+  (output build-targets g/Any :cached produce-lua-build-targets))
+
+(g/defnode ScriptNode
+  (inherits LuaCodeNode)
+
   (input script-property-name+node-ids NameNodeIDPair :array)
   (input script-property-entries ScriptPropertyEntries :array)
 
@@ -453,7 +459,7 @@
                          lsp (lsp/get-node-lsp basis self)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
-                                    (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader evaluation-context))
+                                    (lua-parser/lua-info basis workspace script-compilation/valid-resource-kind? reader))
                          script-properties (script-compilation/lua-info->script-properties lua-info)]
                      (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (g/set-property self :script-properties script-properties)))))
@@ -473,19 +479,42 @@
                                      evaluation-context project value self
                                      [[:build-targets :original-resource-property-build-targets]]))))))))
 
-  ;; Breakpoints output only consumed by project (array input of all code files)
-  ;; and already cached there. Changing breakpoints and pulling project breakpoints
-  ;; does imply a pass over all ScriptNodes to produce new breakpoints, but does
-  ;; not seem to be much of a perf issue.
-  (output breakpoints project/Breakpoints produce-breakpoints)
-
   (output _properties g/Properties :cached produce-properties)
-  (output build-targets g/Any :cached produce-build-targets)
-  (output completions g/Any :cached (gu/passthrough script-intelligence-completions))
-  (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret))
+  (output build-targets g/Any :cached produce-script-build-targets)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output script-property-entries ScriptPropertyEntries (g/fnk [script-property-entries] (reduce into {} script-property-entries)))
   (output script-property-node-ids-by-name NameNodeIDMap (g/fnk [script-property-name+node-ids] (into {} script-property-name+node-ids))))
+
+(def script-defs [{:ext "script"
+                   :node-type ScriptNode
+                   :label (localization/message "resource.type.script")
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :icon-class :script
+                   :category (localization/message "resource.category.scripts")
+                   :tags #{:component :debuggable :non-embeddable :overridable-properties}
+                   :tag-opts {:component {:transform-properties #{}}}}
+                  {:ext "render_script"
+                   :node-type LuaNode
+                   :label (localization/message "resource.type.render-script")
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :icon-class :script
+                   :category (localization/message "resource.category.scripts")
+                   :tags #{:debuggable}}
+                  {:ext "gui_script"
+                   :node-type LuaNode
+                   :label (localization/message "resource.type.gui-script")
+                   :icon "icons/32/Icons_12-Script-type.png"
+                   :icon-class :script
+                   :category (localization/message "resource.category.scripts")
+                   :tags #{:debuggable}}
+                  {:ext "lua"
+                   :node-type LuaNode
+                   :label (localization/message "resource.type.lua")
+                   :icon "icons/32/Icons_11-Script-general.png"
+                   :icon-class :script
+                   :category (localization/message "resource.category.scripts")
+                   :annotations true
+                   :tags #{:debuggable}}])
 
 (defn- additional-load-fn
   [annotations project self resource]
@@ -504,7 +533,6 @@
         :let [args (-> def
                        (dissoc :annotations)
                        (assoc
-                         :node-type ScriptNode
                          :built-pb-class script-compilation/built-pb-class
                          :language "lua"
                          :lazy-loaded false

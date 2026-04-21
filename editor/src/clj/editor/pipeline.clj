@@ -18,8 +18,8 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.fs :as fs]
-            [editor.graph-util :as gu]
             [editor.localization :as localization]
+            [editor.node-util :as node-util]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -66,7 +66,7 @@
                              :deps-by-source field-value->fused-path}))
             (coll/assoc-in-ex pb-map field-path fused-path))))
       pb-map
-      (protobuf/get-field-value-paths pb-map pb-class))))
+      (protobuf/resource-field-value-paths pb-class pb-map))))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
@@ -202,7 +202,7 @@
 (defn decorate-build-exception [exception stage node-id resource-path {:keys [basis] :as evaluation-context}]
   (try
     (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
-          (gu/node-debug-info node-id evaluation-context)]
+          (node-util/node-debug-info node-id evaluation-context)]
       (ex-info (format "Failed to %s %s %s."
                        (name stage)
                        (if (= owner-resource-node-id node-id)

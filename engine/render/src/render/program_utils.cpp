@@ -425,6 +425,12 @@ namespace dmRender
                 }
                 break;
             }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME:
+            {
+                dmVMath::Vector4 time(render_context->m_Time, render_context->m_Dt, 0.0f, 0.0f);
+                dmGraphics::SetConstantV4(graphics_context, &time, 1, location);
+                break;
+            }
         }
     }
 

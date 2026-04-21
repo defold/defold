@@ -1,0 +1,29 @@
+tags: "light"
+tags: "spot_light"
+data {
+  struct {
+    fields {
+      key: "color"
+      value {
+        list {
+          values { number: 0.2 }
+          values { number: 0.8 }
+          values { number: 0.1 }
+          values { number: 1.0 }
+        }
+      }
+    }
+    fields {
+      key: "intensity"
+      value { number: 4.0 }
+    }
+    fields {
+      key: "range"
+      value { number: 20.0 }
+    }
+    fields {
+      key: "inner_cone_angle"
+      value { number: 15.0 }
+    }
+  }
+}

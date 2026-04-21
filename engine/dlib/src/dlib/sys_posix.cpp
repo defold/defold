@@ -12,6 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+
+#if defined(_WIN32)
+#error "Unsupported platform"
+#endif
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -28,23 +33,12 @@
 #include "time.h"
 
 // For the IterateTree
-#if defined(_WIN32)
-#include "dirent.h"
-#else
 #include <dirent.h>
-#endif
 
-#ifdef _WIN32
-#include <Shlobj.h>
-#include <Shellapi.h>
-#include <io.h>
-#include <direct.h>
-#else
 #include <unistd.h>
 #include <sys/utsname.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#endif
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -70,10 +64,6 @@
 #include <dmsdk/dlib/android.h>
 #include <sys/types.h>
 #include <android/asset_manager.h>
-// By convention we have a global variable called g_AndroidApp
-// This is currently created in glfw..
-// Application life-cycle should perhaps be part of dlib instead
-extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 #endif
 
 #if defined(__linux__) && !defined(ANDROID)
@@ -135,11 +125,7 @@ namespace dmSys
 
     Result Rename(const char* dst_filename, const char* src_filename)
     {
-#if defined(_WIN32)
-        bool rename_result = MoveFileExA(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-#else
         bool rename_result = rename(src_filename, dst_filename) != -1;
-#endif
         if (rename_result)
         {
             return RESULT_OK;
@@ -165,180 +151,6 @@ namespace dmSys
 
 // NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
 
-#elif defined(_WIN32)
-
-    static const wchar_t* SkipSlashesW(const wchar_t* path)
-    {
-        while (*path && (*path == L'/' || *path == L'\\'))
-        {
-            ++path;
-        }
-        return path;
-    }
-
-    // Is a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
-    static bool MakePath_8_3(const wchar_t* wpath, wchar_t* out)
-    {
-        wchar_t tmp[MAX_PATH] = { 0 };
-        dmPath::NormalizeW(wpath, tmp, MAX_PATH);
-        out[0] = L'\0';
-
-        int has_drive = 0;
-        wchar_t* cursor = tmp;
-        while (*cursor != L'\0')
-        {
-            if (!has_drive)
-            {
-                cursor = wcschr(cursor, L':');
-                if (!cursor)
-                {
-                    dmLogError("Failed to find drive in path: '%ls'\n", wpath);
-                    return false;
-                }
-                has_drive = 1;
-                cursor++; // Skip past the ':'"
-
-                // Copy the drive "C:"
-                wchar_t c = *cursor;
-                *cursor = L'\0';
-                wcscpy(out, tmp);
-
-                *cursor = c;
-                cursor = (wchar_t*)SkipSlashesW(cursor+1);
-                continue;
-            }
-
-            wchar_t* sep = wcschr(cursor, L'\\');
-            if (!sep)
-                sep = wcschr(cursor, L'/');
-
-            // Temporarily null terminate the string
-            if (sep)
-                *sep = L'\0';
-
-            // Create a version of the previously parsed path, and the latest (untransformed) directory name
-            wchar_t testpath[MAX_PATH] = { 0 };
-            wcscpy(testpath, out); // The previously path with 8.3 names
-            wcscat(testpath, L"/");
-            wcscat(testpath, cursor); // The last folder to test
-
-            WIN32_FIND_DATAW fd{0};
-            HANDLE h = FindFirstFileW( tmp, &fd );
-            if (h == INVALID_HANDLE_VALUE)
-            {
-                dmLogError("FindFirstFileW failed\n");
-                return false;
-            }
-
-            wcscat(out, L"/");
-            if (fd.cAlternateFileName[0] == L'\0')
-                wcscat(out, fd.cFileName);
-            else
-                wcscat(out, fd.cAlternateFileName);
-
-            if (sep)
-                *sep = L'/';
-            else
-                break;
-
-            cursor = sep + 1;
-        }
-
-        return true;
-    }
-
-    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
-    {
-        return GetApplicationSupportPath(application_name, path, path_len);
-    }
-
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        wchar_t tmp_wpath[MAX_PATH];
-
-        if(SUCCEEDED(SHGetFolderPathW(NULL,
-                                     CSIDL_APPDATA | CSIDL_FLAG_CREATE,
-                                     NULL,
-                                     0,
-                                     tmp_wpath)))
-        {
-            // Make any unicode directories into 8.3 format if necessary
-            wchar_t short_path[MAX_PATH];
-            MakePath_8_3(tmp_wpath, short_path);
-
-            int wlength = (int)wcslen(short_path);
-            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, NULL, 0, NULL, NULL);
-            if (size_needed == 0)
-            {
-                dmLogError("Failed converting wchar_t -> char\n");
-                return RESULT_UNKNOWN;
-            }
-
-            char* tmp_path = (char*)_alloca(size_needed + 1);
-            WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, tmp_path, size_needed, NULL, NULL);
-            tmp_path[size_needed] = 0;
-
-            if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, "/", path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, application_name, path_len) >= path_len)
-                return RESULT_INVAL;
-
-            Result r =  Mkdir(path, 0755);
-            if (r == RESULT_EXIST)
-                return RESULT_OK;
-            else
-                return r;
-        }
-        else
-        {
-            return RESULT_UNKNOWN;
-        }
-    }
-
-    Result GetApplicationPath(char* path_out, uint32_t path_len)
-    {
-        assert(path_len > 0);
-        assert(path_len >= MAX_PATH);
-        size_t ret = GetModuleFileNameA(GetModuleHandle(NULL), path_out, path_len);
-        if (ret > 0 && ret < path_len) {
-            // path_out contains path+filename
-            // search for last path separator and end the string there,
-            // effectively removing the filename and keeping the path
-            size_t i = strlen(path_out);
-            do
-            {
-                i -= 1;
-                if (path_out[i] == '\\')
-                {
-                    path_out[i] = 0;
-                    break;
-                }
-            }
-            while (i >= 0);
-        }
-        else
-        {
-            path_out[0] = 0;
-            return RESULT_INVAL;
-        }
-        return RESULT_OK;
-    }
-
-    Result OpenURL(const char* url, const char* target)
-    {
-        intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
-        if (ret > 32)
-        {
-            return RESULT_OK;
-        }
-        else
-        {
-            return RESULT_UNKNOWN;
-        }
-    }
-
 #elif defined(__ANDROID__)
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
@@ -348,6 +160,14 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        if (!app)
+        {
+            // For unit tests
+            dmSnPrintf(path, path_len, "/data/local/tmp");
+            return RESULT_OK;
+        }
+
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
         if (!env)
@@ -664,20 +484,6 @@ namespace dmSys
             dmLogFatal("Unable to locate bundle resource directory");
             return RESULT_UNKNOWN;
         }
-#elif defined(_WIN32)
-        char module_file_name[DMPATH_MAX_PATH];
-        DWORD copied = GetModuleFileNameA(NULL, module_file_name, DMPATH_MAX_PATH);
-
-        if (copied < DMPATH_MAX_PATH)
-        {
-          dmPath::Dirname(module_file_name, path, path_len);
-          return RESULT_OK;
-        }
-        else
-        {
-          dmLogFatal("Unable to get module file name");
-          return RESULT_UNKNOWN;
-        }
 #else
         dmPath::Dirname(argv[0], path, path_len);
         return RESULT_OK;
@@ -737,17 +543,10 @@ namespace dmSys
 
     void FillTimeZone(struct SystemInfo* info)
     {
-#if defined(_WIN32)
-        // tm_gmtoff not available on windows..
-        TIME_ZONE_INFORMATION t;
-        GetTimeZoneInformation(&t);
-        info->m_GmtOffset = -t.Bias;
-#else
         time_t t;
         time(&t);
         struct tm* lt = localtime(&t);
         info->m_GmtOffset = lt->tm_gmtoff / 60;
-#endif
     }
 
 #if defined(__EMSCRIPTEN__)
@@ -886,37 +685,6 @@ namespace dmSys
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
     }
-#elif defined(_WIN32)
-    typedef int (WINAPI *PGETUSERDEFAULTLOCALENAME)(LPWSTR, int);
-
-    void GetSystemInfo(SystemInfo* info)
-    {
-        memset(info, 0, sizeof(*info));
-        PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetUserDefaultLocaleName");
-        dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
-        dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
-        OSVERSIONINFOA version_info;
-        version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersionExA(&version_info);
-
-        const int max_len = 256;
-        char lang[max_len];
-        dmStrlCpy(lang, "en-US", max_len);
-
-        dmSnPrintf(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
-        if (GetUserDefaultLocaleName) {
-            // Only availble on >= Vista
-            wchar_t tmp[max_len];
-            GetUserDefaultLocaleName(tmp, max_len);
-            WideCharToMultiByte(CP_UTF8, 0, tmp, -1, lang, max_len, 0, 0);
-        }
-        FillLanguageTerritory(lang, info);
-        FillTimeZone(info);
-    }
-
-    void GetSecureInfo(SystemInfo* info)
-    {
-    }
 #endif
 
 #if (__ANDROID__)
@@ -965,16 +733,28 @@ namespace dmSys
         }
         return path;
     }
+
+    static AAssetManager* GetAndroidAssetManager()
+    {
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        if (!app) return 0;
+        if (!app->activity) return 0;
+        return app->activity->assetManager;
+    }
+
 #endif
 
     bool ResourceExists(const char* path)
     {
 #ifdef __ANDROID__
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
-        if (asset) {
-            AAsset_close(asset);
-            return true;
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            if (asset) {
+                AAsset_close(asset);
+                return true;
+            }
         }
 #endif
 #ifdef _WIN32
@@ -989,14 +769,17 @@ namespace dmSys
     Result ResourceSize(const char* path, uint32_t* resource_size)
     {
 #ifdef __ANDROID__
-        path = FixAndroidResourcePath(path);
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
-        if (asset) {
-            *resource_size = (uint32_t) AAsset_getLength(asset);
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            path = FixAndroidResourcePath(path);
+            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            if (asset) {
+                *resource_size = (uint32_t) AAsset_getLength(asset);
 
-            AAsset_close(asset);
-            return RESULT_OK;
+                AAsset_close(asset);
+                return RESULT_OK;
+            }
         }
 #endif
 #ifdef _WIN32
@@ -1019,27 +802,32 @@ namespace dmSys
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
-#ifdef __ANDROID__
-        const char* asset_path = FixAndroidResourcePath(path);
 
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-        if (asset) {
-            uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
-            if (asset_size > buffer_size) {
+#ifdef __ANDROID__
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            const char* asset_path = FixAndroidResourcePath(path);
+
+            // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+            if (asset) {
+                uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
+                if (asset_size > buffer_size) {
+                    AAsset_close(asset);
+                    return RESULT_INVAL;
+                }
+                uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
                 AAsset_close(asset);
-                return RESULT_INVAL;
+                if (nread != asset_size) {
+                    return RESULT_IO;
+                }
+                *resource_size = asset_size;
+                return RESULT_OK;
             }
-            uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
-            AAsset_close(asset);
-            if (nread != asset_size) {
-                return RESULT_IO;
-            }
-            *resource_size = asset_size;
-            return RESULT_OK;
         }
 #endif
+
 #ifdef _WIN32
         struct _stat64 file_stat;
         if (_stat64(path, &file_stat) == 0) {
@@ -1072,21 +860,25 @@ namespace dmSys
             return RESULT_INVAL;
 
 #ifdef __ANDROID__
-        const char* asset_path = FixAndroidResourcePath(path);
+        AAssetManager* am = GetAndroidAssetManager();
+        if (am)
+        {
+            const char* asset_path = FixAndroidResourcePath(path);
 
-        AAssetManager* am = g_AndroidApp->activity->assetManager;
-        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-        if (asset) {
-            int result = AAsset_seek(asset, offset, SEEK_SET);
-            if (result < 0)
+            // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+            if (asset)
             {
-                return RESULT_INVAL;
+                int result = AAsset_seek(asset, offset, SEEK_SET);
+                if (result < 0)
+                {
+                    return RESULT_INVAL;
+                }
+                uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
+                AAsset_close(asset);
+                *nread = nmemb;
+                return RESULT_OK;
             }
-            uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
-            AAsset_close(asset);
-            *nread = nmemb;
-            return RESULT_OK;
         }
 #endif
 #ifdef _WIN32
@@ -1139,11 +931,7 @@ namespace dmSys
 
     Result Mkdir(const char* path, uint32_t mode)
     {
-#ifdef _WIN32
-        int ret = mkdir(path);
-#else
         int ret = mkdir(path, (mode_t) mode);
-#endif
         if (ret == 0)
             return RESULT_OK;
         else
@@ -1178,7 +966,7 @@ namespace dmSys
 
     Result IterateTree(const char* dirpath, bool recursive, bool call_before, void* ctx, void (*callback)(void* ctx, const char* path, bool isdir))
     {
-        #if defined(__linux__) || defined(_WIN32) || defined(TARGET_OS_OSX)
+        #if defined(__linux__) || defined(TARGET_OS_OSX)
         struct dirent *entry = NULL;
         DIR *dir = NULL;
         dir = opendir(dirpath);
@@ -1200,11 +988,21 @@ namespace dmSys
 
 #ifdef _WIN32
             struct _stat64 path_stat;
-            _stat64(abs_path, &path_stat);
+            int stat_result = _stat64(abs_path, &path_stat);
 #else
-            struct stat path_stat;
-            stat(abs_path, &path_stat);
+            struct stat path_stat = {};
+            int stat_result = stat(abs_path, &path_stat);
 #endif
+
+            if (stat_result != 0)
+            {
+                if (errno == ENOENT)
+                {
+                    continue;
+                }
+                res = ErrnoToResult(errno);
+                goto cleanup;
+            }
 
             bool isdir = S_ISDIR(path_stat.st_mode);
 

@@ -16,7 +16,9 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 
 import javax.xml.stream.XMLStreamException;
@@ -25,12 +27,14 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -136,11 +140,21 @@ public class MeshsetBuilder extends Builder  {
             return;
         }
 
+        if (suffix.equals("gltf") || suffix.equals("glb")) {
+            validateGltf(task, suffix);
+        }
+
+        BobProjectProperties projectProperties = this.project.getProjectProperties();
+        int morphTexW = projectProperties.getIntValue("model", "max_morph_target_texture_width", 1024);
+        int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
+
         Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
-        Modelimporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
-        if (scene == null) {
-            throw new CompileExceptionError(task.input(0), -1, "Error loading model");
+        Modelimporter.Scene scene;
+        try {
+            scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
+        } catch (IOException e) {
+            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
         // MeshSet
@@ -152,7 +166,11 @@ public class MeshsetBuilder extends Builder  {
                 ModelUtil.splitMeshes(scene);
             }
 
-            ModelUtil.loadModels(scene, meshSetBuilder);
+            try {
+                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH);
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+            }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
@@ -191,5 +209,39 @@ public class MeshsetBuilder extends Builder  {
         }
 
         ModelUtil.unloadScene(scene);
+    }
+
+    private static boolean isPhysicalFile(IResource resource) {
+        return new File(resource.getAbsPath()).isFile();
+    }
+
+    private void validateGltf(Task task, String suffix) throws CompileExceptionError {
+        IResource input = task.input(0);
+        try {
+
+            GLTFValidator.ValidateResult validateResult;
+
+            // NOTE: If the file is part of an archive, we cannot validate embedded or external resources
+            if (isPhysicalFile(input)) {
+                validateResult = GLTFValidator.validateGltf(input.getAbsPath(), true);
+            } else {
+                validateResult = GLTFValidator.validateGltf(input.getContent(), suffix, false);
+            }
+
+            if (!validateResult.result()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("Errors reported by gltf_validator:\n");
+
+                for (GLTFValidator.ValidateError err : validateResult.errors()) {
+                    String line = String.format(" - %s (pointer: %s, code: %s)\n", err.message(), err.pointer(), err.code());
+                    sb.append(line);
+                }
+
+                throw new CompileExceptionError(input, 0, sb.toString());
+            }
+        } catch (IOException exc) {
+            throw new CompileExceptionError(input, 0,
+                    String.format("Failed to run glTF validator: %s", exc.getMessage()));
+        }
     }
 }

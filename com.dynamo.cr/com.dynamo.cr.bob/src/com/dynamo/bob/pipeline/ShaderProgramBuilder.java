@@ -119,6 +119,14 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
+    static Shaderc.ShaderPrecision shaderPrecisionFromString(String value) throws CompileExceptionError {
+        if (value.equals("highp"))
+            return Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        else if (value.equals("mediump"))
+            return Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        throw new CompileExceptionError("Unknown shader precision: " + value);
+    }
+
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
         String resourceOutputPath = task.getOutputs().get(0).getPath();
@@ -134,6 +142,9 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
+        compileOptions.glslEsDefaultFloatPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_float", "mediump"));
+        compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
+
         if (getOutputHlslFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
         }
@@ -511,7 +522,7 @@ public class ShaderProgramBuilder extends Builder {
 
             ArrayList<ShaderCompilePipeline.ShaderModuleDesc> newDescs = new ArrayList<>(newShaders);
             for (ShaderCompilePipeline.ShaderModuleDesc old : oldShaders) {
-                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers);
+                ShaderUtil.ES2ToES3Converter.Result transformResult = ShaderUtil.ES2ToES3Converter.transform(old.source, old.type, "", 140, true, options.splitTextureSamplers, options.glslEsDefaultFloatPrecision, options.glslEsDefaultIntPrecision);
                 ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;

@@ -94,8 +94,9 @@
     (catch LoaderException e
       (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
       (g/->error _node-id :animations :fatal resource
-                 (str "Failed to build " (resource/resource->proj-path resource)
-                      ": " (.getMessage e))))))
+                 (localization/message "error.animation-set-build-failed"
+                                       {"resource" (resource/resource->proj-path resource)
+                                        "error" (.getMessage e)})))))
 
 (g/defnk produce-animation-set [animation-set-info]
   (:animation-set animation-set-info))
@@ -174,7 +175,8 @@
 
 (defn- load-animation-set [_project self resource animation-set-desc]
   {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
     (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
       animations (animation-instance-descs->animation-resources :animations))))

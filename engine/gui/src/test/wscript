@@ -10,7 +10,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../../particle/proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    cmd = '${PROTOC} --encode=%s -I ../../particle/proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension(ext)(create)
 
@@ -18,10 +18,11 @@ create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParti
 
 def build(bld):
     uselib = ['TESTMAIN', 'APP', 'SCRIPT', 'GRAPHICS_NULL', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PROFILE_NULL', 'PLATFORM_NULL', 'SOCKET', 'LUA', 'GRAPHICS_PROTO', 'GAMEOBJECT']
+    gui_use = uselib + ['FONT', 'gui']
 
     test_gui = bld.program(features = 'cxx cprogram embed test',
                            includes = '. ..',
-                           use = uselib + ['gui'],
+                           use = gui_use,
                            web_libs = ['library_sys.js', 'library_script.js'],
                            target = 'test_gui',
                            source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
@@ -29,14 +30,14 @@ def build(bld):
 
     test_gui_script = bld.program(features = 'cxx cprogram embed test',
                     includes = '. ..',
-                    use = uselib + ['gui'],
+                    use = gui_use,
                     web_libs = ['library_sys.js', 'library_script.js'],
                     target = 'test_gui_script',
                     source = 'test_gui_script.cpp')
 
     test_gui_clipping = bld.program(features = 'cxx cprogram embed test',
                     includes = '. ..',
-                    use = uselib + ['gui'],
+                    use = gui_use,
                     web_libs = ['library_sys.js', 'library_script.js'],
                     target = 'test_gui_clipping',
                     source = 'test_gui_clipping.cpp')

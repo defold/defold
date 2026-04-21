@@ -14,7 +14,7 @@
 
 #include <assert.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 #include "platform_window_constants.h"
 #include "platform_window_glfw3_private.h"
 #include "platform_window_opengl.h"
@@ -31,7 +31,7 @@ namespace dmPlatform
     // shared struct to store 'global' data
     static struct PlatformContext
     {
-        WindowGamepadEventCallback m_GamepadEventCallback;
+        FWindowGamepadEventCallback m_GamepadEventCallback;
         void*                      m_GamepadEventCallbackUserData;
     } g_GLFW3Context;
 
@@ -124,14 +124,14 @@ namespace dmPlatform
     {
         if (g_GLFW3Context.m_GamepadEventCallback)
         {
-            GamepadEvent gp_evt = GAMEPAD_EVENT_UNSUPPORTED;
+            WindowGamepadEvent gp_evt = WINDOW_GAMEPAD_EVENT_UNSUPPORTED;
             switch(event)
             {
                 case GLFW_CONNECTED:
-                    gp_evt = GAMEPAD_EVENT_CONNECTED;
+                    gp_evt = WINDOW_GAMEPAD_EVENT_CONNECTED;
                     break;
                 case GLFW_DISCONNECTED:
-                    gp_evt = GAMEPAD_EVENT_DISCONNECTED;
+                    gp_evt = WINDOW_GAMEPAD_EVENT_DISCONNECTED;
                     break;
                 default:break;
             }
@@ -187,7 +187,7 @@ namespace dmPlatform
         return 0;
     }
 
-    static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
+    static WindowResult OpenWindowOpenGL(dmWindow* wnd, const WindowCreateParams& params)
     {
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
@@ -197,7 +197,7 @@ namespace dmPlatform
             fullscreen_monitor = glfwGetPrimaryMonitor();
         }
 
-        if (params.m_GraphicsApi == PLATFORM_GRAPHICS_API_OPENGLES)
+        if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES)
         {
             glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
             glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
@@ -243,7 +243,7 @@ namespace dmPlatform
 
         if (!wnd->m_Window)
         {
-            return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
         wnd->m_SwapIntervalSupported = 1;
@@ -256,10 +256,10 @@ namespace dmPlatform
         // Note: We can't create a 0x0 window
         wnd->m_AuxWindow = glfwCreateWindow(1, 1, "aux_window", NULL, wnd->m_Window);
 
-        return PLATFORM_RESULT_OK;
+        return WINDOW_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowNoApi(dmWindow* wnd, const WindowParams& params)
+    static WindowResult OpenWindowNoApi(dmWindow* wnd, const WindowCreateParams& params)
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
@@ -274,17 +274,17 @@ namespace dmPlatform
 
         if (!wnd->m_Window)
         {
-            return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        return PLATFORM_RESULT_OK;
+        return WINDOW_RESULT_OK;
     }
 
-    PlatformResult OpenWindow(HWindow window, const WindowParams& params)
+    WindowResult OpenWindow(HWindow window, const WindowCreateParams& params)
     {
         if (window->m_WindowOpened)
         {
-            return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
+            return WINDOW_RESULT_WINDOW_ALREADY_OPENED;
         }
 
         // A reboot doesn't shut down GLFW, so we reset all window hints here to defaults first.
@@ -297,25 +297,29 @@ namespace dmPlatform
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
-        PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+        WindowResult res = WINDOW_RESULT_WINDOW_OPEN_ERROR;
 
         switch(params.m_GraphicsApi)
         {
-            case PLATFORM_GRAPHICS_API_OPENGL:
-            case PLATFORM_GRAPHICS_API_OPENGLES:
+            case WINDOW_GRAPHICS_API_OPENGL:
+            case WINDOW_GRAPHICS_API_OPENGLES:
                 res = OpenWindowOpenGL(window, params);
                 break;
-            case PLATFORM_GRAPHICS_API_DIRECTX:
-            case PLATFORM_GRAPHICS_API_VULKAN:
-            case PLATFORM_GRAPHICS_API_METAL:
+            case WINDOW_GRAPHICS_API_DIRECTX:
+            case WINDOW_GRAPHICS_API_VULKAN:
+            case WINDOW_GRAPHICS_API_METAL:
                 res = OpenWindowNoApi(window, params);
                 break;
             default: assert(0);
         }
 
-        if (res == PLATFORM_RESULT_OK)
+        if (res == WINDOW_RESULT_OK)
         {
-            FocusWindowNative(window);
+            if (!params.m_Hidden)
+            {
+                FocusWindowNative(window);
+            }
+
             SetWindowsIconNative(window);
 
         #ifdef __MACH__
@@ -387,6 +391,11 @@ namespace dmPlatform
         glfwShowWindow(window->m_Window);
     }
 
+    void HideWindow(HWindow window)
+    {
+        glfwHideWindow(window->m_Window);
+    }
+
     void SwapBuffers(HWindow window)
     {
         glfwSwapBuffers(window->m_Window);
@@ -406,7 +415,7 @@ namespace dmPlatform
         return (uint32_t) window->m_Height;
     }
 
-    static void SetSafeAreaFull(HWindow window, SafeArea* out)
+    static void SetSafeAreaFull(HWindow window, WindowSafeArea* out)
     {
         const uint32_t width = GetWindowWidth(window);
         const uint32_t height = GetWindowHeight(window);
@@ -421,7 +430,7 @@ namespace dmPlatform
         out->m_InsetBottom = 0;
     }
 
-    bool GetSafeArea(HWindow window, SafeArea* out)
+    bool GetSafeArea(HWindow window, WindowSafeArea* out)
     {
         SetSafeAreaFull(window, out);
         return true;
@@ -512,7 +521,7 @@ namespace dmPlatform
         return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
     }
 
-    uint32_t GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count)
+    uint32_t GetTouchData(HWindow window, WindowTouchData* touch_data, uint32_t touch_data_count)
     {
         return 0;
     }
@@ -557,12 +566,12 @@ namespace dmPlatform
         *y = (int32_t) (ypos * h_scale);
     }
 
-    bool GetDeviceState(HWindow window, DeviceState state, int32_t op1)
+    bool GetDeviceState(HWindow window, WindowDeviceState state, int32_t op1)
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR) != GLFW_CURSOR_NORMAL;
-            case DEVICE_STATE_JOYSTICK_PRESENT: return glfwJoystickPresent(op1);
+            case WINDOW_DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR) != GLFW_CURSOR_NORMAL;
+            case WINDOW_DEVICE_STATE_JOYSTICK_PRESENT: return glfwJoystickPresent(op1);
             default:break;
         }
         assert(0 && "Not supported.");
@@ -613,19 +622,19 @@ namespace dmPlatform
         return count;
     }
 
-    bool GetDeviceState(HWindow window, DeviceState state)
+    bool GetDeviceState(HWindow window, WindowDeviceState state)
     {
         return GetDeviceState(window, state, 0);
     }
 
-    void SetDeviceState(HWindow window, DeviceState state, bool op1)
+    void SetDeviceState(HWindow window, WindowDeviceState state, bool op1)
     {
         SetDeviceState(window, state, op1, false);
     }
 
-    void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
+    void SetDeviceState(HWindow window, WindowDeviceState state, bool op1, bool op2)
     {
-        if (state == DEVICE_STATE_CURSOR)
+        if (state == WINDOW_DEVICE_STATE_CURSOR)
         {
             if (op1)
             {
@@ -639,28 +648,38 @@ namespace dmPlatform
         }
     }
 
-    void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)
+    void SetKeyboardCharCallback(HWindow window, FWindowAddKeyboardCharCallback cb, void* user_data)
     {
         window->m_AddKeyboarCharCallBack         = cb;
         window->m_AddKeyboarCharCallBackUserData = user_data;
     }
 
-    void SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data)
+    void SetKeyboardMarkedTextCallback(HWindow window, FWindowSetMarkedTextCallback cb, void* user_data)
     {
         window->m_SetMarkedTextCallback         = cb;
         window->m_SetMarkedTextCallbackUserData = user_data;
     }
 
-    void SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data)
+    void SetKeyboardDeviceChangedCallback(HWindow window, FWindowDeviceChangedCallback cb, void* user_data)
     {
         window->m_DeviceChangedCallback         = cb;
         window->m_DeviceChangedCallbackUserData = user_data;
     }
 
-    void SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data)
+    void SetGamepadEventCallback(HWindow window, FWindowGamepadEventCallback cb, void* user_data)
     {
         g_GLFW3Context.m_GamepadEventCallback         = cb;
         g_GLFW3Context.m_GamepadEventCallbackUserData = user_data;
+    }
+
+    int32_t TriggerCloseCallback(HWindow window)
+    {
+        if (window->m_CloseCallback)
+        {
+            return window->m_CloseCallback(window->m_CloseCallbackUserData);
+        }
+
+        return 1;
     }
 
     const int PLATFORM_KEY_START           = 32;

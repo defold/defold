@@ -68,6 +68,9 @@
 (def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
 
 (def particlefx-ext "particlefx")
+(def image-message (properties/label-message :image))
+(def material-message (properties/label-message :material))
+(def animation-message (properties/label-message :particlefx :animation))
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -197,7 +200,7 @@
         :points points
         :spread spread))))
 
-(def ^:private default-pb-spline-point (protobuf/default-message Particle$SplinePoint #{:required}))
+(def ^:private default-pb-spline-point (protobuf/required-field-defaults Particle$SplinePoint))
 
 (defn- significant-pb-property? [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.
@@ -826,10 +829,10 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
+(defn- validate-material [_node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count]
   (let [is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))]
-    (or (prop-resource-error :fatal _node-id :material material "Material")
-        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
+    (or (prop-resource-error :fatal _node-id :material material material-message)
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 image-message))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties
@@ -889,15 +892,15 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
-                                  (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
+                                  (prop-resource-error :fatal _node-id :tile-source tile-source image-message))))
 
   (property animation g/Str ; Required protobuf field.
             (dynamic label (properties/label-dynamic :particlefx :animation))
             (dynamic tooltip (properties/tooltip-dynamic :particlefx :animation))
             (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
                              (when tile-source
-                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
+                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation animation-message)
+                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)))))
             (dynamic edit-type (g/fnk [anim-ids]
                                       (let [vals (seq anim-ids)]
                                         (properties/->choicebox vals)))))
@@ -917,12 +920,12 @@
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]}))
-            (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
-                             (prop-resource-error :fatal _node-id :material material "Material")
-                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
+            (dynamic error (g/fnk [_node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count]
+                             (prop-resource-error :fatal _node-id :material material material-message)
+                             (validate-material _node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count))))
 
   (property blend-mode g/Keyword (default (protobuf/default Particle$Emitter :blend-mode))
-            (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
+            (dynamic tooltip (validation/blend-mode-tip blend-mode Particle$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Particle$BlendMode))))
 
   (property particle-orientation g/Keyword (default (protobuf/default Particle$Emitter :particle-orientation))
@@ -957,7 +960,7 @@
             (dynamic visible (g/constantly false)))
 
   (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
-                  :max-particle-count :type :particle-orientation :inherit-velocity [(localization/message "property.particlefx.category.particle-life") ParticleProperties]])
+                  :max-particle-count :type :particle-orientation :inherit-velocity [(properties/label-message :particlefx.category :particle-life) ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
@@ -966,17 +969,18 @@
   (input material-max-page-count g/Int)
   (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
   (input texture-set g/Any)
   (input gpu-texture g/Any)
   (input texture-page-count g/Int :substitute nil)
   (input dep-build-targets g/Any :array)
   (input emitter-indices g/Any)
   (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
-  (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count material-shader texture-page-count animation anim-ids dep-build-targets]
-                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
-                                                            (validate-material _node-id material material-max-page-count material-shader texture-page-count)
-                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
-                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
+  (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count exclude-gles-sm100 material-shader texture-page-count animation anim-ids dep-build-targets]
+                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source image-message)
+                                                            (validate-material _node-id material material-max-page-count exclude-gles-sm100 material-shader texture-page-count)
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation animation-message)
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids animation-message)]
                                                            (remove nil?)
                                                            (seq))]
                                       (g/error-aggregate errors))
@@ -1103,6 +1107,7 @@
                       [:build-targets :dep-build-targets]]]
        (g/connect emitter-id from self-id to))
      (for [[from to] [[:default-tex-params :default-tex-params]
+                      [:exclude-gles-sm100 :exclude-gles-sm100]
                       [:emitter-indices :emitter-indices]]]
        (g/connect self-id from emitter-id to)))))
 
@@ -1111,6 +1116,7 @@
 
   (input project-settings g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
   (input dep-build-targets g/Any :array)
   (input emitter-msgs g/Any :array)
   (input modifier-msgs g/Any :array)
@@ -1119,6 +1125,7 @@
   (input ids g/Str :array)
 
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
+  (output exclude-gles-sm100 g/Any (gu/passthrough exclude-gles-sm100))
   (output save-value g/Any :cached (g/fnk [pb-data] (select-attribute-values pb-data :attributes-save-values)))
   (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
                           (protobuf/make-map-without-defaults Particle$ParticleFX
@@ -1308,6 +1315,22 @@
 ;;--------------------------------------------------------------------
 ;; Manipulators
 
+;; TODO: Implementing the :manip-phase/preview code path is tricky due to how
+;;       the simulation is run. For now, we use :manip-phase/commit while
+;;       dragging to ensure the changes are committed to the graph.
+
+(defmethod scene-tools/manip-move ::ModifierNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (scene/manip-move-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
+(defmethod scene-tools/manip-move ::EmitterNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (scene/manip-move-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
+(defmethod scene-tools/manip-rotate ::ModifierNode [node-id ^Quat4d delta _manip-phase initial-evaluation-context]
+  (scene/manip-rotate-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
+(defmethod scene-tools/manip-rotate ::EmitterNode [node-id ^Quat4d delta _manip-phase initial-evaluation-context]
+  (scene/manip-rotate-scene-node node-id delta :manip-phase/commit initial-evaluation-context))
+
 (defn- update-curve-spread-start-value
   [curve-spread f]
   (let [[first-point & rest] (properties/curve-vals curve-spread)
@@ -1316,34 +1339,33 @@
 
 (defmethod scene-tools/manip-scalable? ::ModifierNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale-manips ::ModifierNode [node-id]
+(defmethod scene-tools/manip-scale-manips ::ModifierNode [_node-id]
   [:scale-x])
 
-(defmethod scene-tools/manip-scale ::ModifierNode
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-magnitude (g/node-value node-id :magnitude evaluation-context)
+(defmethod scene-tools/manip-scale ::ModifierNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (let [old-magnitude (g/node-value node-id :magnitude initial-evaluation-context)
         new-magnitude (update-curve-spread-start-value old-magnitude #(properties/scale-and-round % (.getX delta)))]
-    (g/set-property node-id :magnitude new-magnitude)))
+    {:manip/tx-data (g/set-property node-id :magnitude new-magnitude)}))
 
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::EmitterNode
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-x (g/node-value node-id :emitter-key-size-x evaluation-context)
-        old-y (g/node-value node-id :emitter-key-size-y evaluation-context)
-        old-z (g/node-value node-id :emitter-key-size-z evaluation-context)
+(defmethod scene-tools/manip-scale ::EmitterNode [node-id ^Vector3d delta _manip-phase initial-evaluation-context]
+  (let [old-x (g/node-value node-id :emitter-key-size-x initial-evaluation-context)
+        old-y (g/node-value node-id :emitter-key-size-y initial-evaluation-context)
+        old-z (g/node-value node-id :emitter-key-size-z initial-evaluation-context)
         new-x (update-curve-spread-start-value old-x #(properties/scale-by-absolute-value-and-round % (.getX delta)))
         new-y (update-curve-spread-start-value old-y #(properties/scale-by-absolute-value-and-round % (.getY delta)))
         new-z (update-curve-spread-start-value old-z #(properties/scale-by-absolute-value-and-round % (.getZ delta)))]
-    (g/set-properties node-id
-      :emitter-key-size-x new-x
-      :emitter-key-size-y new-y
-      :emitter-key-size-z new-z)))
+    {:manip/tx-data (g/set-properties node-id
+                      :emitter-key-size-x new-x
+                      :emitter-key-size-y new-y
+                      :emitter-key-size-z new-z)}))
 
 (defn load-particle-fx [project self _resource pb]
   (concat
     (g/connect project :settings self :project-settings)
     (g/connect project :default-tex-params self :default-tex-params)
+    (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
     (map (partial make-emitter self)
          (:emitters pb))
     (map (partial make-modifier self)

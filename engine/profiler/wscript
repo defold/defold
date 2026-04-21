@@ -29,8 +29,14 @@ def configure(conf):
     target_os = conf.env['TARGET_OS']
     conf.env.append_value('INCLUDES', "default/src")
 
-    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
+    conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_GRAPHICS_NULL'] = ['graphics_null', 'graphics_proto']
+    conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
+    conf.env['STLIB_FONT'] = 'font'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="PROFILER"')
 
@@ -43,5 +49,4 @@ def build(bld):
     TestContext.initialize_test_context(test_context, bld)
 
 def shutdown(self):
-    waf_dynamo.run_tests(test_context, valgrind = True)
-
+    waf_dynamo.run_tests(test_context)

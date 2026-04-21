@@ -82,6 +82,8 @@
                                     :filter ["material" "render_target" "compute"]
                                     :default nil}]}]}]})
 
+(def ^:private script-message (localization/message "form.label.render.script"))
+
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
     [:script] (g/set-property node-id :script value)
@@ -118,8 +120,8 @@
 
 (defn- build-errors
   [_node-id script named-render-resources]
-  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")
-                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" "Script"))]
+  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script script-message)
+                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" script-message))]
                                (for [{:keys [name path]} named-render-resources]
                                  (validation/prop-error :fatal _node-id :path validation/prop-resource-missing? path name)))
                          (remove nil?)
@@ -166,13 +168,15 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn- load-render [project self resource render-ddf]
-  (let [graph-id (g/node-id->graph-id self)
+(defn- load-render [_project self resource render-ddf]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        graph-id (g/node-id->graph-id self)
         {script-path :script render-resources :render-resources} render-ddf]
     (concat
-      (g/set-property self :script (workspace/resolve-resource resource script-path))
+      (g/set-property self :script (resolve-resource script-path))
       (for [{:keys [name path]} render-resources]
-        (let [render-resource (workspace/resolve-resource resource path)]
+        (let [render-resource (resolve-resource path)]
           (make-named-render-resource-node graph-id self name render-resource))))))
 
 (defn- sanitize-render [render-ddf]

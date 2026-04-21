@@ -37,6 +37,8 @@
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
+            [util.defonce :as defonce]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv])
   (:import [com.dynamo.particle.proto Particle$ModifierType]
@@ -51,34 +53,76 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+;; Terminology:
+;; - unresolved-editor-lookup: input value accepted from Lua, either a node id,
+;;   NodeIdWithAncestors, or a resource path string. use to look up properties
+;; - editor-lookup: resolved value used by property APIs, either a node id,
+;;   NodeIdWithAncestors, or a folder resource (files get resolved to node ids)
+
+;; ancestors is a non-empty vector of semantical node id ancestors, with the
+;; nearest ancestor (parent) at the end
+(defonce/type NodeIdWithAncestors [node-id ancestors])
+
+(defn node-id-with-ancestors? [x]
+  (instance? NodeIdWithAncestors x))
+
+(defn node-id-with-ancestors [node-id ancestors]
+  {:pre [(g/node-id? node-id) (vector? ancestors) (coll/every? g/node-id? ancestors)]}
+  (if (coll/empty? ancestors)
+    node-id
+    (->NodeIdWithAncestors node-id ancestors)))
+
+(defn editor-lookup->node-id
+  "Extract node id from editor-lookup known to reference a node.
+
+  Precondition: editor-lookup is not a resource."
+  [editor-lookup]
+  {:pre [(not (resource/resource? editor-lookup))]}
+  (if (node-id-with-ancestors? editor-lookup)
+    (.-node-id ^NodeIdWithAncestors editor-lookup)
+    editor-lookup))
+
+(defn editor-lookup->ancestors
+  "Return ancestors from editor-lookup.
+
+  Returns nil unless editor-lookup is NodeIdWithAncestors."
+  [editor-lookup]
+  (when (node-id-with-ancestors? editor-lookup)
+    (.-ancestors ^NodeIdWithAncestors editor-lookup)))
+
 (def resource-path-coercer
   (coerce/wrap-with-pred coerce/string #(and (string? %) (string/starts-with? % "/")) "is not a resource path"))
 
-(def node-id-or-path-coercer
+(def unresolved-editor-lookup-coercer
   (coerce/one-of
-    (coerce/wrap-with-pred coerce/userdata g/node-id? "is not a node id")
+    (coerce/wrap-with-pred coerce/userdata (some-fn g/node-id? node-id-with-ancestors?) "is not a node id")
     resource-path-coercer))
 
-(defn resolve-node-id-or-path
-  "Resolve node id or proj-path to either a node id or a folder resource
+(defn resolve-unresolved-editor-lookup
+  "Resolve unresolved-editor-lookup to editor-lookup.
 
-  If a path points to a file resource, it will be resolved to node-id"
-  [node-id-or-path project evaluation-context]
-  (if (string? node-id-or-path)
-    (let [resource (workspace/find-resource (project/workspace project evaluation-context) node-id-or-path evaluation-context)]
+  Resource paths are resolved in workspace. A file resource path resolves to
+  node id, while a folder path resolves to folder resource."
+  [unresolved-editor-lookup project evaluation-context]
+  (if (string? unresolved-editor-lookup)
+    (let [basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          resource (workspace/find-resource basis workspace unresolved-editor-lookup)]
       (when-not resource
-        (throw (LuaError. (str node-id-or-path " not found"))))
+        (throw (LuaError. (str unresolved-editor-lookup " not found"))))
       (or (project/get-resource-node project resource evaluation-context)
           resource))
-    node-id-or-path))
+    unresolved-editor-lookup))
 
-(defn node-id-or-path->node-id
-  "Coerce a value that may be node id or proj-path to existing node id"
-  [node-id-or-path project evaluation-context]
-  (let [node-id-or-resource (resolve-node-id-or-path node-id-or-path project evaluation-context)]
-    (when (resource/resource? node-id-or-resource)
-      (throw (LuaError. (str (resource/proj-path node-id-or-resource) " is not a file resource"))))
-    node-id-or-resource))
+(defn unresolved-editor-lookup->node-id
+  "Resolve unresolved-editor-lookup and return existing node id.
+
+  Folder resources are rejected with LuaError."
+  [unresolved-editor-lookup project evaluation-context]
+  (let [editor-lookup (resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+    (when (resource/resource? editor-lookup)
+      (throw (LuaError. (str (resource/proj-path editor-lookup) " is not a file resource"))))
+    (editor-lookup->node-id editor-lookup)))
 
 (defn node-id->type-keyword [node-id evaluation-context]
   (g/node-type-kw (:basis evaluation-context) node-id))
@@ -89,19 +133,19 @@
   (fn [lua-value rt _edit-type _project _evaluation-context]
     (rt/->clj rt coercer lua-value)))
 
-(def node-id-or-path-or-empty-string-coercer
+(def unresolved-editor-lookup-or-empty-string-coercer
   (coerce/one-of
-    node-id-or-path-coercer
+    unresolved-editor-lookup-coercer
     (coerce/enum "")))
 
 (defn- resource-converter [lua-value rt edit-type project evaluation-context]
-  (let [node-id-or-path (rt/->clj rt node-id-or-path-or-empty-string-coercer lua-value)]
-    (when-not (= node-id-or-path "")
-      (let [resource (if (string? node-id-or-path)
-                       (-> project
-                           (project/workspace evaluation-context)
-                           (workspace/resolve-workspace-resource node-id-or-path evaluation-context))
-                       (g/node-value node-id-or-path :resource evaluation-context))
+  (let [unresolved-editor-lookup (rt/->clj rt unresolved-editor-lookup-or-empty-string-coercer lua-value)]
+    (when-not (= unresolved-editor-lookup "")
+      (let [resource (if (string? unresolved-editor-lookup)
+                       (let [basis (:basis evaluation-context)
+                             workspace (project/workspace project evaluation-context)]
+                         (workspace/resolve-workspace-resource basis workspace unresolved-editor-lookup))
+                       (g/node-value (editor-lookup->node-id unresolved-editor-lookup) :resource evaluation-context))
             ext (:ext edit-type)
             ext (if (string? ext) [ext] ext)]
         (when (and (seq ext)
@@ -205,6 +249,12 @@
     (keyword property)
     (keyword (string/replace property "_" "-"))))
 
+(defn- prop-kw->property [prop-kw]
+  (let [property (name prop-kw)]
+    (if (string/starts-with? property "__")
+      property
+      (string/replace property "-" "_"))))
+
 (defn- outline-property [node-id property evaluation-context]
   (let [prop-kw (property->prop-kw property)
         outline-property (-> node-id
@@ -217,7 +267,7 @@
               (not (contains? outline-property :prop-kw))
               (assoc :prop-kw prop-kw)))))
 
-(defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f]
+(defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f result-fn]
   (fn/memoize
     (fn build-property-fn [node-type-kw]
       (let [seen (HashSet.)
@@ -233,16 +283,30 @@
                                 (conj! fs f)
                                 fs))))
                    (persistent! fs)))]
-        (case (count fs)
-          0 fn/constantly-nil
-          1 (fs 0)
-          (fn
-            ([] (coll/some #(%) fs))
-            ([a] (coll/some #(% a) fs))
-            ([a b] (coll/some #(% a b) fs))
-            ([a b c] (coll/some #(% a b c) fs))
-            ([a b c d] (coll/some #(% a b c d) fs))
-            ([a b c d e] (coll/some #(% a b c d e) fs))))))))
+        (result-fn fs)))))
+
+(defn first-non-nil-result-fn [fs]
+  (case (count fs)
+    0 fn/constantly-nil
+    1 (fs 0)
+    (fn
+      ([] (coll/some #(%) fs))
+      ([a] (coll/some #(% a) fs))
+      ([a b] (coll/some #(% a b) fs))
+      ([a b c] (coll/some #(% a b c) fs))
+      ([a b c d] (coll/some #(% a b c d) fs))
+      ([a b c d e] (coll/some #(% a b c d e) fs)))))
+
+(defn all-results-fn [fs]
+  (case (count fs)
+    0 (constantly [])
+    (fn
+      ([] (mapv #(%) fs))
+      ([a] (mapv #(% a) fs))
+      ([a b] (mapv #(% a b) fs))
+      ([a b c] (mapv #(% a b c) fs))
+      ([a b c d] (mapv #(% a b c d) fs))
+      ([a b c d e] (mapv #(% a b c d e) fs)))))
 
 (defn make-inheritance-chain
   "Create an inheritance chain
@@ -251,58 +315,80 @@
   though it dispatches only on a single value. Register methods by calling the
   inheritance chain instance with 2 args: dispatch value and a function.
   Get a method chain by calling the inheritance chain instance with a dispatch
-  value. If there are multiple methods that satisfy the dispatch value, they
-  will be tried in order, from most specific to least specific, until a method
-  returns a non-nil value."
-  ([]
-   (make-inheritance-chain #'clojure.core/global-hierarchy))
-  ([hierarchy-ref]
-   (let [state-atom (atom {::builder nil
-                           ::hierarchy @hierarchy-ref
-                           ::node-type-kw->f {}})]
-     (fn inheritance-chain
-       ([node-type-kw]
-        (let [h @hierarchy-ref
-              {::keys [builder hierarchy] :as current-state} @state-atom
-              builder (if (and builder (identical? hierarchy h))
-                        builder
-                        (let [builder (make-property-fn-builder h (::node-type-kw->f current-state))]
-                          (swap! state-atom assoc ::hierarchy h ::builder builder)
-                          builder))]
-          (builder node-type-kw)))
-       ([node-type-kw f]
-        (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
-        nil)))))
+  value. The result value depends on the result-fn, which gets an ordered list
+  of functions and invokes them as it wishes. By default, if there are multiple
+  methods that satisfy the dispatch value, they will be tried in order, from
+  most specific to least specific, until a method returns a non-nil value.
+
+  Kv-args:
+    :hierarchy-ref    a reference to a Clojure hierarchy object
+    :result-fn        a function that controls the production of the final
+                      result from a list of sorted candidate fns, see, e.g.,
+                      [[first-non-nil-result-fn]] or [[all-results-fn]]"
+  [& {:keys [hierarchy-ref result-fn]
+      :or {hierarchy-ref #'clojure.core/global-hierarchy
+           result-fn first-non-nil-result-fn}}]
+  (let [state-atom (atom {::builder nil
+                          ::hierarchy @hierarchy-ref
+                          ::node-type-kw->f {}})]
+    (fn inheritance-chain
+      ([node-type-kw]
+       (let [h @hierarchy-ref
+             {::keys [builder hierarchy] :as current-state} @state-atom
+             builder (if (and builder (identical? hierarchy h))
+                       builder
+                       (let [builder (make-property-fn-builder h (::node-type-kw->f current-state) result-fn)]
+                         (swap! state-atom assoc ::hierarchy h ::builder builder)
+                         builder))]
+         (builder node-type-kw)))
+      ([node-type-kw f]
+       (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
+       nil))))
 
 (defonce ^:private ext-property-getter
   (make-inheritance-chain))
+
+(defonce ^:private ext-property-lister
+  (make-inheritance-chain :result-fn all-results-fn))
 
 (defn register-property-getter!
   "Register a getter associated with a node type
 
   Args:
     node-type-kw    keyword of a graph node type
-    f               a function of 3 args:
+    getter-fn       a function of 3 args:
                       node-id               the node id to resolve the value
                       property              string property name
+                      evaluation-context    the evaluation context
+    lister-fn       optional, a function of 2 args:
+                      node-id               the node id to resolve the list of
+                                            available property names
                       evaluation-context    the evaluation context"
-  [node-type-kw f]
-  {:pre [(qualified-keyword? node-type-kw) (ifn? f)]}
-  (ext-property-getter node-type-kw f))
+  ([node-type-kw getter-fn]
+   (register-property-getter! node-type-kw getter-fn nil))
+  ([node-type-kw getter-fn lister-fn]
+   {:pre [(qualified-keyword? node-type-kw) (ifn? getter-fn) (or (nil? lister-fn) (ifn? lister-fn))]}
+   (ext-property-getter node-type-kw getter-fn)
+   (when lister-fn (ext-property-lister node-type-kw lister-fn))))
 
-(register-property-getter!
-  :editor.code.resource/CodeEditorResourceNode
-  (fn CodeEditorResourceNode-getter [node-id property evaluation-context]
-    (case property
-      "text" #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context))
-      nil)))
+(defn- textual-resource-node? [node-id evaluation-context]
+  (let [resource (g/node-value node-id :resource evaluation-context)]
+    (and (some? resource)
+         (-> evaluation-context
+             :basis
+             (resource/lookup-resource-type (resource/workspace resource) resource)
+             :textual?))))
 
 (register-property-getter!
   :editor.resource/ResourceNode
   (fn ResourceNode-getter [node-id property evaluation-context]
     (case property
+      "text" (when (textual-resource-node? node-id evaluation-context)
+               #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context)))
       "path" #(resource/resource->proj-path (g/node-value node-id :resource evaluation-context))
-      nil)))
+      nil))
+  (fn ResourceNode-lister [node-id evaluation-context]
+    (cond-> ["path"] (textual-resource-node? node-id evaluation-context) (conj "text"))))
 
 (register-property-getter!
   :editor.tile-source/TileSourceNode
@@ -314,21 +400,27 @@
           (comp inc key) ;; 0-indexed to 1-indexed
           #(g/node-value (val %) :id evaluation-context)
           (g/node-value node-id :tile->collision-group-node evaluation-context)))
-      nil)))
+      nil))
+  (fn TileSourceNode-lister [_ _]
+    ["tile_collision_groups"]))
 
 (register-property-getter!
   :editor.tile-map/LayerNode
   (fn LayerNode-getter [node-id property evaluation-context]
     (case property
       "tiles" #(tile-map/make (g/node-value node-id :cell-map evaluation-context))
-      nil)))
+      nil))
+  (fn LayerNode-lister [_ _]
+    ["tiles"]))
 
 (register-property-getter!
   :editor.particlefx/ModifierNode
   (fn ModifierNode-getter [node-id property evaluation-context]
     (case property
       "type" #(g/node-value node-id :type evaluation-context)
-      nil)))
+      nil))
+  (fn ModifierNode-lister [_ _]
+    ["type"]))
 
 (def ^:private game-project-setting-path-regex #"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -337,42 +429,84 @@
   (fn GameProjectNode-getter [node-id property evaluation-context]
     (when (re-matches game-project-setting-path-regex property)
       (let [path (string/split property #"\." 2)]
-        #(game-project/get-setting node-id path evaluation-context)))))
+        #(game-project/get-setting node-id path evaluation-context))))
+  (fn GameProjectNode-lister [node-id evaluation-context]
+    (coll/into-> (:meta-settings (g/node-value node-id :form-data evaluation-context)) []
+      (map :path)
+      (map #(coll/join-to-string "." %))
+      (filter #(re-matches game-project-setting-path-regex %)))))
 
 (register-property-getter!
   ::outline/OutlineNode
   (fn OutlineNode-getter [node-id property evaluation-context]
     (when-let [outline-property (outline-property node-id property evaluation-context)]
       (when-let [to (-> outline-property properties/property-edit-type-id edit-type-id->value-converter :to)]
-        #(some-> (properties/value outline-property) to)))))
+        #(some-> (properties/value outline-property) to))))
+  (fn OutlineNode-lister [node-id evaluation-context]
+    (coll/into-> (:properties (g/node-value node-id :_properties evaluation-context)) []
+      (keep (fn [[prop-kw outline-property]]
+              (when (and (properties/visible? outline-property)
+                         (some? (-> outline-property properties/property-edit-type-id edit-type-id->value-converter)))
+                (prop-kw->property prop-kw)))))))
 
 (defn ext-value-getter
-  "Create 0-arg fn that produces node property value
+  "Create 0-arg fn that produces property value for editor-lookup.
 
-  Returns nil if there is no getter for node-id-or-resource+property
+  Returns nil if there is no getter for editor-lookup+property
 
   Args:
-    node-id-or-resource    resolved node id or folder resource
+    editor-lookup          editor lookup
     property               string property name
     project                the project node id
     evaluation-context     used evaluation context"
-  [node-id-or-resource property project evaluation-context]
-  (if (resource/resource? node-id-or-resource)
+  [editor-lookup property project evaluation-context]
+  (if (resource/resource? editor-lookup)
     (case property
-      "path" #(resource/proj-path node-id-or-resource)
-      "children" #(mapv resource/proj-path (resource/children node-id-or-resource))
+      "path" #(resource/proj-path editor-lookup)
+      "children" #(mapv resource/proj-path (resource/children editor-lookup))
       nil)
-    (let [node-id node-id-or-resource
+    (let [node-id (editor-lookup->node-id editor-lookup)
           {:keys [basis]} evaluation-context
           node-type (g/node-type* basis node-id)
           workspace (project/workspace project evaluation-context)]
-      (or (attachment/find-alternative workspace node-id #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context) evaluation-context)
+      (or (coll/some #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context)
+                     (attachment/alternatives workspace node-id evaluation-context))
           (case property
+            "parent" (when-let [ancestors (editor-lookup->ancestors editor-lookup)]
+                       (fn get-parent []
+                         (let [parent-node-id (peek ancestors)
+                               parent-ancestors (pop ancestors)]
+                           (rt/wrap-userdata
+                             (node-id-with-ancestors parent-node-id parent-ancestors)))))
             "type" (when-let [type-name (node-types/->name node-type)]
                      (constantly type-name))
             (let [list-kw (property->prop-kw property)]
               (when (attachment/defined? workspace node-id list-kw evaluation-context)
                 #(mapv rt/wrap-userdata (attachment/get workspace node-id list-kw evaluation-context)))))))))
+
+;; endregion
+
+;; region properties list
+
+(defn ext-readable-properties
+  "Return sorted unique readable property names for editor-lookup."
+  [editor-lookup project evaluation-context]
+  (if (resource/resource? editor-lookup)
+    ["children" "path"]
+    (let [node-id (editor-lookup->node-id editor-lookup)
+          ancestors (editor-lookup->ancestors editor-lookup)
+          workspace (project/workspace project evaluation-context)
+          explicit-type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
+      (-> (e/distinct
+            (e/concat
+              (when ancestors ["parent"])
+              (->> (attachment/alternatives workspace node-id evaluation-context)
+                   (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
+              (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
+              (when explicit-type-name ["type"])))
+          vec
+          sort
+          vec))))
 
 ;; endregion
 
@@ -548,11 +682,12 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  (attachment/find-alternative
-    (project/workspace project evaluation-context)
-    node-id
+  (coll/some
     #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
-    evaluation-context))
+    (attachment/alternatives
+      (project/workspace project evaluation-context)
+      node-id
+      evaluation-context)))
 
 ;; endregion
 
@@ -585,23 +720,23 @@
         #(properties/clear-override-uncoalesced property)))))
 
 (def ^:private can-reset-args-coercer
-  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+  (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
 
 (defn make-ext-can-reset-fn [project]
   (rt/varargs-lua-fn ext-can-reset [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-reset-args-coercer varargs)
-          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
-      (and (not (resource/resource? node-id-or-resource))
-           (let [node-id node-id-or-resource]
+          editor-lookup (resolve-unresolved-editor-lookup node project evaluation-context)]
+      (and (not (resource/resource? editor-lookup))
+           (let [node-id (editor-lookup->node-id editor-lookup)]
              (some? ((ext-property-resetter (node-id->type-keyword node-id evaluation-context)) node-id property evaluation-context)))))))
 
 (def ^:private reset-args-coercer
-  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+  (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
 
 (defn make-ext-reset-fn [project]
   (rt/varargs-lua-fn ext-reset [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt reset-args-coercer varargs)
-          node-id (node-id-or-path->node-id node project evaluation-context)]
+          node-id (unresolved-editor-lookup->node-id node project evaluation-context)]
       (if-let [resetter ((ext-property-resetter (node-id->type-keyword node-id evaluation-context)) node-id property evaluation-context)]
         (-> (resetter)
             (with-meta {:type :transaction-step})
@@ -882,7 +1017,7 @@
       attachment)))
 
 (def ^:private add-args-coercer
-  (coerce/regex :node node-id-or-path-coercer
+  (coerce/regex :node unresolved-editor-lookup-coercer
                 :property coerce/string
                 :attachment attachment-coercer))
 
@@ -890,7 +1025,7 @@
   (rt/varargs-lua-fn ext-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property attachment]} (rt/->clj rt add-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
@@ -905,25 +1040,25 @@
             (rt/wrap-userdata "editor.tx.add(...)"))))))
 
 (def ^:private can-add-args-coercer
-  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+  (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
 
 (defn make-ext-can-add-fn [project]
   (rt/varargs-lua-fn ext-can-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-add-args-coercer varargs)
-          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)
+          editor-lookup (resolve-unresolved-editor-lookup node project evaluation-context)
           list-kw (property->prop-kw property)
           workspace (project/workspace project evaluation-context)]
-      (and (not (resource/resource? node-id-or-resource))
-           (attachment/editable? workspace node-id-or-resource list-kw evaluation-context)))))
+      (and (not (resource/resource? editor-lookup))
+           (attachment/editable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)))))
 
 (def ^:private clear-args-coercer
-  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+  (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
 
 (defn make-ext-clear-fn [project]
   (rt/varargs-lua-fn ext-clear [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt clear-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
@@ -934,14 +1069,14 @@
           (rt/wrap-userdata "editor.tx.clear(...)")))))
 
 (def ^:private remove-args-coercer
-  (coerce/regex :node node-id-or-path-coercer :property coerce/string :child node-id-or-path-coercer))
+  (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string :child unresolved-editor-lookup-coercer))
 
 (defn make-ext-remove-fn [project]
   (rt/varargs-lua-fn ext-remove [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property child]} (rt/->clj rt remove-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (node-id-or-path->node-id node project evaluation-context)
-          child-node-id (node-id-or-path->node-id child project evaluation-context)
+          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
+          child-node-id (unresolved-editor-lookup->node-id child project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
@@ -954,30 +1089,30 @@
           (rt/wrap-userdata "editor.tx.remove(...)")))))
 
 (def ^:private can-reorder-args-coercer
-  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+  (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
 
 (defn make-ext-can-reorder-fn [project]
   (rt/varargs-lua-fn ext-can-reorder [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-reorder-args-coercer varargs)
-          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)
+          editor-lookup (resolve-unresolved-editor-lookup node project evaluation-context)
           workspace (project/workspace project evaluation-context)
           list-kw (property->prop-kw property)]
-      (and (not (resource/resource? node-id-or-resource))
-           (attachment/editable? workspace node-id-or-resource list-kw evaluation-context)
-           (attachment/reorderable? workspace node-id-or-resource list-kw evaluation-context)))))
+      (and (not (resource/resource? editor-lookup))
+           (attachment/editable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)
+           (attachment/reorderable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)))))
 
 (def ^:private reorder-args-coercer
-  (coerce/regex :node node-id-or-path-coercer
+  (coerce/regex :node unresolved-editor-lookup-coercer
                 :property coerce/string
-                :children (coerce/vector-of node-id-or-path-coercer)))
+                :children (coerce/vector-of unresolved-editor-lookup-coercer)))
 
 (defn make-ext-reorder-fn [project]
   (rt/varargs-lua-fn ext-reorder [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property children]} (rt/->clj rt reorder-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-id (unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)
-          reordered-child-node-ids (mapv #(node-id-or-path->node-id % project evaluation-context) children)]
+          reordered-child-node-ids (mapv #(unresolved-editor-lookup->node-id % project evaluation-context) children)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
       (when-not (attachment/editable? workspace node-id list-kw evaluation-context)

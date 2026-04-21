@@ -34,6 +34,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
+            [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
             [internal.util :as util]
@@ -46,6 +47,7 @@
   (:import [com.defold.control DefoldStringConverter ExtendedTreeViewSkin ListCell LongField TreeCell]
            [com.sun.javafx.event DirectEvent]
            [com.sun.javafx.scene NodeHelper]
+           [com.sun.javafx.scene.control.skin Utils]
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
            [java.net URI]
@@ -371,7 +373,8 @@
 (defn do-run-now [f]
   (if (on-ui-thread?)
     (f)
-    (let [p (promise)]
+    (let [f (bound-fn* f)
+          p (promise)]
       (do-run-later
         (fn []
           (try
@@ -385,12 +388,11 @@
 
 (defmacro run-now
   [& body]
-  `(do-run-now
-     (fn [] ~@body)))
+  `(do-run-now (fn [] ~@body)))
 
 (defmacro run-later
   [& body]
-  `(do-run-later (fn [] ~@body)))
+  `(do-run-later (bound-fn [] ~@body)))
 
 (defn send-event! [^EventTarget event-target ^Event event]
   (Event/fireEvent event-target (DirectEvent. (.copyFor event event-target event-target))))
@@ -1122,7 +1124,7 @@
                              (e/filter #(and % (tree-item-id-fn %)))
                              (coll/pair-map-by
                                (fn path-fn [^TreeItem item]
-                                 (vec (rseq (coll/transfer (iterate TreeItem/.getParent item) []
+                                 (vec (rseq (coll/into-> (iterate TreeItem/.getParent item) []
                                               (take-while some?)
                                               (map tree-item-id-fn)))))))
         root-paths (reduce-kv
@@ -1132,7 +1134,7 @@
                          (conj root-paths path)))
                      []
                      path->tree-item)]
-    (coll/transfer root-paths []
+    (coll/into-> root-paths []
       (map path->tree-item)
       (util/distinct-by tree-item-id-fn))))
 
@@ -1158,22 +1160,24 @@
   ([^TreeView tree-view]
    (scroll-tree-view-to-encompass-selection! tree-view 2))
   ([^TreeView tree-view ^long scroll-padding-cells]
-   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
-   (let [selected-indices (.getSelectedIndices (.getSelectionModel tree-view))
-         first-index (int (first selected-indices))
-         last-index (int (last selected-indices))
-         skin ^ExtendedTreeViewSkin (.getSkin tree-view)
-         flow (.getVirtualFlowInstance skin)
-         last-visible-idx (int (.getIndex (.getLastVisibleCell flow)))]
-     (when (and (>= last-index first-index 0) (.shouldScrollTo skin first-index))
-       (run-later
-         (if (> last-index last-visible-idx)
-           (let [fixed-cell-size (.getHeight (.getCell flow first-index))
-                 cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
-             (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
-           ;; NOTE: We don't have to do any bounds checking because JavaFX clamps if we are out
-           ;; of bounds and will scroll to the min/max values
-           (.scrollTo tree-view (dec first-index))))))))
+   (Utils/executeOnceWhenPropertyIsNonNull
+     (.skinProperty tree-view)
+     (fn [^ExtendedTreeViewSkin skin]
+       {:pre [(instance? ExtendedTreeViewSkin skin)]}
+       (let [selected-indices (.getSelectedIndices (.getSelectionModel tree-view))
+             first-index (int (first selected-indices))
+             last-index (int (last selected-indices))
+             flow (.getVirtualFlowInstance skin)
+             last-visible-idx (int (or (some-> flow .getLastVisibleCell .getIndex) 0))]
+         (when (and (>= last-index first-index 0) (.shouldScrollTo skin first-index))
+           (run-later
+             (if (> last-index last-visible-idx)
+               (let [fixed-cell-size (.getHeight (.getCell flow first-index))
+                     cells-to-scroll (+ scroll-padding-cells (- last-index last-visible-idx))]
+                 (.scrollPixels flow (* cells-to-scroll fixed-cell-size)))
+               ;; NOTE: We don't have to do any bounds checking because JavaFX clamps if we are out
+               ;; of bounds and will scroll to the min/max values
+               (.scrollTo tree-view (dec first-index))))))))))
 
 (defn scroll-tree-view-to-center-item! [^TreeView tree-view ^long index]
   {:pre [(instance? ExtendedTreeViewSkin (.getSkin tree-view))]}
@@ -1263,12 +1267,12 @@
     child items recursively.
 
   Additional opts:
-  * :double-click-expand?
+  * :double-click-expand
     If true, double-clicking will toggle expansion of a tree item."
   [^TreeView tree-view opts]
   (.addEventFilter tree-view KeyEvent/KEY_PRESSED custom-tree-view-key-pressed-event-filter)
   (.addEventFilter tree-view MouseEvent/MOUSE_PRESSED custom-tree-view-mouse-pressed-event-filter)
-  (when-not (:double-click-expand? opts)
+  (when-not (:double-click-expand opts)
     (.addEventFilter tree-view MouseEvent/MOUSE_RELEASED ignore-event-filter)))
 
 (extend-protocol HasSelectionModel
@@ -2528,12 +2532,18 @@
   ^URI [url]
   (if (instance? URI url) url (URI. url)))
 
-(defn open-url
-  [url]
-  (if (some-> desktop (.isSupported Desktop$Action/BROWSE))
-    (do
+(defn open-url [url]
+  (or
+    (when (some-> desktop (.isSupported Desktop$Action/BROWSE))
       (.start (Thread. #(.browse desktop (as-url url))))
       true)
+    (when (os/is-linux?)
+      (try
+        (process/start! {:out :discard :err :discard} "xdg-open" (str url))
+        true
+        (catch Exception e
+          (log/warn :message (str "xdg-open failed: " (.getMessage e)))
+          false)))
     (do
       (log/warn :message (str "Cannot open browser." (when (os/is-linux?) " Installing gvfs may fix this.")))
       false)))

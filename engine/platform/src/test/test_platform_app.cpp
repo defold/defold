@@ -23,7 +23,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 
 // From engine_private.h
 enum UpdateResult
@@ -61,7 +61,7 @@ struct AppCtx
 
 struct EngineCtx
 {
-    dmPlatform::HWindow  m_Window;
+    HWindow              m_Window;
     int                  m_WasCreated;
     int                  m_WasRun;
     int                  m_WasDestroyed;
@@ -139,10 +139,11 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetMonotonicTime();
 
-    dmPlatform::WindowParams params = {};
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
     params.m_Width                  = 512;
     params.m_Height                 = 512;
-    params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    params.m_GraphicsApi            = WINDOW_GRAPHICS_API_OPENGL;
     params.m_Title                  = "Test app";
     params.m_ContextAlphabits       = 8;
 

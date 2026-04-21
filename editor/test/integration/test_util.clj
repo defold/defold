@@ -14,6 +14,7 @@
 
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
             [clojure.test.check.clojure-test]
@@ -31,7 +32,9 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as input]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -184,7 +187,12 @@
 (defn make-directory-deleter
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
+  directory path must be a temp directory.
+
+  IMPORTANT! If you use the deleter for a project directory where you set up a
+  system, you need to use (lsp/await (lsp/get-node-lsp project)) before the
+  body returns, otherwise you might get `:editor.resource/project-directory`
+  spec failures in the output."
   ^AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getCanonicalPath directory)
@@ -436,6 +444,7 @@
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
+  (symlink? [this] false)
   (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
@@ -521,6 +530,7 @@
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
+            (g/connect app-view :selected-node-properties view :selected-node-properties)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -690,8 +700,10 @@
            (workspace/resource-sync! ~'workspace)
            (fetch-libraries! ~'workspace)
            (let [~'project (setup-project! ~'workspace)
-                 ~'app-view (setup-app-view! ~'project)]
-             ~@body))))))
+                 ~'app-view (setup-app-view! ~'project)
+                 ret# (do ~@body)]
+             (lsp/await (lsp/get-node-lsp ~'project))
+             ret#))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]
@@ -744,7 +756,8 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
@@ -785,19 +798,31 @@
   {:pre [(vector? offset-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath offset-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-move scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+      (let [delta (math/euler->quat euler-xyz)]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-rotate scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath scale-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-scale scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]
@@ -1595,7 +1620,7 @@
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
-        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
+        post-save-actions (disk/write-save-data-to-disk! save-data nil localization nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
 
 (defn dirty-proj-paths [project]
@@ -1726,7 +1751,7 @@
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "rivemodel" [resource-node-id]
-  (g/update-property resource-node-id :create-go-bones not))
+  (g/update-property resource-node-id :auto-bind not))
 
 (defmethod edit-resource-node "rivescene" [resource-node-id]
   (g/set-property resource-node-id :rive-file nil))

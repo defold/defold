@@ -42,6 +42,7 @@ def build(bld):
     obj = bld.stlib(features        = 'cxx',
                     includes        = ['.', 'null'] + proto_cpp_includes,
                     source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + proto_cpp_source,
+                    defines         = ['DM_GRAPHICS_NULL'],
                     use             = 'DDF DLIB',
                     target          = 'graphics_null')
 
@@ -51,10 +52,9 @@ def build(bld):
     obj = bld.stlib(features        = obj.features + ['skip_asan'],
                     includes        = obj.includes,
                     source          = obj.source,
+                    defines         = obj.defines,
                     use             = obj.use,
                     target          = 'graphics_null_noasan')
-
-    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
     for graphics_feature in ['opengl', 'opengles']:
         if platform_supports_feature(bld.env.PLATFORM, graphics_feature, {}):

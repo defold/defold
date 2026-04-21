@@ -20,7 +20,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/http_cache.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -137,7 +137,7 @@ namespace dmResource
         EmbeddedResource        m_ArchiveManifest;
         dmHttpCache::HCache     m_HttpCache;
 
-        dmJobThread::HContext   m_JobThreadContext;
+        HJobContext             m_JobThreadContext;
 
         NewFactoryParams()
         {
@@ -330,11 +330,6 @@ namespace dmResource
     dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);
 
     /**
-     * Returns the path to the public key, or null if it was not found
-     **/
-    const char* GetPublicKeyPath(HFactory factory);
-
-    /**
      * Returns the base archive mount. It is always of type "archive", or it will return 0.
      **/
     dmResourceProvider::HArchive GetBaseArchive(HFactory factory);
@@ -388,7 +383,7 @@ namespace dmResource
     Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
 
     // Get the assigned Job thread
-    dmJobThread::HContext GetJobThread(const dmResource::HFactory factory);
+    HJobContext GetJobThread(const dmResource::HFactory factory);
 }
 
 #endif // DM_RESOURCE_H

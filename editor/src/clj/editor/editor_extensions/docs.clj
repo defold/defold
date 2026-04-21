@@ -59,6 +59,13 @@
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
           :description "Check if you can get this property so `editor.get()` won't throw an error"}
+         {:name "editor.properties"
+          :type :function
+          :parameters [node-param]
+          :returnvalues [{:name "properties"
+                          :types ["string[]"]
+                          :doc "sorted unique editor property names available in the current context"}]
+          :description "List property names for a node.\n\nThe result is context-sensitive and can vary by node/resource type and editor state. Returned names are readable with <code>editor.get(node, property)</code>. Mutating capabilities are per-property; use <code>editor.can_set()</code>, <code>editor.can_reset()</code>, <code>editor.can_add()</code>, and <code>editor.can_reorder()</code> to check which operations are supported."}
          {:name "editor.can_add"
           :type :function
           :parameters [node-param property-param]
@@ -475,6 +482,9 @@ editor.create_resources({
                        {:name "[as]"
                         :types ["string"]
                         :doc "Request body converter, either <code>\"string\"</code> or <code>\"json\"</code>; the body will be discarded if not specified"}
+                       {:name "[openapi]"
+                        :types ["table"]
+                        :doc "Optional OpenAPI Operation Object for this route method, exposed from <code>/openapi.json</code>. Must follow <code>https://spec.openapis.org/oas/v3.0.3.html#operation-object</code>."}
                        {:name "handler"
                         :types ["function"]
                         :doc (str "Request handler function, will receive request argument, a table with the following keys:"

@@ -44,6 +44,12 @@ cp build/default/model/empty.rigscenec ../model/empty.prebuilt_rigscenec
 cp build/default/model/empty_generated_0.animationsetc ../model/empty_generated_0.prebuilt_animationsetc
 cp build/default/model/empty.meshsetc ../model/empty.prebuilt_meshsetc
 cp build/default/model/empty.skeletonc ../model/empty.prebuilt_skeletonc
+cp build/default/model/fox.modelc ../model/fox.prebuilt_modelc
+cp build/default/model/fox.rigscenec ../model/fox.prebuilt_rigscenec
+cp build/default/model/fox_generated_0.animationsetc ../model/fox_generated_0.prebuilt_animationsetc
+cp build/default/model/fox.meshsetc ../model/fox.prebuilt_meshsetc
+cp build/default/model/fox.skeletonc ../model/fox.prebuilt_skeletonc
+cp build/default/model/fox_texture.texturec ../model/fox_texture.prebuilt_texturec
 
 # PBR untextured
 cp build/default/model/pbr_properties.modelc ../model/pbr_properties.prebuilt_modelc
@@ -62,3 +68,20 @@ cp build/default/model/dynamic_vertex_attributes.modelc ../model/dynamic_vertex_
 cp build/default/model/dynamic_vertex_attributes.rigscenec ../model/dynamic_vertex_attributes.prebuilt_rigscenec
 cp build/default/model/dynamic_vertex_attributes.meshsetc ../model/dynamic_vertex_attributes.prebuilt_meshsetc
 cp build/default/model/dynamic_vertex_attributes.skeletonc ../model/dynamic_vertex_attributes.prebuilt_skeletonc
+
+# Texture transform (models) - uses aabb_model.gltf mesh; meshsetc/skeletonc come from that gltf (aabb_model.*), already copied above
+cp build/default/model/texture_transform_model.modelc ../model/texture_transform_model.prebuilt_modelc
+cp build/default/model/texture_transform_model.rigscenec ../model/texture_transform_model.prebuilt_rigscenec
+
+# One mesh two materials (models)
+cp build/default/model/one_mesh_two_materials.modelc ../model/one_mesh_two_materials.prebuilt_modelc
+cp build/default/model/one_mesh_two_materials.rigscenec ../model/one_mesh_two_materials.prebuilt_rigscenec
+cp build/default/model/one_mesh_two_materials.meshsetc ../model/one_mesh_two_materials.prebuilt_meshsetc
+cp build/default/model/one_mesh_two_materials.skeletonc ../model/one_mesh_two_materials.prebuilt_skeletonc
+
+# Morph blend weights (script_model.get_blend_weights / set_blend_weights)
+cp build/default/model/morph_blend_weights.modelc ../model/morph_blend_weights.prebuilt_modelc
+cp build/default/model/morph_blend_weights.rigscenec ../model/morph_blend_weights.prebuilt_rigscenec
+cp build/default/model/morph_weights_anim.meshsetc ../model/morph_weights_anim.prebuilt_meshsetc
+cp build/default/model/morph_weights_anim.skeletonc ../model/morph_weights_anim.prebuilt_skeletonc
+cp build/default/model/morph_weights_anim_generated_0.animationsetc ../model/morph_weights_anim_generated_0.prebuilt_animationsetc

@@ -23,6 +23,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
@@ -35,6 +36,9 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
     private boolean useRuntimeGeneration(FontDesc fontDesc) {
         boolean enabled = this.project.option("font-runtime-generation", "false").equals("true");
         if (!enabled)
+            return false;
+
+        if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
             return false;
 
         String path = fontDesc.getFont().toLowerCase();
@@ -96,7 +100,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setGlyphBank(glyphBankPath);
         }
 
-        fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+        fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
         boolean allChars = fontDesc.getAllChars();
 

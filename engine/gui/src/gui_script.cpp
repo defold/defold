@@ -726,20 +726,16 @@ namespace dmGui
             return 1;
         }
 
-        dmGameObject::PropertyOptions property_options = {};
-        dmGameObject::PropertyOption option = {};
-        bool index_requested = false;
+        dmGameObject::LuaToPropertyOptionsResult options_result = {};
 
         if (lua_gettop(L) >= 3)
         {
-            dmGameObject::LuaToPropertyOption(L, 3, &option, &index_requested);
+            dmGameObject::LuaToPropertyOptions(L, 3, &options_result);
         }
-
-        AddPropertyOption(&property_options, option);
 
         dmMessage::URL target = {};
         dmGameObject::PropertyDesc property_desc;
-        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &options_result.m_Options) ?
              dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
 
         bool is_matrix_type = property_desc.m_Variant.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4;
@@ -749,13 +745,13 @@ namespace dmGui
             array_size = property_desc.m_ArrayLength / 4;
         }
 
-        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
+        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !options_result.m_IndexRequested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
         {
             lua_newtable(L);
 
             // We already have the first value, so no need to get it again.
             // But we do need to check the result, we could still get errors even if the result is OK
-            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, options_result.m_Options, options_result.m_IndexRequested, options_result.m_KeysRequested);
             if (handle_go_get_result != 1)
             {
                 return handle_go_get_result;
@@ -763,14 +759,18 @@ namespace dmGui
 
             lua_rawseti(L, -2, 1);
 
+            dmGameObject::PropertyOptions get_material_property_opts;
+            dmGameObject::AddPropertyOptionsIndex(&get_material_property_opts, 0);
+
             for (int i = 1; i < array_size; ++i)
             {
-                SetPropertyOptionsByIndex(&property_options, 0, i);
+                bool did_set = SetPropertyOptionsByIndex(&get_material_property_opts, 0, i);
+                assert(did_set);
 
-                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &get_material_property_opts) ?
                         dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
 
-                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, get_material_property_opts, options_result.m_IndexRequested, options_result.m_KeysRequested);
                 if (handle_go_get_result != 1)
                 {
                     return handle_go_get_result;
@@ -782,7 +782,7 @@ namespace dmGui
             return 1;
         }
 
-        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, options_result.m_Options, options_result.m_IndexRequested, options_result.m_KeysRequested);
     }
 
     /*# sets the named property of a specified gui node
@@ -901,18 +901,12 @@ namespace dmGui
             return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
         }
 
-        dmGameObject::PropertyOptions property_options = {};
-        dmGameObject::PropertyOption option = {};
+        dmGameObject::LuaToPropertyOptionsResult options_result = {};
 
         if (lua_gettop(L) > 3)
         {
-            int options_result = LuaToPropertyOption(L, 4, &option, 0);
-            if (options_result != 0)
-            {
-                return options_result;
-            }
+            dmGameObject::LuaToPropertyOptions(L, 4, &options_result);
         }
-        AddPropertyOption(&property_options, option);
 
         if (dmScript::IsURL(L, 1))
         {
@@ -928,10 +922,10 @@ namespace dmGui
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
             dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
-            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, property_options, property_var);
+            result = dmGameObject::SetProperty(instance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, result, property_hash, instance, target, property_options);
+                return HandleGoSetResult(L, result, property_hash, instance, target, options_result.m_Options);
             }
             return 0;
         }
@@ -989,7 +983,7 @@ namespace dmGui
             return 0;
         }
 
-        if (dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
+        if (dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &options_result.m_Options))
         {
             return 0;
         }
@@ -1379,7 +1373,7 @@ namespace dmGui
      * This starts an animation of a node property according to the specified parameters.
      * If the node property is already being animated, that animation will be canceled and
      * replaced by the new one. Note however that several different node properties
-     * can be animated simultaneously. Use `gui.cancel_animation` to stop the animation
+     * can be animated simultaneously. Use `gui.cancel_animations` to stop the animation
      * before it has completed.
      *
      * Composite properties of type vector3, vector4 or quaternion

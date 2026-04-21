@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.render-program-utils :as render-program-utils]
@@ -30,6 +31,8 @@
   (:import [com.dynamo.render.proto Compute$ComputeDesc]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private compute-program-message (properties/label-message :compute :compute-program))
 
 (def ^:private form-data
   {:navigation false
@@ -76,7 +79,7 @@
 
 (g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program]
   (or (g/flatten-errors
-        (prop-resource-error _node-id :compute-program compute-program "Compute Program" "cp"))
+        (prop-resource-error _node-id :compute-program compute-program compute-program-message "cp"))
       (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0 true)
             dep-build-targets [compute-shader-build-target]
             compute-desc-with-build-resources (assoc save-value
@@ -119,7 +122,8 @@
 
 (defn load-compute [_project self resource compute-desc]
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Compute$ComputeDesc compute-desc
       compute-program (resolve-resource :compute-program)
       constants (render-program-utils/constants->editable-constants :constants)

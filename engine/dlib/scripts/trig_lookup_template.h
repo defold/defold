@@ -15,15 +15,20 @@
 // This file was generated with the command:
 // python scripts/gen_trig_lookup.py --bits={bits}
 
-#ifndef DM_TRIG_LOOKUP_H
-#define DM_TRIG_LOOKUP_H
+#ifndef DMSDK_TRIG_LOOKUP_H
+#define DMSDK_TRIG_LOOKUP_H
 
 #include "math.h"
 
-/**
- * Collection of functions for trigonometrics using lookup tables.
+/** Trigonometric lookup API documentation
  *
- * The precision is guaranteed to have an error less than 0.001f.
+ * Api for trigonometrics using lookup tables. The precision is guaranteed to
+ * have an error less than 0.001f.
+ *
+ * @document
+ * @name TrigLookup
+ * @namespace dmTrigLookup
+ * @language C++
  */
 namespace dmTrigLookup
 {{
@@ -35,8 +40,9 @@ namespace dmTrigLookup
     /**
      * Returns the cosine of the given angle from a lookup table.
      *
-     * @param radians Radians of the angle
-     * @return The cosine of the angle
+     * @name Cos
+     * @param radians [type: float] Radians of the angle
+     * @return cosine [type: float] The cosine of the angle
      */
     inline float Cos(float radians)
     {{
@@ -56,8 +62,9 @@ namespace dmTrigLookup
     /**
      * Returns the sine of the given angle from a lookup table.
      *
-     * @param radians Radians of the angle
-     * @return The sine of the angle
+     * @name Sin
+     * @param radians [type: float] Radians of the angle
+     * @return sine [type: float] The sine of the angle
      */
     inline float Sin(float radians)
     {{
@@ -66,4 +73,4 @@ namespace dmTrigLookup
 
 }}
 
-#endif // DM_TRIG_LOOKUP_H
+#endif // DMSDK_TRIG_LOOKUP_H

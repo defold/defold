@@ -429,6 +429,15 @@ namespace dmGameObject
         hcollection->m_Collection = collection;
         collection->m_Factory = factory;
 
+        // if there exists a collection with the same name and that collection
+        // is to be deleted we immediately delete it so that we can attach the
+        // the new one
+        HCollection existing = GetCollectionByHash(regist, dmHashString64(name));
+        if (existing && existing->m_Collection->m_ToBeDeleted)
+        {
+            DeleteCollection(existing->m_Collection);
+        }
+
         char name_frame[128];
         dmStrlCpy(name_frame, name, sizeof(name_frame));
         dmStrlCat(name_frame, "_frame", sizeof(name_frame));
@@ -3232,6 +3241,9 @@ namespace dmGameObject
             Unlink(collection, child);
         }
 
+        // Root instances may carry a stale sibling link from a deleted parent.
+        child->m_SiblingIndex = INVALID_INSTANCE_INDEX;
+
         EraseSwapLevelIndex(collection, child);
 
         // Add child to parent
@@ -3588,6 +3600,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float* out_value)
     {
         PropertyOptions options;
@@ -3606,6 +3619,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value)
     {
         PropertyOptions options;
@@ -3626,6 +3640,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value)
     {
         PropertyOptions options;
@@ -3647,6 +3662,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value)
     {
         PropertyOptions options;
@@ -3668,6 +3684,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool* out_value)
     {
         PropertyOptions options;
@@ -3686,6 +3703,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value)
     {
         PropertyOptions options;
@@ -3708,6 +3726,7 @@ namespace dmGameObject
         }
         return result;
     }
+
     PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value)
     {
         PropertyOptions options;
@@ -3729,8 +3748,6 @@ namespace dmGameObject
         }
         return result;
     }
-
-
 
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value)
     {

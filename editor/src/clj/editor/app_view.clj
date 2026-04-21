@@ -14,8 +14,11 @@
 
 (ns editor.app-view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.split-pane :as fx.split-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -25,6 +28,7 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
+            [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
@@ -95,6 +99,7 @@
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
+           [com.sun.javafx.scene NodeHelper]
            [java.io File PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
            [java.util Arrays Collection List]
@@ -290,10 +295,63 @@
                                (-> .getStyleClass (.add "key-button")))
                              1 row)))))))))
 
+(def ^:private ext-with-split-pane-props
+  (fx/make-ext-with-props fx.split-pane/props))
+
+(defn- split-pane-item [pane-desc]
+  {:fx/type fx.anchor-pane/lifecycle
+   :split-pane/resizable-with-parent false
+   :children [(assoc pane-desc
+                :anchor-pane/left 0.0
+                :anchor-pane/right 0.0
+                :anchor-pane/top 0.0
+                :anchor-pane/bottom 0.0)]})
+
+(defn- debuggable-resource?
+  [resource]
+  (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
+
+(g/defnk produce-active-sidebar
+  [active-view active-resource open-sidebar-panes debugger-sidebar-panes outline-active ^:try properties-pane-desc]
+  (if (and debugger-sidebar-panes (debuggable-resource? active-resource))
+    debugger-sidebar-panes
+    (coll/into-> (get open-sidebar-panes active-view) []
+      (keep #(case %
+               :outline-pane (when outline-active {:fx/type fx/ext-get-ref :ref :outline-pane})
+               :properties-pane properties-pane-desc
+               %)))))
+
+(g/defnk produce-outline-active [active-view open-sidebar-panes ^:try outline-pane-desc]
+  (and (not (g/error-value? outline-pane-desc))
+       (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
+
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
+  {:fx/type fxui/ext-dedupe-identical-desc
+   :desc {:fx/type fx/ext-let-refs
+          ;; If outline is active (requested by the view), we want to ensure
+          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; This is necessary because the outline view defines commands on the
+          ;; :workbench context, which is available throughout the editor, and
+          ;; those commands expect the outline view to be up to date. When
+          ;; outline is active, it's guaranteed that it's not an error value,
+          ;; but we need to keep the `^:try` so that the broken outline does not
+          ;; fail this whole output when it's inactive
+          :refs (if outline-active
+                  {:outline-pane outline-pane-desc}
+                  {})
+          :desc {:fx/type ext-with-split-pane-props
+                 :desc {:fx/type fxui/ext-value :value right-split}
+                 :props {:items (or (coll/not-empty
+                                      (coll/into-> active-sidebar []
+                                        (remove g/error-value?)
+                                        (map split-pane-item)))
+                                    [(split-pane-item {:fx/type fx.region/lifecycle})])}}}})
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
   (property editor-tabs-split SplitPane)
+  (property right-split SplitPane)
   (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
@@ -302,6 +360,10 @@
   (property keymap g/Any)
   (property localization g/Any)
 
+  (input outline-pane-desc g/Any)
+  (input properties-pane-desc g/Any)
+  (input properties-view g/NodeID)
+  (input open-sidebar-panes g/Any :array :substitute gu/array-subst-remove-errors)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -313,8 +375,10 @@
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
+  (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
 
+  (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
@@ -331,6 +395,10 @@
               (when-let [view-type (editor-tab/view-type active-tab)]
                 {:view-id view-node-id
                  :view-type view-type}))))
+  (output outline-active g/Bool :cached produce-outline-active)
+
+  (output active-sidebar g/Any :cached produce-active-sidebar)
+  (output right-split-desc g/Any :cached produce-right-split-desc)
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource-node+type g/Any :cached
@@ -408,7 +476,9 @@
              ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
+             properties-view (g/node-value app-view :properties-view evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
+             new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
 
              tx-data
              (when (and is-in-active-tab-pane
@@ -417,6 +487,8 @@
                  (concat
                    (g/set-property app-view :active-tab new-active-tab)
                    (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
+                   (when properties-view
+                     (replace-connection basis new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
                    (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
                      (replace-connection basis new-resource-node-id :scene app-view :active-scene)
                      (disconnect-sources basis app-view :active-scene)))))]
@@ -465,21 +537,31 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(defn- get-grid-settings-button
-  [^Tab tab]
+(defn- get-settings-button [^Tab tab button-id]
   (some-> tab
           .getContent
-          (.lookup "#show-grid-settings")))
+          (.lookup button-id)))
+
+(defn- show-settings-state [app-view button-id evaluation-context]
+  (some-> (g/node-value app-view :active-tab evaluation-context)
+          (get-settings-button button-id)
+          (scene-visibility/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
-  (run [app-view scene-visibility prefs]
+  (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-grid-settings-button))]
-      (grid/show-settings! app-view btn prefs)))
+                            (get-settings-button "#show-grid-settings"))]
+      (grid/show-settings! btn app-view prefs localization)))
   (state [app-view scene-visibility evaluation-context]
-    (some-> (g/node-value app-view :active-tab evaluation-context)
-            (get-grid-settings-button)
-            (scene-visibility/settings-visible?))))
+    (show-settings-state app-view "#show-grid-settings" evaluation-context)))
+
+(handler/defhandler :scene.perspective-camera.show-settings :workbench
+  (run [app-view scene-visibility prefs localization]
+    (when-some [btn (some-> (g/node-value app-view :active-tab)
+                            (get-settings-button "#show-perspective-camera-settings"))]
+      (camera/show-settings! btn prefs localization)))
+  (state [app-view scene-visibility evaluation-context]
+    (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
@@ -532,7 +614,9 @@
    {:id :perspective-camera
     :tooltip "Perspective camera"
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
-    :command :scene.toggle-camera-type}
+    :command :scene.toggle-camera-type
+    :more {:id :show-perspective-camera-settings
+           :command :scene.perspective-camera.show-settings}}
    {:id :visibility-settings
     :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
@@ -592,10 +676,16 @@
   (prefs/get prefs prefs-split-positions))
 
 (defn store-split-positions! [^Scene scene prefs]
-  (let [split-positions (into (stored-split-positions prefs)
-                              (map (fn [[id ^SplitPane sp]]
-                                     [id (vec (.getDividerPositions sp))]))
-                              (existing-split-panes scene))]
+  ;; Preserve trailing stored divider positions when this split currently has
+  ;; fewer dividers, e.g. when the sidebar temporarily shows a single pane
+  (let [split-positions (coll/reduce-kv-> (existing-split-panes scene) (stored-split-positions prefs)
+                          (fn [acc id ^SplitPane split-pane]
+                            (let [current-positions (vec (.getDividerPositions split-pane))
+                                  old-positions (get acc id)
+                                  persisted-positions (if (< (count current-positions) (count old-positions))
+                                                        (into current-positions (drop (count current-positions)) old-positions)
+                                                        current-positions)]
+                              (assoc acc id persisted-positions))))]
     (prefs/set! prefs prefs-split-positions split-positions)))
 
 (defn restore-split-positions! [^Scene scene prefs]
@@ -911,8 +1001,7 @@
 
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
-          (when log-stream
-            (console/set-log-service-stream log-stream))
+          (console/set-log-service-stream log-stream)
           (reboot-engine! selected-target web-server debug?))
 
         :else
@@ -1037,17 +1126,19 @@
 (defn async-build!
   "Asynchronously build the project and notify the :result-fn with results
 
+  Returns a CompletableFuture that will eventually be completed with a map with
+  the following keys:
+    :artifacts       build results for successfully built project resources
+    :artifact-map    build results by resource, used as input to future builds
+    :etags           map of built resource proj-paths to content fingerprint
+    :engine          the engine descriptor map when asked to build the engine,
+                     and it was successfully built
+    :error           the error value in case of any errors, be it project
+                     resources, linting or engine build error
+    :warning         error value in case there are non-critical issues reported
+                     by the build process
+
   Kv-args:
-    :result-fn           required fn that will receive build results, a map with
-                         the following keys:
-                         * :artifacts, :artifact-map and :etags - results for
-                           successfully built project resources
-                         * :engine - engine descriptor map when asked to build
-                           the engine, and it was successfully built
-                         * :error - error value in case of any errors, be it
-                           project resources, linting or engine build error
-                         * :warning - error value in case there are non-critical
-                           issues reported by the build process
     :build-engine        optional flag that indicates whether the engine should
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
@@ -1066,7 +1157,6 @@
     :old-artifact-map    optional old artifact map with previous build results
                          to speed up the build process"
   [project & {:keys [;; required
-                     result-fn
                      prefs
                      ;; optional
                      debug build-engine run-build-hooks render-progress! task-cancelled? old-artifact-map lint]
@@ -1076,9 +1166,9 @@
                    render-progress! progress/null-render-progress!
                    task-cancelled? fn/constantly-false
                    old-artifact-map {}}}]
-  {:pre [(ifn? result-fn)
-         (or (not build-engine) (some? prefs))]}
-  (let [lint (if (nil? lint)
+  {:pre [(or (not build-engine) (some? prefs))]}
+  (let [result-future (future/make)
+        lint (if (nil? lint)
                (prefs/get prefs [:build :lint-code])
                lint)
         ;; After any pre-build hooks have completed successfully, we will start
@@ -1132,11 +1222,13 @@
                       (reset! build-in-progress-atom false)
                       (render-progress! progress/done)
                       (cancel-engine-build!)
+                      (future/fail! result-future error)
                       (throw error)))))
               (catch Throwable error
                 (reset! build-in-progress-atom false)
                 (render-progress! progress/done)
                 (cancel-engine-build!)
+                (ui/run-later (future/fail! result-future error))
                 (error-reporting/report-exception! error))))
           nil)
 
@@ -1145,7 +1237,7 @@
           (reset! build-in-progress-atom false)
           (render-progress! progress/done)
           (cancel-engine-build!)
-          (result-fn project-build-results)
+          (future/complete! result-future project-build-results)
           nil)
 
         phase-7-await-lint!
@@ -1302,7 +1394,8 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (phase-1-await-current-reload!)))
+    (phase-1-await-current-reload!)
+    result-future))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error warning artifact-map etags project-build-successful]} build-results
@@ -1325,18 +1418,20 @@
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project
-                  :debug true
-                  :build-engine (not skip-engine)
-                  :prefs prefs
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :result-fn (fn [{:keys [engine] :as build-results}]
-                               (when (handle-build-results! workspace render-build-error! build-results)
-                                 (when (or engine skip-engine)
-                                   (show-console! main-scene tool-tab-pane)
-                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
+    (future/then
+      (async-build! project
+                    :debug true
+                    :build-engine (not skip-engine)
+                    :prefs prefs
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace))
+      (fn [{:keys [engine] :as build-results}]
+        (when (handle-build-results! workspace render-build-error! build-results)
+          (when (or engine skip-engine)
+            (show-console! main-scene tool-tab-pane)
+            (launch-built-project! project engine project-directory prefs web-server false)))
+        build-results))))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
@@ -1352,7 +1447,7 @@
                :command :run.set-instance-count
                :check true
                :user-data {:instance-count i}})
-            (range 1 5))))
+            (range 1 (inc system/max-engine-instance-count)))))
   (run [prefs user-data]
     (let [count (:instance-count user-data)]
       (prefs/set! prefs [:run :instance-count] count)))
@@ -1377,36 +1472,38 @@
   (let [project-directory (workspace/project-directory workspace)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
-    (async-build! project
-                  :debug true
-                  :build-engine (not skip-engine)
-                  :prefs prefs
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :result-fn (fn [{:keys [engine] :as build-results}]
-                               (when (handle-build-results! workspace render-build-error! build-results)
-                                 (when (or engine skip-engine)
-                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
-                                     (when (nil? (debug-view/current-session debug-view))
-                                       (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
+    (future/then
+      (async-build! project
+                    :debug true
+                    :build-engine (not skip-engine)
+                    :prefs prefs
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace))
+      (fn [{:keys [engine] :as build-results}]
+        (when (handle-build-results! workspace render-build-error! build-results)
+          (when (or engine skip-engine)
+            (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+              (when (nil? (debug-view/current-session debug-view))
+                (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
   (let [[render-progress! task-cancelled?] (begin-task-progress! :build)]
-    (async-build! project
-                  :debug true
-                  :build-engine false
-                  :run-build-hooks false
-                  :lint false
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :prefs prefs
-                  :result-fn (fn [build-results]
-                               (when (handle-build-results! workspace render-build-error! build-results)
-                                 (let [target (targets/selected-target prefs)]
-                                   (when (targets/controllable-target? target)
-                                     (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
+    (future/then
+      (async-build! project
+                    :debug true
+                    :build-engine false
+                    :run-build-hooks false
+                    :lint false
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace)
+                    :prefs prefs)
+      (fn [build-results]
+        (when (handle-build-results! workspace render-build-error! build-results)
+          (let [target (targets/selected-target prefs)]
+            (when (targets/controllable-target? target)
+              (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
 
 (handler/defhandler :debugger.start :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -1524,40 +1621,41 @@
     ;; keep track of which resource versions have been loaded by the engine,
     ;; or we might miss resources that were recompiled but never reloaded.
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project
-                  :debug false
-                  :build-engine false
-                  :run-build-hooks false
-                  :lint false
-                  :render-progress! render-progress!
-                  :task-cancelled? task-cancelled?
-                  :old-artifact-map (workspace/artifact-map workspace)
-                  :prefs prefs
-                  :result-fn (fn [{:keys [error artifact-map etags]}]
-                               (if (some? error)
-                                 (render-build-error! error)
-                                 (do
-                                   (workspace/artifact-map! workspace artifact-map)
-                                   (workspace/etags! workspace etags)
-                                   (workspace/save-build-cache! workspace)
-                                   (try
-                                     (when-some [updated-build-resources
-                                                 (not-empty
-                                                   (g/with-auto-evaluation-context evaluation-context
-                                                     (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
-                                       (if (targets/all-launched-targets? target)
-                                         (doseq [launched-target (targets/all-launched-targets)]
-                                           (engine/reload-build-resources! launched-target updated-build-resources))
-                                         (engine/reload-build-resources! target updated-build-resources)))
-                                     (catch Exception e
-                                       (dialogs/make-info-dialog
-                                         localization
-                                         {:title (localization/message "dialog.hot-reload-failed.title")
-                                          :icon :icon/triangle-error
-                                          :header (localization/message
-                                                    "dialog.hot-reload-failed.header"
-                                                    {"engine" (targets/target-message (targets/selected-target prefs))})
-                                          :content (.getMessage e)})))))))))
+    (future/then
+      (async-build! project
+                    :debug false
+                    :build-engine false
+                    :run-build-hooks false
+                    :lint false
+                    :render-progress! render-progress!
+                    :task-cancelled? task-cancelled?
+                    :old-artifact-map (workspace/artifact-map workspace)
+                    :prefs prefs)
+      (fn [{:keys [error artifact-map etags]}]
+        (if (some? error)
+          (render-build-error! error)
+          (do
+            (workspace/artifact-map! workspace artifact-map)
+            (workspace/etags! workspace etags)
+            (workspace/save-build-cache! workspace)
+            (try
+              (when-some [updated-build-resources
+                          (not-empty
+                            (g/with-auto-evaluation-context evaluation-context
+                              (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
+                (if (targets/all-launched-targets? target)
+                  (doseq [launched-target (targets/all-launched-targets)]
+                    (engine/reload-build-resources! launched-target updated-build-resources))
+                  (engine/reload-build-resources! target updated-build-resources)))
+              (catch Exception e
+                (dialogs/make-info-dialog
+                  localization
+                  {:title (localization/message "dialog.hot-reload-failed.title")
+                   :icon :icon/triangle-error
+                   :header (localization/message
+                             "dialog.hot-reload-failed.header"
+                             {"engine" (targets/target-message (targets/selected-target prefs))})
+                   :content (.getMessage e)})))))))))
 
 (handler/defhandler :run.hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
@@ -1753,6 +1851,10 @@
 (handler/defhandler :help.open-logs :global
   (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
 
+(handler/defhandler :help.open-editor-server :global
+  (run [web-server]
+    (ui/open-url (http-server/local-url web-server))))
+
 (handler/defhandler :help.open-donations :global
   (run [] (ui/open-url "https://www.defold.com/donate")))
 
@@ -1879,6 +1981,8 @@
                 :command :help.open-documentation}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
+               {:label (localization/message "command.help.open-editor-server")
+                :command :help.open-editor-server}
                {:label (localization/message "command.help.open-asset-portal")
                 :command :help.open-asset-portal}
                menu-items/separator
@@ -2082,7 +2186,12 @@
     ;; The new focus owner is or belongs to an editor TabPane.
     (on-active-tab-changed! app-view prefs (ui/selected-tab editor-tab-pane) true)))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
+(defn- refresh-right-split! [app-view]
+  (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
+             right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
+    (fxui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2094,6 +2203,7 @@
                                                                      :stage stage
                                                                      :scene app-scene
                                                                      :editor-tabs-split editor-tabs-split
+                                                                     :right-split right-split
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
                                                                      :manip-space :world
@@ -2114,6 +2224,8 @@
                             (fn [_animation-timer _elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
+                                  (when (NodeHelper/isTreeShowing right-split)
+                                    (refresh-right-split! app-view))
                                   (when refresh-requested?
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (g/with-auto-evaluation-context evaluation-context
@@ -2184,8 +2296,10 @@
     (g/transact
       (concat
         (view/connect-resource-node view resource-node)
+        (g/connect app-view :selected-node-properties view :selected-node-properties)
         (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty app-view :open-dirty-views)))
+        (g/connect view :view-dirty app-view :open-dirty-views)
+        (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
     (.add tabs tab)
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
@@ -2406,16 +2520,17 @@
        (perform-open-resource-plan! localization))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
-  (let [prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
+  (let [basis (:basis evaluation-context)
+        prefs-data-per-tab-per-tab-pane (prefs/get prefs [:workflow :open-tabs])
         selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
-    (coll/transfer prefs-data-per-tab-per-tab-pane []
+    (coll/into-> prefs-data-per-tab-per-tab-pane []
       (coll/mapcat-indexed
         (fn [tab-pane-index prefs-data-per-tab]
           (let [selected-tab-index (nth selected-tab-index-by-tab-pane-index tab-pane-index 0)]
-            (coll/transfer prefs-data-per-tab :eduction
+            (coll/into-> prefs-data-per-tab :eduction
               (keep-indexed
                 (fn [tab-index [proj-path view-type-id]]
-                  (let [resource (workspace/find-resource workspace proj-path evaluation-context)]
+                  (let [resource (workspace/find-resource basis workspace proj-path)]
                     (when (and (resource/openable-resource? resource)
                                (resource/exists? resource))
                       (let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)
@@ -2948,13 +3063,12 @@
 
 (defn file-open-user-data->openable-resources
   ([workspace x]
-   (g/with-auto-evaluation-context evaluation-context
-     (file-open-user-data->openable-resources workspace x evaluation-context)))
-  ([workspace x evaluation-context]
+   (file-open-user-data->openable-resources (g/now) workspace x))
+  ([basis workspace x]
    (cond
      (string? x)
-     (when-let [resource (workspace/find-resource workspace x evaluation-context)]
-       (recur workspace resource evaluation-context))
+     (when-let [resource (workspace/find-resource basis workspace x)]
+       (recur basis workspace resource))
 
      (resource/resource? x)
      (when (and (resource/openable? x)
@@ -2962,7 +3076,7 @@
        [x])
 
      (sequential? x)
-     (e/mapcat #(file-open-user-data->openable-resources workspace % evaluation-context) x)
+     (e/mapcat #(file-open-user-data->openable-resources basis workspace %) x)
 
      :else
      (throw (IllegalArgumentException. (str "Didn't expect file.open argument to be " x))))))
@@ -3150,7 +3264,7 @@
         (disk/async-reload! render-reload-progress! workspace [] changes-view
                             (fn [successful?]
                               (when successful?
-                                (when-some [created-resource (workspace/find-resource workspace proj-path)]
+                                (when-some [created-resource (workspace/find-resource (g/now) workspace proj-path)]
                                   (open-resource! app-view prefs localization project created-resource))))))
 
       (= :folder (resource/source-type resource))
