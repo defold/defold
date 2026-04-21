@@ -37,8 +37,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -56,15 +57,14 @@ public class ResourceUnpacker {
         void load(Path libraryPath) throws Throwable;
     }
 
-    private static final class NativeLibraryLoadFailure {
+    private static final class NativeLibraryLoadException extends RuntimeException {
         private final String logicalName;
         private final Path libraryPath;
-        private final Throwable cause;
 
-        private NativeLibraryLoadFailure(String logicalName, Path libraryPath, Throwable cause) {
+        private NativeLibraryLoadException(String logicalName, Path libraryPath, Throwable cause) {
+            super("Failed to preload bundled native library '" + logicalName + "' from " + libraryPath, cause);
             this.logicalName = logicalName;
             this.libraryPath = libraryPath;
-            this.cause = cause;
         }
     }
 
@@ -247,8 +247,8 @@ public class ResourceUnpacker {
         }
 
         List<Map.Entry<String, Path>> libraryEntries = new ArrayList<>(discoveredLibraries.entrySet());
-        List<Future<NativeLibraryLoadFailure>> futures = new ArrayList<>(libraryEntries.size());
-        List<NativeLibraryLoadFailure> failures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>(libraryEntries.size());
+        List<NativeLibraryLoadException> failures = new ArrayList<>();
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             for (Map.Entry<String, Path> libraryEntry : libraryEntries) {
@@ -257,25 +257,27 @@ public class ResourceUnpacker {
                 futures.add(executor.submit(() -> preloadNativeLibrary(logicalName, libraryPath, loader)));
             }
 
-            for (Future<NativeLibraryLoadFailure> future : futures) {
+            for (Future<?> future : futures) {
                 try {
-                    NativeLibraryLoadFailure failure = future.get();
-                    if (failure != null) {
+                    future.get();
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof NativeLibraryLoadException failure) {
                         failures.add(failure);
+                    } else {
+                        throw new IllegalStateException("Unexpected failure while preloading bundled native libraries", cause);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while preloading bundled native libraries", e);
-                } catch (Exception e) {
-                    throw new IllegalStateException("Unexpected failure while waiting for bundled native library preload", e);
                 }
             }
         }
 
         if (!failures.isEmpty()) {
             IllegalStateException aggregatedException = new IllegalStateException(buildPreloadFailureMessage(failures));
-            for (NativeLibraryLoadFailure failure : failures) {
-                aggregatedException.addSuppressed(failure.cause);
+            for (NativeLibraryLoadException failure : failures) {
+                aggregatedException.addSuppressed(failure.getCause());
             }
             throw aggregatedException;
         }
@@ -283,26 +285,26 @@ public class ResourceUnpacker {
         return immutableLinkedHashMap(discoveredLibraries);
     }
 
-    private static NativeLibraryLoadFailure preloadNativeLibrary(String logicalName, Path libraryPath, NativeLibraryLoader loader) {
+    private static void preloadNativeLibrary(String logicalName, Path libraryPath, NativeLibraryLoader loader) {
         try {
             loader.load(libraryPath);
             logger.info("preloaded bundled native library '{}' from {}", logicalName, libraryPath);
-            return null;
         } catch (Throwable t) {
-            return new NativeLibraryLoadFailure(logicalName, libraryPath, t);
+            throw new NativeLibraryLoadException(logicalName, libraryPath, t);
         }
     }
 
-    private static String buildPreloadFailureMessage(List<NativeLibraryLoadFailure> failures) {
+    private static String buildPreloadFailureMessage(List<NativeLibraryLoadException> failures) {
         StringBuilder message = new StringBuilder("Failed to preload bundled native libraries:");
-        for (NativeLibraryLoadFailure failure : failures) {
+        for (NativeLibraryLoadException failure : failures) {
             message.append(System.lineSeparator())
                     .append(" - ")
                     .append(failure.logicalName)
                     .append(" from ")
                     .append(failure.libraryPath);
-            if (failure.cause.getMessage() != null && !failure.cause.getMessage().isEmpty()) {
-                message.append(" (").append(failure.cause.getMessage()).append(')');
+            Throwable cause = failure.getCause();
+            if (cause.getMessage() != null && !cause.getMessage().isEmpty()) {
+                message.append(" (").append(cause.getMessage()).append(')');
             }
         }
         return message.toString();
