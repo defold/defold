@@ -986,21 +986,7 @@ def _strip_executable(bld, platform, target_arch, path):
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
-    strip = "strip"
-    if 'android' in platform:
-        host_names = {
-            'win32': 'windows',
-            'darwin': 'darwin',
-            'linux': 'linux',
-        }
-        home_names = {
-            'win32': 'USERPROFILE',
-            'darwin': 'HOME',
-            'linux': 'HOME',
-        }
-        HOME = os.environ[home_names.get(sys.platform)]
-        ANDROID_HOST = host_names.get(sys.platform)
-        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
+    strip = sdk.get_strip_executable(platform, sdkinfo)
 
     return bld.exec_command("%s %s" % (strip, path))
 
