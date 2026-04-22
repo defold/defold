@@ -15,9 +15,14 @@
 #include <assert.h>
 #include "zlib.h"
 #define MINIZ_HEADER_FILE_ONLY
+#define MINIZ_NO_ARCHIVE_APIS
+#define MINIZ_NO_STDIO
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#include "../zip/miniz_rename.h"
 #include "../zip/miniz.h"
 #undef MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#undef MINIZ_NO_STDIO
+#undef MINIZ_NO_ARCHIVE_APIS
 #undef MINIZ_HEADER_FILE_ONLY
 
 namespace dmZlib
