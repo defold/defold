@@ -409,11 +409,13 @@
 (defmethod scene-tools/manip-scale-manips ::SphereShape [_node-id]
   [:scale-uniform])
 
+(def ^:private min-box-axis-dimension 0.1)
+
 (defn- prop-error-box-dimensions [node-id dimensions]
   (validation/prop-error :fatal node-id :dimensions
                          (fn [dimensions _]
-                           (when (some #(< ^double % 0.1) dimensions)
-                             (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-n" {"min" 0.1})))
+                           (when (some #(< ^double % ^double min-box-axis-dimension) dimensions)
+                             (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-n" {"min" min-box-axis-dimension})))
                          dimensions
                          dimensions-message))
 
@@ -428,7 +430,7 @@
                              (prop-error-box-dimensions _node-id dimensions)))
             (dynamic edit-type (g/constantly {:type types/Vec3
                                               :labels ["W" "H" "D"]
-                                              :min 0.1
+                                              :min min-box-axis-dimension
                                               :precision 0.1})))
 
   (display-order [Shape :dimensions])
@@ -454,6 +456,8 @@
       :manip-phase/preview
       {:manip/prop-kw->override-value {:dimensions new-dimensions}})))
 
+(def ^:private min-capsule-prop-value 0.1)
+
 (g/defnode CapsuleShape
   (inherits Shape)
 
@@ -461,20 +465,20 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
-            (dynamic edit-type (g/constantly {:type g/Num :min 0.1 :precision 0.1}))
+            (dynamic edit-type (g/constantly {:type g/Num :min min-capsule-prop-value :precision 0.1}))
             (dynamic error (g/fnk [_node-id diameter]
                              (validation/prop-error
                                :fatal _node-id
-                               :diameter validation/prop-minimum-check? 0.1 diameter diameter-message))))
+                               :diameter validation/prop-minimum-check? min-capsule-prop-value diameter diameter-message))))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :height))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
-            (dynamic edit-type (g/constantly {:type g/Num :min 0.1 :precision 0.1}))
+            (dynamic edit-type (g/constantly {:type g/Num :min min-capsule-prop-value :precision 0.1}))
             (dynamic error (g/fnk [_node-id height]
                              (validation/prop-error
                                :fatal _node-id
-                               :height validation/prop-minimum-check? 0.1 height height-message))))
+                               :height validation/prop-minimum-check? min-capsule-prop-value height height-message))))
 
   (display-order [Shape :diameter :height])
 
@@ -484,10 +488,10 @@
                                  (validate-image-id _node-id id id-counts)
                                  (validation/prop-error
                                    :fatal _node-id
-                                   :diameter validation/prop-minimum-check? 0.1 diameter diameter-message)
+                                   :diameter validation/prop-minimum-check? min-capsule-prop-value diameter diameter-message)
                                  (validation/prop-error
                                    :fatal _node-id
-                                   :height validation/prop-minimum-check? 0.1 height height-message))))
+                                   :height validation/prop-minimum-check? min-capsule-prop-value height height-message))))
   (output shape-data g/Any (g/fnk [diameter height]
                              [(/ (double diameter) 2) (double height)])))
 
