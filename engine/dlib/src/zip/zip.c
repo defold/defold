@@ -36,6 +36,9 @@
 #include <unistd.h>
 #endif
 
+// DEFOLD -> We add a rename layer, so that we can keep the miniz members private
+#include "miniz_rename.h"
+// <- DEFOLD
 #include "miniz.h"
 #include "zip.h"
 
