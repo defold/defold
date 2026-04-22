@@ -2166,12 +2166,11 @@ namespace dmGraphics
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
         // If the culling, or viewport has changed, make sure to flip the
-        // culling flag if we are rendering to the backbuffer.
-        // This is needed because we are rendering with a negative viewport
+        // culling flag if we are rendering to an offscreen render target.
+        // This is needed because those are rendered with a negative viewport
         // which means that the face direction is inverted.
         if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            /*
             if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
                 pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
@@ -2180,7 +2179,6 @@ namespace dmGraphics
             {
                 pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
             }
-            */
         }
 
         MetalPipeline* pipeline = GetOrCreatePipeline(context, pipeline_state_draw,
@@ -2192,16 +2190,25 @@ namespace dmGraphics
         {
             encoder->setDepthStencilState(pipeline->m_DepthStencilState);
         }
+        MTL::Viewport metal_vp;
+        metal_vp.originX = context->m_MainViewport.m_X;
+        metal_vp.width   = context->m_MainViewport.m_W;
+        metal_vp.znear   = 0.0;
+        metal_vp.zfar    = 1.0;
+
+        if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            metal_vp.originY = context->m_MainViewport.m_Y;
+            metal_vp.height  = context->m_MainViewport.m_H;
+        }
+        else
+        {
+            metal_vp.originY = current_rt->m_ColorTextureParams[0].m_Height - context->m_MainViewport.m_Y;
+            metal_vp.height  = -(double) context->m_MainViewport.m_H;
+        }
 
         if (context->m_ViewportChanged)
         {
-            MTL::Viewport metal_vp;
-            metal_vp.originX = context->m_MainViewport.m_X;
-            metal_vp.originY = context->m_MainViewport.m_Y;
-            metal_vp.width   = context->m_MainViewport.m_W;
-            metal_vp.height  = context->m_MainViewport.m_H;
-            metal_vp.znear   = 0.0;
-            metal_vp.zfar    = 1.0;
             encoder->setViewport(metal_vp);
 
             /*
