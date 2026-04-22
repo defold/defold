@@ -419,6 +419,7 @@ namespace dmGraphics
         uint16_t                           m_DynamicOffsetBufferSize;
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR        m_DynamicRenderingFeatures;
 
         // Async process resources
         HJobContext                        m_JobContext;
@@ -476,6 +477,7 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_ASTCSupport          : 1;
+        uint32_t                        m_DynamicRenderingSupport : 1;
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                        m_ASTCArrayTextureSupport : 1;
         uint32_t                        m_AsyncProcessingSupport : 1;

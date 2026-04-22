@@ -1370,6 +1370,40 @@ namespace dmGraphics
             device_pNext_chain = &context->m_FragmentShaderInterlockFeatures;
         }
 
+        if (VulkanIsExtensionSupported((HContext) context, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME))
+        {
+            // Leaf dependencies first
+            if (VulkanIsExtensionSupported((HContext) context, VK_KHR_MAINTENANCE2_EXTENSION_NAME))
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+            }
+            if (VulkanIsExtensionSupported((HContext) context, VK_KHR_MULTIVIEW_EXTENSION_NAME))
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+            }
+            if (VulkanIsExtensionSupported((HContext) context, VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME))
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME);
+            }
+            if (VulkanIsExtensionSupported((HContext) context, VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME))
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME);
+            }
+
+            context->m_DynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+            context->m_DynamicRenderingFeatures.pNext = device_pNext_chain;
+            context->m_DynamicRenderingFeatures.dynamicRendering = VK_TRUE;
+            context->m_DynamicRenderingSupport = 1;
+
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+            device_pNext_chain = &context->m_DynamicRenderingFeatures;
+        }
+
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),
             validation_layers, (uint8_t)validation_layers_count, device_pNext_chain, &logical_device);
