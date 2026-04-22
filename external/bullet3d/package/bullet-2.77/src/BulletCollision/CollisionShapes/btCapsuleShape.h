@@ -95,10 +95,7 @@ public:
 		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
 		btVector3 unScaledImplicitShapeDimensionsWithMargin = implicitShapeDimensionsWithMargin / m_localScaling;
 
-		btConvexInternalShape::setLocalScaling(scaling);
-
-		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * m_localScaling) - oldMargin;
-
+		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * scaling) - oldMargin;
 	}
 
 	virtual	int	calculateSerializeBufferSize() const;
