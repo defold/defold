@@ -130,8 +130,6 @@
                               :id id)
                             (assoc :data shape-data))))
 
-  (output shape-errors g/Any (g/fnk [_node-id id id-counts]
-                               (validate-image-id _node-id id id-counts)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type id node-outline-key]
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
@@ -465,14 +463,18 @@
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
             (dynamic edit-type (g/constantly {:type g/Num :min 0.1 :precision 0.1}))
             (dynamic error (g/fnk [_node-id diameter]
-                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
+                             (validation/prop-error
+                               :fatal _node-id
+                               :diameter validation/prop-minimum-check? 0.1 diameter diameter-message))))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :height))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
             (dynamic edit-type (g/constantly {:type g/Num :min 0.1 :precision 0.1}))
             (dynamic error (g/fnk [_node-id height]
-                             (validation/prop-error :fatal _node-id :height validation/prop-zero-or-below? height height-message))))
+                             (validation/prop-error
+                               :fatal _node-id
+                               :height validation/prop-minimum-check? 0.1 height height-message))))
 
   (display-order [Shape :diameter :height])
 

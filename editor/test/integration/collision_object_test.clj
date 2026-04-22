@@ -61,22 +61,35 @@
 
 (deftest validation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
+    (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
       (testing "collision object"
-               (test-util/with-prop [node-id :mass 0]
-                 (is (g/error? (test-util/prop-error node-id :mass))))
-               (let [r (workspace/resolve-workspace-resource workspace "/nope.convexshape")]
-                 (test-util/with-prop [node-id :collision-shape r]
-                   (is (g/error? (test-util/prop-error node-id :collision-shape))))))
-      (doseq [[type index props] [["sphere" 0 {:diameter -1}]
-                                  ["box" 1 {:dimensions [-1 1 1]}]
-                                  ["capsule" 2 {:diameter -1
-                                                :height -1}]]]
+        (test-util/with-prop [node-id :mass 0]
+          (is (g/error? (test-util/prop-error node-id :mass))))
+        (let [r (workspace/resolve-workspace-resource workspace "/nope.convexshape")]
+          (test-util/with-prop [node-id :collision-shape r]
+            (is (g/error? (test-util/prop-error node-id :collision-shape))))))
+      (doseq [[type index props] [["sphere" 0 {:diameter 0.001}]
+                                  ["box" 1 {:dimensions [0.01 0.01 0.01]}]
+                                  ["capsule" 2 {:diameter 0.01
+                                                :height 0.01}]]]
         (testing type
-               (let [shape (:node-id (test-util/outline node-id [index]))]
-                 (doseq [[prop value] props]
-                   (test-util/with-prop [shape prop value]
-                    (is (g/error? (test-util/prop-error shape prop)))))))))))
+          (let [shape (:node-id (test-util/outline node-id [index]))]
+            (doseq [[prop value] props]
+              (test-util/with-prop [shape prop value]
+                (is (g/error? (test-util/prop-error shape prop)))))))))))
+
+(deftest shape-errors-block-build-targets
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
+      (doseq [[type index props] [["sphere" 0 {:diameter 0.001}]
+                                  ["box" 1 {:dimensions [0.01 0.01 0.01]}]
+                                  ["capsule" 2 {:diameter 0.01
+                                                :height 0.01}]]]
+        (testing (str type " shape error blocks build targets")
+          (let [shape (:node-id (test-util/outline node-id [index]))]
+            (doseq [[prop value] props]
+              (test-util/with-prop [shape prop value]
+                (is (g/error? (g/node-value node-id :build-targets)))))))))))
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
