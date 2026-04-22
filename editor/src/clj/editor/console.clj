@@ -816,7 +816,7 @@
       (connection-write! [_ output-stream]
         (let [writer (io/writer output-stream :encoding "UTF-8")
               queue (ArrayBlockingQueue. 1024)
-              subscriber #(.put queue %)
+              subscriber #(.offer queue %)
               entries (:entries (swap! pending-atom update :stream-subscribers conj subscriber))]
           (try
             (when-not (coll/empty? entries)
@@ -833,8 +833,7 @@
             ;; Suppress warning logs on disconnect:
             (catch IOException _)
             (finally
-              (swap! pending-atom update :stream-subscribers disj subscriber)
-              (.clear queue))))))))
+              (swap! pending-atom update :stream-subscribers disj subscriber))))))))
 
 (defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
