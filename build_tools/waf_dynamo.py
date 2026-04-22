@@ -986,7 +986,7 @@ def _strip_executable(bld, platform, target_arch, path):
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
-    strip = sdk.get_strip_executable(SDK_ROOT, platform, sdkinfo)
+    strip = sdk.get_strip_executable(platform, sdkinfo)
 
     return bld.exec_command("%s %s" % (strip, path))
 

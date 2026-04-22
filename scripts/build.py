@@ -1428,7 +1428,7 @@ class Configuration(object):
 
         sdkfolder = join(self.ext, 'SDKs')
         sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
-        strip = sdk.get_strip_executable(sdkfolder, self.target_platform, sdk_info)
+        strip = sdk.get_strip_executable(self.target_platform, sdk_info)
 
         run.shell_command("%s %s" % (strip, path))
         return True
