@@ -292,7 +292,7 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     // metrics->m_MaxDescent = descent;
     uint32_t num_lines = layout->m_Lines.Size();
     layout->m_Width = max_line_width;
-    layout->m_Height = num_lines * (line_height * settings->m_Leading) - line_height * (settings->m_Leading - 1.0f);
+    layout->m_Height = num_lines * (line_height_scaled * settings->m_Leading) - line_height_scaled * (settings->m_Leading - 1.0f);
 
     *outlayout = layout;
     return TEXT_RESULT_OK;

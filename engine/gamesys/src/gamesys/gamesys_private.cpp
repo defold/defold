@@ -359,8 +359,12 @@ namespace dmGameSystem
             int component_attribute_index = FindAttributeIndex(component_attributes, num_component_attributes, name_hash);
             if (component_attribute_index >= 0)
             {
+                // Keep the destination layout from the material info, but preserve the overridden
+                // attribute's source vector shape so WriteAttributes can safely convert the value.
+                component_info.m_ValueVectorType = component_attributes[component_attribute_index].m_VectorType;
+
                 // We don't use the byte size from the overridden attribute here, since we still need to match
-                // the stride of the materials vertex declaration
+                // the stride of the material's vertex declaration.
                 uint32_t value_byte_size_tmp;
                 dmGraphics::GetAttributeValues(component_attributes[component_attribute_index],
                     &component_info.m_ValuePtr, &value_byte_size_tmp);
