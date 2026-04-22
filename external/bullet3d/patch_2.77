@@ -1,6 +1,6 @@
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h
---- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2018-07-16 11:55:29.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2010-08-24 18:28:48.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2026-04-22 13:34:34.620969000 +0300
 @@ -48,7 +48,6 @@
  		m_allowedCcdPenetration(btScalar(0.04)),
  		m_useConvexConservativeDistanceUtil(false),
@@ -18,8 +18,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseColli
  };
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h
---- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h	2018-07-16 12:51:08.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h	2010-02-27 02:16:44.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h	2026-04-22 13:34:34.621969000 +0300
 @@ -4,8 +4,8 @@
  
  This software is provided 'as-is', without any express or implied warranty.
@@ -181,8 +181,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseColli
  
  struct	btQuantizedBvhDoubleData
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CMakeLists.txt c/bullet-2.77/src/BulletCollision/CMakeLists.txt
---- a/bullet-2.77/src/BulletCollision/CMakeLists.txt	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CMakeLists.txt	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/CMakeLists.txt	2010-09-07 16:40:18.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CMakeLists.txt	2026-04-22 13:34:34.622969000 +0300
 @@ -252,10 +252,8 @@
  				INSTALL(TARGETS BulletCollision DESTINATION .)
  			ELSE (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
@@ -204,8 +204,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CMakeLists.txt 
 +ENDIF (INSTALL_LIBS)
 \ No newline at end of file
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp
---- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2010-09-10 13:29:42.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2026-04-22 13:34:34.623969000 +0300
 @@ -345,20 +345,6 @@
      } \
    }
@@ -228,8 +228,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
    TST(pp[2]*R21-pp[1]*R31,(A[1]*Q31+A[2]*Q21+B[1]*Q13+B[2]*Q12),0,-R31,R21,7);
    TST(pp[2]*R22-pp[1]*R32,(A[1]*Q32+A[2]*Q22+B[0]*Q13+B[2]*Q11),0,-R32,R22,8);
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h
---- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h	2010-08-15 13:45:56.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h	2026-04-22 13:34:34.624969000 +0300
 @@ -128,13 +128,12 @@
  	enum	CollisionObjectTypes
  	{
@@ -263,8 +263,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  	{
  		return m_broadphaseHandle;
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp
---- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp	2010-08-25 12:23:10.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp	2026-04-22 13:34:34.624969000 +0300
 @@ -434,13 +434,11 @@
  					btCollisionShape* saveCollisionShape = collisionObject->getCollisionShape();
  					collisionObject->internalSetTemporaryCollisionShape((btCollisionShape*)childCollisionShape);
@@ -330,8 +330,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  					objectQuerySingle(castShape, convexFromTrans,convexToTrans,
  						collisionObject,
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h
---- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h	2010-08-23 16:00:36.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h	2026-04-22 13:34:34.624969000 +0300
 @@ -264,45 +264,6 @@
  		}
  	};
@@ -379,8 +379,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  	struct LocalConvexResult
  	{
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp
---- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2018-07-16 12:04:11.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2010-08-24 18:28:48.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2026-04-22 13:34:34.625969000 +0300
 @@ -357,13 +357,7 @@
  	} else
  #endif //USE_SEPDISTANCE_UTIL2
@@ -396,9 +396,36 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  		input.m_maximumDistanceSquared*= input.m_maximumDistanceSquared;
  	}
  
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2010-02-17 23:16:36.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCapsuleShape.h	2026-04-22 11:18:11.000000000 +0300
+@@ -95,10 +95,7 @@
+ 		btVector3 implicitShapeDimensionsWithMargin = m_implicitShapeDimensions+oldMargin;
+ 		btVector3 unScaledImplicitShapeDimensionsWithMargin = implicitShapeDimensionsWithMargin / m_localScaling;
+ 
+-		btConvexInternalShape::setLocalScaling(scaling);
+-
+-		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * m_localScaling) - oldMargin;
+-
++		m_implicitShapeDimensions = (unScaledImplicitShapeDimensionsWithMargin * scaling) - oldMargin;
+ 	}
+ 
+ 	virtual	int	calculateSerializeBufferSize() const;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp c/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp	2010-07-20 16:37:12.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btCompoundShape.cpp	2026-04-22 02:29:30.000000000 +0300
+@@ -282,7 +282,7 @@
+ //		childScale = childScale * (childTrans.getBasis() * scaling);
+ 		childScale = childScale * scaling / m_localScaling;
+ 		m_children[i].m_childShape->setLocalScaling(childScale);
+-		childTrans.setOrigin((childTrans.getOrigin())*scaling);
++		childTrans.setOrigin((childTrans.getOrigin())*scaling/m_localScaling);
+ 		updateChildTransform(i, childTrans);
+ 		recalculateLocalAabb();
+ 	}
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btBoxCollision.h c/bullet-2.77/src/BulletCollision/Gimpact/btBoxCollision.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btBoxCollision.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btBoxCollision.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btBoxCollision.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btBoxCollision.h	2026-04-22 13:34:34.636970000 +0300
 @@ -2,7 +2,7 @@
  #define BT_BOX_COLLISION_H_INCLUDED
  
@@ -409,8 +436,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btBoxCo
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btClipPolygon.h c/bullet-2.77/src/BulletCollision/Gimpact/btClipPolygon.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btClipPolygon.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btClipPolygon.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btClipPolygon.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btClipPolygon.h	2026-04-22 13:34:34.636970000 +0300
 @@ -2,7 +2,7 @@
  #define BT_CLIP_POLYGON_H_INCLUDED
  
@@ -421,8 +448,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btClipP
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btContactProcessing.h c/bullet-2.77/src/BulletCollision/Gimpact/btContactProcessing.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btContactProcessing.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btContactProcessing.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btContactProcessing.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btContactProcessing.h	2026-04-22 13:34:34.636970000 +0300
 @@ -2,7 +2,7 @@
  #define BT_CONTACT_H_INCLUDED
  
@@ -432,9 +459,41 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btConta
  */
  /*
  This source file is part of GIMPACT Library.
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp	2026-04-22 13:34:34.639970000 +0300
+@@ -1,5 +1,5 @@
+ /*! \file btGenericPoolAllocator.cpp
+-\author Francisco Leon Najera. email projectileman@yahoo.com
++\author Francisco Len Nßjera. email projectileman@yahoo.com
+ 
+ General purpose allocator class
+ */
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h	2026-04-22 13:34:34.639970000 +0300
+@@ -1,5 +1,5 @@
+ /*! \file btGenericPoolAllocator.h
+-\author Francisco Leon Najera. email projectileman@yahoo.com
++\author Francisco Len Nßjera. email projectileman@yahoo.com
+ 
+ General purpose allocator class
+ */
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h c/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h	2026-04-22 13:34:34.639970000 +0300
+@@ -2,7 +2,7 @@
+ #define BT_BASIC_GEOMETRY_OPERATIONS_H_INCLUDED
+ 
+ /*! \file btGeometryOperations.h
+-*\author Francisco Leon Najera
++*\author Francisco Len Nßjera
+ 
+ */
+ /*
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.cpp c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.cpp
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.cpp	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.cpp	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.cpp	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.cpp	2026-04-22 13:34:34.636970000 +0300
 @@ -1,5 +1,5 @@
  /*! \file gim_box_set.h
 -\author Francisco Leon Najera
@@ -443,8 +502,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpa
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.h c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactBvh.h	2026-04-22 13:34:34.636970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_BOX_SET_H_INCLUDED
  
@@ -455,8 +514,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpa
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h	2026-04-22 13:34:34.637970000 +0300
 @@ -1,5 +1,5 @@
  /*! \file btGImpactShape.h
 -\author Francisco Leon Najera
@@ -465,8 +524,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpa
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactMassUtil.h c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactMassUtil.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactMassUtil.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactMassUtil.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactMassUtil.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactMassUtil.h	2026-04-22 13:34:34.637970000 +0300
 @@ -1,5 +1,5 @@
  /*! \file btGImpactMassUtil.h
 -\author Francisco Leon Najera
@@ -475,8 +534,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpa
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp	2026-04-22 13:34:34.637970000 +0300
 @@ -1,5 +1,5 @@
  /*! \file gim_box_set.h
 -\author Francisco Leon Najera
@@ -485,8 +544,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpa
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h	2026-04-22 13:34:34.637970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_QUANTIZED_SET_H_INCLUDED
  
@@ -496,41 +555,9 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGImpa
  */
  /*
  This source file is part of GIMPACT Library.
-diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp	2018-07-16 12:04:12.000000000 +0200
-@@ -1,5 +1,5 @@
- /*! \file btGenericPoolAllocator.cpp
--\author Francisco Leon Najera. email projectileman@yahoo.com
-+\author Francisco Len Nßjera. email projectileman@yahoo.com
- 
- General purpose allocator class
- */
-diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGenericPoolAllocator.h	2018-07-16 12:04:12.000000000 +0200
-@@ -1,5 +1,5 @@
- /*! \file btGenericPoolAllocator.h
--\author Francisco Leon Najera. email projectileman@yahoo.com
-+\author Francisco Len Nßjera. email projectileman@yahoo.com
- 
- General purpose allocator class
- */
-diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h c/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h	2018-07-16 11:55:30.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btGeometryOperations.h	2018-07-16 12:04:12.000000000 +0200
-@@ -2,7 +2,7 @@
- #define BT_BASIC_GEOMETRY_OPERATIONS_H_INCLUDED
- 
- /*! \file btGeometryOperations.h
--*\author Francisco Leon Najera
-+*\author Francisco Len Nßjera
- 
- */
- /*
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btQuantization.h c/bullet-2.77/src/BulletCollision/Gimpact/btQuantization.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btQuantization.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btQuantization.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btQuantization.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btQuantization.h	2026-04-22 13:34:34.639970000 +0300
 @@ -2,7 +2,7 @@
  #define BT_QUANTIZATION_H_INCLUDED
  
@@ -541,8 +568,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btQuant
  */
  /*
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.cpp c/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.cpp
---- a/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.cpp	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.cpp	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.cpp	2026-04-22 13:34:34.639970000 +0300
 @@ -1,5 +1,5 @@
  /*! \file btGImpactTriangleShape.h
 -\author Francisco Leon Najera
@@ -551,8 +578,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btTrian
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.h c/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/btTriangleShapeEx.h	2026-04-22 13:34:34.640970000 +0300
 @@ -1,5 +1,5 @@
  /*! \file btGImpactShape.h
 -\author Francisco Leon Najera
@@ -561,8 +588,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/btTrian
  /*
  This source file is part of GIMPACT Library.
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_array.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_array.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_array.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_array.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_array.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_array.h	2026-04-22 13:34:34.640970000 +0300
 @@ -1,7 +1,7 @@
  #ifndef GIM_ARRAY_H_INCLUDED
  #define GIM_ARRAY_H_INCLUDED
@@ -573,8 +600,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_arr
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_basic_geometry_operations.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_basic_geometry_operations.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_basic_geometry_operations.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_basic_geometry_operations.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_basic_geometry_operations.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_basic_geometry_operations.h	2026-04-22 13:34:34.640970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_BASIC_GEOMETRY_OPERATIONS_H_INCLUDED
  
@@ -585,8 +612,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_bas
  
  */
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_bitset.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_bitset.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_bitset.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_bitset.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_bitset.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_bitset.h	2026-04-22 13:34:34.640970000 +0300
 @@ -1,7 +1,7 @@
  #ifndef GIM_BITSET_H_INCLUDED
  #define GIM_BITSET_H_INCLUDED
@@ -597,8 +624,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_bit
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_box_collision.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_box_collision.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_box_collision.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_box_collision.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_box_collision.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_box_collision.h	2026-04-22 13:34:34.641970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_BOX_COLLISION_H_INCLUDED
  
@@ -609,8 +636,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_box
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_box_set.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_box_set.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_box_set.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_box_set.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_box_set.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_box_set.h	2026-04-22 13:34:34.641970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_BOX_SET_H_INCLUDED
  
@@ -621,8 +648,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_box
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_clip_polygon.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_clip_polygon.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_clip_polygon.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_clip_polygon.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_clip_polygon.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_clip_polygon.h	2026-04-22 13:34:34.641970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_CLIP_POLYGON_H_INCLUDED
  
@@ -633,8 +660,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_cli
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_contact.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_contact.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_contact.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_contact.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_contact.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_contact.h	2026-04-22 13:34:34.641970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_CONTACT_H_INCLUDED
  
@@ -644,21 +671,9 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_con
  */
  /*
  -----------------------------------------------------------------------------
-diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h	2018-07-16 12:04:12.000000000 +0200
-@@ -2,7 +2,7 @@
- #define GIM_GEOM_TYPES_H_INCLUDED
- 
- /*! \file gim_geom_types.h
--\author Francisco Leon Najera
-+\author Francisco Len Nßjera
- */
- /*
- -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_geometry.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_geometry.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_geometry.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_geometry.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_geometry.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_geometry.h	2026-04-22 13:34:34.641970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_GEOMETRY_H_INCLUDED
  
@@ -668,9 +683,21 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_geo
  */
  /*
  -----------------------------------------------------------------------------
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_geom_types.h	2026-04-22 13:34:34.641970000 +0300
+@@ -2,7 +2,7 @@
+ #define GIM_GEOM_TYPES_H_INCLUDED
+ 
+ /*! \file gim_geom_types.h
+-\author Francisco Leon Najera
++\author Francisco Len Nßjera
+ */
+ /*
+ -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_hash_table.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_hash_table.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_hash_table.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_hash_table.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_hash_table.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_hash_table.h	2026-04-22 13:34:34.642970000 +0300
 @@ -1,7 +1,7 @@
  #ifndef GIM_HASH_TABLE_H_INCLUDED
  #define GIM_HASH_TABLE_H_INCLUDED
@@ -681,8 +708,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_has
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_linear_math.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_linear_math.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_linear_math.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_linear_math.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_linear_math.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_linear_math.h	2026-04-22 13:34:34.642970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_LINEAR_H_INCLUDED
  
@@ -693,8 +720,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_lin
  */
  /*
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_math.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_math.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_math.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_math.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_math.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_math.h	2026-04-22 13:34:34.642970000 +0300
 @@ -1,7 +1,7 @@
  #ifndef GIM_MATH_H_INCLUDED
  #define GIM_MATH_H_INCLUDED
@@ -705,8 +732,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_mat
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_memory.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_memory.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_memory.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_memory.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_memory.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_memory.h	2026-04-22 13:34:34.642970000 +0300
 @@ -1,7 +1,7 @@
  #ifndef GIM_MEMORY_H_INCLUDED
  #define GIM_MEMORY_H_INCLUDED
@@ -717,8 +744,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_mem
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_radixsort.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_radixsort.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_radixsort.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_radixsort.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_radixsort.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_radixsort.h	2026-04-22 13:34:34.642970000 +0300
 @@ -1,7 +1,7 @@
  #ifndef GIM_RADIXSORT_H_INCLUDED
  #define GIM_RADIXSORT_H_INCLUDED
@@ -729,8 +756,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_rad
  Avaliable on http://www.stereopsis.com/radix.html
  */
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.cpp c/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.cpp
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.cpp	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.cpp	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.cpp	2026-04-22 13:34:34.643970000 +0300
 @@ -1,6 +1,6 @@
  
  /*! \file gim_tri_collision.h
@@ -740,8 +767,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.h c/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.h
---- a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.h	2010-08-10 12:18:14.000000000 +0300
++++ c/bullet-2.77/src/BulletCollision/Gimpact/gim_tri_collision.h	2026-04-22 13:34:34.643970000 +0300
 @@ -2,7 +2,7 @@
  #define GIM_TRI_COLLISION_H_INCLUDED
  
@@ -752,8 +779,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/Gimpact/gim_tri
  /*
  -----------------------------------------------------------------------------
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/CMakeLists.txt c/bullet-2.77/src/BulletDynamics/CMakeLists.txt
---- a/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2010-09-21 16:14:12.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2026-04-22 13:34:34.646970000 +0300
 @@ -79,8 +79,6 @@
  
  
@@ -778,8 +805,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/CMakeLists.txt c
  		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h	2010-08-24 14:12:34.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h	2026-04-22 13:34:34.648973000 +0300
 @@ -35,7 +35,7 @@
  	
  
@@ -790,8 +817,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
  	btScalar	m_timeStep;
  	btScalar	m_restitution;
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp	2018-07-16 12:04:12.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp	2010-07-30 15:57:50.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp	2026-04-22 13:34:34.649970000 +0300
 @@ -773,23 +773,17 @@
  	for (i=0; i<3; i++) info->m_J1angularAxis[s2+i] = tmpA[i];
      for (i=0; i<3; i++) info->m_J2angularAxis[s2+i] = -tmpB[i];
@@ -827,8 +854,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
  	// rotational axis, the angular velocity of the two bodies perpendicular to
  	// the hinge axis should be equal. thus the constraint equations are
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp	2010-08-24 14:12:34.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp	2026-04-22 13:34:34.650970000 +0300
 @@ -159,7 +159,6 @@
  			info->m_upperLimit[j*info->rowskip] = impulseClamp;
  		}
@@ -838,8 +865,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
  }
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp	2010-09-07 17:38:16.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp	2026-04-22 13:34:34.650970000 +0300
 @@ -852,7 +852,6 @@
  					btAssert(info2.rowskip*sizeof(btScalar)== sizeof(btSolverConstraint));
  					info2.m_constraintError = &currentConstraintRow->m_rhs;
@@ -869,8 +896,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
 -}
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h	2010-09-07 17:38:16.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h	2026-04-22 13:34:34.650970000 +0300
 @@ -81,8 +81,12 @@
  	void	resolveSingleConstraintRowLowerLimitSIMD(btRigidBody& body1,btRigidBody& body2,const btSolverConstraint& contactConstraint);
  		
@@ -887,8 +914,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
  	virtual btScalar solveGroupCacheFriendlyFinish(btCollisionObject** bodies ,int numBodies,btPersistentManifold** manifoldPtr, int numManifolds,btTypedConstraint** constraints,int numConstraints,const btContactSolverInfo& infoGlobal,btIDebugDraw* debugDrawer,btStackAlloc* stackAlloc);
  	btScalar solveSingleIteration(int iteration, btCollisionObject** bodies ,int numBodies,btPersistentManifold** manifoldPtr, int numManifolds,btTypedConstraint** constraints,int numConstraints,const btContactSolverInfo& infoGlobal,btIDebugDraw* debugDrawer,btStackAlloc* stackAlloc);
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp	2010-09-07 17:38:16.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp	2026-04-22 13:34:34.651970000 +0300
 @@ -133,10 +133,4 @@
  	return "btTypedConstraintData";
  }
@@ -901,8 +928,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
 -}
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h
---- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h	2010-09-16 14:04:42.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h	2026-04-22 13:34:34.651970000 +0300
 @@ -53,13 +53,7 @@
  class btTypedConstraint : public btTypedObject
  {
@@ -977,8 +1004,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver
  		return (diffLo < diffHi) ? (angleInRadians - SIMD_2_PI) : angleInRadians;
  	}
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h c/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h
---- a/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h	2010-09-07 17:38:16.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h	2026-04-22 13:34:34.653830000 +0300
 @@ -27,8 +27,12 @@
  {
  protected:
@@ -995,8 +1022,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btActio
  public:
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp
---- a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2010-08-15 13:45:56.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2026-04-22 13:34:34.653970000 +0300
 @@ -52,7 +52,7 @@
  :btDynamicsWorld(dispatcher,pairCache,collisionConfiguration),
  m_constraintSolver(constraintSolver),
@@ -1016,8 +1043,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscr
  			int len = colObj->calculateSerializeBufferSize();
  			btChunk* chunk = serializer->allocate(len,1);
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h c/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h
---- a/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h	2010-08-15 13:45:56.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h	2026-04-22 13:34:34.653970000 +0300
 @@ -188,13 +188,13 @@
  	///but a rigidbody is derived from btCollisionObject, so we can safely perform an upcast
  	static const btRigidBody*	upcast(const btCollisionObject* colObj)
@@ -1035,8 +1062,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btRigid
  		return 0;
  	}
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp c/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp
---- a/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp	2018-07-16 11:55:31.000000000 +0200
-+++ c/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp	2018-07-16 12:04:13.000000000 +0200
+--- a/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp	2010-09-07 17:38:16.000000000 +0300
++++ c/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp	2026-04-22 13:34:34.654970000 +0300
 @@ -22,12 +22,7 @@
  #include "LinearMath/btIDebugDraw.h"
  #include "BulletDynamics/ConstraintSolver/btContactConstraint.h"
@@ -1051,9 +1078,10 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Vehicle/btRaycas
  
  btRaycastVehicle::btRaycastVehicle(const btVehicleTuning& tuning,btRigidBody* chassis,	btVehicleRaycaster* raycaster )
  :m_vehicleRaycaster(raycaster),
+Only in a/bullet-2.77/src/BulletMultiThreaded: out
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h c/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h
---- a/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h	2018-07-16 11:55:32.000000000 +0200
-+++ c/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h	2018-07-16 12:09:04.000000000 +0200
+--- a/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h	2009-08-30 21:35:08.000000000 +0300
++++ c/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h	2026-04-22 13:34:34.695971000 +0300
 @@ -40,7 +40,7 @@
  	const T&				operator()(int c,int r) const			{ return(store[index(c,r)]); }
  	btAlignedObjectArray<T>	store;
@@ -1251,31 +1279,17 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletSoftBody/btSoftBodyIntern
  		btSoftBody*		psb[2];
  		btScalar		mrg;
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/CMakeLists.txt c/bullet-2.77/src/CMakeLists.txt
---- a/bullet-2.77/src/CMakeLists.txt	2018-07-16 11:55:32.000000000 +0200
-+++ c/bullet-2.77/src/CMakeLists.txt	2018-07-16 12:14:15.000000000 +0200
+--- a/bullet-2.77/src/CMakeLists.txt	2010-09-07 16:40:18.000000000 +0300
++++ c/bullet-2.77/src/CMakeLists.txt	2026-04-22 13:34:34.696971000 +0300
 @@ -1,4 +1,4 @@
 -SUBDIRS( MiniCL BulletMultiThreaded BulletSoftBody BulletCollision BulletDynamics LinearMath )
 +SUBDIRS( MiniCL BulletSoftBody BulletCollision BulletDynamics LinearMath )
  
  IF(INSTALL_LIBS)
  	#INSTALL of other files requires CMake 2.6
-diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/CMakeLists.txt c/bullet-2.77/src/LinearMath/CMakeLists.txt
---- a/bullet-2.77/src/LinearMath/CMakeLists.txt	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/CMakeLists.txt	2018-07-16 12:04:14.000000000 +0200
-@@ -49,9 +49,7 @@
- 				INSTALL(TARGETS LinearMath DESTINATION .)
- 			ELSE (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
- 				INSTALL(TARGETS LinearMath DESTINATION lib${LIB_SUFFIX})
--				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
--DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.h"  PATTERN
--".svn" EXCLUDE PATTERN "CMakeFiles" EXCLUDE)
-+				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include FILES_MATCHING PATTERN "*.h")
- 			ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
- 		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
- 
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp c/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp
---- a/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp	2018-07-16 11:55:32.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp	2018-07-16 12:04:14.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp	2010-09-20 15:33:26.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp	2026-04-22 13:34:34.697971000 +0300
 @@ -160,8 +160,22 @@
  void*	btAlignedAllocInternal	(size_t size, int alignment)
  {
@@ -1318,20 +1332,71 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btAlignedAllocator.c
  
  #endif //BT_DEBUG_MEMORY_ALLOCATIONS
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btIDebugDraw.h c/bullet-2.77/src/LinearMath/btIDebugDraw.h
---- a/bullet-2.77/src/LinearMath/btIDebugDraw.h	2018-07-16 11:55:32.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btIDebugDraw.h	2018-07-16 12:04:14.000000000 +0200
-@@ -59,7 +59,7 @@
+--- a/bullet-2.77/src/LinearMath/btIDebugDraw.h	2010-07-22 13:24:04.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btIDebugDraw.h	2026-04-22 13:34:34.698971000 +0300
+@@ -59,31 +59,41 @@
  		drawLine (from, to, fromColor);
  	}
  
 -	virtual void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color)
-+	void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color)
++	void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color_)
  	{
++		btVector3 color(1,1,1);
++
  		btVector3 start = transform.getOrigin();
  
+ 		const btVector3 xoffs = transform.getBasis() * btVector3(radius,0,0);
+ 		const btVector3 yoffs = transform.getBasis() * btVector3(0,radius,0);
+ 		const btVector3 zoffs = transform.getBasis() * btVector3(0,0,radius);
+ 
+-		// XY 
+-		drawLine(start-xoffs, start+yoffs, color);
+-		drawLine(start+yoffs, start+xoffs, color);
+-		drawLine(start+xoffs, start-yoffs, color);
+-		drawLine(start-yoffs, start-xoffs, color);
+-
+-		// XZ
+-		drawLine(start-xoffs, start+zoffs, color);
+-		drawLine(start+zoffs, start+xoffs, color);
+-		drawLine(start+xoffs, start-zoffs, color);
+-		drawLine(start-zoffs, start-xoffs, color);
+-
+-		// YZ
+-		drawLine(start-yoffs, start+zoffs, color);
+-		drawLine(start+zoffs, start+yoffs, color);
+-		drawLine(start+yoffs, start-zoffs, color);
+-		drawLine(start-zoffs, start-yoffs, color);
++		int rings = 12;
++		int sectors = 12;
++
++        float R = 1./(float)(rings-1);
++        float S = 1./(float)(sectors-1);
++		for(int r = 0; r < rings; r++) {
++			for(int s = 0; s < sectors; s++) {
++                float y = sinf( -M_PI_2 + M_PI * r * R );
++                float x = cosf(2*M_PI * s * S) * sinf( M_PI * r * R );
++                float z = sinf(2*M_PI * s * S) * sinf( M_PI * r * R );
++
++                int r1 = r < (rings-1) ? r+1 : r;
++                int s1 = s < (sectors-1) ? s+1 : s;
++                float y1 = sinf( -M_PI_2 + M_PI * r * R );
++                float x1 = cosf(2*M_PI * s1 * S) * sinf( M_PI * r * R );
++                float z1 = sinf(2*M_PI * s1 * S) * sinf( M_PI * r * R );
++
++                float y2 = sinf( -M_PI_2 + M_PI * r1 * R );
++                float x2 = cosf(2*M_PI * s1 * S) * sinf( M_PI * r1 * R );
++                float z2 = sinf(2*M_PI * s1 * S) * sinf( M_PI * r1 * R );
++
++                drawLine(start+btVector3(x,y,z)*radius, start+btVector3(x1,y1,z1)*radius, color);
++                drawLine(start+btVector3(x1,y1,z1)*radius, start+btVector3(x2,y2,z2)*radius, color);
++            }
++        }
+ 	}
+ 	
+ 	virtual void	drawSphere (const btVector3& p, btScalar radius, const btVector3& color)
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.cpp c/bullet-2.77/src/LinearMath/btQuickprof.cpp
---- a/bullet-2.77/src/LinearMath/btQuickprof.cpp	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btQuickprof.cpp	2018-07-16 12:04:14.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btQuickprof.cpp	2010-09-17 17:24:52.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btQuickprof.cpp	2026-04-22 13:34:34.699971000 +0300
 @@ -15,230 +15,11 @@
  
  #include "btQuickprof.h"
@@ -1572,8 +1637,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.cpp c/bu
  
 -#endif //BT_NO_PROFILE
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.h c/bullet-2.77/src/LinearMath/btQuickprof.h
---- a/bullet-2.77/src/LinearMath/btQuickprof.h	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btQuickprof.h	2018-07-16 12:04:14.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btQuickprof.h	2010-09-17 17:24:52.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btQuickprof.h	2026-04-22 13:34:34.705971000 +0300
 @@ -18,7 +18,7 @@
  //To disable built-in profiling, please comment out next line
  //#define BT_NO_PROFILE 1
@@ -1630,6 +1695,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.h c/bull
 -
 -	btClock(const btClock& other);
 -	btClock& operator=(const btClock& other);
+-
+-	~btClock();
 +	btClock()
 +	{
 +#ifdef USE_WINDOWS_TIMERS
@@ -1637,8 +1704,7 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.h c/bull
 +#endif
 +		reset();
 +	}
- 
--	~btClock();
++
 +	~btClock()
 +	{
 +	}
@@ -1803,8 +1869,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.h c/bull
  
  #endif //USE_BT_CLOCK
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btScalar.h c/bullet-2.77/src/LinearMath/btScalar.h
---- a/bullet-2.77/src/LinearMath/btScalar.h	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btScalar.h	2018-07-16 12:04:14.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btScalar.h	2010-08-10 12:19:44.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btScalar.h	2026-04-22 13:34:34.705971000 +0300
 @@ -253,7 +253,7 @@
  	tempf = y;
  	*tfptr = (0xbfcdd90a - *tfptr)>>1; /* estimate of 1/sqrt(y) */
@@ -1815,8 +1881,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btScalar.h c/bullet-
  	x = (btScalar(1.5)*x)-(x*x)*(x*z);
  	x = (btScalar(1.5)*x)-(x*x)*(x*z);
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btSerializer.h c/bullet-2.77/src/LinearMath/btSerializer.h
---- a/bullet-2.77/src/LinearMath/btSerializer.h	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btSerializer.h	2018-07-16 12:30:46.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btSerializer.h	2010-08-24 13:49:42.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btSerializer.h	2026-04-22 13:34:34.706971000 +0300
 @@ -4,8 +4,8 @@
  
  This software is provided 'as-is', without any express or implied warranty.
@@ -2120,8 +2186,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btSerializer.h c/bul
  			return chunk;
  		}
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btTransformUtil.h c/bullet-2.77/src/LinearMath/btTransformUtil.h
---- a/bullet-2.77/src/LinearMath/btTransformUtil.h	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btTransformUtil.h	2018-07-16 12:51:40.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btTransformUtil.h	2010-09-07 17:38:16.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btTransformUtil.h	2026-04-22 13:34:34.706971000 +0300
 @@ -3,8 +3,8 @@
  
  This software is provided 'as-is', without any express or implied warranty.
@@ -2220,8 +2286,8 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btTransformUtil.h c/
  			const btVector3& toPosB = transB.getOrigin();
  			btQuaternion toOrnA = transA.getRotation();
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btVector3.h c/bullet-2.77/src/LinearMath/btVector3.h
---- a/bullet-2.77/src/LinearMath/btVector3.h	2018-07-16 11:55:33.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btVector3.h	2018-07-16 12:04:14.000000000 +0200
+--- a/bullet-2.77/src/LinearMath/btVector3.h	2010-09-17 17:24:52.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/btVector3.h	2026-04-22 13:34:34.706971000 +0300
 @@ -148,19 +148,6 @@
     * This is symantically treating the vector like a point */
  	SIMD_FORCE_INLINE btScalar distance(const btVector3& v) const;
@@ -2263,4 +2329,18 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btVector3.h c/bullet
 +SIMD_FORCE_INLINE btVector3 btVector3::rotate( const btVector3& wAxis, const btScalar angle )
  {
  	// wAxis must be a unit lenght vector
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/CMakeLists.txt c/bullet-2.77/src/LinearMath/CMakeLists.txt
+--- a/bullet-2.77/src/LinearMath/CMakeLists.txt	2010-09-07 16:40:18.000000000 +0300
++++ c/bullet-2.77/src/LinearMath/CMakeLists.txt	2026-04-22 13:34:34.697971000 +0300
+@@ -49,9 +49,7 @@
+ 				INSTALL(TARGETS LinearMath DESTINATION .)
+ 			ELSE (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 				INSTALL(TARGETS LinearMath DESTINATION lib${LIB_SUFFIX})
+-				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.h"  PATTERN
+-".svn" EXCLUDE PATTERN "CMakeFiles" EXCLUDE)
++				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include FILES_MATCHING PATTERN "*.h")
+ 			ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
  
