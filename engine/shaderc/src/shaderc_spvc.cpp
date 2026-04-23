@@ -698,6 +698,7 @@ namespace dmShaderc
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_PLATFORM, SPVC_MSL_PLATFORM_MACOS);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, SPVC_TRUE);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_EMULATE_CUBEMAP_ARRAY, SPVC_FALSE);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_FLIP_VERTEX_Y, context->m_Stage == SHADER_STAGE_VERTEX ? SPVC_TRUE : SPVC_FALSE);
 
             // We need to extract this for metal + compute, for vulkan it is embedded in the spirv binary
             if (context->m_Stage == SHADER_STAGE_COMPUTE)

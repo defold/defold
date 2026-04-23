@@ -1023,12 +1023,20 @@ namespace dmGraphics
         MetalFrameResource& frame = GetCurrentFrameResource(context);
         assert(!frame.m_InFlight);
 
-        frame.m_AutoReleasePool = NS::AutoreleasePool::alloc()->init();
+        frame.m_AutoReleasePool = 0;
         frame.m_Drawable = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
+        if (frame.m_Drawable)
+        {
+            frame.m_Drawable->retain();
+        }
         frame.m_InFlight = 1;
         context->m_FrameBegun = 1;
 
         frame.m_CommandBuffer = context->m_CommandQueue->commandBuffer();
+        if (frame.m_CommandBuffer)
+        {
+            frame.m_CommandBuffer->retain();
+        }
         frame.m_ConstantScratchBuffer.Rewind();
         frame.m_ArgumentBufferPool.Rewind();
 
@@ -1052,6 +1060,16 @@ namespace dmGraphics
         MetalFrameResource& frame = context->m_FrameResources[frame_index];
 
         FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
+
+        if (frame.m_CommandBuffer)
+        {
+            frame.m_CommandBuffer->release();
+        }
+
+        if (frame.m_Drawable)
+        {
+            frame.m_Drawable->release();
+        }
 
         frame.m_CommandBuffer = 0;
         frame.m_Drawable = 0;
@@ -1081,9 +1099,6 @@ namespace dmGraphics
         });
 
         frame.m_CommandBuffer->commit();
-
-        frame.m_AutoReleasePool->release();
-        frame.m_AutoReleasePool = 0;
 
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun = 0;
@@ -1696,6 +1711,31 @@ namespace dmGraphics
         return blend_factors[(int)factor];
     }
 
+    static inline MTL::BlendOperation GetMetalBlendOperation(BlendEquation equation)
+    {
+        switch (equation)
+        {
+            case BLEND_EQUATION_ADD:              return MTL::BlendOperationAdd;
+            case BLEND_EQUATION_SUBTRACT:         return MTL::BlendOperationSubtract;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return MTL::BlendOperationReverseSubtract;
+            case BLEND_EQUATION_MIN:              return MTL::BlendOperationMin;
+            case BLEND_EQUATION_MAX:              return MTL::BlendOperationMax;
+            default: break;
+        }
+
+        return MTL::BlendOperationAdd;
+    }
+
+    static inline MTL::ColorWriteMask GetMetalColorWriteMask(uint8_t write_mask)
+    {
+        MTL::ColorWriteMask metal_write_mask = MTL::ColorWriteMaskNone;
+        metal_write_mask |= (write_mask & DM_GRAPHICS_STATE_WRITE_R) ? MTL::ColorWriteMaskRed   : MTL::ColorWriteMaskNone;
+        metal_write_mask |= (write_mask & DM_GRAPHICS_STATE_WRITE_G) ? MTL::ColorWriteMaskGreen : MTL::ColorWriteMaskNone;
+        metal_write_mask |= (write_mask & DM_GRAPHICS_STATE_WRITE_B) ? MTL::ColorWriteMaskBlue  : MTL::ColorWriteMaskNone;
+        metal_write_mask |= (write_mask & DM_GRAPHICS_STATE_WRITE_A) ? MTL::ColorWriteMaskAlpha : MTL::ColorWriteMaskNone;
+        return metal_write_mask;
+    }
+
     static inline MTL::CompareFunction GetMetalDepthTestFunc(CompareFunc func)
     {
         const MTL::CompareFunction compare_funcs[] = {
@@ -1753,12 +1793,17 @@ namespace dmGraphics
         {
             MTL::RenderPipelineColorAttachmentDescriptor* colorAttachment = pipeline_desc->colorAttachments()->object(i);
             colorAttachment->setPixelFormat(rt->m_ColorFormat[i]);
+            colorAttachment->setWriteMask(GetMetalColorWriteMask(pipeline_state.m_WriteColorMask));
             colorAttachment->setBlendingEnabled(pipeline_state.m_BlendEnabled);
 
             if (pipeline_state.m_BlendEnabled)
             {
                 colorAttachment->setSourceRGBBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactor));
                 colorAttachment->setDestinationRGBBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactor));
+                colorAttachment->setRgbBlendOperation(GetMetalBlendOperation((BlendEquation) pipeline_state.m_BlendEquationColor));
+                colorAttachment->setSourceAlphaBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactor));
+                colorAttachment->setDestinationAlphaBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactor));
+                colorAttachment->setAlphaBlendOperation(GetMetalBlendOperation((BlendEquation) pipeline_state.m_BlendEquationAlpha));
             }
         }
         pipeline_desc->setDepthAttachmentPixelFormat(rt->m_DepthStencilFormat);
@@ -2165,22 +2210,6 @@ namespace dmGraphics
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
-        // If the culling, or viewport has changed, make sure to flip the
-        // culling flag if we are rendering to an offscreen render target.
-        // This is needed because those are rendered with a negative viewport
-        // which means that the face direction is inverted.
-        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
-        {
-            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
-            }
-        }
-
         MetalPipeline* pipeline = GetOrCreatePipeline(context, pipeline_state_draw,
             context->m_CurrentProgram, current_rt, vx_declarations, num_vx_buffers);
         assert(pipeline);
@@ -2198,13 +2227,13 @@ namespace dmGraphics
 
         if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            metal_vp.originY = context->m_MainViewport.m_Y;
-            metal_vp.height  = context->m_MainViewport.m_H;
+            metal_vp.originY = current_rt->m_ColorTextureParams[0].m_Height - context->m_MainViewport.m_Y;
+            metal_vp.height  = -(double) context->m_MainViewport.m_H;
         }
         else
         {
-            metal_vp.originY = current_rt->m_ColorTextureParams[0].m_Height - context->m_MainViewport.m_Y;
-            metal_vp.height  = -(double) context->m_MainViewport.m_H;
+            metal_vp.originY = context->m_MainViewport.m_Y;
+            metal_vp.height  = context->m_MainViewport.m_H;
         }
 
         if (context->m_ViewportChanged)
@@ -2225,14 +2254,27 @@ namespace dmGraphics
         }
 
         MTL::CullMode cull_mode = MTL::CullModeNone;
+        PipelineState pipeline_state_cull = pipeline_state_draw;
 
-        if (pipeline_state_draw.m_CullFaceEnabled)
+        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
+            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
+            {
+                pipeline_state_cull.m_CullFaceType = FACE_TYPE_FRONT;
+            }
+            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
+            {
+                pipeline_state_cull.m_CullFaceType = FACE_TYPE_BACK;
+            }
+        }
+
+        if (pipeline_state_cull.m_CullFaceEnabled)
+        {
+            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
             {
                 cull_mode = MTL::CullModeBack;
             }
-            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
+            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
             {
                 cull_mode = MTL::CullModeFront;
             }
@@ -2369,8 +2411,6 @@ namespace dmGraphics
             dmSnPrintf(error_buffer, error_buffer_size, "%s", error->localizedDescription()->utf8String());
             return 0;
         }
-
-        dmLogInfo("Compiled shader: %s", src);
 
         MetalShaderModule* module = new MetalShaderModule;
         module->m_Library = library;
@@ -2705,8 +2745,30 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         assert(context);
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void MetalSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        assert(context);
+        context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void MetalSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        MetalContext* context = (MetalContext*) _context;
+        assert(context);
+        context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void MetalSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
@@ -2989,7 +3051,52 @@ namespace dmGraphics
 
     static void MetalSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        MetalContext* context = (MetalContext*)_context;
+        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        if (!rt)
+        {
+            return;
+        }
 
+        // The backbuffer size is owned by the drawable/layer.
+        if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            return;
+        }
+
+        if (rt->m_IsBound)
+        {
+            EndRenderPass(context);
+        }
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            rt->m_ColorTextureParams[i].m_Width  = width;
+            rt->m_ColorTextureParams[i].m_Height = height;
+
+            if (rt->m_TextureColor[i])
+            {
+                MetalTexture* texture_color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[i]);
+                if (texture_color)
+                {
+                    CreateMetalTexture(context, texture_color, rt->m_ColorTextureParams[i], MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+                }
+            }
+        }
+
+        rt->m_DepthStencilTextureParams.m_Width  = width;
+        rt->m_DepthStencilTextureParams.m_Height = height;
+
+        if (rt->m_TextureDepthStencil)
+        {
+            MetalTexture* depth_stencil_texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            if (depth_stencil_texture)
+            {
+                CreateMetalDepthStencilTexture(context, depth_stencil_texture, rt->m_DepthStencilTextureParams, MTL::TextureUsageRenderTarget);
+            }
+        }
+
+        context->m_ViewportChanged = 1;
     }
 
     static bool MetalIsTextureFormatSupported(HContext _context, TextureFormat format)
@@ -3274,10 +3381,12 @@ namespace dmGraphics
             case TEXTURE_TYPE_IMAGE_2D:
             case TEXTURE_TYPE_TEXTURE_2D:
                 desc->setTextureType(MTL::TextureType2D);
+                tex_depth = 1;
                 break;
             case TEXTURE_TYPE_2D_ARRAY:
             case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
                 desc->setTextureType(MTL::TextureType2DArray);
+                tex_depth = 1;
                 break;
             case TEXTURE_TYPE_3D:
             case TEXTURE_TYPE_IMAGE_3D:
@@ -3287,6 +3396,7 @@ namespace dmGraphics
             case TEXTURE_TYPE_CUBE_MAP:
             case TEXTURE_TYPE_TEXTURE_CUBE:
                 desc->setTextureType(MTL::TextureTypeCube);
+                tex_depth = 1;
                 tex_array_length = 1;
                 break;
             default:
@@ -3316,7 +3426,7 @@ namespace dmGraphics
 
         texture->m_Base.m_Width       = params.m_Width;
         texture->m_Base.m_Height      = params.m_Height;
-        texture->m_Base.m_Depth       = params.m_Depth;
+        texture->m_Base.m_Depth       = tex_depth;
         texture->m_Base.m_Format      = params.m_Format;
         texture->m_Base.m_MipMapCount = tex_mip_count;
         texture->m_LayerCount         = tex_layer_count;
