@@ -1170,6 +1170,14 @@ bail:
         VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
     };
 
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX
+    };
+
     static const VkStencilOp g_vk_stencil_ops[] = {
         VK_STENCIL_OP_KEEP,
         VK_STENCIL_OP_ZERO,
@@ -1323,10 +1331,10 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationColor];
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactorAlpha];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;

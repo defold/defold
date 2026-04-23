@@ -234,7 +234,7 @@ namespace dmGraphics
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
 
-        uint32_t            m_ContextFeatures : 3;
+        uint32_t            m_ContextFeatures : 9;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;
 
