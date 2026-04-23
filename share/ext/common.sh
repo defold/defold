@@ -181,8 +181,8 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
-        # Cross compiling protobuf for js-web with --host doesn't work
+    if [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
+        # Cross compiling protobuf for web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
     else
@@ -213,76 +213,6 @@ function windows_path_to_posix() {
 
 function path_to_posix() {
     echo "$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
-}
-
-function cmi_setup_vs2019_env() {
-    # from https://stackoverflow.com/a/3272301
-
-    # These lines will be installation-dependent.
-    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\'
-    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\10\'
-    export WindowsLibPath='C:\Program Files (x86)\Windows'
-    export FrameworkDir32='C:\Windows\Microsoft.NET\Framework\'
-    export FrameworkDir64='C:\Windows\Microsoft.NET\Framework64\'
-    export UCRTVersion=10.0.19041.0
-    export FrameworkVersion=v4.0.30319
-    export VCToolsVersion=14.29.30037
-
-    # The following should be largely installation-independent.
-    export VCINSTALLDIR='${VSINSTALLDIR}VC\'
-    export DevEnvDir='${VSINSTALLDIR}Common7\IDE\'
-
-    local platform=$1
-    shift
-
-    arch="x64"
-    export FrameworkDir=${FrameworkDir64}
-    if [ "$platform" == "win32" ]; then
-        arch="x86"
-        export FrameworkDir=${FrameworkDir32}
-    fi
-
-    export INCLUDE="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\include;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\include;${WindowsSdkDir}\\include\\${UCRTVersion}\\ucrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\shared;${WindowsSdkDir}\\include\\${UCRTVersion}\\um;${WindowsSdkDir}\\include\\${UCRTVersion}\\winrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\cppwinrt"
-    export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\${arch}"
-    export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion}"
-
-    c_VSINSTALLDIR="$VSINSTALLDIR"
-    c_WindowsSdkDir="$WindowsSdkDir"
-    c_FrameworkDir64="$FrameworkDir"
-    PATHSEP=";"
-
-    local pathtype=$1
-    shift
-
-    if [ "$pathtype" == "bash" ]; then
-        c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
-        c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
-        c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
-        PATHSEP=":"
-    fi
-
-    echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
-    echo AFTER c_VSINSTALLDIR == $c_VSINSTALLDIR
-
-    TMPPATH="${c_VSINSTALLDIR}Common7/IDE/Extensions/Microsoft/IntelliCode/CLI"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/devinit"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/Bin"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_FrameworkDir64}${FrameworkVersion}"
-
-    export PATH="$TMPPATH${PATHSEP}${PATH}"
 }
 
 function cmi_setup_cc() {
@@ -440,7 +370,7 @@ function cmi_setup_cc() {
             export RANLIB=i586-mingw32msvc-ranlib
             ;;
 
-        js-web|wasm-web)
+        wasm-web)
             export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
             export CC=${EMSCRIPTEN_BIN_DIR}/emcc
             export CXX=${EMSCRIPTEN_BIN_DIR}/em++
@@ -486,7 +416,7 @@ function cmi() {
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web|wasm_pthread-web)
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 

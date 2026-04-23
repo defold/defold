@@ -135,4 +135,16 @@ public interface IResource {
      * @return True if resource can be cached. Defaults to true
      */
     boolean isCacheable();
+
+    /**
+     * Disable minification of an output resource path
+     * @return This instance (for function chaining)
+     */
+    IResource disableMinifyPath();
+
+    /**
+     * Check if this resource path should be minified
+     * @return True if resource output path should be minified
+     */
+    boolean isMinifyPath();
 }

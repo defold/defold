@@ -55,7 +55,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
+    use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
     if use_profile_null:
         local_libs += ['profile_null']
     else:
@@ -118,7 +118,7 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
-    use_profile_null = bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
+    use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5')
 
     skip_run = False
     if 'web' in bld.env['PLATFORM']:
@@ -128,16 +128,16 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         skip_http_run = True
 
-    skip_ssdp = False
-    if 'win32' in bld.env['PLATFORM'] or sdk.is_wsl():
-        skip_ssdp = True
-
     skip_http = False
     skip_threads = False
-    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+    if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
         skip_http = True
-        if bld.env.PLATFORM in ('js-web', 'wasm-web'):
+        if bld.env.PLATFORM == 'wasm-web':
             skip_threads = True
+
+    if 'android' in bld.env['PLATFORM']:
+        # MAWE: test_httpclient etc still has a lot of issues
+        skip_http = True
 
     if _is_mac_ci():
         skip_http = True
@@ -180,15 +180,15 @@ def build(bld):
 
     if not skip_http:
         create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_httpclient', extra_libs = ['THREAD', 'dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpclient_fat_mbedtls')
+        create_test(bld, 'test_httpclient', extra_libs = ['THREAD', 'mbedtls_full'], exclude_libs = ['mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpclient_mbedtls_full')
         create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_httpserver', extra_libs = ['THREAD', 'dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpserver_fat_mbedtls')
+        create_test(bld, 'test_httpserver', extra_libs = ['THREAD', 'mbedtls_full'], exclude_libs = ['mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpserver_mbedtls_full')
         create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
                     extra_includes = ['.'], extra_defines = extra_defines)
-        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD', 'dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'],
-                    extra_includes = ['.'], extra_defines = extra_defines, target_name = 'test_connection_pool_fat_mbedtls')
+        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD', 'mbedtls_full'], exclude_libs = ['mbedtls'],
+                    extra_includes = ['.'], extra_defines = extra_defines, target_name = 'test_connection_pool_mbedtls_full')
 
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
@@ -209,8 +209,7 @@ def build(bld):
 
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_run)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
-    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
+    create_test(bld, 'test_mdns', extra_libs = ['THREAD'], skip_run = skip_run)
     if not skip_threads:
         create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
@@ -223,9 +222,8 @@ def build(bld):
     if bld.env.PLATFORM in ['arm64-linux', 'x86_64-linux']:
         create_test(bld, 'test_xdg', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_zip', extra_features = ['embed'], extra_libs = ['THREAD'], embed_source = ['data/foo.zip'])
-    create_test(bld, 'test_zlib', extra_features = ['embed'], extra_libs = ['THREAD'],
-                embed_source = ['data/foo.gz', 'data/foo.deflate'])
+    create_test(bld, 'test_zip', extra_libs = ['THREAD'])
+    create_test(bld, 'test_zlib', extra_libs = ['THREAD'])
 
     create_test(bld, 'test_lz4', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/foo.lz4'])
@@ -248,7 +246,7 @@ def build(bld):
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
-    create_test(bld, 'test_crypt', extra_libs=['dlib_fat', 'mbedtls_fat'], exclude_libs = ['dlib', 'mbedtls'], target_name = 'test_crypt_fat_mbedtls')
+    create_test(bld, 'test_crypt', extra_libs=['mbedtls_full'], exclude_libs = ['mbedtls'], target_name = 'test_crypt_mbedtls_full')
 
     if bld.env.DOTNET:
         b = bld.stlib(features= 'cs_stlib',

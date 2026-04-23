@@ -8,6 +8,7 @@ ext {
     protoFiles = [
             [dir: "../../engine/ddf/src", file: "ddf/ddf_extensions.proto"],
             [dir: "../../engine/ddf/src", file: "ddf/ddf_math.proto"],
+            [dir: "../../engine/ddf/src", file: "ddf/ddf_struct.proto"],
             [dir: "../../engine/engine/proto", file: "engine/engine_ddf.proto"],
             [dir: "../../engine/graphics/proto", file: "graphics/graphics_ddf.proto"],
             [dir: "../../engine/gameobject/proto", file: "gameobject/properties_ddf.proto"],
@@ -26,6 +27,7 @@ ext {
             [dir: "../../engine/gamesys/proto", file: "gamesys/tile_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/mesh_ddf.proto"],
             [dir: "../../engine/gamesys/proto", file: "gamesys/buffer_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/data_ddf.proto"],
             [dir: "../../engine/rig/proto", file: "rig/rig_ddf.proto"],
             [dir: "../../engine/input/proto", file: "input/input_ddf.proto"],
             [dir: "../../engine/particle/proto", file: "particle/particle_ddf.proto"],

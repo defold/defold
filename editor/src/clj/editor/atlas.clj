@@ -23,6 +23,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
@@ -164,9 +165,16 @@
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
-(g/defnk produce-image-scene
-  [_node-id image-resource order layout-size image-path->rect animation-updatable]
-  (let [path (resource/proj-path image-resource)
+(g/defnk produce-atlas-scene-info [layout-size image-path->rect]
+  {:layout-size layout-size
+   :image-path->rect image-path->rect})
+
+(g/defnk produce-animation-scene-info [atlas-scene-info updatable]
+  (assoc atlas-scene-info :updatable updatable))
+
+(g/defnk produce-image-scene [_node-id image-resource order scene-info]
+  (let [{:keys [layout-size image-path->rect updatable]} scene-info
+        path (resource/proj-path image-resource)
         rect (get image-path->rect path)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
@@ -192,7 +200,7 @@
                               :user-data {:rect rect
                                           :layout-width layout-width}
                               :passes [pass/selection]}}]
-     :updatable animation-updatable}))
+     :updatable updatable}))
 
 (defn make-animation [id images]
   (types/map->Animation {:id              id
@@ -274,16 +282,13 @@
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
-  (input image-path->rect g/Any)
   (input rename-patterns g/Str)
 
   (input child->order g/Any)
   (output order g/Any (g/fnk [_node-id child->order]
                         (child->order _node-id)))
 
-  (input animation-updatable g/Any)
-
-  (input layout-size g/Any)
+  (input scene-info g/Any)
 
   (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size pivot-x pivot-y sprite-trim-mode]
                               (with-meta
@@ -340,11 +345,9 @@
     (g/connect image-node :image-resource   atlas-node :image-resources)
     (g/connect image-node :node-outline     atlas-node :child-outlines)
     (g/connect image-node :scene            atlas-node :child-scenes)
-    (g/connect atlas-node :layout-size      image-node :layout-size)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
-    (g/connect atlas-node :image-path->rect image-node :image-path->rect)
-    (g/connect atlas-node :updatable        image-node :animation-updatable)
+    (g/connect atlas-node :scene-info       image-node :scene-info)
     (g/connect atlas-node :rename-patterns  image-node :rename-patterns)))
 
 (defn- attach-image-to-animation [animation-node image-node]
@@ -357,9 +360,7 @@
     (g/connect image-node     :node-outline     animation-node :child-outlines)
     (g/connect image-node     :scene            animation-node :child-scenes)
     (g/connect animation-node :child->order     image-node     :child->order)
-    (g/connect animation-node :image-path->rect image-node     :image-path->rect)
-    (g/connect animation-node :layout-size      image-node     :layout-size)
-    (g/connect animation-node :updatable        image-node     :animation-updatable)
+    (g/connect animation-node :scene-info       image-node     :scene-info)
     (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
 
 (defn- attach-animation-to-atlas [atlas-node animation-node]
@@ -376,8 +377,7 @@
     (g/connect atlas-node     :anim-data        animation-node :anim-data)
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
-    (g/connect atlas-node     :layout-size      animation-node :layout-size)
-    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)
+    (g/connect atlas-node     :scene-info       animation-node :atlas-scene-info)
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
@@ -441,17 +441,13 @@
   (input child-build-errors g/Any :array)
   (input id-counts NameCounts)
   (input anim-data g/Any)
-  (input layout-size g/Any)
-  (output layout-size g/Any (gu/passthrough layout-size))
+  (input atlas-scene-info g/Any)
 
   (input rename-patterns g/Str)
   (output rename-patterns g/Str (gu/passthrough rename-patterns))
 
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
-
-  (input image-path->rect g/Any)
-  (output image-path->rect g/Any (gu/passthrough image-path->rect))
 
   (input gpu-texture g/Any)
 
@@ -470,6 +466,7 @@
                            :tx-attach-fn attach-image-to-animation}]}))
   (output ddf-message g/Any :cached produce-anim-ddf)
   (output updatable g/Any :cached produce-animation-updatable)
+  (output scene-info g/Any produce-animation-scene-info)
   (output scene g/Any :cached produce-animation-scene)
   (output own-build-errors g/Any (g/fnk [_node-id fps id id-counts]
                                    (g/package-errors _node-id
@@ -522,8 +519,8 @@
   (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
 
 (defn- texture-page-count-error-message [x]
-  (when (> x 8)
-    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" 8})))
+  (when (> x shader/max-array-samplers)
+    (localization/message "error.atlas-page-count-cannot-exceed" {"count" x "max" shader/max-array-samplers})))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
@@ -614,7 +611,7 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size]
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size texture-page-count]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (pmap (fn [resource]
                             (resource-io/with-error-translation resource _node-id nil
@@ -765,6 +762,7 @@
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
   (input build-settings g/Any)
+  (input exclude-gles-sm100 g/Any)
   (input texture-profiles g/Any)
   (input animations Animation :array)
   (input animation-ids g/Str :array)
@@ -789,12 +787,13 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size]
+  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
                                      (let [page-count (calculate-texture-page-count layout-data max-page-size)]
-                                       (or (validation/prop-error :fatal _node-id
-                                                                  :validate-texture-page-count
-                                                                  texture-page-count-error-message
-                                                                  page-count)
+                                       (or (when (not exclude-gles-sm100)
+                                             (validation/prop-error :fatal _node-id
+                                                                    :validate-texture-page-count
+                                                                    texture-page-count-error-message
+                                                                    page-count))
                                            page-count))))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
@@ -832,7 +831,7 @@
                                                                               :tx-attach-fn attach-animation-to-atlas}]}))
   (output save-value       g/Any          :cached produce-save-value)
   (output build-targets    g/Any          :cached produce-build-targets)
-  (output updatable        g/Any          (g/fnk [] nil))
+  (output scene-info       g/Any          produce-atlas-scene-info)
   (output scene            g/Any          :cached produce-scene)
   (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
@@ -870,7 +869,7 @@
     (make-image-nodes-in-atlas atlas-node image-msgs)))
 
 (defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
-  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
+  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource (g/now) workspace)]
     (into []
           (comp (remove (comp empty? :image))
                 (if remove-duplicates
@@ -904,6 +903,7 @@
         image-msgs (resolve-image-msgs workspace (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (g/connect project :texture-profiles self :texture-profiles)
       (gu/set-properties-from-pb-map self AtlasProto$Atlas atlas
         margin :margin
@@ -1170,7 +1170,7 @@
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
-(defn handle-input [self action selection-data]
+(defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if (first (get selection-data self))
                      (do
@@ -1225,6 +1225,7 @@
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- get-animation-images [animation evaluation-context]

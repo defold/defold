@@ -75,8 +75,7 @@ namespace dmGraphics
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
 
-    static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
-    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
+
 
     enum AdapterFamilyPriority
     {
@@ -117,25 +116,7 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    // Parameters structure for NewContext
-    struct ContextParams
-    {
-        ContextParams();
 
-        HWindow               m_Window;
-        HJobContext           m_JobContext;
-        TextureFilter         m_DefaultTextureMinFilter;
-        TextureFilter         m_DefaultTextureMagFilter;
-        uint32_t              m_Width;
-        uint32_t              m_Height;
-        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
-        uint8_t               m_VerifyGraphicsCalls : 1;
-        uint8_t               m_PrintDeviceInfo : 1;
-        uint8_t               m_RenderDocSupport : 1;           // Vulkan, XBox only
-        uint8_t               m_UseValidationLayers : 1;        // Vulkan, XBox only
-        uint8_t               : 4;
-    };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
     // Should be used over the protobuf type when possible.
@@ -253,29 +234,48 @@ namespace dmGraphics
         uint32_t m_Hash;
     };
 
-    /** Creates a graphics context
-     * Currently, there can only be one context active at a time.
-     * @return New graphics context
-     */
-    HContext NewContext(const ContextParams& params);
+    struct ShaderResourceType
+    {
+        union
+        {
+            ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                   m_TypeIndex;
+        };
+        uint8_t m_UseTypeIndex : 1;
+    };
 
-    /**
-     * Destroy device
-     */
-    void DeleteContext(HContext context);
+    struct ShaderResourceMember
+    {
+        const char*        m_Name;
+        dmhash_t           m_NameHash;
+        ShaderResourceType m_Type;
+        uint32_t           m_ElementCount;
+        uint32_t           m_Offset;
+    };
 
-    /**
-     * Install a graphics adapter
-     * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
-     * @return True if a graphics backend could be created, false otherwise.
-     */
-    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
-    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    struct ShaderResourceTypeInfo
+    {
+        char*                 m_Name;
+        dmhash_t              m_NameHash;
+        ShaderResourceMember* m_Members;
+        uint32_t              m_MemberCount;
+    };
 
-    /**
-     * Finalize graphics system
-     */
-    void Finalize();
+    // Binding family for shader resources in a program.
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
+    };
+
+    // Callback invoked for each resource binding in a program that matches the specified family.
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
+
+    // Iterate over all resource bindings for the given program that belong to the specified
+    // binding family and invoke the supplied callback for each binding.
+    void IterateProgramResourceBindings(HProgram program, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data);
 
     /**
      * Starts the app that needs to control the update loop (iOS only)
@@ -295,12 +295,6 @@ namespace dmGraphics
      * @return The window handle
      */
     HWindow GetWindow(HContext context);
-
-    /**
-     * Close the open window if any.
-     * @param context Graphics context handle
-     */
-    void CloseWindow(HContext context);
 
     /**
      * Iconify the open window if any.
@@ -351,20 +345,6 @@ namespace dmGraphics
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
 
     /**
-     * Begin frame rendering.
-     *
-     * @param context Graphics context handle
-     */
-    void BeginFrame(HContext context);
-
-    /**
-     * Flip screen buffers.
-     *
-     * @param context Graphics context handle
-     */
-    void Flip(HContext context);
-
-    /**
      * Set buffer swap interval.
      * 1 for base frequency, eg every frame (60hz)
      * 2 for every second frame
@@ -386,32 +366,24 @@ namespace dmGraphics
      * @param depth
      * @param stencil
      */
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
+
 
     bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
-    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration);
 
-    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
-    void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
     uint32_t GetVertexBufferSize(HVertexBuffer vertex_buffer);
     uint32_t GetIndexBufferSize(HIndexBuffer buffer);
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
-    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
-    HProgram             NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
-    void                 DeleteProgram(HContext context, HProgram program);
+
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    void                 EnableProgram(HContext context, HProgram program);
-    void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
 
     // Attributes
@@ -430,6 +402,8 @@ namespace dmGraphics
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
 
     // Uniform buffers
+    void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
+    void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
@@ -438,8 +412,6 @@ namespace dmGraphics
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
-    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);

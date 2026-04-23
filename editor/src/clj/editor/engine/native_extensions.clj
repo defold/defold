@@ -56,8 +56,10 @@
                                      :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
                                      :library-paths #{"android" "arm64-android"}}
-   (.getPair Platform/JsWeb)        {:platform      "js-web"
-                                     :library-paths #{"web" "js-web"}}
+   (.getPair Platform/WasmWeb)      {:platform      "wasm-web"
+                                     :library-paths #{"web" "wasm-web"}}
+   (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
+                                       :library-paths #{"web" "wasm_pthread-web"}}
    (.getPair Platform/X86Win32)     {:platform      "x86-win32"
                                      :library-paths #{"win32" "x86-win32"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
@@ -187,7 +189,6 @@
      "armv7-ios"        ["ios" "infoplist"]
      "arm64-osx"        ["osx" "infoplist"]
      "x86_64-osx"       ["osx" "infoplist"]
-     "js-web"           ["html5" "htmlfile"]
      "wasm-web"         ["html5" "htmlfile"]
      "wasm_pthread-web" ["html5" "htmlfile"]))
 
@@ -199,7 +200,6 @@
     "armv7-ios"        "Info.plist"
     "arm64-osx"        "Info.plist"
     "x86_64-osx"       "Info.plist"
-    "js-web"           "engine_template.html"
     "wasm-web"         "engine_template.html"
     "wasm_pthread-web" "engine_template.html"
     nil))

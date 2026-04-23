@@ -88,6 +88,8 @@
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
           <entry key="integration.gui-test/with-visible-layout!" value="-1" />
+          <entry key="integration.lsp-test/await-lsp" value="-1" />
+          <entry key="integration.lsp-test/with-scratch-project" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-changes-reverted" value="-1" />

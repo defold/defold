@@ -298,6 +298,7 @@ namespace dmRender
         SetProgramConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
 
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
+        material->m_HasMorphTargetsSampler = material->m_NameHashToLocation.Get(SAMPLER_MORPH_TARGETS) != 0x0;
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
@@ -319,6 +320,14 @@ namespace dmRender
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
+
+        bool has_light_buffer;
+        uint16_t light_buffer_set;
+        uint16_t light_buffer_binding;
+        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
+        m->m_HasLightBuffer     = has_light_buffer;
+        m->m_LightBufferSet     = light_buffer_set;
+        m->m_LightBufferBinding = light_buffer_binding;
 
         return (HMaterial)m;
     }
@@ -602,6 +611,11 @@ namespace dmRender
     bool GetMaterialHasSkinnedMatrixCache(HMaterial material)
     {
         return material->m_HasSkinnedMatrixCache;
+    }
+
+    bool GetMaterialHasMorphTargetsSampler(HMaterial material)
+    {
+        return material->m_HasMorphTargetsSampler;
     }
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)

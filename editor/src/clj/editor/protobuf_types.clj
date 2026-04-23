@@ -21,7 +21,6 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
   (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorASTC TextureCompressorBasisU TextureCompressorUncompressed]
-           [com.dynamo.gamesys.proto GameSystem$LightDesc]
            [com.dynamo.gamesys.proto Physics$ConvexShape]
            [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]))
@@ -102,12 +101,6 @@
                :pb-class Input$InputBinding
                :label (localization/message "resource.type.input-binding")
                :view-types [:cljfx-form-view :text]}
-              {:ext "light"
-               :label (localization/message "resource.type.light")
-               :icon "icons/32/Icons_21-Light.png"
-               :pb-class GameSystem$LightDesc
-               :tags #{:component}
-               :tag-opts {:component {:transform-properties #{}}}}
               {:ext "gamepads"
                :label (localization/message "resource.type.gamepads")
                :icon "icons/32/Icons_34-Gamepad.png"

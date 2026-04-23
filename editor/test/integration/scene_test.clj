@@ -24,6 +24,7 @@
             [editor.system :as system]
             [editor.types :as types]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [editor.types AABB]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
@@ -31,38 +32,39 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- node-union-aabb [node-id]
-  (let [scene (g/node-value node-id :scene)]
-    (scene/calculate-scene-aabb geom/null-aabb geom/Identity4d scene)))
-
 (deftest gen-scene
   (testing "Scene generation"
-           (let [cases {"/logic/atlas_sprite.collection"
-                        (fn [node-id]
-                          (let [go (ffirst (g/sources-of node-id :child-scenes))]
-                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97 0] [101 97 0])))
-                            (g/transact (g/set-property go :position [10 0 0]))
-                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-91 -97 0] [111 97 0])))))
-                        "/logic/atlas_sprite.go"
-                        (fn [node-id]
-                          (let [component (ffirst (g/sources-of node-id :child-scenes))]
-                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97] [101 97])))
-                            (g/transact (g/set-property component :position [10 0 0]))
-                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-91 -97] [111 97])))))
-                        "/sprite/atlas.sprite"
-                        (fn [node-id]
-                          (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97] [101 97]))))
-                        "/car/env/env.cubemap"
-                        (fn [node-id]
-                          (is (= (node-union-aabb node-id) (geom/coords->aabb [-1 -1 -1] [1 1 1]))))
-                        "/switcher/switcher.atlas"
-                        (fn [node-id]
-                          (is (= (node-union-aabb node-id) (geom/coords->aabb [0 0] [2048 1024]))))}]
-             (test-util/with-loaded-project
-               (doseq [[path test-fn] cases]
-                 (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
-                   (is (not (nil? node)) (format "Could not find '%s'" path))
-                   (test-fn node)))))))
+    (let [cases {"/logic/atlas_sprite.collection"
+                 (fn [node-id view-id]
+                   (let [go (ffirst (g/sources-of node-id :child-scenes))]
+                     (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-101 -97 0] [101 97 0])))
+                     (g/transact (g/set-property go :position [10 0 0]))
+                     (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-91 -97 0] [111 97 0])))))
+
+                 "/logic/atlas_sprite.go"
+                 (fn [node-id view-id]
+                   (let [component (ffirst (g/sources-of node-id :child-scenes))]
+                     (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-101 -97] [101 97])))
+                     (g/transact (g/set-property component :position [10 0 0]))
+                     (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-91 -97] [111 97])))))
+
+                 "/sprite/atlas.sprite"
+                 (fn [_node-id view-id]
+                   (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-101 -97] [101 97]))))
+
+                 "/car/env/env.cubemap"
+                 (fn [_node-id view-id]
+                   (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-1 -1 -1] [1 1 1]))))
+
+                 "/switcher/switcher.atlas"
+                 (fn [_node-id view-id]
+                   (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [0 0] [2048 1024]))))}]
+
+      (test-util/with-loaded-project
+        (doseq [[path test-fn] cases]
+          (let [[node-id view-id] (test-util/open-scene-view! project app-view path 128 128)]
+            (is (not (nil? node-id)) (format "Could not find '%s'" path))
+            (test-fn node-id view-id)))))))
 
 (deftest gen-renderables
   (testing "Renderables generation"
@@ -150,6 +152,48 @@
                (is (= 1.0 (.x (scale go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 1.0 (.x (scale go-node))))))))
+
+(defn- displayed-property-value [view-node-id node-id prop-kw]
+  (->> (g/node-value view-node-id :displayed-node-properties)
+       (coll/first-where #(= node-id (:node-id %)))
+       :properties
+       prop-kw
+       :value))
+
+(deftest displayed-node-properties-preview-overrides
+  (testing "Scene view shows preview overrides in displayed node properties during drag."
+    (test-util/with-loaded-project
+      (let [path "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))]
+        (test-util/mouse-click! view 64 64)
+        (is (test-util/selected? app-view go-node))
+        (test-util/set-active-tool! app-view :move)
+        (let [initial-position (displayed-property-value view go-node :position)]
+          (test-util/mouse-press! view 64 64)
+          (test-util/mouse-move! view 68 64)
+          (let [preview-position (displayed-property-value view go-node :position)]
+            (is (not= initial-position preview-position))
+            (is (not= (g/node-value go-node :position) preview-position)))
+          (test-util/mouse-release! view 68 64)
+          (is (= (g/node-value go-node :position)
+                 (displayed-property-value view go-node :position))))))))
+
+(deftest scene-camera-clip-planes-follow-preview-overrides
+  (testing "Scene view camera clip planes respond to preview overrides before commit."
+    (test-util/with-loaded-project
+      (let [path "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            tool-controller (ffirst (g/sources-of view :preview-overrides))
+            initial-position (g/node-value go-node :position)
+            initial-camera (g/node-value view :camera)]
+        (g/set-property! tool-controller :preview-overrides {go-node {:position [0.0 0.0 -1000.0]}})
+        (let [preview-camera (g/node-value view :camera)]
+          (is (< (:z-far initial-camera) (:z-far preview-camera)))
+          (is (= initial-position (g/node-value go-node :position))))
+        (g/set-property! tool-controller :preview-overrides nil)
+        (is (= initial-position (g/node-value go-node :position)))))))
 
 (deftest delete-undo-delete-selection
   (testing "Scene generation"
@@ -263,43 +307,6 @@
                (app-view/select! app-view [emitter])
                (is (seq (g/node-value view :selected-renderables)))))))
 
-(deftest claim-scene-test
-  (let [scene {:node-id :scene-node-id
-               :children [{:node-id :scene-node-id
-                           :children [{:node-id :scene-node-id}]}
-                          {:node-id :tree-node-id
-                           :node-outline-key "tree-node-outline-key"
-                           :children [{:node-id :apple-node-id
-                                       :node-outline-key "apple-node-outline-key"}]}
-                          {:node-id :house-node-id
-                           :node-outline-key "house-node-outline-key"
-                           :children [{:node-id :door-node-id
-                                       :node-outline-key "door-node-outline-key"
-                                       :children [{:node-id :door-handle-node-id
-                                                   :node-outline-key "door-handle-node-outline-key"}]}]}]}]
-    (is (= {:node-id :new-node-id
-            :node-outline-key "new-node-outline-key"
-            :children [{:node-id :new-node-id
-                        :node-outline-key "new-node-outline-key"
-                        :children [{:node-id :new-node-id
-                                    :node-outline-key "new-node-outline-key"}]}
-                       {:node-id :tree-node-id
-                        :node-outline-key "tree-node-outline-key"
-                        :picking-node-id :new-node-id
-                        :children [{:node-id :apple-node-id
-                                    :node-outline-key "apple-node-outline-key"
-                                    :picking-node-id :new-node-id}]}
-                       {:node-id :house-node-id
-                        :node-outline-key "house-node-outline-key"
-                        :picking-node-id :new-node-id
-                        :children [{:node-id :door-node-id
-                                    :node-outline-key "door-node-outline-key"
-                                    :picking-node-id :new-node-id
-                                    :children [{:node-id :door-handle-node-id
-                                                :node-outline-key "door-handle-node-outline-key"
-                                                :picking-node-id :new-node-id}]}]}]}
-           (scene/claim-scene scene :new-node-id "new-node-outline-key")))))
-
 (defn- render-pass? [pass]
   (satisfies? types/Pass pass))
 
@@ -344,7 +351,7 @@
        (every? output-renderable? coll)))
 
 (defn- produce-render-data [scene selection aux-renderables camera]
-  (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
+  (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-tags #{} :hidden-node-outline-key-paths #{} :local-camera camera})
         aux-render-data (scene/produce-aux-render-data {:aux-renderables aux-renderables :internal-renderables {} :hidden-renderable-tags []})]
     (scene/merge-render-datas aux-render-data {} scene-render-data)))
 

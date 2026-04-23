@@ -1,0 +1,3 @@
+In file included from /tmp/a.h:1:
+foo
+In file included from /tmp/b.h:2:

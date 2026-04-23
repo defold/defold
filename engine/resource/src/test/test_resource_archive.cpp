@@ -24,7 +24,6 @@
 #include <dlib/endian.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
-#include <dlib/sslsocket.h>
 #include <testmain/testmain.h>
 
 #include "../resource_archive.h"
@@ -150,21 +149,7 @@ bool IsLiveUpdateResource(dmhash_t lu_path_hash)
     return false;
 }
 
-class dmResourceArchiveTest : public jc_test_base_class
-{
-    public:
-        void SetUp() override
-        {
-            dmSSLSocket::Initialize(); // initialize MbedTLS global mutexes used in RSA related operations in threaded environment
-        }
-
-        void TearDown() override
-        {
-            dmSSLSocket::Finalize();
-        }
-};
-
-TEST_F(dmResourceArchiveTest, ShiftInsertResource)
+TEST(dmResourceArchive, ShiftInsertResource)
 {
     const char* resource_filename = "test_resource_liveupdate.arcd";
     char host_name[512];
@@ -221,7 +206,7 @@ TEST_F(dmResourceArchiveTest, ShiftInsertResource)
 }
 
 
-TEST_F(dmResourceArchiveTest, ShiftInsertResource_InsertIssue)
+TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
 {
     const char* resource_filename = "test_resource_liveupdate.arcd";
     char host_name[512];
@@ -321,7 +306,7 @@ TEST_F(dmResourceArchiveTest, ShiftInsertResource_InsertIssue)
     dmSys::Unlink(path);
 }
 
-TEST_F(dmResourceArchiveTest, NewArchiveIndexFromCopy)
+TEST(dmResourceArchive, NewArchiveIndexFromCopy)
 {
     uint32_t single_entry_offset = dmResourceArchive::MAX_HASH;
 
@@ -345,7 +330,7 @@ TEST_F(dmResourceArchiveTest, NewArchiveIndexFromCopy)
     dmResourceArchive::Delete(archive_container);
 }
 
-TEST_F(dmResourceArchiveTest, GetInsertionIndex)
+TEST(dmResourceArchive, GetInsertionIndex)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
@@ -373,7 +358,7 @@ TEST_F(dmResourceArchiveTest, GetInsertionIndex)
     dmResourceArchive::Delete(archive);
 }
 
-TEST_F(dmResourceArchiveTest, ManifestHeader)
+TEST(dmResourceArchive, ManifestHeader)
 {
     dmResource::HManifest manifest = 0;
     dmLiveUpdateDDF::ManifestData* manifest_data;
@@ -391,7 +376,7 @@ TEST_F(dmResourceArchiveTest, ManifestHeader)
     dmResource::DeleteManifest(manifest);
 }
 
-TEST_F(dmResourceArchiveTest, HasLiveupdateContent_True)
+TEST(dmResourceArchive, HasLiveupdateContent_True)
 {
     dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
@@ -403,7 +388,7 @@ TEST_F(dmResourceArchiveTest, HasLiveupdateContent_True)
     dmResource::DeleteManifest(manifest);
 }
 
-TEST_F(dmResourceArchiveTest, HasLiveupdateContent_False)
+TEST(dmResourceArchive, HasLiveupdateContent_False)
 {
     dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_NO_LU_DMANIFEST, RESOURCES_NO_LU_DMANIFEST_SIZE, &manifest);
@@ -415,164 +400,7 @@ TEST_F(dmResourceArchiveTest, HasLiveupdateContent_False)
     dmResource::DeleteManifest(manifest);
 }
 
-static void PrintHash(const uint8_t* hash, uint32_t len)
-{
-    char* buf = new char[len*2+1];
-    buf[len] = '\0';
-    for (uint32_t i = 0; i < len; ++i)
-    {
-        dmSnPrintf(buf+i*2, 3, "%02X", hash[i]);
-    }
-    printf("HASH: %s\n", buf);
-    delete[] buf;
-}
-
-static void PrintArray(uint8_t* a, uint32_t size)
-{
-    uint32_t left = size;
-    uint32_t stride = 32;
-    while (left > 0) {
-        if (left > 8) {
-            for (int i = 0; i < 8; ++i, ++a) {
-                printf("%02X ", *a);
-            }
-            left -= 8;
-            printf(" ");
-        } else {
-            for (int i = 0; i < left; ++i, ++a) {
-                printf("%02X ", *a);
-            }
-            left  = 0;
-        }
-        stride -= 8;
-        if (stride == 0) {
-            printf("\n");
-            stride = 32;
-        }
-    }
-}
-
-/*
-This test is failing intermittenly on Linux. Typical output from a failed test:
-
-2020-04-19T09:57:44.1778093Z ManifestSignatureVerification
-2020-04-19T09:57:44.1779593Z PUBLIC KEY (sz: 162):
-2020-04-19T09:57:44.1780587Z
-2020-04-19T09:57:44.1782352Z 30 81 9F 30 0D 06 09 2A  86 48 86 F7 0D 01 01 01  05 00 03 81 8D 00 30 81  89 02 81 81 00 A4 6F BC
-2020-04-19T09:57:44.1784180Z 37 EF BA F9 60 0D 98 02  AE 97 44 B2 52 C0 0F 0E  73 95 7B 97 B0 B7 08 6D  F2 D7 4E C3 37 92 7C BF
-2020-04-19T09:57:44.1785946Z 55 DD 3A BD 8D 4D 73 94  3F 1B 69 70 86 23 DE 07  6D FF 46 86 17 6E 64 5B  8C 1F 36 AA 16 65 87 91
-2020-04-19T09:57:44.1787741Z 53 F4 1C 9F AC C9 31 0C  93 BA E8 CB BB 5A AE F9  FD DC 2F C0 10 5B 6A 1B  0B DE 22 50 B3 E6 D9 AD
-2020-04-19T09:57:44.1789537Z A7 E2 1C 92 D1 69 CA 93  25 AC 98 28 02 EF 1F F6  BF 67 7F 59 FB 1B 54 B0  29 DC 24 91 8D 02 03 01
-2020-04-19T09:57:44.1790849Z 00 01
-2020-04-19T09:57:44.1791703Z
-2020-04-19T09:57:44.1792941Z MANIFEST SIGNATURE (sz: 128):
-2020-04-19T09:57:44.1793804Z
-2020-04-19T09:57:44.1795548Z 32 7B 7A DE B2 CE CB A1  A6 B1 34 1D EF F7 51 36  8D 7A A1 B1 90 49 5A 2E  A9 D7 FB 69 05 6A 5D B9
-2020-04-19T09:57:44.1797361Z DC 94 91 EC E9 15 00 4E  51 49 C8 99 60 A6 F0 5F  DC 2B 8C 27 FB C8 70 5A  4C A5 40 9C D7 7E DD 95
-2020-04-19T09:57:44.1799205Z 28 D1 8F 37 5E DA 60 16  52 84 12 BA E6 74 5D 09  ED 43 43 DD FA 47 91 D1  9A DC AA DB C7 CC DE B1
-2020-04-19T09:57:44.1802608Z DF 30 C9 BA 2A 0A A8 A4  F1 4F 9D 8C AB 68 80 98  D2 0E F9 AB 00 80 B2 9C  21 09 D2 36 37 25 16 AF
-2020-04-19T09:57:44.1805102Z
-2020-04-19T09:57:44.1807577Z
-2020-04-19T09:57:44.1810518Z ../src/test/test_resource_archive.cpp:392:
-2020-04-19T09:57:44.1814584Z Expected: (dmResource::RESULT_OK) == (dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len)), actual: OK vs INVALID_DATA
-*/
-#if !defined(__linux__)
-TEST_F(dmResourceArchiveTest, ManifestSignatureVerification)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    // We have an intermittent fail here, so let's output the info so we can start investigating it.
-    // We always print these so that we can compare the failed build with a successful one
-    {
-        // Print out the source data, so that we can perhaps reproduce locally
-        printf("\nRESOURCES_DMANIFEST (sz: %u):\n\n", RESOURCES_DMANIFEST_SIZE);
-        PrintArray(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE);
-        printf("\n");
-
-        printf("\nRESOURCES_ARCD (sz: %u):\n\n", RESOURCES_ARCD_SIZE);
-        PrintArray(RESOURCES_ARCD, RESOURCES_ARCD_SIZE);
-        printf("\n");
-
-        printf("\nRESOURCES_ARCI (sz: %u):\n\n", RESOURCES_ARCI_SIZE);
-        PrintArray(RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
-        printf("\n");
-
-        //
-        printf("\nPUBLIC KEY (sz: %u):\n\n", RESOURCES_PUBLIC_SIZE);
-        PrintArray(RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
-        printf("\n");
-
-        uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-        printf("\nMANIFEST SIGNATURE (sz: %u):\n\n", signature_len);
-        PrintArray(signature, signature_len);
-        printf("\n");
-    }
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
-
-    dmResource::DeleteManifest(manifest);
-}
-#endif
-
-/*
-This test is failing intermittenly on Linux. Typical output from a failed test:
-
-2020-04-24T11:09:51.7615960Z ManifestSignatureVerificationLengthFail
-2020-04-24T11:09:51.7616210Z ../src/test/test_resource_archive.cpp:445:
-2020-04-24T11:09:51.7616493Z Expected: (dmResource::RESULT_OK) == (dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len)), actual: OK vs INVALID_DATA
-2020-04-24T11:09:51.7616663Z
-*/
-#if !defined(__linux__)
-TEST_F(dmResourceArchiveTest, ManifestSignatureVerificationLengthFail)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
-    manifest->m_DDF->m_Signature.m_Count *= 0.5f; // make the supplied hash shorter than expected
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
-
-    dmResource::DeleteManifest(manifest);
-}
-#endif
-
-/*
-This test is failing intermittenly on Linux. Typical output from a failed test:
-
-2020-04-28T05:00:04.1089407Z ManifestSignatureVerificationHashFail
-2020-04-28T05:00:04.1089610Z ../src/test/test_resource_archive.cpp:475:
-2020-04-28T05:00:04.1089868Z Expected: (dmResource::RESULT_OK) == (dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len)), actual: OK vs INVALID_DATA
-*/
-#if !defined(__linux__)
-TEST_F(dmResourceArchiveTest, ManifestSignatureVerificationHashFail)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
-    memset(manifest->m_DDF->m_Signature.m_Data, 0x0, manifest->m_DDF->m_Signature.m_Count / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_SIGNATURE_MISMATCH, dmResource::VerifySignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE));
-
-    dmResource::DeleteManifest(manifest);
-}
-#endif
-
-TEST_F(dmResourceArchiveTest, ManifestSignatureVerificationWrongKey)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
-    memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
-    resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
-    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::VerifySignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE));
-
-    free(resources_public_wrong);
-    dmResource::DeleteManifest(manifest);
-}
-
-TEST_F(dmResourceArchiveTest, ResourceEntries)
+TEST(dmResourceArchive, ResourceEntries)
 {
     dmResource::HManifest manifest = 0;
     dmLiveUpdateDDF::ManifestData* manifest_data;
@@ -598,7 +426,7 @@ TEST_F(dmResourceArchiveTest, ResourceEntries)
     delete manifest;
 }
 
-TEST_F(dmResourceArchiveTest, ResourceEntries_Compressed)
+TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
     dmResource::HManifest manifest = 0;
     dmLiveUpdateDDF::ManifestData* manifest_data;
@@ -625,7 +453,7 @@ TEST_F(dmResourceArchiveTest, ResourceEntries_Compressed)
     delete manifest;
 }
 
-TEST_F(dmResourceArchiveTest, Wrap)
+TEST(dmResourceArchive, Wrap)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
@@ -657,7 +485,7 @@ TEST_F(dmResourceArchiveTest, Wrap)
     dmResourceArchive::Delete(archive);
 }
 
-TEST_F(dmResourceArchiveTest, Wrap_Compressed)
+TEST(dmResourceArchive, Wrap_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, true, (void*) RESOURCES_COMPRESSED_ARCD, RESOURCES_COMPRESSED_ARCD_SIZE, true, &archive);
@@ -688,7 +516,7 @@ TEST_F(dmResourceArchiveTest, Wrap_Compressed)
     dmResourceArchive::Delete(archive);
 }
 
-TEST_F(dmResourceArchiveTest, LoadFromDisk)
+TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     char archive_path[512];
@@ -723,7 +551,7 @@ TEST_F(dmResourceArchiveTest, LoadFromDisk)
     dmResourceArchive::Delete(archive);
 }
 
-TEST_F(dmResourceArchiveTest, LoadFromDisk_MissingArchive)
+TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     char archive_path[512];
@@ -734,7 +562,7 @@ TEST_F(dmResourceArchiveTest, LoadFromDisk_MissingArchive)
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
 
-TEST_F(dmResourceArchiveTest, LoadFromDisk_Compressed)
+TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     char archive_path[512];
@@ -779,7 +607,7 @@ static dmResource::Result TestDecryption(void* buffer, uint32_t buffer_len)
     return dmResource::RESULT_OK;
 }
 
-TEST_F(dmResourceArchiveTest, ResourceDecryption)
+TEST(dmResourceArchive, ResourceDecryption)
 {
     uint8_t buffer[] = { 0x00, 0x00, 0x00 };
     uint32_t buffer_len = 3;

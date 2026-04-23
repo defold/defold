@@ -306,7 +306,8 @@
 
 (defn load-cubemap [project self resource cubemap]
   {:pre [(map? cubemap)]} ; Graphics$Cubemap in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)

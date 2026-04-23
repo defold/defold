@@ -14,14 +14,11 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
-
-#include  <glfw/glfw_native.h>
+#include <dmsdk/dlib/android.h>
 #include <android_native_app_glue.h>
 
 #include "../graphics_vulkan_defines.h"
 #include "../graphics_vulkan_private.h"
-
-extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 namespace dmGraphics
 {
@@ -35,9 +32,12 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
+        struct android_app* app = dmAndroid::GetAndroidApp();
+        assert(app);
+
         VkAndroidSurfaceCreateInfoKHR vk_surface_create_info = {};
         vk_surface_create_info.sType  = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-        vk_surface_create_info.window = g_AndroidApp->window;
+        vk_surface_create_info.window = app->window;
 
         return vkCreateAndroidSurfaceKHR(vkInstance, &vk_surface_create_info, 0, vkSurfaceOut);
     }

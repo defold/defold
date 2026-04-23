@@ -19,7 +19,6 @@
 #include "resource_verify.h"
 
 #include <dlib/dalloca.h>
-#include <dlib/memory.h>
 #include <dlib/endian.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>
@@ -81,12 +80,11 @@ namespace dmResource
         return dmResource::MemCompare(hexDigest, hexDigestLength-1, expected, expected_length);
     }
 
-    static bool VerifyManifestSupportedEngineVersion(const dmResource::HManifest manifest)
+    Result VerifyManifestSupportedEngineVersion(const dmResource::HManifest manifest)
     {
         // Calculate running dmengine version SHA1 hash
         dmSys::EngineInfo engine_info;
         dmSys::GetEngineInfo(&engine_info);
-        bool engine_version_supported = false;
         uint32_t engine_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1);
         uint8_t* engine_digest = (uint8_t*) alloca(engine_digest_len * sizeof(uint8_t));
 
@@ -98,68 +96,12 @@ namespace dmResource
         {
             if (memcmp(engine_digest, versions[i].m_Data.m_Data, engine_digest_len) == 0)
             {
-                engine_version_supported = true;
-                break;
+                return RESULT_OK;
             }
         }
 
-        if (!engine_version_supported)
-        {
-            dmLogError("Loaded manifest does not support current engine version (%s)", engine_info.m_Version);
-        }
-
-        return engine_version_supported;
-    }
-
-    static Result VerifyManifestHash(const char* public_key_path, const HManifest manifest)
-    {
-        Result res = RESULT_OK;
-        uint32_t pub_key_size = 0, out_resource_size = 0;
-        uint8_t* pub_key_buf = 0x0;
-
-        // Load public key
-        dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
-        if (sys_res != dmSys::RESULT_OK)
-        {
-            dmLogError("Failed to get size of public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-            res = RESULT_IO_ERROR;
-            goto cleanup;
-        }
-        pub_key_buf = (uint8_t*)malloc(pub_key_size);
-        assert(pub_key_buf);
-        sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
-
-        if (sys_res != dmSys::RESULT_OK)
-        {
-            dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-            res = RESULT_IO_ERROR;
-            goto cleanup;
-        }
-
-        if (out_resource_size != pub_key_size)
-        {
-            dmLogError("Failed to load public key for manifest verification at path: %s, tried reading %d bytes, got %d bytes", public_key_path, pub_key_size, out_resource_size);
-            res = RESULT_IO_ERROR;
-            goto cleanup;
-        }
-
-        res = dmResource::VerifySignatureHash(manifest, pub_key_buf, pub_key_size);
-cleanup:
-        free(pub_key_buf);
-        return res;
-    }
-
-    static Result VerifyManifestSignature(const dmResource::HManifest manifest, const char* public_key_path)
-    {
-        return dmResource::VerifyManifestHash(public_key_path, manifest);
-    }
-
-    Result VerifyManifest(const dmResource::HManifest manifest, const char* public_key_path)
-    {
-        if (!VerifyManifestSupportedEngineVersion(manifest))
-            return RESULT_VERSION_MISMATCH;
-
-        return VerifyManifestSignature(manifest, public_key_path);
+        dmLogError("Loaded manifest does not support current engine version (%s)", engine_info.m_Version);
+        return RESULT_VERSION_MISMATCH;
     }
 
     // static Result VerifyManifestBundledResources(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::HManifest manifest)

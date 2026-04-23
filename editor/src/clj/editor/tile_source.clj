@@ -220,7 +220,7 @@
 (def ^:private protobuf-animation-defaults
   "Default field values declared in the Tile$Animation protobuf message. Fields
   that match these values will be excluded from the saved project files."
-  (protobuf/default-value Tile$Animation))
+  (protobuf/optional-field-defaults Tile$Animation))
 
 (defn- animation-ddf-errors [tile-count node-id animation-ddf]
   {:pre [(g/node-id? node-id)
@@ -934,13 +934,11 @@
 
       nil)))
 
-(defn handle-input
-  [self action tool-user-data]
+(defn handle-input [self _input-action action tool-user-data]
   (let [txs (input-txs self action tool-user-data)]
     (when (seq txs)
       (g/transact txs)
       true)))
-
 
 (g/defnk produce-selected-collision-group-node
   [selected-node-ids]
@@ -973,6 +971,7 @@
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [active-tile-idx]
                             (when (some? active-tile-idx)
                               (str "Tile " (+ active-tile-idx 1))))))
@@ -1035,7 +1034,8 @@
 
 (defn- load-tile-source [project self resource tile-set]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
 
         animation-nodes-tx-data
         (mapv (partial make-animation-node self project nil)

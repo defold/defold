@@ -119,7 +119,9 @@
   ;; NOTE: The anim-data and gpu-texture outputs allow standalone images to be used in place of texture sets in legacy projects.
   (output anim-data g/Any (g/fnk [size]
                             {nil (assoc size
-                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
+                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]
+                                             :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
+                                             :atlas-rotated false}]
                                    :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
 
   (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))

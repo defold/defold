@@ -99,6 +99,7 @@
     :constant-type-normal false
     :constant-type-worldview false
     :constant-type-worldviewproj false
+    :constant-type-time false
     :constant-type-user-matrix4 true))
 
 (defn sanitize-constant [constant]
@@ -125,7 +126,7 @@
 
 (def ^:private editable-sampler-optional-field-defaults
   (-> Material$MaterialDesc$Sampler
-      (protobuf/default-message #{:optional})
+      (protobuf/optional-field-defaults)
       (dissoc :name-hash :texture))) ; TODO: Support assigning a default :texture for Samplers.
 
 (defn sampler->editable-sampler [sampler]

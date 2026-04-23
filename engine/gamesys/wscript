@@ -127,7 +127,15 @@ def shutdown(self):
     serv = test_script_server.Server(port=PORT, ip=local_ip)
     serv.start()
     try:
-        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
+        waf_dynamo.run_tests(test_context, configfile = configfile, folders = {
+                                "build/src/gamesys/test": "build/src/gamesys/test",
+                                "src/gamesys/test/resource/blank.basis": "src/gamesys/test/resource/blank.basis",
+                                "src/gamesys/test/sound_ext/replacement.wav": "src/gamesys/test/sound_ext/replacement.wav",
+                                "src/gamesys/test/font": "src/gamesys/test/font",
+                                "src/gamesys/test/image": "src/gamesys/test/image",
+                                "src/gamesys/test/sys/sys_buffer_test_content.raw": "src/gamesys/test/sys/sys_buffer_test_content.raw",
+                                "src/gamesys/test/http": "src/gamesys/test/http",
+                                })
     finally:
         if serv:
             serv.stop()

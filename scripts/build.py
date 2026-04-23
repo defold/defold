@@ -21,6 +21,7 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
+import build_android
 import run
 import s3
 import sdk
@@ -43,7 +44,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
-                    'js-web', 'wasm-web', 'wasm_pthread-web']
+                    'wasm-web', 'wasm_pthread-web']
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
@@ -121,7 +122,7 @@ PACKAGES_ALL=[
     "protobuf-3.20.1",
     "junit-4.6",
     "jsign-4.2",
-    "protobuf-java-3.20.1",
+    "bundletool-all",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
@@ -136,7 +137,7 @@ PACKAGES_ALL=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -155,7 +156,7 @@ PACKAGES_IOS_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -170,7 +171,7 @@ PACKAGES_IOS_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -193,10 +194,17 @@ PACKAGES_MACOS_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "codesign_allocate",
+    "ogg-1.1.1",
+    "strip",
+    "strip_android-12.0.9",
+    "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
     "protobuf-3.20.1",
@@ -215,10 +223,17 @@ PACKAGES_MACOS_ARM64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "codesign_allocate",
+    "ogg-1.1.1",
+    "strip",
+    "strip_android-12.0.9",
+    "zipalign"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
@@ -230,7 +245,7 @@ PACKAGES_WIN32=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -253,10 +268,16 @@ PACKAGES_WIN32_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "ogg-1.1.1",
+    "strip_android-12.0.9",
+    "strip_android_aarch64-12.0.9",
+    "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
     "protobuf-3.20.1",
@@ -276,10 +297,17 @@ PACKAGES_LINUX_X86_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10",
+    "aapt2-36.1.0",
+    "apkc-0.1.0",
+    "ogg-1.1.1",
+    "strip_android-12.0.9",
+    "strip_android_aarch64-12.0.9",
+    "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
     "protobuf-3.20.1",
@@ -298,15 +326,14 @@ PACKAGES_LINUX_ARM64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-1e8038"]
+    "SkriBidi-1e8038",
+    "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -314,16 +341,14 @@ PACKAGES_ANDROID=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-"protobuf-3.20.1",
-    "android-support-multidex",
-    "androidx-multidex",
+    "protobuf-3.20.1",
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -331,7 +356,7 @@ PACKAGES_ANDROID_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -345,7 +370,7 @@ PACKAGES_EMSCRIPTEN=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
-    "harfbuzz-11.3.2",
+    "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-1e8038"]
@@ -363,7 +388,6 @@ PLATFORM_PACKAGES = {
     'x86_64-ios':       PACKAGES_IOS_X86_64,
     'armv7-android':    PACKAGES_ANDROID,
     'arm64-android':    PACKAGES_ANDROID_64,
-    'js-web':           PACKAGES_EMSCRIPTEN,
     'wasm-web':         PACKAGES_EMSCRIPTEN,
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
@@ -406,9 +430,6 @@ def format_exes(name, platform):
     elif 'android' in platform:
         prefix = 'lib'
         suffix = ['.so']
-    elif platform in ['js-web']:
-        prefix = ''
-        suffix = ['.js']
     elif platform in ['wasm-web', 'wasm_pthread-web']:
         prefix = ''
         suffix = ['.js', '.wasm']
@@ -493,6 +514,7 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 test_device = None,
                  keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
@@ -542,6 +564,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.test_device = test_device
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
@@ -678,7 +701,7 @@ class Configuration(object):
         return [sys.executable]
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -811,7 +834,7 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        if target_platform in ['js-web', 'wasm-web', 'wasm_pthread-web']:
+        if target_platform in ['wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
             for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
@@ -865,10 +888,10 @@ class Configuration(object):
             run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
-        for n in 'js-web-pre.js'.split():
+        for n in 'web-pre.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
-        for n in 'js-web-pre-engine.js'.split():
+        for n in 'web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         print("Installing profiles etc")
@@ -994,7 +1017,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        if target_platform in ('wasm-web', 'wasm_pthread-web'):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
@@ -1044,10 +1067,11 @@ class Configuration(object):
         # .. so we stick with the old version of prewarming
 
         # Compile a file warm up the emscripten caches (libc etc)
-        c_file = tempfile.mktemp(suffix='.c')
-        exe_file = tempfile.mktemp(suffix='.js')
-        with open(c_file, 'w') as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
+            c_file = f.name
             f.write('int main() { return 0; }')
+        with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
+            exe_file = f.name
         run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
@@ -1215,9 +1239,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar",
-                                 "glfw_android.jar")
+                external_jars = ("glfw_android.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -1249,14 +1271,6 @@ class Configuration(object):
                     raise Exception("Failed to find wagyu-port folder")
 
                 self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
-
-            if platform in ['js-web']:
-                # JavaScript files
-                # js-web-pre-x files
-                for subdir in ['share', 'lib/js-web/js/', 'ext/lib/js-web/js/']:
-                    jsdir = os.path.join(self.dynamo_home, subdir)
-                    paths = _findjslibs(jsdir)
-                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['wasm-web', 'wasm_pthread-web']:
                 for subdir in [f'lib/{platform}/js/', f'ext/lib/{platform}/js/']:
@@ -1416,10 +1430,8 @@ class Configuration(object):
 
         strip = "strip"
         if 'android' in self.target_platform:
-            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
-
-            ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-            strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
+            sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
+            strip = os.path.join(sdk_info['bintools'], 'llvm-strip')
 
         if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
             strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
@@ -1436,7 +1448,7 @@ class Configuration(object):
         self.full_archive_path = full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
-        lib_dir = self.target_platform
+        lib_dir = self.build_utility.get_library_path()
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1450,6 +1462,14 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+
+        # upload mouse_capture lib on desktop platforms
+        if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
+            mouse_capture_name = format_lib("mouse_capture_shared", self.target_platform)
+            mouse_capture_lib = join(lib_dir, mouse_capture_name)
+            self._log(mouse_capture_lib)
+            self._log('%s/%s' % (full_archive_path, mouse_capture_name))
+            self.upload_to_archive(mouse_capture_lib, '%s/%s' % (full_archive_path, mouse_capture_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
@@ -1509,7 +1529,7 @@ class Configuration(object):
             libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
-                lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+                lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
@@ -1520,8 +1540,21 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
-        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
+        supported_tests['x86_64-linux'] = []
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
+
+        if 'android' in self.target_platform:
+            can_run_android_tests = build_android.can_run_tests_android(self._log, env = self._form_env(), device = self.test_device)
+            if self.test_device and not can_run_android_tests:
+                self.fatal("Requested Android test device '%s' is not available" % self.test_device)
+
+            if can_run_android_tests:
+                android_tests = ['armv7-android', 'arm64-android']
+                supported_tests['x86_64-macos'].extend(android_tests)
+                supported_tests['arm64-macos'].extend(android_tests)
+                supported_tests['x86_64-linux'].extend(android_tests)
+                supported_tests['x86_64-win32'].extend(android_tests)
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1692,15 +1725,22 @@ class Configuration(object):
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
 
+    def _run_bob_copy_script(self):
+        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
+
+        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
+        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
+        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
+
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
 
         sha1 = self._git_sha1()
-        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
-        else:
+        self._run_bob_copy_script()
+        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
@@ -1840,7 +1880,7 @@ class Configuration(object):
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
-                     'js-bundling': js_files,
+                     'web-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': macos_files,
                      'linux-bundling': linux_files,
@@ -1848,7 +1888,7 @@ class Configuration(object):
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
-                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
+                           'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
@@ -1879,9 +1919,8 @@ class Configuration(object):
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
-        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
-        else:
+        self._run_bob_copy_script()
+        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
@@ -1896,12 +1935,12 @@ class Configuration(object):
         if self.keep_bob_uncompressed:
             flags = '-Pkeep-bob-uncompressed'
 
-        # Clean and build the project
-        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
-
-        # Run tests if not skipped
-        if not self.skip_tests:
-            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+        if self.skip_tests:
+            # Clean and build the project
+            run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        else:
+            # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
+            run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -2199,19 +2238,11 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        # We handle the stable channel seperately, since we want it to point
-        # to the editor-dev release (which uses the latest stable engine).
-        editor_channel = None
-        if self.channel == "stable":
-            editor_channel = "editor-alpha"
-        else:
-            editor_channel = self.channel or "stable"
-
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
         bucket = s3.get_bucket(hostname)
 
-        editor_archive_path = urlparse(self.get_archive_path(editor_channel)).path
+        editor_archive_path = urlparse(self.get_archive_path(self.channel)).path
 
         release_sha1 = releases[0]['sha1']
 
@@ -2242,16 +2273,19 @@ class Configuration(object):
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
         # For example;
-        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
+        #   redirect: /editor2/channels/stable/Defold-x86_64-macos.dmg -> /archive/<sha1>/stable/Defold-x86_64-macos.dmg
         for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
-            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
+            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
+            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             obj = bucket.Object(key_name)
-            obj.copy_from(
-                CopySource={'Bucket': hostname, 'Key': key_name},
-                WebsiteRedirectLocation=redirect
-            )
+            try:
+                obj.copy_from(
+                    CopySource={'Bucket': hostname, 'Key': key_name},
+                    WebsiteRedirectLocation=redirect
+                )
+            except Exception:
+                bucket.put_object(Key=key_name, Body='0', WebsiteRedirectLocation=redirect)
 
     def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
@@ -2269,30 +2303,9 @@ class Configuration(object):
         return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
 
     def _get_github_release_body(self):
-        engine_channel = None
-        editor_channel = None
-        engine_sha1 = None
-        editor_sha1 = None
-        if self.channel in ('stable','beta'):
-            engine_sha1 = self._git_sha1()
-
-        elif self.channel in ('editor-alpha',):
-            engine_channel = 'stable'
-            editor_channel = self.channel
-            editor_sha1 = self._git_sha1()
-            engine_sha1 = self._git_sha1(self.version) # engine version
-
-        else:
-            engine_sha1 = self._git_sha1()
-            engine_channel = self.channel
-            editor_channel = self.channel
-
-        if not editor_sha1:
-            editor_sha1 = engine_sha1
-
+        sha1 = self._git_sha1()
         body  = "Defold version %s\n" % self.version
-        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
-        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "Channel=%s sha1: %s\n" % (self.channel, sha1)
         body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return body
 
@@ -2313,27 +2326,13 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         # Create or update the tag for engine releases
+        prerelease = self.channel in ('alpha', 'beta')
         tag_name = None
-        is_editor_branch = False
-        engine_channel = None
-        editor_channel = None
-        prerelease = True
         if self.channel in ('stable', 'beta', 'alpha'):
-            engine_channel = self.channel
-            editor_channel = self.channel
-            prerelease = self.channel in ('alpha', 'beta')
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        elif self.channel in ('editor-alpha',):
-            # We update the stable release with new editor builds
-            engine_channel = 'stable'
-            editor_channel = self.channel
-            prerelease = False
-            tag_name = self.compose_tag_name(self.version, engine_channel)
-            is_editor_branch = True
-
-        if tag_name is not None and not is_editor_branch:
+        if tag_name is not None:
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
@@ -2360,43 +2359,35 @@ class Configuration(object):
         if tag_name:
             # only allowed anyways with a github token
             body = self._get_github_release_body()
-            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
-            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+            release_name = 'v%s - %s' % (self.version, self.channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
 
         # Release to steam for stable only
-        # if tag_name and (self.channel == 'editor-alpha'):
+        # if tag_name and (self.channel == 'stable'):
         #     self.release_to_steam()
 
-    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
-    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=stable
+    # on a branch with the correct sha1 (e.g. beta or master)
     def release_to_github(self):
         engine_channel = None
-        release_sha1 = None
-        is_editor_branch = False
         prerelease = True
-        if self.channel in ('editor-alpha',):
-            engine_channel = 'stable'
-            is_editor_branch = True
+        release_sha1 = self._git_sha1(self.version) # engine version
+        if self.channel in ('stable', 'beta'):
             prerelease = False
-            release_sha1 = self._git_sha1()
-        else:
-            release_sha1 = self._git_sha1(self.version) # engine version
-            if self.channel in ('stable', 'beta'):
-                prerelease = False
 
         tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
 
-        if tag_name is not None and not is_editor_branch:
+        if tag_name is not None:
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
-            # e.g. editor-dev releases
+            # untagged releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         body = self._get_github_release_body()
         release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
 
-        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
 
     def get_editor_urls_from_s3(self, archive_path, tag_name):
         release = s3.get_single_release(archive_path, tag_name)
@@ -2419,20 +2410,18 @@ class Configuration(object):
 
     # Use with ./scripts/build.py release_to_steam --version=1.4.8
     def release_to_steam(self):
-        editor_channel = "editor-alpha"
-        engine_channel = "stable"
-        tag_name = self.compose_tag_name(self.version, engine_channel)
-        archive_path = self.get_archive_path(editor_channel)
+        channel = "stable"
+        tag_name = self.compose_tag_name(self.version, channel)
+        archive_path = self.get_archive_path(channel)
         urls = self.get_editor_urls_from_s3(archive_path, tag_name)
         release_to_steam.release(self, urls)
 
 
     # Use with ./scripts/build.py release_to_egs --version=1.4.8
     def release_to_egs(self):
-        editor_channel = "editor-alpha"
-        engine_channel = "stable"
-        tag_name = self.compose_tag_name(self.version, engine_channel)
-        archive_path = self.get_archive_path(editor_channel)
+        channel = "stable"
+        tag_name = self.compose_tag_name(self.version, channel)
+        archive_path = self.get_archive_path(channel)
         urls = self.get_editor_urls_from_s3(archive_path, tag_name)
         release_to_egs.release(self, urls, tag_name)
 
@@ -2462,10 +2451,10 @@ class Configuration(object):
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android , js-web  and x86-win32
+        # * rarely used platforms: armv7-android and x86-win32
         # * headless builds
         pattern = re.compile(
-            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|js-web|x86-win32)(/|$)|headless'
+            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|x86-win32)(/|$)|headless'
         )
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for obj_summary in bucket.objects.filter(Prefix=prefix):
@@ -2836,6 +2825,9 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
+        if self.test_device:
+            env['ANDROID_SERIAL'] = self.test_device
+
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
@@ -2887,6 +2879,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--test-device', dest='test_device',
+                      default = None,
+                      help = 'Android device serial to target when running Android tests')
 
     parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
                     action = 'store_true',
@@ -3021,10 +3017,17 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'If used, outputs verbose logging')
 
+    parser.add_option('--size-analyze', dest='size_analyze',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
+
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
     waf_options = list(filter(lambda x: x[:2] == '--', all_args))
+    if options.size_analyze:
+        waf_options.append('--size-analyze')
 
     if len(args) == 0:
         parser.error('No command specified')
@@ -3036,6 +3039,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      test_device = options.test_device,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,

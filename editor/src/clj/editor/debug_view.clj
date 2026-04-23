@@ -394,7 +394,9 @@
 
 (defn- file-or-module->resource
   [workspace file]
-  (some (partial workspace/find-resource workspace) [file (lua/lua-module->path file)]))
+  (let [basis (g/now)]
+    (or (workspace/find-resource basis workspace file)
+        (workspace/find-resource basis workspace (lua/lua-module->path file)))))
 
 (defn- make-open-resource-fn
   [project open-resource-fn]

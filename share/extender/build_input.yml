@@ -82,8 +82,8 @@ context:
                 "particle",
                 "rig",
                 "dlib",
-                "dlib_fat",
-                "mbedtls_fat",
+                "mbedtls",
+                "mbedtls_full",
                 "image",
                 "image_null",
                 "dmglfw",
@@ -174,6 +174,7 @@ context:
 
 main: |
     #include <stdio.h>
+    #include <dmsdk/dlib/android.h>
 
     #if __cplusplus
     extern "C" {
@@ -222,6 +223,7 @@ main: |
         // Make sure glue isn't stripped.
         app_dummy();
         _glfwPreMain(state);
+        dmAndroid::SetAndroidApp(state);
     }
 
     #if __cplusplus
@@ -438,7 +440,7 @@ platforms:
         ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION}}"
         ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH}}"
     context:
-        engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
+        engineJars: ["{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind", "decoder_wav", "decoder_ogg"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
@@ -534,14 +536,7 @@ platforms:
     manifestName:     'engine_template.html'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
-  js-web:
-    context:
-        libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
-        emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
-
-    symbolsPattern:  'dmengine.js.symbols'
-    zipContentPattern: 'dmengine.js'
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}} {{#externalJsPorts}}--use-port={{dynamo_home}}/{{{.}}} {{/externalJsPorts}}'
+# js-web removed in Defold 1.13.0
 
   wasm-web:
     context:
@@ -573,14 +568,14 @@ platforms:
     env:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
-        MSVC_DIR:           "{{env.WINDOWS_MSVC_DIR_2022}}"
-        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR_2022}}"
-        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR_2022}}"
-        SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
-        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_20348_VERSION}}"
-        CLANG_HOME:         "{{env.CLANG_17_RESOURCE_DIR}}"
+        MSVC_DIR:           "{{env.WINDOWS_MSVC_DIR}}"
+        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
+        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
+        SDK_DIR:            "{{env.WINDOWS_SDK_DIR}}"
+        SDK_VERSION:        "{{env.WINDOWS_SDK_VERSION}}"
+        CLANG_HOME:         "{{env.CLANG_RESOURCE_DIR}}"
     context:
-        systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
+        systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/ucrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/winrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/um", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/shared"]
         engineLibs:     ["libengine","libengine_service","libmbedtls","libzip","libprofile","libprofilerext","libprofiler_remotery","librecord","libgameobject","libddf","libfont","libresource","libgamesys","libgamesys_model","libgamesys_rig","libscript_box2d_defold","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","librender","librender_font_default","libscript","libluajit-5.1","libextension","hid","input","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx", "libdecoder_wav", "libdecoder_ogg"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
         symbols:        ["GraphicsAdapterOpenGL", "ProfilerRemotery"]
@@ -604,7 +599,7 @@ platforms:
   x86_64-win32:
 
     context:
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK_DIR}}/Lib/{{env.SDK_VERSION}}/ucrt/x64", "{{env.SDK_DIR}}/Lib/{{env.SDK_VERSION}}/um/x64"]
         defines:        ["DM_PLATFORM_WINDOWS", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
         flags:          ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-gcodeview", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++", "-fno-exceptions"]
         linkFlags:      ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
@@ -614,7 +609,7 @@ platforms:
 
   x86-win32:
     context:
-        libPaths:   ["{{dynamo_home}}/lib/win32", "{{dynamo_home}}/lib/x86-win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
+        libPaths:   ["{{dynamo_home}}/lib/win32", "{{dynamo_home}}/lib/x86-win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK_DIR}}/Lib/{{env.SDK_VERSION}}/ucrt/x86", "{{env.SDK_DIR}}/Lib/{{env.SDK_VERSION}}/um/x86"]
         defines:        ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
         flags:          ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-gcodeview", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++", "-fno-exceptions"]
         linkFlags:      ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]

@@ -31,8 +31,18 @@
 
 namespace dmAndroid {
 
+/*# sets the android app
+ * @param app [type: struct android_app*] The registered android app
+ */
+void SetAndroidApp(struct android_app* app);
+
+/*# get's the previously registered android app
+ * @return app [type: struct android_app*] The registered android app
+ */
+struct android_app* GetAndroidApp();
+
 /*#
- * Struct attaching the JNI environment. Detaches the
+ * Struct attaching the JNI environment.
  * @class
  * @name ThreadAttacher
  */

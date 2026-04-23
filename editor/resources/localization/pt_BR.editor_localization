@@ -67,7 +67,6 @@ welcome.new-project.rive-project.description = Este modelo usa a extensão rive 
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = Tutorial de Rolagem Lateral
 welcome.new-project.side-scroller-tutorial.description = Neste tutorial para iniciantes, você experimenta como é criar um jogo em Defold modificando um jogo de rolagem lateral muito simples.
-welcome.new-project.walking-astronaut-tutorial.title = Tutorial do Astronauta
 welcome.new-project.walking-astronaut-tutorial.description = Neste tutorial para iniciantes, você aprende como capturar os comandos do jogador e fazer um personagem se mover e animar. Você também aprenderá sobre os blocos de construção centrais em Defold\: objetos de jogo, componentes e coleções.
 welcome.new-project.movement-tutorial.title = Tutorial de Movimento
 welcome.new-project.movement-tutorial.description = Neste tutorial para iniciantes, você aprende como fazer um movimento realista usando vetores e álgebra de vetores simples.
@@ -77,6 +76,8 @@ welcome.new-project.colorslide-tutorial.title = Tutorial de Colorslide
 welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuldade média, você cria uma interface dentro do jogo, uma tela de GUI para seleção de nível e uma tela inicial para um jogo móvel com vários níveis.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-third-person-playground.title = Playground 3D de Terceira-Pessoa
+welcome.new-project.sample-3d-third-person-playground.description = Este é um exemplo de jogo de terceira pessoa 3D onde você pode mover um personagem 3D com teclado ou mouse/toque. Ele mostra como fazer uma configuração 3D básica com sombras.
 welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
 welcome.new-project.linker-sample-game.description = Este é um jogo de exemplo completo onde você clica e arraste para ligar peixes da mesma cor para removê-los do tabuleiro. Grandes correntes de peixes geram bônus.
 welcome.new-project.roids-sample-game.title = Jogo de Exemplo Roids
@@ -342,6 +343,7 @@ notification.fetch-libraries.dependencies-changed.action.fetch = Buscar Bibliote
 notification.fetch-libraries.dependencies-missing.warning = Estão faltando as seguintes dependências\:\n{dependencies}\nO projeto pode não funcionar sem elas.\nPara baixar, conecte-se à internet e busque as bibliotecas.
 notification.fetch-libraries.dependencies-error.error = Não foi possível instalar as seguintes dependências\:\n{dependencies}
 notification.fetch-libraries.dependencies-error.action.open-game-project = Abrir game.project
+notification.fetch-libraries.min-version.error = Biblioteca {uri} requer Defold {required} ou mais recente (a versão atual do Defold é {current}). Atualize o Defold ou verifique versões de extensão mais antigas para compatibilidade.
 
 # Settings notifications
 
@@ -507,7 +509,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
@@ -575,15 +576,19 @@ dialog.bundle.error.bundle-format.required = Nenhum formato de pacote selecionad
 pane.assets = Conteúdo
 pane.changed-files = Arquivos Modificados
 pane.outline = Estrutura
+pane.structure = Estrutura
 pane.properties = Propriedades
 pane.console = Console
 pane.curve-editor = Editor de Curvas
 pane.build-errors = Erros de Compilação
 pane.search-results = Resultados da Busca
 pane.breakpoints = Pontos de Interrupção
+pane.debugger.call-stack = Pilha de chamadas
+pane.debugger.variables = Variáveis
 
 # Assets
 
+assets.dependencies = Dependências
 
 # Console
 
@@ -729,7 +734,6 @@ progress.cleaning = Limpando…
 progress.generating-report = Gerando relatório…
 progress.working = Trabalhando…
 progress.reading-classes = Lendo classes…
-progress.downloading-archives = Baixando arquivos…
 progress.launching-engine = Lançando motor…
 progress.launched-engine = Lançado {engine}
 progress.engine-launch-failed = Lançamento falhou
@@ -765,6 +769,7 @@ menu.help = Ajuda
 
 # Commands
 
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
 
 command.file.new = Novo…
 command.file.new.option.any-file = Arquivo
@@ -846,6 +851,10 @@ command.edit.add-embedded-component.variant.collision-object.option.box = Caixa
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Cápsula
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Esfera
 command.edit.add-embedded-component.variant.game-object = Adicionar Componente
+command.edit.add-embedded-component.variant.gui.option.textures = Texturas…
+command.edit.add-embedded-component.variant.gui.option.materials = Materiais…
+command.edit.add-embedded-component.variant.gui.option.fonts = Fontes…
+command.edit.add-embedded-component.variant.gui.option.layer = Camada
 command.edit.add-embedded-component.variant.particlefx = Adicionar Emissor
 command.edit.add-embedded-component.variant.particlefx.option.circle = Círculo
 command.edit.add-embedded-component.variant.particlefx.option.sphere = Esfera
@@ -1036,6 +1045,9 @@ operation.paste = Colar
 operation.select = Selecionar
 operation.tile-map.add-layer = Adicionar Camada
 
+# Scene View Popups
+
+
 # Properties
 
 property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como "{id}" nos scripts de editor
@@ -1100,6 +1112,8 @@ property.atlas.inner-padding = Estofamento Interno
 property.atlas.inner-padding.tooltip = Pixels vazios ao redor de cada imagem
 property.atlas.extrude-borders = Extrudar Bordas
 property.atlas.extrude-borders.tooltip = Copia pixels da borda para fora para evitar conflito entre imagens
+property.atlas.max-page-width = Largura Máx. da Página
+property.atlas.max-page-height = Altura Máx. da Página
 property.atlas.max-page-size = Tamanho Máximo da Página
 property.atlas.max-page-size.tooltip = Maior largura e altura para cada página em um atlas de várias páginas
 property.atlas.rename-patterns = Renomear Padrões
@@ -1353,11 +1367,15 @@ outline.collection = Coleção
 outline.collection-proxy = Proxy de Coleção
 outline.collision-object = Objeto de Colisão
 outline.game-object = Objeto de Jogo
+outline.gui.box = Caixa
 outline.gui.fonts = Fontes
 outline.gui.layouts = Layouts
 outline.gui.layers = Camadas
 outline.gui.materials = Materiais
 outline.gui.nodes = Nós
+outline.gui.pie = Torta
+outline.gui.template = Modelo
+outline.gui.text = Texto
 outline.gui.textures = Texturas
 outline.non-editable-collection = Coleção Não Editável
 outline.non-editable-game-object = Objeto de Jogo Não Editável
@@ -1394,6 +1412,7 @@ resource.type.compute = Calcular
 resource.type.convexshape = Formato de Convex
 resource.type.cp = Programa de Computação
 resource.type.cpp = C++
+resource.type.custom = Recurso
 resource.type.cubemap = Cubemap
 resource.type.defignore = Defignore
 resource.type.defunload = Defunload
@@ -1445,6 +1464,7 @@ resource.type.shared-editor-settings = Configurações Compartilhadas de Editor
 resource.type.sh = Shell Script
 resource.type.sound = Som
 resource.type.sprite = Sprite
+resource.type.texture = Textura
 resource.type.texture-profiles = Perfis de Texturas
 resource.type.tilemap = Tile Map
 resource.type.tilesource = Tile Source
@@ -1454,6 +1474,14 @@ resource.type.xml = XML
 resource.type.zig = Zig
 resource.type.zon = Notação de Objeto Zig
 
+resource.category.objects = Objetos
+resource.category.scripts = Scripts
+resource.category.components = Componentes
+resource.category.resources = Recursos
+resource.category.editor = Editor
+resource.category.render = Renderização
+resource.category.project_settings = Configurações de Projeto
+resource.category.other = Outros
 
 # Forms
 
@@ -1763,6 +1791,7 @@ form.help.project.sprite.max_count = Máximo de sprites, 128 por padrão
 form.label.project.sprite.subpixels = Subpixels
 form.help.project.sprite.subpixels = Permitir que os sprites apareçam desalinhados em relação aos pixels
 
+form.label.project.tilemap.max_count = Contagem Máxima
 
 form.label.project.box2d = Box2D
 form.help.project.box2d = Configurações de física do Box2D. A disponibilidade de opções depende da versão do Box2D.
@@ -1779,6 +1808,7 @@ form.label.project.display.width = Largura
 form.help.project.display.width = A largura em pixels da janela da aplicação, por padrão 960
 form.label.project.display.height = Altura
 form.help.project.display.height = A altura em pixels da janela da aplicação, por padrão 640
+form.label.project.display.high_dpi = DPI Alto
 form.label.project.display.samples = Amostras
 form.help.project.display.samples = Quantas amostras usar para super amostragem anti-aliasing, 0 por padrão, o que significa que está desativado
 form.label.project.display.fullscreen = Tela Cheia
@@ -1816,10 +1846,14 @@ form.label.project.graphics = Gráficos
 form.help.project.graphics = Configurações de Gráficos
 form.label.project.graphics.default_texture_min_filter = Filtro Mínimo de Textura Padrão
 form.help.project.graphics.default_texture_min_filter = Qual filtro usar para filtragem mínima, linear por padrão
+form.label.project.graphics.max_characters = Máx. Caracteres
+form.label.project.graphics.texture_profiles = Perfis de Textura
+form.label.project.graphics.verify_graphics_calls = Verificar Chamadas Gráficas
 form.label.project.graphics.memory_size = Tamanhos de Memória
 form.help.project.graphics.memory_size = Quanto de memória o driver tem permissão para usar (MB)
 
 form.label.project.input = Entrada
+form.label.project.input.repeat_delay = Atraso de Repetição
 form.help.project.input.repeat_delay = Segundos de espera antes de uma tecla de teclado pressionada começar a repetir
 form.label.project.input.use_accelerometer = Usar Acelerômetro
 form.help.project.input.use_accelerometer = Determina se a aplicação recebe eventos do acelerômetro
@@ -1838,6 +1872,7 @@ form.help.project.network.http_cache_enabled = Os dados baixados serão mantidos
 form.label.project.physics = Física
 form.help.project.physics = Configurações de física
 form.label.project.physics.type = Tipo
+form.label.project.physics.debug = Depuração
 form.label.project.physics.world_count = Contagem de Mundos
 form.help.project.physics.world_count = Número máximo de mundos de física simultâneos, 4 por padrão (cuidado, eles desperdiçam memória)
 form.label.project.physics.gravity_x = Gravidade X
@@ -1867,7 +1902,10 @@ form.help.project.profiler.performance_timeline_enabled = Ativar relatório na t
 form.label.project.render = Renderização
 form.help.project.render = Configurações de Renderização
 
+form.label.project.resource = Recurso
 form.label.project.resource.http_cache = Cache HTTP
+form.label.project.resource.uri = URI
+form.help.project.resource.uri = Onde encontrar o game.project, no formato URI
 
 form.label.project.shader = Shader
 form.help.project.shader = Configurações de Shader
@@ -1887,9 +1925,14 @@ form.help.project.liveupdate.enabled = Ativa o uso do live update
 form.label.project.liveupdate.settings = Configurações
 form.help.project.liveupdate.mount_on_start = Habilita auto-montagem de recursos previamente montados quando a aplicação iniciar
 
+form.label.project.native_extension = Extensão Nativa
+form.help.project.native_extension.app_manifest = Arquivo opcional de configuração com controle detalhado sobre as configurações de compilação
 
+form.label.animationset = Conjunto de Animações
+form.label.animationset.animations = Animações
 
 form.label.camera = Câmera
+form.label.camera.aspect-ratio = Taxa de Proporção
 form.label.camera.fov = Campo de visão (FOV)
 form.label.camera.orthographic-projection = Projeção Ortográfica
 form.label.camera.orthographic-mode = Modo de Zoom Ortográfico
@@ -1918,13 +1961,38 @@ form.label.display-profiles.profile.qualifiers.height = Altura
 form.label.display-profiles.profile.qualifiers.device-models = Modelos de Dispositivo
 
 form.label.input-binding = Mapeamento de Entrada
+form.label.input-binding.key-trigger.input = Entrada
 form.label.input-binding.key-trigger.action = Ação
+form.label.input-binding.mouse-trigger.input = Entrada
 form.label.input-binding.mouse-trigger.action = Ação
+form.label.input-binding.gamepad-trigger.input = Entrada
 form.label.input-binding.gamepad-trigger.action = Ação
+form.label.input-binding.touch-trigger.input = Entrada
+form.label.input-binding.touch-trigger.action = Ação
+form.label.input-binding.text-trigger.input = Entrada
 form.label.input-binding.text-trigger.action = Ação
 
+form.label.gamepads.driver.device = Dispositivo
+form.label.gamepads.driver.platform = Plataforma
+form.label.gamepads.driver.dead-zone = Zona morta
+form.label.gamepads.driver.map = Mapear
+form.label.gamepads.driver.map.input = Entrada
+form.label.gamepads.driver.map.type = Tipo
+form.label.gamepads.driver.map.index = Índice
 form.label.gamepads.driver.map.scale = Escala
 
+form.label.texture-profiles = Perfis de Textura
+form.label.texture-profiles.path-settings = Configurações de Caminho
+form.label.texture-profiles.path-settings.path = Caminho
+form.label.texture-profiles.path-settings.profile = Perfil
+form.label.texture-profiles.profiles = Perfis
+form.label.texture-profiles.profiles.platforms = Plataformas
+form.label.texture-profiles.profiles.platforms.formats = Formatos
+form.label.texture-profiles.profiles.platforms.formats.format = Formato
+form.label.texture-profiles.profiles.platforms.formats.compressor = Compressor
+form.label.texture-profiles.profiles.platforms.mipmaps = Mipmaps
+form.label.texture-profiles.profiles.platforms.max-texture-size = Tamanho Máximo de Textura
+form.label.texture-profiles.profiles.platforms.premultiply-alpha = Pré-multiplicar Alfa
 
 form.label.factory = Fábrica
 form.label.factory.prototype = Protótipo
@@ -1957,6 +2025,7 @@ form.label.liveupdate.liveupdate.amazon-prefix = Prefixo
 form.help.liveupdate.liveupdate.amazon-prefix = Prefixo da Amazon
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Salvar na Pasta do Pacote
+form.label.liveupdate.liveupdate.zip-filepath = Diretório de Saída
 form.label.liveupdate.liveupdate.zip-filename = Nome do Arquivo
 form.title.liveupdate.liveupdate.zip-filepath = Selecione o diretório de destino do Zip
 form.help.liveupdate.liveupdate.zip-filename = Nome do arquivo Zip
@@ -1965,13 +2034,23 @@ form.label.liveupdate.folder = Pasta
 form.label.liveupdate.liveupdate.output-folder-name = Pasta de destino
 form.help.liveupdate.liveupdate.output-folder-name = Nome da pasta de destino
 form.label.liveupdate.manifest = Manifesto
+form.label.liveupdate.liveupdate.publickey = Chave Pública
+form.title.liveupdate.liveupdate.publickey = Selecione a Chave Pública do Manifesto
+form.label.liveupdate.liveupdate.privatekey = Chave Privada
+form.title.liveupdate.liveupdate.privatekey = Selecione a Chave Privada do Manifesto
 form.label.liveupdate.liveupdate.supported-versions = Versões do motor suportadas
 form.help.liveupdate.liveupdate.supported-versions = Lista de versões do motor suportado
 
 form.label.material = Material
 form.label.material.name = Nome
+form.label.material.vertex-program = Programa de Vértices
+form.label.material.fragment-program = Programa de Fragmento
+form.label.material.attributes = Atributos de Vértice
+form.label.material.attributes.semantic-type = Tipo Semântico
+form.label.material.attributes.data-type = Tipo de Dados
 form.label.material.attributes.vector-type = Tipo de Vetor
 form.label.material.attributes.value = Valor
+form.label.material.attributes.normalize = Normalizar
 form.label.material.vertex-constants.name = Nome
 form.label.material.vertex-constants.type = Tipo
 form.label.material.vertex-constants.value = Valor
@@ -1995,3 +2074,49 @@ quick-help.build-and-run-project = Compilar e Executar Projeto
 quick-help.start-or-attach-debugger = Iniciar ou Conectar Depurador
 
 # Error Messages
+error.sound.invalid-ogg-file = Arquivo Ogg inválido.
+error.sound.invalid-ogg-file-details = Arquivo Ogg inválido (oggz-validate)\:\n{output}
+error.sound.could-not-read-audio-file = Não foi possível ler o arquivo de áudio {resource}.
+error.unknown-source = Fonte desconhecida
+error.unspecified-property = "{property}" deve ser especificado.
+error.tile-source.tile-outside-range = "{property}" está fora do intervalo de blocos (1-{max}).
+error.property-cannot-start-or-end-with-space = "{property}" não deve começar ou terminar com um caractere de espaço.
+error.property-cannot-be-negative = "{property}" não pode ser negativo.
+error.property-must-be-greater-than-zero = "{property}" deve ser maior que zero.
+error.property-must-be-at-least = "{property}" deve ser pelo menos {min}.
+error.property-must-be-at-most = "{property}" deve ser no máximo {max}.
+error.render-target.color-attachments-cannot-exceed = "{property}" não pode ter mais do que {max} anexos de cor.
+error.render-target.color-attachment-width-must-be-greater-than-zero = O anexo de cor {index} deve ter uma largura maior que zero.
+error.collision-object-shape-dimensions-must-be-greater-than-zero = Todas as dimensões devem ser maiores que zero.
+error.collision-object-has-no-shapes = Objeto de Colisão não tem formas.
+error.collision-object-shape-not-supported-in-physics = As formas {shape} não são suportadas na física {physics}.
+error.texture-profiles.format-not-supported-by-texture-compressor = O formato da textura não é suportado pelo compressor de textura.
+error.texture-profiles.preset-not-supported-by-texture-compressor = A predefinição de textura não é suportada pelo compressor de textura.
+error.property-cannot-exceed = "{property}" não pode exceder {value}.
+error.property-must-be-between = "{property}" deve estar entre {min} e {max}.
+error.attribute-components-must-be-between = Componentes no atributo de vértices "{attribute}" deve estar entre {min} e {max}.
+error.vertex-attribute = Atributo de vértice "{attribute}"\: {error}
+error.vertex-attribute-normalize-float-data-type = Atributo de vértice "{attribute}" usa Normalizar com tipo de dados Float.
+error.lua-preprocessing-failed = Pré-processamento Lua falhou.\n{error}
+error.transpiler-compilation-failed = Compilação falhou\: {error}
+error.animation-set-build-failed = Falha ao construir {resource}\: {error}
+error.blend-mode-add-alpha-replaced = "{old}" foi substituído por "{new}".
+error.duplicate-instance-id = "{id}" está em uso em outra instância.
+error.non-unique-ids = Os seguintes IDs não são únicos\: {ids}.
+error.resource-not-found = "{resource}" não pôde ser encontrado.
+error.resource-not-loaded = O arquivo "{resource}" não pôde ser carregado.
+error.resource-not-loaded-with-error = O arquivo "{resource}" não pôde ser carregado\: {error}
+error.material-expects-paged-atlas = O Material espera um Atlas paginado, mas o {property} selecionado não é paginado.
+error.model-load-failed = O arquivo "{file}" falhou ao carregar\:\n{error}
+error.animation-not-found = "{animation}" não pôde ser encontrado em "{property}".
+error.buffer-syntax-error = Erro de sintaxe no arquivo de buffer.
+error.editor-extension-compilation-failed = Não foi possível compilar extensão do editor.
+error.font-bitmap-generation-failed = Falha ao gerar o bitmap a partir da Fonte. {error}
+error.at-line = Linha {line}\: {error}
+error.render.title = ERRO DE RENDERIZAÇÃO\:
+error.render.unknown-resource = desconhecido
+error.render.and-more = …e mais
+error.gui.resource-not-found-in-scene = {type} "{name}" não existe na cena.
+error.gui.layer-from-template-not-found-in-scene = Camada "{layer}" da cena modelo não existe na cena; a camada pai será usada.
+error.gui.template-resource-conflicting-values = {type} "{resource}" tem valores conflitantes em modelos\: {values}.
+error.gui.max-nodes-exceeded = O número real de nós ({count}) excede "{property}" ({max}).

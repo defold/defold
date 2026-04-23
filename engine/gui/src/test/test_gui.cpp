@@ -4912,7 +4912,8 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 
     dmParticle::HPrototype prototype;
     const char* particlefx_name = "once.particlefxc";
-    LoadParticlefxPrototype(particlefx_name, &prototype);
+    bool result = LoadParticlefxPrototype(particlefx_name, &prototype);
+    ASSERT_TRUE(result);
 
     dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
     ASSERT_EQ(res, dmGui::RESULT_OK);
@@ -5502,6 +5503,56 @@ TEST_F(dmGuiTest, SetGetScreenPositionSafeArea)
 
     Point3 local_after = dmGui::GetNodePosition(m_Scene, root);
     Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(after_set.getXYZ()));
+    ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
+    ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledRoot)
+{
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 50);
+    dmGui::SetSceneResolution(m_Scene, 100, 50);
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+
+    dmGui::HNode root = dmGui::NewNode(m_Scene, Point3(20, 15, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    Point3 local_before = dmGui::GetNodePosition(m_Scene, root);
+    Point3 local_from_screen = dmGui::ScreenToLocalPosition(m_Scene, root, Point3(before_set.getXYZ()));
+    ASSERT_NEAR(local_before.getX(), local_from_screen.getX(), EPSILON);
+    ASSERT_NEAR(local_before.getY(), local_from_screen.getY(), EPSILON);
+
+    Point3 target_screen(before_set.getX() + 13.0f, before_set.getY() + 9.0f, 0.0f);
+    dmGui::SetScreenPosition(m_Scene, root, target_screen);
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, root);
+    ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
+    ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, SetGetScreenPositionAdjustDisabledScaledParent)
+{
+    dmGui::SetPhysicalResolution(m_Context, 100, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 100);
+    dmGui::SetSceneResolution(m_Scene, 100, 100);
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(30, 20, 0), Vector3(40, 40, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeProperty(m_Scene, parent, dmGui::PROPERTY_SCALE, Vector4(2.0f, 0.5f, 1.0f, 1.0f));
+
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(10, 8, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, child, parent, false);
+
+    Vector4 before_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    Point3 target_screen(before_set.getX() + 14.0f, before_set.getY() - 6.0f, 0.0f);
+    dmGui::SetScreenPosition(m_Scene, child, target_screen);
+
+    Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    ASSERT_NEAR(target_screen.getX(), after_set.getX(), EPSILON);
+    ASSERT_NEAR(target_screen.getY(), after_set.getY(), EPSILON);
+
+    Point3 local_after = dmGui::GetNodePosition(m_Scene, child);
+    Point3 local_from_after = dmGui::ScreenToLocalPosition(m_Scene, child, Point3(after_set.getXYZ()));
     ASSERT_NEAR(local_after.getX(), local_from_after.getX(), EPSILON);
     ASSERT_NEAR(local_after.getY(), local_from_after.getY(), EPSILON);
 }

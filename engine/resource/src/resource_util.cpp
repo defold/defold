@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "resource_util.h"
-#include "resource_manifest_private.h"
 
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
@@ -47,65 +46,6 @@ static dmResource::Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
 dmResource::Result DecryptBuffer(void* buffer, uint32_t buffer_len)
 {
     return g_ResourceDecryption(buffer, buffer_len);
-}
-
-static dmCrypt::HashAlgorithm DDFHashToCryptHash(dmLiveUpdateDDF::HashAlgorithm algo)
-{
-    switch(algo)
-    {
-        case dmLiveUpdateDDF::HASH_MD5: return dmCrypt::HASH_ALGORITHM_MD5;
-        case dmLiveUpdateDDF::HASH_SHA1: return dmCrypt::HASH_ALGORITHM_SHA1;
-        case dmLiveUpdateDDF::HASH_SHA256: return dmCrypt::HASH_ALGORITHM_SHA256;
-        case dmLiveUpdateDDF::HASH_SHA512: return dmCrypt::HASH_ALGORITHM_SHA512;
-        default: return dmCrypt::HASH_ALGORITHM_NONE;
-    }
-}
-
-static Result DmCryptResultToResourceResult(dmCrypt::Result crypt_result)
-{
-    switch (crypt_result)
-    {
-    case dmCrypt::RESULT_OK:
-        return RESULT_OK;
-    case dmCrypt::RESULT_INVALID_LENGTH:
-        return RESULT_FORMAT_ERROR;
-    case dmCrypt::RESULT_SIGNATURE_MISMATCH:
-        return RESULT_SIGNATURE_MISMATCH;
-    }
-    return RESULT_INVALID_DATA;
-}
-
-Result VerifySignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len)
-{
-    const uint8_t* data = manifest->m_DDF->m_Data.m_Data;
-    uint32_t data_len = manifest->m_DDF->m_Data.m_Count;
-
-    dmLiveUpdateDDF::HashAlgorithm hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
-    uint8_t hashed_content[64] = { 0 };
-    uint32_t hash_len = HashLength(hash_algorithm);
-    switch(hash_algorithm)
-    {
-        case dmLiveUpdateDDF::HASH_MD5:
-            dmCrypt::HashMd5(data, data_len, hashed_content);
-            break;
-        case dmLiveUpdateDDF::HASH_SHA1:
-            dmCrypt::HashSha1(data, data_len, hashed_content);
-            break;
-        case dmLiveUpdateDDF::HASH_SHA256:
-            dmCrypt::HashSha256(data, data_len, hashed_content);
-            break;
-        case dmLiveUpdateDDF::HASH_SHA512:
-            dmCrypt::HashSha512(data, data_len, hashed_content);
-            break;
-        default:
-            return RESULT_INVALID_DATA;
-    }
-
-    const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
-    dmCrypt::Result r = dmCrypt::Verify(DDFHashToCryptHash(algorithm), pub_key_buf, pub_key_len, hashed_content, hash_len, signature, signature_len);
-    return DmCryptResultToResourceResult(r);
 }
 
 uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)

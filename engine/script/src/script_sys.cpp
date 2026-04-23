@@ -62,7 +62,7 @@ static int g_DebuggerLightweightHook = 0;
 
 union SaveLoadBuffer
 {
-    uint32_t m_alignment; // This alignment is required for js-web
+    uint32_t m_alignment; // This alignment is required for web targets
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
 } DM_ALIGNED(16) g_saveload;
 

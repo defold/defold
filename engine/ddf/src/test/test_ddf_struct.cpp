@@ -37,16 +37,16 @@ void TestStructSimple(const char* msg, uint32_t msg_size)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     dmStructDDF::Struct::FieldsEntry* hello = FindEntry(message, "hello");
-    ASSERT_STREQ("world", hello->m_Value->m_Kind.m_StringValue);
+    ASSERT_STREQ("world", hello->m_Value->m_Kind.m_String);
 
     dmStructDDF::Struct::FieldsEntry* number = FindEntry(message, "number");
-    ASSERT_NEAR(1337.0, number->m_Value->m_Kind.m_NumberValue, 0.001);
+    ASSERT_NEAR(1337.0, number->m_Value->m_Kind.m_Number, 0.001);
 
     dmStructDDF::Struct::FieldsEntry* boolean = FindEntry(message, "boolean");
-    ASSERT_TRUE(boolean->m_Value->m_Kind.m_BoolValue);
+    ASSERT_TRUE(boolean->m_Value->m_Kind.m_Bool);
 
     dmStructDDF::Struct::FieldsEntry* nothing = FindEntry(message, "nothing");
-    ASSERT_EQ(dmStructDDF::NULL_VALUE, nothing->m_Value->m_Kind.m_NullValue);
+    ASSERT_EQ(dmStructDDF::NULL_VALUE, nothing->m_Value->m_Kind.m_Null);
 
     // Save
     std::string save_str;
@@ -58,16 +58,16 @@ void TestStructSimple(const char* msg, uint32_t msg_size)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     dmStructDDF::Struct::FieldsEntry* hello2 = FindEntry(saved_message, "hello");
-    ASSERT_STREQ("world", hello2->m_Value->m_Kind.m_StringValue);
+    ASSERT_STREQ("world", hello2->m_Value->m_Kind.m_String);
 
     dmStructDDF::Struct::FieldsEntry* number2 = FindEntry(saved_message, "number");
-    ASSERT_NEAR(1337.0, number2->m_Value->m_Kind.m_NumberValue, 0.001);
+    ASSERT_NEAR(1337.0, number2->m_Value->m_Kind.m_Number, 0.001);
 
     dmStructDDF::Struct::FieldsEntry* boolean2 = FindEntry(saved_message, "boolean");
-    ASSERT_TRUE(boolean2->m_Value->m_Kind.m_BoolValue);
+    ASSERT_TRUE(boolean2->m_Value->m_Kind.m_Bool);
 
     dmStructDDF::Struct::FieldsEntry* nothing2 = FindEntry(saved_message, "nothing");
-    ASSERT_EQ(dmStructDDF::NULL_VALUE, nothing2->m_Value->m_Kind.m_NullValue);
+    ASSERT_EQ(dmStructDDF::NULL_VALUE, nothing2->m_Value->m_Kind.m_Null);
 
     dmDDF::FreeMessage(message);
     dmDDF::FreeMessage(saved_message);
@@ -82,11 +82,11 @@ void TestStructNested(const char* msg, uint32_t msg_size)
 
     dmStructDDF::Struct::FieldsEntry* user = FindEntry(message, "user");
 
-    dmStructDDF::Struct::FieldsEntry* field_id = FindEntry(&user->m_Value->m_Kind.m_StructValue, "id");
-    ASSERT_NEAR(123.0, field_id->m_Value->m_Kind.m_NumberValue, 0.001);
+    dmStructDDF::Struct::FieldsEntry* field_id = FindEntry(&user->m_Value->m_Kind.m_Struct, "id");
+    ASSERT_NEAR(123.0, field_id->m_Value->m_Kind.m_Number, 0.001);
 
-    dmStructDDF::Struct::FieldsEntry* field_name = FindEntry(&user->m_Value->m_Kind.m_StructValue, "name");
-    ASSERT_STREQ("Mr.X", field_name->m_Value->m_Kind.m_StringValue);
+    dmStructDDF::Struct::FieldsEntry* field_name = FindEntry(&user->m_Value->m_Kind.m_Struct, "name");
+    ASSERT_STREQ("Mr.X", field_name->m_Value->m_Kind.m_String);
 
     // Save
     std::string save_str;
@@ -99,11 +99,11 @@ void TestStructNested(const char* msg, uint32_t msg_size)
 
     dmStructDDF::Struct::FieldsEntry* user2 = FindEntry(saved_message, "user");
 
-    dmStructDDF::Struct::FieldsEntry* field_id_2 = FindEntry(&user2->m_Value->m_Kind.m_StructValue, "id");
-    ASSERT_NEAR(123.0, field_id_2->m_Value->m_Kind.m_NumberValue, 0.001);
+    dmStructDDF::Struct::FieldsEntry* field_id_2 = FindEntry(&user2->m_Value->m_Kind.m_Struct, "id");
+    ASSERT_NEAR(123.0, field_id_2->m_Value->m_Kind.m_Number, 0.001);
 
-    dmStructDDF::Struct::FieldsEntry* field_name_2 = FindEntry(&user2->m_Value->m_Kind.m_StructValue, "name");
-    ASSERT_STREQ("Mr.X", field_name_2->m_Value->m_Kind.m_StringValue);
+    dmStructDDF::Struct::FieldsEntry* field_name_2 = FindEntry(&user2->m_Value->m_Kind.m_Struct, "name");
+    ASSERT_STREQ("Mr.X", field_name_2->m_Value->m_Kind.m_String);
 
     dmDDF::FreeMessage(message);
     dmDDF::FreeMessage(saved_message);
@@ -117,12 +117,12 @@ void TestStructList(const char* msg, uint32_t msg_size)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     dmStructDDF::Struct::FieldsEntry* values = FindEntry(message, "values");
-    dmStructDDF::ListValue* list = values->m_Value->m_Kind.m_ListValue;
+    dmStructDDF::ListValue* list = values->m_Value->m_Kind.m_List;
 
     ASSERT_EQ(3, list->m_Values.m_Count);
-    ASSERT_NEAR(1.0, list->m_Values[0].m_Kind.m_NumberValue, 0.001);
-    ASSERT_STREQ("two", list->m_Values[1].m_Kind.m_StringValue);
-    ASSERT_FALSE(list->m_Values[2].m_Kind.m_BoolValue);
+    ASSERT_NEAR(1.0, list->m_Values[0].m_Kind.m_Number, 0.001);
+    ASSERT_STREQ("two", list->m_Values[1].m_Kind.m_String);
+    ASSERT_FALSE(list->m_Values[2].m_Kind.m_Bool);
 
     // Save
     std::string save_str;
@@ -134,12 +134,12 @@ void TestStructList(const char* msg, uint32_t msg_size)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     dmStructDDF::Struct::FieldsEntry* values2 = FindEntry(saved_message, "values");
-    dmStructDDF::ListValue* list2 = values2->m_Value->m_Kind.m_ListValue;
+    dmStructDDF::ListValue* list2 = values2->m_Value->m_Kind.m_List;
 
     ASSERT_EQ(3, list2->m_Values.m_Count);
-    ASSERT_NEAR(1.0, list2->m_Values[0].m_Kind.m_NumberValue, 0.001);
-    ASSERT_STREQ("two", list2->m_Values[1].m_Kind.m_StringValue);
-    ASSERT_FALSE(list2->m_Values[2].m_Kind.m_BoolValue);
+    ASSERT_NEAR(1.0, list2->m_Values[0].m_Kind.m_Number, 0.001);
+    ASSERT_STREQ("two", list2->m_Values[1].m_Kind.m_String);
+    ASSERT_FALSE(list2->m_Values[2].m_Kind.m_Bool);
 
     dmDDF::FreeMessage(saved_message);
     dmDDF::FreeMessage(message);
@@ -153,19 +153,19 @@ void TestStructJSON(const char* msg, uint32_t msg_size)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     dmStructDDF::Struct::FieldsEntry* name = FindEntry(message, "name");
-    ASSERT_STREQ("engine", name->m_Value->m_Kind.m_StringValue);
+    ASSERT_STREQ("engine", name->m_Value->m_Kind.m_String);
 
     dmStructDDF::Struct::FieldsEntry* version = FindEntry(message, "version");
-    ASSERT_NEAR(3.0, version->m_Value->m_Kind.m_NumberValue, 0.001);
+    ASSERT_NEAR(3.0, version->m_Value->m_Kind.m_Number, 0.001);
 
     dmStructDDF::Struct::FieldsEntry* features = FindEntry(message, "features");
-    ASSERT_EQ(2, features->m_Value->m_Kind.m_ListValue->m_Values.m_Count);
+    ASSERT_EQ(2, features->m_Value->m_Kind.m_List->m_Values.m_Count);
 
     dmStructDDF::Struct::FieldsEntry* config = FindEntry(message, "config");
-    ASSERT_TRUE(config->m_Value->m_Kind.m_StructValue.m_Fields[0].m_Value->m_Kind.m_BoolValue);
+    ASSERT_TRUE(config->m_Value->m_Kind.m_Struct.m_Fields[0].m_Value->m_Kind.m_Bool);
 
-    dmStructDDF::Struct::FieldsEntry* debug = FindEntry(&config->m_Value->m_Kind.m_StructValue, "debug");
-    ASSERT_TRUE(debug->m_Value->m_Kind.m_BoolValue);
+    dmStructDDF::Struct::FieldsEntry* debug = FindEntry(&config->m_Value->m_Kind.m_Struct, "debug");
+    ASSERT_TRUE(debug->m_Value->m_Kind.m_Bool);
 
     // Save
     std::string save_str;
@@ -177,19 +177,19 @@ void TestStructJSON(const char* msg, uint32_t msg_size)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     dmStructDDF::Struct::FieldsEntry* name2 = FindEntry(saved_message, "name");
-    ASSERT_STREQ("engine", name2->m_Value->m_Kind.m_StringValue);
+    ASSERT_STREQ("engine", name2->m_Value->m_Kind.m_String);
 
     dmStructDDF::Struct::FieldsEntry* version2 = FindEntry(saved_message, "version");
-    ASSERT_NEAR(3.0, version2->m_Value->m_Kind.m_NumberValue, 0.001);
+    ASSERT_NEAR(3.0, version2->m_Value->m_Kind.m_Number, 0.001);
 
     dmStructDDF::Struct::FieldsEntry* features2 = FindEntry(saved_message, "features");
-    ASSERT_EQ(2, features2->m_Value->m_Kind.m_ListValue->m_Values.m_Count);
+    ASSERT_EQ(2, features2->m_Value->m_Kind.m_List->m_Values.m_Count);
 
     dmStructDDF::Struct::FieldsEntry* config2 = FindEntry(saved_message, "config");
-    ASSERT_TRUE(config2->m_Value->m_Kind.m_StructValue.m_Fields[0].m_Value->m_Kind.m_BoolValue);
+    ASSERT_TRUE(config2->m_Value->m_Kind.m_Struct.m_Fields[0].m_Value->m_Kind.m_Bool);
 
-    dmStructDDF::Struct::FieldsEntry* debug2 = FindEntry(&config2->m_Value->m_Kind.m_StructValue, "debug");
-    ASSERT_TRUE(debug2->m_Value->m_Kind.m_BoolValue);
+    dmStructDDF::Struct::FieldsEntry* debug2 = FindEntry(&config2->m_Value->m_Kind.m_Struct, "debug");
+    ASSERT_TRUE(debug2->m_Value->m_Kind.m_Bool);
 
     dmDDF::FreeMessage(saved_message);
     dmDDF::FreeMessage(message);

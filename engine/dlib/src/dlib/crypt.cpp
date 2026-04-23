@@ -12,9 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <assert.h>
 #include "shared_library.h"
 #include "crypt.h"
@@ -22,7 +20,6 @@
 #include <dlib/endian.h>
 #include <mbedtls/md5.h>
 #include <mbedtls/base64.h>
-#include <mbedtls/error.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/sha512.h>
@@ -30,9 +27,6 @@
 #include <mbedtls/rsa.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
-
-
-#include <dlib/log.h> // For debugging the manifest verification issue
 
 namespace dmCrypt
 {
@@ -89,80 +83,6 @@ namespace dmCrypt
     {
         EncryptXTeaCTR(data, datalen, key, keylen);
         return RESULT_OK;
-    }
-
-    static void LogMbedTlsError(int result)
-    {
-        char buffer[512] = "";
-        mbedtls_strerror(result, buffer, sizeof(buffer));
-        dmLogError("mbedtls: %s0x%04x - %s", result < 0 ? "-":"", result < 0 ? -result:result, buffer);
-    }
-
-    static mbedtls_md_type_t HashAlgoritmToMbAlgorithm(HashAlgorithm algorithm)
-    {
-        switch(algorithm)
-        {
-            case HASH_ALGORITHM_MD5: return MBEDTLS_MD_MD5;
-            case HASH_ALGORITHM_SHA1: return MBEDTLS_MD_SHA1;
-            case HASH_ALGORITHM_SHA256: return MBEDTLS_MD_SHA256;
-            case HASH_ALGORITHM_SHA512: return MBEDTLS_MD_SHA512;
-            default: return MBEDTLS_MD_NONE;
-        }
-    }
-
-    Result Verify(HashAlgorithm algorithm, const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t data_len, const unsigned char* expected_signature, uint32_t expected_signature_len)
-    {
-        Result result = RESULT_OK;
-
-        mbedtls_pk_context pk;
-        mbedtls_pk_init(&pk);
-
-        mbedtls_md_type_t mb_algo = HashAlgoritmToMbAlgorithm(algorithm);
-
-        int ret;
-        if ((ret = mbedtls_pk_parse_public_key(&pk, key, keylen) != 0))
-        {
-            LogMbedTlsError(ret);
-            dmLogError("Verify: mbedtls_pk_parse_public_key failed: %d", ret);
-            mbedtls_pk_free(&pk);
-            return RESULT_ERROR;
-        }
-
-        if (mb_algo == MBEDTLS_MD_NONE)
-        {
-            dmLogError("Verify: mb_algo == MBEDTLS_MD_NONE");
-            mbedtls_pk_free(&pk);
-            return RESULT_ERROR;
-        }
-        if(mbedtls_pk_get_type(&pk) != MBEDTLS_PK_RSA)
-        {
-            mbedtls_pk_free(&pk);
-            return RESULT_ERROR;
-        }
-
-        mbedtls_rsa_context* rsa = mbedtls_pk_rsa(pk);
-
-        if (mbedtls_rsa_get_len(rsa) != expected_signature_len)
-        {
-            mbedtls_pk_free(&pk);
-            return RESULT_INVALID_LENGTH; 
-        }
-
-        if ((ret = mbedtls_rsa_pkcs1_verify(rsa, mb_algo, data_len, data, expected_signature)) != 0)
-        {
-            LogMbedTlsError(ret);
-            dmLogError("Verify: mbedtls_rsa_pkcs1_verify failed: %d", ret);
-            if (ret == MBEDTLS_ERR_RSA_VERIFY_FAILED)
-            {
-                result = RESULT_SIGNATURE_MISMATCH;
-            }
-            else
-            {
-                result = RESULT_ERROR;
-            }
-        }
-        mbedtls_pk_free(&pk);
-        return result;
     }
 
     void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest)

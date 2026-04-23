@@ -35,6 +35,7 @@
 #include "font_renderer_api.h"   // for the font renderer backend api
 
 #include <dmsdk/font/text_layout.h>
+#include <font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
@@ -43,6 +44,19 @@ DM_PROPERTY_U32(rmtp_FontVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of v
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static void ReleaseTextEntries(TextContext& text_context)
+    {
+        uint32_t entry_count = text_context.m_TextEntries.Size();
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+            HTextLayout text_layout = text_context.m_TextEntries[i].m_TextLayout;
+            if (text_layout)
+            {
+                TextLayoutRelease(text_layout);
+            }
+        }
+    }
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
@@ -99,6 +113,7 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        ReleaseTextEntries(text_context);
         for (uint32_t i = 0; i < text_context.m_ConstantBuffers.Size(); ++i)
         {
             dmRender::DeleteNamedConstantBuffer(text_context.m_ConstantBuffers[i]);
@@ -110,12 +125,21 @@ namespace dmRender
         DestroyFontRenderBackend(text_context.m_FontRenderBackend);
     }
 
+    void ClearTextEntries(HRenderContext render_context)
+    {
+        TextContext& text_context = render_context->m_TextContext;
+        ReleaseTextEntries(text_context);
+        text_context.m_TextEntries.SetSize(0);
+        text_context.m_TextEntriesFlushed = 0;
+    }
+
     DrawTextParams::DrawTextParams()
     : m_WorldTransform(Matrix4::identity())
     , m_FaceColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_OutlineColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
+    , m_TextLayout(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
@@ -211,6 +235,8 @@ namespace dmRender
         DM_PROFILE("DrawText");
 
         TextContext* text_context = &render_context->m_TextContext;
+        HTextLayout text_layout = params.m_TextLayout;
+        const char* text = params.m_Text ? params.m_Text : "";
 
         if (text_context->m_TextEntries.Full()) {
             dmLogWarning("Out of text-render entries: %u", text_context->m_TextEntries.Capacity());
@@ -234,22 +260,31 @@ namespace dmRender
             batch_key = dmHashFinal64(&key_state);
         }
 
-        uint32_t text_len = strlen(params.m_Text);
-        uint32_t offset = text_context->m_TextBuffer.Size();
-        if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
-            dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
-            return;
+        uint32_t offset = 0;
+        if (text_layout == 0x0)
+        {
+            uint32_t text_len = strlen(text);
+            offset = text_context->m_TextBuffer.Size();
+            if (text_context->m_TextBuffer.Capacity() < (offset + text_len + 1)) {
+                dmLogWarning("Out of text-render buffer %u. Modify the graphics.max_characters in game.project.", text_context->m_TextBuffer.Capacity());
+                return;
+            }
+
+            text_context->m_TextBuffer.PushArray(text, text_len);
+            text_context->m_TextBuffer.Push('\0');
         }
 
-        text_context->m_TextBuffer.PushArray(params.m_Text, text_len);
-        text_context->m_TextBuffer.Push('\0');
-
         material = material ? material : GetFontMapMaterial(font_map);
+        if (text_layout)
+        {
+            TextLayoutAcquire(text_layout);
+        }
         TextEntry te;
         te.m_Transform = params.m_WorldTransform;
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
         te.m_Material = material;
+        te.m_TextLayout = text_layout;
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -279,11 +314,17 @@ namespace dmRender
         // legacy options for glyph bank fonts
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
-        TextMetrics metrics;
+        TextMetrics metrics = {};
 
-        // TODO: Allow for callers to have their prepared HTextLayout
-
-        GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
+        if (text_layout)
+        {
+            assert(text_layout->m_FontCollection == GetFontCollection(font_map));
+            GetTextMetrics(font_map, text_layout, &metrics);
+        }
+        else
+        {
+            GetTextMetrics(text_context->m_FontRenderBackend, font_map, text, &settings, &metrics);
+        }
 
         // find center and radius for frustum culling
         // TODO: Calculate proper AABB
@@ -391,7 +432,7 @@ namespace dmRender
         for (uint32_t *i = begin;i != end; ++i)
         {
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
-            const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
+            const char* text = te.m_TextLayout ? "" : &text_context.m_TextBuffer[te.m_StringOffset];
 
             float sdf_scale = 0.0f;
             if (calc_sdf_scale)
@@ -455,7 +496,7 @@ namespace dmRender
         }
     }
 
-    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final)
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final)
     {
         DM_PROFILE("FlushTexts");
 
@@ -490,7 +531,7 @@ namespace dmRender
                     write_ptr->m_WorldPosition = Point3(te.m_Transform.getTranslation());
                     write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = major_order;
-                    write_ptr->m_Order = render_order;
+                    write_ptr->m_Order = te.m_RenderOrder & 0xFFFFFF;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
                     write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(te.m_Material);

@@ -20,6 +20,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.util.MiscUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -261,6 +262,11 @@ public class ExtenderUtil {
             return false;
         }
 
+        @Override
+        public IResource disableMinifyPath() { return this; }
+
+        @Override
+        public boolean isMinifyPath() { return false; }
     }
 
     // Used to rename a resource in the multipart request and prefix the content with a base variant
@@ -492,16 +498,20 @@ public class ExtenderUtil {
      * @return True if it contains native extension code
      */
     public static boolean hasNativeExtensions(Project project) {
+        TimeProfiler.start("hasNativeExtensions");
         BobProjectProperties projectProperties = project.getProjectProperties();
         if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest") ||
             hasPropertyResource(project, projectProperties, "android", "proguard") &&
             !projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/")) {
+            TimeProfiler.stop();
             return true;
         }
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-        return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
+        boolean hasNativeExtensions = paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
+        TimeProfiler.stop();
+        return hasNativeExtensions;
     }
 
     private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {
@@ -669,6 +679,7 @@ public class ExtenderUtil {
      * @return Doesn't return anything. It throws CompileExceptionError if the check fails.
      */
     public static void checkProjectForDuplicates(Project project) throws CompileExceptionError {
+        TimeProfiler.start("checkProjectForDuplicates");
         Map<String, IResource> files = new HashMap<String, IResource>();
 
         ArrayList<String> paths = new ArrayList<>();
@@ -680,10 +691,12 @@ public class ExtenderUtil {
 
             if (files.containsKey(r.getPath())) {
                 IResource previous = files.get(r.getPath());
+                TimeProfiler.stop();
                 throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), previous.getAbsPath()));
             }
             files.put(r.getPath(), r);
         }
+        TimeProfiler.stop();
     }
 
     /** Get the platform manifests from the extensions

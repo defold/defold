@@ -42,5 +42,13 @@ embedded_instances {
   "  id: \"texture_transform_model\"\n"
   "  component: \"/model/texture_transform_model.model\"\n"
   "}\n"
+  "components {\n"
+  "  id: \"one_mesh_two_materials\"\n"
+  "  component: \"/model/one_mesh_two_materials.model\"\n"
+  "}\n"
+  "components {\n"
+  "  id: \"morph_blend_weights\"\n"
+  "  component: \"/model/morph_blend_weights.model\"\n"
+  "}\n"
   ""
 }

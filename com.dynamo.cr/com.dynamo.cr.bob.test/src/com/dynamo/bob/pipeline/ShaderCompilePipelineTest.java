@@ -550,4 +550,49 @@ public class ShaderCompilePipelineTest {
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }
+
+    @Test
+    public void testLegacyPipelineGlesSm100HighpPrecisionWorkaround() throws Exception {
+        String fsShaderLegacy =
+                """
+                varying vec4 frag_color;
+                void main() {
+                    gl_FragColor = frag_color;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDescLegacy = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDescLegacy.source = fsShaderLegacy;
+        fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        options.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+
+        ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testLegacyPrecisionWorkaround");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, options);
+
+        Shaderc.ShaderCompileResult compileResult = pipelineFragmentLegacy.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        String src = new String(compileResult.data);
+
+        String expectedFloatHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp float;\n" +
+                "#else\n" +
+                "    precision mediump float;\n" +
+                "#endif";
+        String expectedIntHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp int;\n" +
+                "#else\n" +
+                "    precision mediump int;\n" +
+                "#endif";
+
+        assertTrue(src.contains(expectedFloatHighpPrecision));
+        assertTrue(src.contains(expectedIntHighpPrecision));
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
+    }
 }

@@ -144,6 +144,7 @@ def shutdown(sht):
         config.set("server", "socket", server_sockets.getint("server", "socket"))
         config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
         config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
+        config.set("server", "socket_proxy", server_sockets.getint("server", "socket_proxy"))
 
         fd, tmp_path = tempfile.mkstemp(suffix=".cfg", prefix="unittest_")
         os.close(fd)
@@ -159,6 +160,7 @@ def shutdown(sht):
         config.set("server", "socket", "0")
         config.set("server", "socket_ssl", "0")
         config.set("server", "socket_ssl_test", "0")
+        config.set("server", "socket_proxy", "0")
 
         fd, tmp_path = tempfile.mkstemp(suffix=".cfg", prefix="unittest_")
         os.close(fd)
@@ -168,7 +170,8 @@ def shutdown(sht):
             print("Wrote fallback test config file: %s" % configfilepath)
 
     try:
-        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfilepath)
+        waf_dynamo.run_tests(test_context, configfile = configfilepath,
+                                folders = {"src/test/data": "src/test/data"})
     finally:
         if configfilepath and os.path.exists(configfilepath):
             os.remove(configfilepath)

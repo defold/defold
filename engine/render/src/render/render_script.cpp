@@ -639,6 +639,25 @@ namespace dmRender
         return buffer_type;
     }
 
+    static void CheckRenderTargetSize(lua_State* L, RenderScriptInstance* i, lua_Integer width, lua_Integer height)
+    {
+        int32_t width_i = (int32_t) width;
+        int32_t height_i = (int32_t) height;
+
+        if (width <= 0 || height <= 0)
+        {
+            luaL_error(L, "Invalid render target size: width %d and height %d. Width and height must be greater than 0.",
+                width_i, height_i);
+        }
+
+        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
+        if ((uint32_t) width > max_tex_size || (uint32_t) height > max_tex_size)
+        {
+            luaL_error(L, "Render target size %d x %d exceeds max supported texture size %u for this platform.",
+                width_i, height_i, max_tex_size);
+        }
+    }
+
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
         if (i->m_CommandBuffer.Full())
@@ -895,7 +914,6 @@ namespace dmRender
         const char* required_keys[] = { "format", "width", "height" };
         const int required_keys_count = sizeof(required_keys) / sizeof(required_keys[0]);
         uint32_t buffer_type_flags = 0;
-        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, table_index, LUA_TTABLE);
 
         dmGraphics::RenderTargetCreationParams params = {};
@@ -907,6 +925,8 @@ namespace dmRender
             buffer_type_flags                    |= (uint32_t) buffer_type;
             dmGraphics::TextureParams* p          = 0;
             dmGraphics::TextureCreationParams* cp = 0;
+            lua_Integer width                     = 0;
+            lua_Integer height                    = 0;
 
             if (dmGraphics::IsColorBufferType(buffer_type))
             {
@@ -981,13 +1001,11 @@ namespace dmRender
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
-                    p->m_Width = luaL_checkinteger(L, -1);
-                    cp->m_Width = p->m_Width;
+                    width = luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
                 {
-                    p->m_Height = luaL_checkinteger(L, -1);
-                    cp->m_Height = p->m_Height;
+                    height = luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
@@ -1035,12 +1053,12 @@ namespace dmRender
             }
             lua_pop(L, 1);      // [-1,+0 = 1] pop value, keep key for next iteration
 
-            if (cp->m_Width > max_tex_size || cp->m_Height > max_tex_size)
-            {
-                lua_pop(L, 1);  // [-1,+0 = 0] pop key
-                return DM_LUA_ERROR("Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
-                    dmGraphics::GetBufferTypeLiteral(buffer_type), cp->m_Width, cp->m_Height, max_tex_size);
-            }
+            CheckRenderTargetSize(L, i, width, height);
+
+            p->m_Width = (uint32_t) width;
+            p->m_Height = (uint32_t) height;
+            cp->m_Width = p->m_Width;
+            cp->m_Height = p->m_Height;
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
@@ -1348,9 +1366,11 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
-        uint32_t width = luaL_checkinteger(L, 2);
-        uint32_t height = luaL_checkinteger(L, 3);
-        dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, width, height);
+        lua_Integer width = luaL_checkinteger(L, 2);
+        lua_Integer height = luaL_checkinteger(L, 3);
+
+        CheckRenderTargetSize(L, i, width, height);
+        dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, (uint32_t) width, (uint32_t) height);
         return 0;
     }
 
@@ -3318,21 +3338,29 @@ bail:
         }
     }
 
-    static void ReleaseRenderScript(HRenderContext render_context, HRenderScript render_script)
+    static void ClearRenderScript(HRenderContext render_context, HRenderScript render_script, bool release_instance_reference)
     {
         lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
-            if (render_script->m_FunctionReferences[i])
+            if (render_script->m_FunctionReferences[i] != LUA_NOREF)
+            {
                 dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
+                render_script->m_FunctionReferences[i] = LUA_NOREF;
+            }
         }
-        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        if (release_instance_reference)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+            render_script->m_InstanceReference = LUA_NOREF;
+        }
         free((void*)render_script->m_SourceFileName);
+        render_script->m_SourceFileName = 0;
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
     {
-        ReleaseRenderScript(render_context, render_script);
+        ClearRenderScript(render_context, render_script, true);
         render_script->~RenderScript();
         ResetRenderScript(render_script);
     }
@@ -3366,7 +3394,7 @@ bail:
 
     bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
-        ReleaseRenderScript(render_context, render_script);
+        ClearRenderScript(render_context, render_script, false);
         return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
     }
 

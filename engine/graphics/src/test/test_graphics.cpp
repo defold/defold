@@ -84,7 +84,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
         WindowCreateParams params;
         WindowCreateParamsInitialize(&params);
@@ -166,8 +166,8 @@ TEST_F(dmGraphicsTest, TestWindowState)
 
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
-    ASSERT_EQ(m_NullContext->m_Width, dmGraphics::GetWidth(m_Context));
-    ASSERT_EQ(m_NullContext->m_Height, dmGraphics::GetHeight(m_Context));
+    ASSERT_EQ(m_NullContext->m_BaseContext.m_Width, dmGraphics::GetWidth(m_Context));
+    ASSERT_EQ(m_NullContext->m_BaseContext.m_Height, dmGraphics::GetHeight(m_Context));
     uint32_t width = WIDTH * 2;
     uint32_t height = HEIGHT * 2;
     dmGraphics::SetWindowSize(m_Context, width, height);

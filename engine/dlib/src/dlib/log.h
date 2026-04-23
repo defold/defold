@@ -56,25 +56,6 @@ struct LogMessage
 };
 
 const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
-struct LogParams
-{
-    LogParams()
-    {
-    }
-};
-
-/**
- * Initialize logging system. Running this function is only required in order to start the log-server.
- * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
- * @param params log parameters
- */
-void LogInitialize(const LogParams* params);
-
-
-/**
- * Finalize logging system
- */
-void LogFinalize();
 
 /**
  * Get log server port
