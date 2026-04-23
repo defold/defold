@@ -87,7 +87,8 @@
 (defn library-files [project-directory]
   (seq (.listFiles (library-directory project-directory))))
 
-(defn library-file ^File [project-directory ^URI library-uri tag]
+(defn library-file
+  ^File [project-directory ^URI library-uri tag]
   (let [hash (DigestUtils/sha1Hex (str library-uri))
         ^String tag (or tag "")
         encoded-tag (.encodeToString (Base64/getUrlEncoder) (.getBytes tag "UTF-8"))]

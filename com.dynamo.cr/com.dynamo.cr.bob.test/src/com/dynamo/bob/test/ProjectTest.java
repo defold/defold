@@ -16,12 +16,15 @@ package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +36,7 @@ import java.util.zip.ZipFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.dynamo.bob.LibraryException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.codec.binary.Base64;
@@ -209,6 +213,37 @@ public class ProjectTest {
         assertEquals(filenames.size(), _304Count.get());
 
         System.out.printf("testResolve end");
+    }
+
+    @Test
+    public void testResolveHandlesMixedSuccessAndFailure() {
+        var mixedLibraryUrls = new ArrayList<>(libraryUrls);
+        var missingUri = URI.create("http://localhost:8081/missing.zip");
+        mixedLibraryUrls.add(missingUri);
+        project.setLibUrls(mixedLibraryUrls);
+
+        try {
+            project.resolveLibUrls(Progress.discarding());
+        } catch (LibraryException e) {
+            assertEquals("Failed to fetch library " + missingUri, e.getMessage());
+        }
+
+        var cachedResults = Library.cached(mixedLibraryUrls, Paths.get(project.getLibPath()));
+        assertEquals(mixedLibraryUrls.size(), cachedResults.size());
+
+        var missingSeen = false;
+        for (var result : cachedResults) {
+            if (missingUri.equals(result.uri())) {
+                missingSeen = true;
+                assertNull(result.archive());
+                assertTrue(result.problem() instanceof Library.Problem.Missing);
+            } else {
+                assertNull(result.problem());
+                assertNotNull(result.archive());
+                assertTrue(result.archive().path().toFile().exists());
+            }
+        }
+        assertTrue(missingSeen);
     }
 
     @Test

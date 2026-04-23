@@ -171,7 +171,7 @@
       (System/setProperty (str property-prefix ".path") (.getCanonicalPath local-extension-dir))
       (try
         (write-deps! game-project-resource "{{defold.extension.test-local.url}}")
-        (let [results (library/fetch! (workspace/project-directory workspace) (project/read-dependencies game-project-resource) progress/null-render-progress!)
+        (let [results (library/fetch! project-directory (project/read-dependencies game-project-resource) progress/null-render-progress!)
               result ^Library$Result (first results)
               archive ^Library$Archive (.archive result)]
           (is (not= original-uri (.uri result)))

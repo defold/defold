@@ -757,7 +757,6 @@ public class Project {
         if (!libUrls.isEmpty() && !Files.isDirectory(Paths.get(getLibPath()))) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
         }
-        boolean missingFiles = false;
         Map<String, File> libFiles = new HashMap<>();
 
         for (var dependency : dependencies) {
@@ -766,13 +765,14 @@ public class Project {
             libFiles.put(dependency.uri().toString(), file);
             if (file != null && file.exists()) {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
-            } else {
-                missingFiles = true;
             }
         }
         BuildInputDataCollector.setDependencies(libFiles);
-        if (missingFiles) {
-            logWarning("Some libraries could not be found locally, use the resolve command to fetch them.");
+
+        var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
+        if (!problematicResults.isEmpty()) {
+            logWarning("There are some problems with the libraries, using the resolve command to fetch them might help.");
+            problematicResults.forEach(result -> logWarning("- %s", libraryResultMessage(result)));
         }
     }
 
@@ -1949,18 +1949,21 @@ public class Project {
             List<Library.Result> resolvedLibs = Library.fetch(libUrls, Paths.get(getLibPath()), this.options.get("email"), this.options.get("auth"), progress);
             for (var dependency : resolvedLibs) {
                 if (dependency.problem() != null) {
-                    var message = switch (dependency.problem()) {
-                        case Library.Problem.Missing _ -> "Missing library " + dependency.uri();
-                        case Library.Problem.FetchFailed _ -> "Failed to fetch library " + dependency.uri();
-                        case Library.Problem.InvalidArchive _ -> "The library " + dependency.uri() + " is not a valid Defold archive";
-                        case Library.Problem.DefoldMinVersion(var required) -> "The library " + dependency.uri() + " requires Defold " + required + " or newer";
-                        case Library.Problem.InstallFailed _ -> "Failed to install library " + dependency.uri();
-                    };
-                    throw new LibraryException(message);
+                    throw new LibraryException(libraryResultMessage(dependency));
                 }
             }
             return resolvedLibs;
         }
+    }
+
+    private static String libraryResultMessage(Library.Result dependency) {
+        return switch (dependency.problem()) {
+            case Library.Problem.Missing _ -> "Missing library " + dependency.uri();
+            case Library.Problem.FetchFailed _ -> "Failed to fetch library " + dependency.uri();
+            case Library.Problem.InvalidArchive _ -> "The library " + dependency.uri() + " is not a valid Defold archive";
+            case Library.Problem.DefoldMinVersion(var required) -> "The library " + dependency.uri() + " requires Defold " + required + " or newer";
+            case Library.Problem.InstallFailed _ -> "Failed to install library " + dependency.uri();
+        };
     }
 
     List<URI> getLibUris() {

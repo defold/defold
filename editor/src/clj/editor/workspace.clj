@@ -42,7 +42,6 @@ ordinary paths."
             [util.path :as path])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
-           [com.dynamo.bob.archive EngineVersion]
            [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FetchFailed Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
@@ -533,25 +532,6 @@ ordinary paths."
   (let [escaped-name (protobuf/escape-string name)]
     (string/replace template "{{NAME}}" escaped-name)))
 
-(defn library-result-problem-message [problem]
-  {:pre [problem]}
-  (condp instance? problem
-    Library$Problem$Missing (localization/message "notification.fetch-libraries.problem.missing")
-    Library$Problem$FetchFailed (localization/message "notification.fetch-libraries.problem.fetch-failed")
-    Library$Problem$InvalidArchive (localization/message "notification.fetch-libraries.problem.invalid-archive")
-    Library$Problem$DefoldMinVersion (localization/message
-                                       "notification.fetch-libraries.problem.defold-min-version"
-                                       {"required" (.required ^Library$Problem$DefoldMinVersion problem)
-                                        "current" EngineVersion/version})
-    Library$Problem$InstallFailed (localization/message "notification.fetch-libraries.problem.install-failed")
-    (localization/message "notification.fetch-libraries.problem.unknown" {"problem" problem})))
-
-(defn library-result-message [^Library$Result result]
-  (localization/message
-    "notification.fetch-libraries.dependency-problem"
-    {"uri" (.uri result)
-     "problem" (library-result-problem-message (.problem result))}))
-
 (defn- update-dependency-notifications! [workspace lib-results]
   (let [problem-results (filterv Library$Result/.problem lib-results)
         notifications (notifications workspace)]
@@ -576,7 +556,7 @@ ordinary paths."
            (localization/message
              "notification.fetch-libraries.problems"
              {"dependencies" (->> problem-results
-                                  (mapv #(localization/transform (library-result-message %) dialogs/indent-with-bullet))
+                                  (mapv #(localization/transform (library/result-message %) dialogs/indent-with-bullet))
                                   (localization/join "\n"))})
            :actions
            (cond-> []

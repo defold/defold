@@ -3211,11 +3211,12 @@
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
             (ui/run-later
               (workspace/set-project-dependencies! workspace lib-results)
-              (disk/async-reload! render-install-progress! workspace [] changes-view
-                                  (fn [success]
-                                    (when success
-                                      (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                                      (project/update-fetch-libraries-notification! project)))))))))))
+              (disk/async-reload!
+                render-install-progress! workspace [] changes-view
+                (fn [success]
+                  (when success
+                    (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                    (project/update-fetch-libraries-notification! project)))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

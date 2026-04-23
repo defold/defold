@@ -18,6 +18,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.library :as library]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
@@ -203,7 +204,7 @@
           (fn [^Library$Result result]
             (when-let [problem (.problem result)]
               (when (instance? Library$Problem$DefoldMinVersion problem)
-                (g/map->error {:severity :fatal :message (workspace/library-result-message result)})))))
+                (g/map->error {:severity :fatal :message (library/result-message result)})))))
         dependencies))
 
 (g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
