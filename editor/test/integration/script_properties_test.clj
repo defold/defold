@@ -140,7 +140,7 @@
                                           "hash" "hash2"
                                           "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                           "number" 2.0
-                                          "quat" [180.0 0.0, 0.0]
+                                          "quat" [180.0 0.0 0.0]
                                           "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.png")
                                           "url" "/url"
                                           "vec3" [1.0 2.0 3.0]
@@ -206,7 +206,7 @@
                                             "hash" "hash3"
                                             "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                             "number" 3.0
-                                            "quat" [180.0 0.0, 0.0]
+                                            "quat" [180.0 0.0 0.0]
                                             "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_collection.png")
                                             "url" "/url2"
                                             "vec3" [1.0 2.0 3.0]

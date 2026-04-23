@@ -189,27 +189,103 @@
         c (Math/cos ha)]
     (Quat4d. 0.0 0.0 s c)))
 
+(defn- near-zero? [^double value]
+  (<= (Math/abs value) epsilon))
+
+(defn- normalize-euler-angle
+  ^double [^double degrees]
+  (let [normalized (- (double (mod (+ degrees 180.0) 360.0)) 180.0)]
+    (cond
+      (near-zero? normalized)
+      0.0
+
+      (or (near-zero? (+ normalized 180.0))
+          (near-zero? (- normalized 180.0)))
+      180.0
+
+      :else
+      normalized)))
+
+(defn- score-euler
+  ^double [[^double x ^double y ^double z]]
+  (let [;; We assume the euler angles have been normalized, so the absolute
+        ;; rotation components will be between 0.0 and 180.0 degrees.
+        abs-x (Math/abs x)
+        abs-y (Math/abs y)
+        abs-z (Math/abs z)
+
+        ;; A lower score gives higher priority. In order of significance:
+        ;; A penalty is imposed for each non-zero component.
+        non-zero-component-count-penalty
+        (+ (if (> abs-x epsilon) 1.0 0.0)
+           (if (> abs-y epsilon) 1.0 0.0)
+           (if (> abs-z epsilon) 1.0 0.0))
+
+        ;; A penalty is imposed for larger component magnitudes.
+        component-magnitude-penalty ; Max is 180.0 * 3.0 = 540.0.
+        (+ abs-x abs-y abs-z)
+
+        ;; A penalty is imposed for each negative component.
+        negative-component-count-penalty
+        (+ (if (neg? x) 1.0 0.0)
+           (if (neg? y) 1.0 0.0)
+           (if (neg? z) 1.0 0.0))
+
+        ;; Preference is given to Y > Z > X magnitudes (rotation order).
+        non-preferred-axis-penalty
+        (+ (if (> abs-z abs-x) 0.0 1.0)
+           (if (> abs-y abs-z) 0.0 1.0))]
+
+    (+ (* non-zero-component-count-penalty 100000.0) ; Contributes 0.0 - 300000.0.
+       (* component-magnitude-penalty 100.0) ; Contributes 0.0 - 54000.0.
+       (* negative-component-count-penalty 10.0) ; Contributes 0.0 - 30.0.
+       non-preferred-axis-penalty))) ; Contributes 0.0 - 2.0.
+
+(defn canonicalize-euler
+  [[^double x ^double y ^double z]]
+  (let [candidates
+        [[(normalize-euler-angle x)
+          (normalize-euler-angle y)
+          (normalize-euler-angle z)]
+         [(normalize-euler-angle (+ x 180.0))
+          (normalize-euler-angle (- y 180.0))
+          (normalize-euler-angle (- 180.0 z))]
+         [(normalize-euler-angle (- x 180.0))
+          (normalize-euler-angle (+ y 180.0))
+          (normalize-euler-angle (- 180.0 z))]]]
+
+    (loop [best (first candidates)
+           best-score (score-euler best)
+           candidates (rest candidates)]
+      (if-let [candidate (first candidates)]
+        (let [candidate-score (score-euler candidate)]
+          (if (< candidate-score best-score)
+            (recur candidate candidate-score (rest candidates))
+            (recur best best-score (rest candidates))))
+        best))))
+
 (defn quat-components->euler [^double x ^double y ^double z ^double w]
   ;; Extract XYZ angles for the YZX rotation sequence used by euler->quat.
-  (if (and (zero? x)
-           (zero? y))
-    (let [half-angle (Math/atan2 z w)]
-      [0.0 0.0 (rad->deg (* 2.0 half-angle))])
-    (let [m00 (- 1.0 (* 2.0 y y) (* 2.0 z z))
-          m10 (+ (* 2.0 x y) (* 2.0 z w))
-          m11 (- 1.0 (* 2.0 x x) (* 2.0 z z))
-          m12 (- (* 2.0 y z) (* 2.0 x w))
-          m20 (- (* 2.0 x z) (* 2.0 y w))
-          m21 (+ (* 2.0 y z) (* 2.0 x w))
-          m22 (- 1.0 (* 2.0 x x) (* 2.0 y y))
-          attitude (Math/asin (max -1.0 (min 1.0 m10)))
-          cos-attitude (Math/cos attitude)]
-      (if (> (Math/abs cos-attitude) epsilon)
-        (let [heading (Math/atan2 (- m20) m00)
-              bank (Math/atan2 (- m12) m11)]
-          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])
-        (let [bank (Math/atan2 m21 m22)]
-          [(rad->deg bank) 0.0 (rad->deg attitude)])))))
+  (canonicalize-euler
+    (if (and (zero? x)
+             (zero? y))
+      (let [half-angle (Math/atan2 z w)]
+        [0.0 0.0 (rad->deg (* 2.0 half-angle))])
+      (let [m00 (- 1.0 (* 2.0 y y) (* 2.0 z z))
+            m10 (+ (* 2.0 x y) (* 2.0 z w))
+            m11 (- 1.0 (* 2.0 x x) (* 2.0 z z))
+            m12 (- (* 2.0 y z) (* 2.0 x w))
+            m20 (- (* 2.0 x z) (* 2.0 y w))
+            m21 (+ (* 2.0 y z) (* 2.0 x w))
+            m22 (- 1.0 (* 2.0 x x) (* 2.0 y y))
+            attitude (Math/asin (max -1.0 (min 1.0 m10)))
+            cos-attitude (Math/cos attitude)]
+        (if (> (Math/abs cos-attitude) epsilon)
+          (let [heading (Math/atan2 (- m20) m00)
+                bank (Math/atan2 (- m12) m11)]
+            [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])
+          (let [bank (Math/atan2 m21 m22)]
+            [(rad->deg bank) 0.0 (rad->deg attitude)]))))))
 
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))

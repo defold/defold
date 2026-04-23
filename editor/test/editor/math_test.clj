@@ -46,6 +46,24 @@
   (or (vec4-eq? a b)
       (vec4-eq? a (doto (Quat4d. b) (.negate)))))
 
+(defn- quat-key [^Quat4d quat]
+  (let [[x y z w]
+        (let [components [(.getX quat)
+                          (.getY quat)
+                          (.getZ quat)
+                          (.getW quat)]
+              sign (double
+                     (or (some (fn [^double component]
+                                 (when-not (near? 0.0 component)
+                                   (if (neg? component) -1.0 1.0)))
+                               components)
+                         1.0))]
+          (into []
+                (map (fn [^double component]
+                       (math/round-with-precision (* (double sign) component) math/precision-general)))
+                components))]
+    [x y z w]))
+
 (defn- mat4-eq? [^Matrix4d a ^Matrix4d b]
   (boolean
     (every?
@@ -105,13 +123,18 @@
     (doseq [result (map quat-eq? quats (map (comp math/euler->quat math/quat->euler) quats))]
       (is result))))
 
+(deftest canonicalize-euler
+  (is (= [180.0 0.0 0.0] (math/canonicalize-euler [-180.0 0.0 0.0])))
+  (is (= [0.0 180.0 0.0] (math/canonicalize-euler [0.0 -180.0 0.0])))
+  (is (= [0.0 0.0 180.0] (math/canonicalize-euler [0.0 0.0 -180.0]))))
+
 (def ^:private particular-xyz-euler-angles
   (mapv #(apply vector-of :double %)
         [[-35.0 120.0 -15.0]
          [10.0 20.0 30.0]
          [30.0 0.0 20.0]]))
 
-(def ^:private checked-xyz-euler-angles
+(def ^:private common-xyz-euler-angles
   (let [component-values
         (into (vector-of :double -0.0)
               (distinct)
@@ -127,30 +150,40 @@
                 z component-values]
             (vector-of :double x y z)))))
 
+(def ^:private particular-xyz-euler-angles-strict-round-trip-equality
+  (mapv #(apply vector-of :double %)
+        [[180.0 0.0 0.0]
+         [0.0 180.0 0.0]
+         [0.0 0.0 180.0]
+
+         [180.0 90.0 0.0]
+         #_[180.0 -90.0 0.0] ; Inferior to [0.0 90.0 180.0].
+         #_[180.0 0.0 90.0] ; Inferior to [0.0 180.0 90.0].
+         #_[180.0 0.0 -90.0] ; Inferior to [0.0 180.0 -90.0].
+
+         [90.0 180.0 0.0]
+         #_[-90.0 180.0 0.0] ; Inferior to [90.0 0.0 180.0].
+         [0.0 180.0 90.0]
+         [0.0 180.0 -90.0]
+
+         [90.0 0.0 180.0]
+         #_[-90.0 0.0 180.0] ; Inferior to [90.0 180.0 0.0].
+         [0.0 90.0 180.0]
+         #_[0.0 -90.0 180.0]])) ; Inferior to [180.0 90.0 0.0].
+
 (def ^:private checked-xyz-euler-angles-strict-round-trip-equality
-  (let [zero-vec (vector-of :double 0.0 0.0 0.0)
+  ;; Check the particular XYZ euler angles and all the checked-xyz-euler-angles
+  ;; that have a single representation as a quaternion.
+  (into particular-xyz-euler-angles-strict-round-trip-equality
+        (comp (filter (fn [[_ representations]]
+                        (= 1 (count representations))))
+              (mapcat val))
+        (group-by #(quat-key (math/euler->quat %))
+                  common-xyz-euler-angles)))
 
-        templates
-        (into [zero-vec]
-              (mapcat (fn [^long index]
-                        [(assoc zero-vec index 180.0)
-                         (assoc zero-vec index -180.0)]))
-              (range 3))
-
-        component-values
-        (into []
-              (mapcat (fn [^double component]
-                        [component
-                         (- component)]))
-              [0.0 44.0 45.0 46.0 89.0 90.0 91.0 179.0])]
-
-    (into []
-          (distinct)
-          (for [template templates
-                index (range 3)
-                :when (zero? (double (template index)))
-                component component-values]
-            (assoc template index component)))))
+(def ^:private checked-xyz-euler-angles
+  (into common-xyz-euler-angles
+        particular-xyz-euler-angles-strict-round-trip-equality))
 
 (deftest euler->quat-matches-yzx-composition
   (let [non-equivalent
