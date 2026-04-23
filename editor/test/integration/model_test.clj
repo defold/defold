@@ -72,7 +72,9 @@
       (testing "can assign single glTF file as animations"
         (let [gltf-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
           (test-util/with-prop [node-id :animations gltf-resource]
-            (is (= #{(murmur/hash64 "treasure_chest")} (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
+            (is (= #{(murmur/hash64 "Bend2bones")
+                     (murmur/hash64 "Bend90")}
+                   (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
       (testing "can assign animation set as animations"
         (let [animation-set-resource (workspace/resolve-workspace-resource workspace "/model/treasure_chest.animationset")]
           (test-util/with-prop [node-id :animations animation-set-resource]

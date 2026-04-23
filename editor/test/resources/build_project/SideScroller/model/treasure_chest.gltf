@@ -42,7 +42,7 @@
         },
         {
             "mesh" : 0,
-            "name" : "Cube",
+            "name" : "Cube.006",
             "skin" : 0
         },
         {
@@ -336,7 +336,7 @@
     ],
     "meshes" : [
         {
-            "name" : "Cube",
+            "name" : "Cube.006",
             "primitives" : [
                 {
                     "attributes" : {

@@ -134,7 +134,7 @@
    "/test2.gui" ["/test.material"]})
 
 (defn fallback-dependencies-fn [resource-type]
-  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script"} (:ext resource-type))
+  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "gltf" "glb"} (:ext resource-type))
     (constantly [])))
 
 (deftest dependencies

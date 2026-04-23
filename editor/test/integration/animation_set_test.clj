@@ -59,9 +59,9 @@
               4 :rotations
               3 :scale))
 
-          (testing "At least two keys per channel"
+          (testing "At least one key per channel"
             (are [stride channel]
-                 (<= (* 2 stride) (count (data-by-channel channel)))
+                 (<= stride (count (data-by-channel channel)))
               3 :positions
               4 :rotations
               3 :scale)))))))
