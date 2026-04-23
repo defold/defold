@@ -1088,9 +1088,17 @@
    (pmapv #(apply f %) (apply mapv vector coll colls))))
 
 (defn ptree
-  "Builds a tree in parallel. `children-fn` returns the ordered children for a
-  node, while `build-fn` combines the node with the vector of built child
-  results."
+  "Build a tree in parallel
+
+  Args:
+    children-fn    a function that returns the ordered child nodes for a node;
+                   will receive 1 arg: node; should return a collection of
+                   child nodes or nil
+    build-fn       a function that builds the result for a node; will receive 2
+                   args: node and built-children (vector of results returned by
+                   build-fn for the node's children, in child order); should
+                   return the built result for the node
+    root           the root node to build from"
   [children-fn build-fn root]
   (let [budget (Semaphore. (default-parallelism))]
     (letfn [(parallel-child-results [child-nodes]
@@ -1099,13 +1107,17 @@
                     results (object-array child-count)]
                 (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
                   (dotimes [index child-count]
-                    (let [index index
-                          child-node (child-nodes index)]
-                      (.fork scope
-                             ^Runnable
-                             (fn []
-                               (Var/resetThreadBindingFrame binding-frame)
-                               (aset results index (visit child-node))))))
+                    (let [child-node (child-nodes index)]
+                      (if (.tryAcquire budget)
+                        (.fork scope
+                               ^Runnable
+                               (fn []
+                                 (try
+                                   (Var/resetThreadBindingFrame binding-frame)
+                                   (aset results index (visit child-node))
+                                   (finally
+                                     (.release budget)))))
+                        (aset results index (visit child-node)))))
                   (try
                     (.join scope)
                     (catch StructuredTaskScope$FailedException e
@@ -1116,11 +1128,6 @@
                     child-results (case (count child-nodes)
                                     0 []
                                     1 [(visit (child-nodes 0))]
-                                    (if (.tryAcquire budget)
-                                      (try
-                                        (parallel-child-results child-nodes)
-                                        (finally
-                                          (.release budget)))
-                                      (mapv visit child-nodes)))]
+                                    (parallel-child-results child-nodes))]
                 (build-fn node child-results)))]
       (visit root))))
