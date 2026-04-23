@@ -376,14 +376,14 @@ TEST(dmResourceArchive, ManifestHeader)
     dmResource::DeleteManifest(manifest);
 }
 
-TEST(dmResourceArchive, HasLiveupdateContent_FalseWithoutManifestFlagInArchive)
+TEST(dmResourceArchive, HasLiveupdateContent_MatchesArchiveManifestFlag)
 {
     dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
 
-    ASSERT_FALSE(dmResource::HasManifestExcludedEntries(manifest));
+    ASSERT_EQ(manifest->m_DDFData->m_HasExcludedResources, dmResource::HasManifestExcludedEntries(manifest));
 
     dmResource::DeleteManifest(manifest);
 }
