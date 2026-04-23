@@ -1582,6 +1582,7 @@ bail:
     QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface)
     {
         assert(device);
+        assert(vkGetPhysicalDeviceSurfaceSupportKHR && "Vulkan function table not initialized for current instance");
 
         QueueFamily qf;
 
@@ -1598,7 +1599,11 @@ bail:
         for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
         {
             QueueFamily candidate;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            VkResult present_support_res = vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            if (present_support_res != VK_SUCCESS)
+            {
+                continue;
+            }
             VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
 
             if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
