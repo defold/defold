@@ -114,7 +114,7 @@
   (property app-view g/NodeID)
   (property visibility-filters-enabled? g/Bool (default true))
   (property filtered-renderable-tags types/RenderableTags (default #{:dev-visibility-bounds}))
-  (property ui-check-boxes g/Any (default {}))
+  (property popup-state-atom g/Any (default nil))
 
   (input active-resource-node+type g/Any)
   (input active-scene g/Any :substitute nil)
@@ -286,56 +286,43 @@
       (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") true)
       (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") false))))
 
-(defn- sync-filter-checkboxes!
-  ([scene-visibility]
-   (g/with-auto-evaluation-context evaluation-context
-     (sync-filter-checkboxes! scene-visibility evaluation-context)))
-  ([scene-visibility evaluation-context]
-   (sync-filter-button-style! (g/node-value scene-visibility :app-view) scene-visibility evaluation-context)
-   (when-let [check-boxes (:filter-check-boxes (g/node-value scene-visibility :ui-check-boxes evaluation-context))]
-     (when (seq check-boxes)
-       (let [enabled? (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)]
-         (doseq [cb check-boxes]
-           (ui/enable! cb enabled?)))))))
-
-(defonce/record SceneVisibilityStore [scene-visibility]
-  settings-popup/SettingsStore
-  (get-value [_ key]
-    (if (= :visibility-filters-enabled? key)
-      (g/node-value scene-visibility :visibility-filters-enabled?)
-      (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key))))
-  (get-default-value [_ _] true)
-  (set-value! [_ key v]
-    (if (= :visibility-filters-enabled? key)
-      (g/set-property! scene-visibility :visibility-filters-enabled? v)
-      (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
-    (sync-filter-checkboxes! scene-visibility)))
+(defn- sync-popup-state! [scene-visibility]
+  (g/with-auto-evaluation-context evaluation-context
+    (sync-filter-button-style! (g/node-value scene-visibility :app-view) scene-visibility evaluation-context)
+    (when-let [state-atom (g/node-value scene-visibility :popup-state-atom)]
+      (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
+            filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
+        (swap! state-atom
+               (fn [state]
+                 (reduce (fn [s key]
+                           (assoc s key (if (= :visibility-filters-enabled? key)
+                                          filters-enabled?
+                                          (not (contains? filtered-tags key)))))
+                         state
+                         (keys state))))))))
 
 (defn show-settings! [keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (mapv #(-> %
                                        (assoc :key (:tag %))
                                        (dissoc :tag :always-enabled :appear-filtered))
                                   renderable-tag-toggles-info)
-        scene-vis-store (->SceneVisibilityStore scene-visibility)
-        ;; HACK: There's a visual bug where if you're hovering over the SplitPane next to Outline, if you move the
-        ;; cursor into the popup, JavaFX doesn't receive a mouse-move inside the scene view, so once you
-        ;; enter the popup, the H_RESIZE cursor stays active. As a hack, just move the scene visibility to the left by
-        ;; 13 pixels, that seems to be enough to allow the cursor to get reset.
-        controls (settings-popup/show! owner keymap localization scene-vis-store 230 -13.0 setting-descriptors nil
+        keys (keep :key setting-descriptors)
+        state (into {} (map (fn [key]
+                              [key (if (= :visibility-filters-enabled? key)
+                                     (g/node-value scene-visibility :visibility-filters-enabled?)
+                                     (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key)))]))
+                    keys)
+        on-change (fn [key v]
+                    (if (= :visibility-filters-enabled? key)
+                      (g/set-property! scene-visibility :visibility-filters-enabled? v)
+                      (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
+                    (sync-popup-state! scene-visibility))
+        state-atom (settings-popup/show! owner keymap localization state on-change 230 -13.0 setting-descriptors nil
                                          (fn [_]
-                                           (sync-filter-checkboxes! scene-visibility)
-                                           ;; NOTE: On close, free the references to the GUI nodes
-                                           (g/set-property! scene-visibility :ui-check-boxes nil)))]
-    (when controls
-      (g/update-property! scene-visibility :ui-check-boxes assoc
-                          :visibility-filter-check-box (last (.getChildren ^HBox (:visibility-filters-enabled? controls)))
-                          :component-guide-check-box (last (.getChildren ^HBox (:outline controls)))
-                          :filter-check-boxes (coll/into-> controls []
-                                                           (keep (fn [[key entry]]
-                                                                   ;; NOTE: We only need the HBox for this, so we can disable the whole thing
-                                                                   (when (contains? toggleable-filters key)
-                                                                     entry)))))
-      (sync-filter-checkboxes! scene-visibility))))
+                                           (g/set-property! scene-visibility :popup-state-atom nil)
+                                           (sync-popup-state! scene-visibility)))]
+    (when state-atom
+      (g/set-property! scene-visibility :popup-state-atom state-atom))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
   (g/update-property! scene-visibility :filtered-renderable-tags
@@ -349,14 +336,14 @@
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
     (g/update-property! scene-visibility :visibility-filters-enabled? not)
-    (sync-filter-checkboxes! scene-visibility)))
+    (sync-popup-state! scene-visibility)))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
     (toggle-tag-visibility! scene-visibility :outline)
-    (sync-filter-checkboxes! scene-visibility)))
+    (sync-popup-state! scene-visibility)))
 
 (handler/defhandler :scene.visibility.toggle-grid :workbench
   (active? [app-view scene-visibility evaluation-context]

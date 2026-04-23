@@ -13,8 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui.settings-popup
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.slider :as fx.slider]
+            [clojure.string :as string]
             [editor.colors :as colors]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
@@ -30,7 +34,7 @@
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox Control Label PopupControl Separator Skin Slider TextField ToggleButton ToggleGroup]
-           [javafx.scene.layout HBox Priority Region StackPane VBox]
+           [javafx.scene.layout HBox Priority Region]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
 
@@ -305,3 +309,182 @@
                           (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))
        controls))))
+
+;; CLJFX Port from here on out
+
+(defn- make-toggle-row-fx [{:keys [label accelerator selected on-selected-changed]}]
+  {:fx/type fxui/horizontal
+   :style-class "toggle-row"
+   :alignment :center-left
+   :children [{:fx/type fxui/label
+               :style-class "slide-switch-label"
+               :text (or label "")
+               :h-box/hgrow :always
+               :max-width Double/MAX_VALUE}
+              {:fx/type fxui/label
+               :style-class "accelerator-label"
+               :text (or accelerator "")}
+              {:fx/type fx.check-box/lifecycle
+               :style-class ["slide-switch"]
+               :selected (boolean selected)
+               :on-selected-changed (or on-selected-changed (fn [_]))}]})
+
+(defn- make-slider-row-fx [{:keys [label min max value slider-value->string on-value-changed]}]
+  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))
+        value (or value 1337.0)]
+    {:fx/type fxui/horizontal
+     :children [{:fx/type fxui/label
+                 :text (or label "")
+                 :h-box/hgrow :always
+                 :max-width Double/MAX_VALUE}
+                {:fx/type fxui/label
+                 :style-class "slider-value-label"
+                 :text (slider-value->string value)}
+                {:fx/type fx.slider/lifecycle
+                 :min min
+                 :max max
+                 :value value
+                 :block-increment 0.1
+                 :on-value-changed (or on-value-changed (fn [_]))}]}))
+
+(defn- make-color-row-fx [{:keys [label value on-value-changed]}]
+  {:fx/type fxui/horizontal
+   :children [{:fx/type fxui/label
+               :text (or label "")
+               :h-box/hgrow :always
+               :max-width Double/MAX_VALUE}
+              {:fx/type fxui/color-picker
+               :value (when value
+                        (let [[r g b a] value]
+                          (Color. (float r) (float g) (float b) (float a))))
+               :on-value-changed (fn [^Color c]
+                                   (when on-value-changed
+                                     (on-value-changed [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
+               :ignore-alpha false}]})
+
+(defn- make-vec3-floats-row-fx [{:keys [value on-value-changed]}]
+  {:fx/type fxui/horizontal
+   :children (into []
+                   (mapcat (fn [axis]
+                             [{:fx/type fxui/label
+                               :text (string/upper-case (name axis))
+                               :min-width :use-pref-size}
+                              {:fx/type fxui/value-field
+                               :text (str (get value axis))
+                               :to-value (fn [s]
+                                           (try (let [v (Float/parseFloat s)]
+                                                  (when (pos? v) v))
+                                                (catch Exception _ nil)))
+                               :on-value-changed (fn [v]
+                                                   (when on-value-changed
+                                                     (on-value-changed (assoc value axis v))))}]))
+                   axes)})
+
+(defn- make-vec3-toggle-row-fx [{:keys [label value on-value-changed]}]
+  {:fx/type fxui/horizontal
+   :children (into [{:fx/type fxui/label
+                     :text (or label "")
+                     :h-box/hgrow :always
+                     :max-width Double/MAX_VALUE}]
+                   (map (fn [axis]
+                          {:fx/type fxui/toggle-button
+                           :style-class ["toggle-button" "plane-toggle"]
+                           :text (string/upper-case (name axis))
+                           :selected (= axis value)
+                           :on-action {:event-type :set-value
+                                       :key nil ;; filled in by caller
+                                       :fx/event axis}}))
+                   axes)})
+
+(defn- make-row-fx [keymap localization state descriptor]
+  (case (:type descriptor)
+    :toggle
+    {:fx/type make-toggle-row-fx
+     :label (localization (localization/message (:label descriptor)))
+     :accelerator (keymap/display-text keymap (:command descriptor) "")
+     :selected (get state (:key descriptor))
+     :on-selected-changed {:event-type :set-value
+                           :key (:key descriptor)}}
+
+    :slider
+    {:fx/type make-slider-row-fx
+     :label (localization (localization/message (:label descriptor)))
+     :min (:min descriptor)
+     :max (:max descriptor)
+     :snap-to (:snap-to descriptor)
+     :slider-value->string (:slider-value->string descriptor)
+     :value (get state (:key descriptor))
+     :on-value-changed {:event-type :set-value
+                        :key (:key descriptor)}}
+
+    :color
+    {:fx/type make-color-row-fx
+     :label (localization (localization/message (:label descriptor)))
+     :value (get state (:key descriptor))
+     :on-value-changed {:event-type :set-value
+                        :key (:key descriptor)}}
+
+    :vec3-floats
+    {:fx/type make-vec3-floats-row-fx
+     :value (get state (:key descriptor))
+     :on-value-changed {:event-type :set-value
+                        :key (:key descriptor)}}
+
+    :vec3-toggle
+    {:fx/type make-vec3-toggle-row-fx
+     :label (when-let [l (:label descriptor)]
+              (localization (localization/message l)))
+     :value (get state (:key descriptor))
+     :on-value-changed {:event-type :set-value
+                        :key (:key descriptor)}}
+
+    nil))
+
+(defn- cljfx-popup-view [{:keys [descriptors keymap localization state]}]
+  {:fx/type fxui/vertical
+   :children (into []
+                   (keep (partial make-row-fx keymap localization state))
+                   descriptors)})
+
+(defn show!
+  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
+   (show! owner keymap localization state on-change width x-offset setting-descriptors nil))
+  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings]
+   (show! owner keymap localization state on-change width x-offset setting-descriptors hidden-settings nil))
+  ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings on-closed]
+   (when-not (ui/user-data owner ::popup)
+     (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
+           state-atom (atom state)
+           renderer (fx/create-renderer
+                      :opts {:fx.opt/map-event-handler
+                             (fx/wrap-effects
+                               identity
+                               {:set-value (fn [[key value] _]
+                                             (swap! state-atom assoc key value)
+                                             (on-change key value))})}
+                      :middleware (fx/wrap-map-desc
+                                    (fn [state]
+                                      {:fx/type cljfx-popup-view
+                                       :descriptors visible-descriptors
+                                       :keymap keymap
+                                       :localization localization
+                                       :state state})))
+           node (fx/instance (fx/create-component
+                               {:fx/type cljfx-popup-view
+                                :descriptors visible-descriptors
+                                :keymap keymap
+                                :localization localization
+                                :state state}
+                               {:fx.opt/map-event-handler (fn [_])}))
+           popup (make-popup owner node)
+           anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)]
+       (fx/mount-renderer state-atom renderer)
+       (ui/user-data! owner ::popup popup)
+       (doto popup
+         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
+         (ui/on-closed! (fn [e]
+                          (fx/unmount-renderer state-atom renderer)
+                          (when on-closed (on-closed e))
+                          (ui/user-data! owner ::popup nil)))
+         (.show owner (.getX anchor) (.getY anchor)))
+       state-atom))))

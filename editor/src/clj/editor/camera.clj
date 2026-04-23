@@ -835,8 +835,8 @@
         camera))))
 
 (defn perspective-fov-y [camera-node]
-  (or (prefs/get (g/node-value camera-node :prefs) [:scene :perspective-camera :fov])
-      fov-y-35mm-full-frame))
+  ;; NOTE: Abstracting away because soon we will read from prefs
+  fov-y-35mm-full-frame)
 
 (defn set-camera-type! [camera-node projection-type]
   (let [old-camera (g/node-value camera-node :local-camera)
@@ -1221,4 +1221,4 @@
          {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
          {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
         prefs-store (settings-popup/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
-    (settings-popup/show! owner keymap localization prefs-store 240 0.0 settings-descriptor)))
+    (settings-popup/show! owner keymap localization (atom {}) identity 240 0.0 settings-descriptor)))

@@ -285,4 +285,4 @@
           :slider-value->string (fn [^double v]
                                   (str (Math/round (* v 100)) "%"))}]
         prefs-store (settings-popup/->PrefsStore prefs [:scene :grid] settings-descriptor ignore-options (fn [_k _v] (invalidate-grids! app-view)))]
-    (settings-popup/show! owner keymap localization prefs-store 220 0.0 settings-descriptor)))
+    (settings-popup/show! owner keymap localization (atom {}) identity 220 0.0 settings-descriptor)))
