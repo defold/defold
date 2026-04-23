@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.fs :as fs]
+            [editor.library :as library]
             [internal.system :as is])
   (:import [java.io File]
            [java.net URI]
@@ -82,7 +83,7 @@
   (do-until-new-mtime (fn [f] (fs/create-file! f content)) f))
 
 (defn library-directory ^File [project-directory]
-  (io/file (io/as-file project-directory) ".internal/lib"))
+  (.toFile (library/directory project-directory)))
 
 (defn library-files [project-directory]
   (seq (.listFiles (library-directory project-directory))))

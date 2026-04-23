@@ -66,6 +66,7 @@
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.path :as path]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
@@ -99,6 +100,19 @@
 ;; Disable defspec logs:
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
 (alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
+
+;; Use shared lib dir to skip re-downloading deps
+(def ^:dynamic *shared-lib-dir* (path/of "tmp/lib"))
+
+(alter-var-root
+  #'library/directory
+  (fn [f]
+    (fn overridden-library-directory [& args]
+      (or *shared-lib-dir* (apply f args)))))
+
+(defmacro with-project-default-library-directory [& body]
+  `(binding [*shared-lib-dir* nil]
+     ~@body))
 
 (def project-path "test/resources/test_project")
 

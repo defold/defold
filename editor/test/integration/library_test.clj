@@ -64,34 +64,36 @@
 
 (deftest initial-state
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (testing "initially no library files"
-        (let [files (test-support/library-files (workspace/project-directory workspace))]
-          (is (= 0 (count files)))))
-      (testing "initially missing library state"
-        (let [states (library/cached (workspace/project-directory workspace) uris)]
-          (is (coll/every? #(instance? Library$Problem$Missing (.problem ^Library$Result %)) states))
-          (is (coll/not-any? Library$Result/.archive states)))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup-scratch world))]
+        (testing "initially no library files"
+          (let [files (test-support/library-files (workspace/project-directory workspace))]
+            (is (= 0 (count files)))))
+        (testing "initially missing library state"
+          (let [states (library/cached (workspace/project-directory workspace) uris)]
+            (is (coll/every? #(instance? Library$Problem$Missing (.problem ^Library$Result %)) states))
+            (is (coll/not-any? Library$Result/.archive states))))))))
 
 (deftest libraries-present
   (with-clean-system
-    (let [[workspace _project] (log/without-logging (setup-scratch world))
-          project-directory (workspace/project-directory workspace)]
-      ;; copy to proper place
-      (FileUtils/copyDirectory
-        (io/file "test/resources/lib_resource_project/.internal/lib")
-        (test-support/library-directory project-directory))
-      (testing "libraries now present"
-        (let [files (test-support/library-files project-directory)]
-          (is (= 3 (count files)))))
-      (testing "library-state visible"
-        (let [state (library/cached project-directory uris)]
-          (is (= 4 (count state)))
-          (is (= 3 (count (keep Library$Result/.archive state))))))  ; no file for bogus
-      (testing "ignore duplicate library uris"
-        (let [state (library/cached project-directory (concat uris uris))]
-          (is (= 4 (count state)))
-          (is (= 3 (count (keep Library$Result/.archive state)))))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace _project] (log/without-logging (setup-scratch world))
+            project-directory (workspace/project-directory workspace)]
+        ;; copy to proper place
+        (FileUtils/copyDirectory
+          (io/file "test/resources/lib_resource_project/.internal/lib")
+          (test-support/library-directory project-directory))
+        (testing "libraries now present"
+          (let [files (test-support/library-files project-directory)]
+            (is (= 3 (count files)))))
+        (testing "library-state visible"
+          (let [state (library/cached project-directory uris)]
+            (is (= 4 (count state)))
+            (is (= 3 (count (keep Library$Result/.archive state))))))  ; no file for bogus
+        (testing "ignore duplicate library uris"
+          (let [state (library/cached project-directory (concat uris uris))]
+            (is (= 4 (count state)))
+            (is (= 3 (count (keep Library$Result/.archive state))))))))))
 
 (defn- write-deps! [game-project deps]
   (let [settings (with-open [game-project-reader (io/reader game-project)]

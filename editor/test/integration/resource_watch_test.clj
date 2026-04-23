@@ -65,63 +65,68 @@
 
 (deftest libraries-skipped-by-default
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world))]
-      (is (= (workspace-resource-paths workspace) directory-resources)))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup world))]
+        (is (= (workspace-resource-paths workspace) directory-resources))))))
 
 (deftest only-load-specified-libraries
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world))]
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
-      (workspace/resource-sync! workspace)
-      (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources)))
-      (test-util/set-cached-project-dependencies! workspace [imagelib2-uri])
-      (workspace/resource-sync! workspace)
-      (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib2-resources)))
-      (test-util/set-cached-project-dependencies! workspace [scriptlib-uri])
-      (workspace/resource-sync! workspace)
-      (is (= (workspace-resource-paths workspace) (set/union directory-resources scriptlib-resources)))
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri scriptlib-uri])
-      (workspace/resource-sync! workspace)
-      (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources scriptlib-resources))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup world))]
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
+        (workspace/resource-sync! workspace)
+        (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources)))
+        (test-util/set-cached-project-dependencies! workspace [imagelib2-uri])
+        (workspace/resource-sync! workspace)
+        (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib2-resources)))
+        (test-util/set-cached-project-dependencies! workspace [scriptlib-uri])
+        (workspace/resource-sync! workspace)
+        (is (= (workspace-resource-paths workspace) (set/union directory-resources scriptlib-resources)))
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri scriptlib-uri])
+        (workspace/resource-sync! workspace)
+        (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources scriptlib-resources)))))))
 
 (deftest skip-colliding-libraries
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world))]
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri imagelib2-uri])
-      (workspace/resource-sync! workspace)
-      (is (= (workspace-resource-paths workspace)
-             (clojure.set/union directory-resources imagelib1-resources))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup world))]
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri imagelib2-uri])
+        (workspace/resource-sync! workspace)
+        (is (= (workspace-resource-paths workspace)
+               (clojure.set/union directory-resources imagelib1-resources)))))))
 
 (deftest skip-bad-lib-uris []
   (with-clean-system
-    (let [[workspace projec†] (log/without-logging (setup world))]
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri bogus-uri])
-      (workspace/resource-sync! workspace)
-      (is (= (workspace-resource-paths workspace)
-             (clojure.set/union directory-resources imagelib1-resources))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace projec†] (log/without-logging (setup world))]
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri bogus-uri])
+        (workspace/resource-sync! workspace)
+        (is (= (workspace-resource-paths workspace)
+               (clojure.set/union directory-resources imagelib1-resources)))))))
 
 (deftest resource-sync!-diff
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
-      (let [il1-diff (workspace/resource-sync! workspace)]
-        (is (= (resource-paths (:added il1-diff)) imagelib1-resources))
-        (is (empty? (:removed il1-diff)))
-        (is (empty? (:changed il1-diff))))
-      (test-util/set-cached-project-dependencies! workspace [])
-      (let [remove-il1-diff (workspace/resource-sync! workspace)]
-        (is (empty? (:added remove-il1-diff)))
-        (is (= (resource-paths (:removed remove-il1-diff)) imagelib1-resources))
-        (is (empty? (:changed remove-il1-diff))))
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
-      (workspace/resource-sync! workspace)
-      (let [project-directory (workspace/project-directory workspace)]
-        ;; this fakes having downloaded a different version of the library
-        (test-support/touch-until-new-mtime (test-support/library-file project-directory imagelib1-uri "")))
-      (let [update-il1-diff (workspace/resource-sync! workspace)]
-        (is (empty? (:added update-il1-diff)))
-        (is (empty? (:removed update-il1-diff)))
-        (is (= (resource-paths (:changed update-il1-diff)) imagelib1-resources))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup-scratch world))]
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
+        (let [il1-diff (workspace/resource-sync! workspace)]
+          (is (= (resource-paths (:added il1-diff)) imagelib1-resources))
+          (is (empty? (:removed il1-diff)))
+          (is (empty? (:changed il1-diff))))
+        (test-util/set-cached-project-dependencies! workspace [])
+        (let [remove-il1-diff (workspace/resource-sync! workspace)]
+          (is (empty? (:added remove-il1-diff)))
+          (is (= (resource-paths (:removed remove-il1-diff)) imagelib1-resources))
+          (is (empty? (:changed remove-il1-diff))))
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
+        (workspace/resource-sync! workspace)
+        (let [project-directory (workspace/project-directory workspace)]
+          ;; this fakes having downloaded a different version of the library
+          (test-support/touch-until-new-mtime (test-support/library-file project-directory imagelib1-uri "")))
+        (let [update-il1-diff (workspace/resource-sync! workspace)]
+          (is (empty? (:added update-il1-diff)))
+          (is (empty? (:removed update-il1-diff)))
+          (is (= (resource-paths (:changed update-il1-diff)) imagelib1-resources)))))))
 
 (defn- read-bytes [resource]
   (with-open [is (io/input-stream resource)]
@@ -129,36 +134,39 @@
 
 (deftest exchange-of-zipresource-updates-corresponding-resource-node
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world))]
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
-      (workspace/resource-sync! workspace)
-      (let [lib1-pow (project/get-resource-node project "/images/pow.png")
-            lib1-pow-resource (g/node-value lib1-pow :resource)]
-        (is (not (g/error? lib1-pow-resource)))
-        (test-util/set-cached-project-dependencies! workspace [imagelib2-uri])
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup world))]
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (workspace/resource-sync! workspace)
-        (let [lib2-pow (project/get-resource-node project "/images/pow.png")
-              lib2-pow-resource (g/node-value lib2-pow :resource)]
-          (is (= lib1-pow lib2-pow))
-          (is (not= lib1-pow-resource lib2-pow-resource))
-          (is (not= (read-bytes lib1-pow-resource) (read-bytes lib2-pow-resource))))))))
+        (let [lib1-pow (project/get-resource-node project "/images/pow.png")
+              lib1-pow-resource (g/node-value lib1-pow :resource)]
+          (is (not (g/error? lib1-pow-resource)))
+          (test-util/set-cached-project-dependencies! workspace [imagelib2-uri])
+          (workspace/resource-sync! workspace)
+          (let [lib2-pow (project/get-resource-node project "/images/pow.png")
+                lib2-pow-resource (g/node-value lib2-pow :resource)]
+            (is (= lib1-pow lib2-pow))
+            (is (not= lib1-pow-resource lib2-pow-resource))
+            (is (not= (read-bytes lib1-pow-resource) (read-bytes lib2-pow-resource)))))))))
 
 (deftest delete-of-zipresource-marks-corresponding-resource-node-defective
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup world))]
-      (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
-      (workspace/resource-sync! workspace)
-      (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
-        (is (not (g/error? (g/node-value lib1-paddle :size))))
-        (test-util/set-cached-project-dependencies! workspace [imagelib2-uri])
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup world))]
+        (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
         (workspace/resource-sync! workspace)
-        (is (g/error? (g/node-value lib1-paddle :size))))))) ; removed, should emit errors
+        (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
+          (is (not (g/error? (g/node-value lib1-paddle :size))))
+          (test-util/set-cached-project-dependencies! workspace [imagelib2-uri])
+          (workspace/resource-sync! workspace)
+          (is (g/error? (g/node-value lib1-paddle :size)))))))) ; removed, should emit errors
 
 (deftest project-with-reserved-directories-can-still-be-loaded
   (binding [*project-path* "test/resources/reserved_files_project"]
     (with-clean-system
-      (let [[workspace project] (log/without-logging (setup world))]
-        (is (not (= nil (project/get-resource-node project "/present.script"))))
-        (is (= nil (project/get-resource-node project "/.internal/hidden_internal.script")))
-        (is (= nil (project/get-resource-node project "/builtins/hidden_builtins.script")))
-        (is (= nil (project/get-resource-node project "/build")))))))
+      (test-util/with-project-default-library-directory
+        (let [[workspace project] (log/without-logging (setup world))]
+          (is (not (= nil (project/get-resource-node project "/present.script"))))
+          (is (= nil (project/get-resource-node project "/.internal/hidden_internal.script")))
+          (is (= nil (project/get-resource-node project "/builtins/hidden_builtins.script")))
+          (is (= nil (project/get-resource-node project "/build"))))))))

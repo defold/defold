@@ -20,7 +20,8 @@
   (:import [com.dynamo.bob Progress Progress$Reporter]
            [com.dynamo.bob Project]
            [com.dynamo.bob.archive EngineVersion]
-           [com.dynamo.bob.util Library Library$Problem$DefoldMinVersion Library$Problem$FetchFailed Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]))
+           [com.dynamo.bob.util Library Library$Problem$DefoldMinVersion Library$Problem$FetchFailed Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
+           [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
 
@@ -54,13 +55,17 @@
 
                    (localization/message "notification.fetch-libraries.problem.unknown" {"problem" problem}))})))
 
+(defn directory
+  ^Path [project-directory]
+  (path/of project-directory Project/LIB_DIR))
+
 (defn cached [project-directory library-uris]
-  (Library/cached (or library-uris []) (path/of project-directory Project/LIB_DIR)))
+  (Library/cached (or library-uris []) (directory project-directory)))
 
 (defn fetch! [project-directory library-uris render-progress!]
   (Library/fetch
     (or library-uris [])
-    (path/of project-directory Project/LIB_DIR)
+    (directory project-directory)
     nil
     nil
     (Progress.
