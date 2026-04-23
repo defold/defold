@@ -39,6 +39,7 @@ namespace dmGraphics
         , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_HasPendingClearColor(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
@@ -1420,6 +1421,7 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -1513,8 +1515,15 @@ bail:
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
-        handle->m_Framebuffer = VK_NULL_HANDLE;
-        handle->m_RenderPass = VK_NULL_HANDLE;
+        // Only destroy the CLEAR variant if it's a distinct object. For the main RT it aliases
+        // context->m_MainRenderPass, which is destroyed by the context teardown instead.
+        if (handle->m_RenderPassClear != VK_NULL_HANDLE && handle->m_RenderPassClear != handle->m_RenderPass)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClear);
+        }
+        handle->m_Framebuffer     = VK_NULL_HANDLE;
+        handle->m_RenderPass      = VK_NULL_HANDLE;
+        handle->m_RenderPassClear = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
