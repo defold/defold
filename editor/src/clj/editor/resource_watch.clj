@@ -109,11 +109,13 @@
          unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)]
      (make-file-tree workspace project-directory file editable-proj-path? unloaded-proj-path?)))
   ([workspace ^File root ^File file editable-proj-path? unloaded-proj-path?]
-   (let [children (into []
-                        (comp (filter (partial file-resource-filter root))
-                              (map #(make-file-tree workspace root % editable-proj-path? unloaded-proj-path?)))
-                        (.listFiles file))]
-     (resource/make-file-resource workspace (.getPath root) file children editable-proj-path? unloaded-proj-path?))))
+   (coll/ptree
+     (fn file-tree-children [^File file]
+       (when (.isDirectory file)
+         (filterv #(file-resource-filter root %) (.listFiles file))))
+     (fn file-tree-node [^File file children]
+       (resource/make-file-resource workspace (.getPath root) file children editable-proj-path? unloaded-proj-path?))
+     file)))
 
 (defn- file-resource-status [resource]
   (assert (resource/file-resource? resource))
