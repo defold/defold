@@ -57,6 +57,7 @@ namespace dmGraphics
     static void          CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage);
     static int16_t       CreateTextureSampler(MetalContext* context, TextureFilter minFilter, TextureFilter magFilter, TextureWrap uWrap, TextureWrap vWrap, uint8_t maxLod, float maxAnisotropy);
     static void          FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list);
+    static void          BeginRenderPass(MetalContext* context, HRenderTarget render_target);
 
     struct ClearParams
     {
@@ -87,6 +88,22 @@ namespace dmGraphics
             m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
         DM_STATIC_ASSERT(sizeof(m_BaseContext.m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+    }
+
+    static inline MTL::LoadAction MetalLoadAction(AttachmentOp op)
+    {
+        switch (op)
+        {
+            case ATTACHMENT_OP_LOAD:      return MTL::LoadActionLoad;
+            case ATTACHMENT_OP_CLEAR:     return MTL::LoadActionClear;
+            case ATTACHMENT_OP_DONT_CARE: return MTL::LoadActionDontCare;
+            default:                      return MTL::LoadActionLoad;
+        }
+    }
+
+    static inline MTL::StoreAction MetalStoreAction(AttachmentOp op)
+    {
+        return op == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore;
     }
 
     static HContext MetalNewContext(const ContextParams& params)
@@ -354,6 +371,12 @@ namespace dmGraphics
         rt->m_ColorFormat[0]       = MTL::PixelFormatBGRA8Unorm;
         rt->m_DepthStencilFormat   = MTL::PixelFormatDepth32Float_Stencil8;
         rt->m_ColorAttachmentCount = 1;
+        rt->m_ColorBufferLoadOps[0] = ATTACHMENT_OP_CLEAR;
+        rt->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
+        rt->m_ColorAttachmentClearValue[0][0] = 0.0f;
+        rt->m_ColorAttachmentClearValue[0][1] = 0.0f;
+        rt->m_ColorAttachmentClearValue[0][2] = 0.0f;
+        rt->m_ColorAttachmentClearValue[0][3] = 1.0f;
     }
 
     static void SetupSupportedTextureFormats(MetalContext* context)
@@ -707,6 +730,8 @@ namespace dmGraphics
         context->m_NumFramesInFlight = MAX_FRAMES_IN_FLIGHT;
         context->m_FrameBoundarySemaphore = dispatch_semaphore_create(context->m_NumFramesInFlight);
         context->m_PipelineState     = GetDefaultPipelineState();
+        context->m_RenderTargetBound = 0;
+        context->m_MainRTBegunThisFrame = 0;
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
         context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
@@ -911,14 +936,47 @@ namespace dmGraphics
         {
             rt->m_IsBound = 0;
         }
+
+        context->m_RenderTargetBound = 0;
+    }
+
+    static void FlushPendingRenderTargetClear(MetalContext* context, HRenderTarget render_target)
+    {
+        if (render_target == 0x0 || context->m_RenderTargetBound)
+        {
+            return;
+        }
+
+        bool has_pending_clear = false;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            has_pending_clear = rt && rt->m_HasPendingClearColor;
+        }
+
+        if (has_pending_clear)
+        {
+            BeginRenderPass(context, render_target);
+            EndRenderPass(context);
+        }
     }
 
     static void BeginRenderPass(MetalContext* context, HRenderTarget render_target)
     {
+        if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
+        {
+            return;
+        }
+
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
         MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         MetalRenderTarget* rt         = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+
+        if (!rt)
+        {
+            return;
+        }
 
         if (current_rt && current_rt->m_Id == rt->m_Id && current_rt->m_IsBound)
             return;
@@ -933,6 +991,8 @@ namespace dmGraphics
 
         // Build a render pass descriptor
         MTL::RenderPassDescriptor* rpDesc = MTL::RenderPassDescriptor::alloc()->init();
+        const bool is_main_rt = render_target == context->m_MainRenderTarget;
+        const bool has_pending_clear = rt->m_HasPendingClearColor;
 
         // --- Configure color attachments ---
         for (uint32_t i = 0; i < rt->m_ColorAttachmentCount; ++i)
@@ -945,8 +1005,21 @@ namespace dmGraphics
                 continue;
 
             MTL::RenderPassColorAttachmentDescriptor* colorAttachment = rpDesc->colorAttachments()->object(i);
-            colorAttachment->setLoadAction(MTL::LoadActionClear);
-            colorAttachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0)); // TODO: Remove?
+            MTL::LoadAction load_action = MetalLoadAction(rt->m_ColorBufferLoadOps[i]);
+            if (has_pending_clear)
+            {
+                load_action = MTL::LoadActionClear;
+            }
+            else if (is_main_rt && context->m_MainRTBegunThisFrame)
+            {
+                load_action = MTL::LoadActionLoad;
+            }
+            colorAttachment->setLoadAction(load_action);
+            colorAttachment->setClearColor(MTL::ClearColor(
+                rt->m_ColorAttachmentClearValue[i][0],
+                rt->m_ColorAttachmentClearValue[i][1],
+                rt->m_ColorAttachmentClearValue[i][2],
+                rt->m_ColorAttachmentClearValue[i][3]));
 
             if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
             {
@@ -957,7 +1030,7 @@ namespace dmGraphics
             else
             {
                 colorAttachment->setTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(MTL::StoreActionStore);
+                colorAttachment->setStoreAction(MetalStoreAction(rt->m_ColorBufferStoreOps[i]));
             }
         }
 
@@ -968,11 +1041,11 @@ namespace dmGraphics
             if (tex && tex->m_Texture)
             {
                 MTL::RenderPassDepthAttachmentDescriptor* depthAttachment = rpDesc->depthAttachment();
-                depthAttachment->setLoadAction(MTL::LoadActionClear);
+                depthAttachment->setLoadAction(MTL::LoadActionLoad);
                 depthAttachment->setClearDepth(1.0);
 
                 MTL::RenderPassStencilAttachmentDescriptor* stencilAttachment = rpDesc->stencilAttachment();
-                stencilAttachment->setLoadAction(MTL::LoadActionClear);
+                stencilAttachment->setLoadAction(MTL::LoadActionLoad);
                 stencilAttachment->setClearStencil(0);
 
                 if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
@@ -1010,6 +1083,12 @@ namespace dmGraphics
         // Track the active encoder
         frame.m_RenderCommandEncoder = encoder;
         context->m_CurrentRenderTarget = render_target;
+        context->m_RenderTargetBound = 1;
+        if (is_main_rt)
+        {
+            context->m_MainRTBegunThisFrame = 1;
+        }
+        rt->m_HasPendingClearColor = 0;
         rt->m_IsBound = 1;
 
         rpDesc->release();
@@ -1039,6 +1118,8 @@ namespace dmGraphics
         }
         frame.m_ConstantScratchBuffer.Rewind();
         frame.m_ArgumentBufferPool.Rewind();
+        context->m_RenderTargetBound = 0;
+        context->m_MainRTBegunThisFrame = 0;
 
         // Setup the initial render pass state
         frame.m_RenderPassDescriptor = 0;
@@ -1085,6 +1166,8 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         assert(context->m_FrameBegun);
 
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
+
         // End the current render pass
         EndRenderPass(context);
 
@@ -1110,13 +1193,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-
-        BeginRenderPass(context, context->m_CurrentRenderTarget);
-
-        // BeginRenderPass must have already bound the RT and created a MTLRenderCommandEncoder
-        MetalFrameResource& frame = GetCurrentFrameResource(context);
-        MTL::RenderCommandEncoder* enc = frame.m_RenderCommandEncoder;
-        assert(enc);
+        assert(current_rt);
 
         // Determine which buffers to clear
         const BufferType color_buffers[] = {
@@ -1130,6 +1207,44 @@ namespace dmGraphics
         bool want_color                     = (flags & any_color_clear_mask) != 0;
         bool want_depth                     = (flags & BUFFER_TYPE_DEPTH_BIT) != 0;
         bool want_stencil                   = (flags & BUFFER_TYPE_STENCIL_BIT) != 0;
+        bool pass_not_bound                 = !context->m_RenderTargetBound;
+        bool rt_has_ds                      = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil != 0;
+        bool clear_ds                       = rt_has_ds && (want_depth || want_stencil);
+        bool all_colors_in_flags            = current_rt->m_ColorAttachmentCount > 0;
+
+        for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+        {
+            if (!(flags & color_buffers[i]))
+            {
+                all_colors_in_flags = false;
+                break;
+            }
+        }
+
+        if (pass_not_bound && want_color && all_colors_in_flags && !clear_ds)
+        {
+            const float r = (float) red   / 255.0f;
+            const float g = (float) green / 255.0f;
+            const float b = (float) blue  / 255.0f;
+            const float a = (float) alpha / 255.0f;
+
+            for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+            {
+                current_rt->m_ColorAttachmentClearValue[i][0] = r;
+                current_rt->m_ColorAttachmentClearValue[i][1] = g;
+                current_rt->m_ColorAttachmentClearValue[i][2] = b;
+                current_rt->m_ColorAttachmentClearValue[i][3] = a;
+            }
+            current_rt->m_HasPendingClearColor = 1;
+            return;
+        }
+
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
+
+        // BeginRenderPass must have already bound the RT and created a MTLRenderCommandEncoder
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        MTL::RenderCommandEncoder* enc = frame.m_RenderCommandEncoder;
+        assert(enc);
 
         // Build cache key
         MetalClearData::CacheKey key = {};
@@ -2888,6 +3003,9 @@ namespace dmGraphics
         MetalRenderTarget* rt = new MetalRenderTarget(GetNextRenderTargetId());
 
         // copy params into RT object
+        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorBufferClearValue, sizeof(float) * MAX_BUFFER_COLOR_ATTACHMENTS * 4);
         memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
         // depth/stencil choice as in Vulkan
         rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
@@ -3004,8 +3122,22 @@ namespace dmGraphics
     {
         (void) transient_buffer_types;
         MetalContext* context = (MetalContext*) _context;
+        HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+
+        if (context->m_CurrentRenderTarget == new_rt)
+        {
+            return;
+        }
+
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
+
+        if (context->m_RenderTargetBound)
+        {
+            EndRenderPass(context);
+        }
+
+        context->m_CurrentRenderTarget = new_rt;
         context->m_ViewportChanged = 1;
-        BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
     }
 
     static HTexture MetalGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)

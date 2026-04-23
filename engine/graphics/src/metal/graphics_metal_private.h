@@ -33,7 +33,7 @@ namespace dmGraphics
     typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
 
 #if defined(DM_PLATFORM_MACOS)
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 3; // Keep two frames in flight on macOS for better CPU/GPU overlap
 #else
     const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
 #endif
@@ -166,6 +166,9 @@ namespace dmGraphics
     {
         MetalRenderTarget(const uint32_t rtId) : m_Id(rtId) {}
 
+        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float                 m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
         TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthStencilTextureParams;
 
@@ -178,6 +181,7 @@ namespace dmGraphics
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
+        uint32_t       m_HasPendingClearColor : 1;
         uint32_t       m_ColorAttachmentCount : 4;
     };
 
@@ -300,6 +304,8 @@ namespace dmGraphics
         uint32_t                           m_MSAASampleCount         : 8;
         uint32_t                           m_CurrentFrameInFlight    : 2;
         uint32_t                           m_NumFramesInFlight       : 2;
+        uint32_t                           m_RenderTargetBound       : 1;
+        uint32_t                           m_MainRTBegunThisFrame    : 1;
         uint32_t                           m_ViewportChanged         : 1;
         uint32_t                           m_CullFaceChanged         : 1;
         uint32_t                           m_FrameBegun              : 1;
