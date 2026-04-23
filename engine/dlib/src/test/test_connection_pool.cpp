@@ -17,6 +17,7 @@
 #include <set>
 #include <dlib/configfile.h>
 #include <dlib/connection_pool.h>
+#include <dlib/defold_mbedtls.hpp>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
 #include <dlib/log.h>
@@ -311,11 +312,13 @@ int main(int argc, char **argv)
     }
 
     dmLogSetLevel(LOG_SEVERITY_INFO);
+    dmMbedTls::Initialize();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
+    dmMbedTls::Finalize();
     return ret;
 }

@@ -19,6 +19,7 @@
 #include "dlib/atomic.h"
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
+#include "dlib/defold_mbedtls.hpp"
 #include "dlib/time.h"
 #include "dlib/log.h"
 #include "dlib/math.h"
@@ -1800,11 +1801,13 @@ int main(int argc, char **argv)
     }
 
     dmLogSetLevel(LOG_SEVERITY_INFO);
+    dmMbedTls::Initialize();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
 
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
+    dmMbedTls::Finalize();
     return ret;
 }
