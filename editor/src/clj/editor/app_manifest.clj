@@ -418,11 +418,11 @@
     [(boolean-toggle :armv7-android :jetifier false)
      (boolean-toggle :arm64-android :jetifier false)]))
 
-(def use-fat-mbedtls-setting
+(def use-mbedtls-full-setting
   (make-check-box-setting
     (concat
-      (exclude-libs-toggles all-platforms ["dlib" "mbedtls"])
-      (libs-toggles all-platforms ["dlib_fat" "mbedtls_fat"]))))
+      (exclude-libs-toggles all-platforms ["mbedtls"])
+      (libs-toggles all-platforms ["mbedtls_full"]))))
 
 (def physics-setting
   ;; by default, legacy 2d and 3d are included in `physics` lib
@@ -688,12 +688,12 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
-  (property use-fat-mbedtls g/Any
-            (dynamic label (properties/label-dynamic :appmanifest :use-fat-mbedtls))
-            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-fat-mbedtls))
+  (property use-full-mbedtls g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :use-full-mbedtls))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-full-mbedtls))
             (dynamic edit-type (g/constantly {:type g/Bool}))
-            (value (setting-property-getter use-fat-mbedtls-setting))
-            (set (setting-property-setter use-fat-mbedtls-setting)))
+            (value (setting-property-getter use-mbedtls-full-setting))
+            (set (setting-property-setter use-mbedtls-full-setting)))
   (property graphics g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics))
