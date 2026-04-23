@@ -17,6 +17,7 @@
 
 #include <dispatch/dispatch.h>
 #include <Metal.hpp>
+#include <cstring>
 
 #include <dmsdk/dlib/atomic.h>
 
@@ -33,10 +34,12 @@ namespace dmGraphics
     typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
 
 #if defined(DM_PLATFORM_MACOS)
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 3; // Keep two frames in flight on macOS for better CPU/GPU overlap
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
 #else
     const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
 #endif
+    const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
+    const static uint8_t  MAX_VERTEX_BUFFER_SLOTS    = MAX_BINDINGS_PER_SET_COUNT + MAX_VERTEX_BUFFERS;
     const static uint32_t UNIFORM_BUFFER_ALIGNMENT = 256;
     const static uint32_t STORAGE_BUFFER_ALIGNMENT = 16;
 
@@ -164,11 +167,33 @@ namespace dmGraphics
 
     struct MetalRenderTarget
     {
-        MetalRenderTarget(const uint32_t rtId) : m_Id(rtId) {}
+        MetalRenderTarget(const uint32_t rtId)
+        : m_DepthClearValue(1.0f)
+        , m_StencilClearValue(0)
+        , m_Id(rtId)
+        , m_Destroyed(0)
+        , m_IsBound(0)
+        , m_HasPendingClearColor(0)
+        , m_HasPendingClearDepth(0)
+        , m_HasPendingClearStencil(0)
+        , m_ColorAttachmentCount(0)
+        {
+            memset(m_ColorBufferLoadOps, 0, sizeof(m_ColorBufferLoadOps));
+            memset(m_ColorBufferStoreOps, 0, sizeof(m_ColorBufferStoreOps));
+            memset(m_ColorAttachmentClearValue, 0, sizeof(m_ColorAttachmentClearValue));
+            memset(m_ColorTextureParams, 0, sizeof(m_ColorTextureParams));
+            memset(&m_DepthStencilTextureParams, 0, sizeof(m_DepthStencilTextureParams));
+            memset(m_TextureColor, 0, sizeof(m_TextureColor));
+            m_TextureDepthStencil = 0;
+            memset(m_ColorFormat, 0, sizeof(m_ColorFormat));
+            m_DepthStencilFormat = MTL::PixelFormatInvalid;
+        }
 
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        float                 m_DepthClearValue;
+        uint32_t              m_StencilClearValue;
         TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthStencilTextureParams;
 
@@ -182,6 +207,8 @@ namespace dmGraphics
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
         uint32_t       m_HasPendingClearColor : 1;
+        uint32_t       m_HasPendingClearDepth : 1;
+        uint32_t       m_HasPendingClearStencil : 1;
         uint32_t       m_ColorAttachmentCount : 4;
     };
 
@@ -294,6 +321,18 @@ namespace dmGraphics
         MetalProgram*                      m_CurrentProgram;
         MetalPipeline*                     m_CurrentPipeline;
         HRenderTarget                      m_CurrentRenderTarget;
+        MTL::Buffer*                       m_CurrentVertexArgumentBuffer[MAX_SET_COUNT];
+        uint32_t                           m_CurrentVertexArgumentBufferOffset[MAX_SET_COUNT];
+        MTL::Buffer*                       m_CurrentFragmentArgumentBuffer[MAX_SET_COUNT];
+        uint32_t                           m_CurrentFragmentArgumentBufferOffset[MAX_SET_COUNT];
+        MTL::Buffer*                       m_CurrentVertexBufferBindings[MAX_VERTEX_BUFFER_SLOTS];
+        uint32_t                           m_CurrentVertexBufferBindingOffsets[MAX_VERTEX_BUFFER_SLOTS];
+        MTL::Resource*                     m_RenderUsedResources[MAX_ENCODER_RESOURCE_CACHE];
+        MTL::ResourceUsage                 m_RenderUsedResourceUsage[MAX_ENCODER_RESOURCE_CACHE];
+        MTL::Resource*                     m_ComputeUsedResources[MAX_ENCODER_RESOURCE_CACHE];
+        MTL::ResourceUsage                 m_ComputeUsedResourceUsage[MAX_ENCODER_RESOURCE_CACHE];
+        uint16_t                           m_RenderUsedResourceCount;
+        uint16_t                           m_ComputeUsedResourceCount;
 
         MetalTexture*                      m_DefaultTexture2D;
         MetalTexture*                      m_DefaultTexture2DArray;

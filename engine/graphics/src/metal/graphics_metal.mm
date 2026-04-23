@@ -67,6 +67,97 @@ namespace dmGraphics
         uint32_t m_Padding[2]; // metal will pad this struct to 32 bytes
     };
 
+    static void ResetRenderEncoderStateCache(MetalContext* context)
+    {
+        context->m_CurrentPipeline = 0;
+        memset(context->m_CurrentVertexArgumentBuffer, 0, sizeof(context->m_CurrentVertexArgumentBuffer));
+        memset(context->m_CurrentVertexArgumentBufferOffset, 0, sizeof(context->m_CurrentVertexArgumentBufferOffset));
+        memset(context->m_CurrentFragmentArgumentBuffer, 0, sizeof(context->m_CurrentFragmentArgumentBuffer));
+        memset(context->m_CurrentFragmentArgumentBufferOffset, 0, sizeof(context->m_CurrentFragmentArgumentBufferOffset));
+        memset(context->m_CurrentVertexBufferBindings, 0, sizeof(context->m_CurrentVertexBufferBindings));
+        memset(context->m_CurrentVertexBufferBindingOffsets, 0, sizeof(context->m_CurrentVertexBufferBindingOffsets));
+        context->m_RenderUsedResourceCount = 0;
+        memset(context->m_RenderUsedResources, 0, sizeof(context->m_RenderUsedResources));
+        memset(context->m_RenderUsedResourceUsage, 0, sizeof(context->m_RenderUsedResourceUsage));
+    }
+
+    static void ResetComputeEncoderStateCache(MetalContext* context)
+    {
+        context->m_ComputeUsedResourceCount = 0;
+        memset(context->m_ComputeUsedResources, 0, sizeof(context->m_ComputeUsedResources));
+        memset(context->m_ComputeUsedResourceUsage, 0, sizeof(context->m_ComputeUsedResourceUsage));
+    }
+
+    static void UseResourceCached(MetalContext* context, MTL::RenderCommandEncoder* encoder, MTL::Resource* resource, MTL::ResourceUsage usage)
+    {
+        if (!resource)
+        {
+            return;
+        }
+
+        for (uint16_t i = 0; i < context->m_RenderUsedResourceCount; ++i)
+        {
+            if (context->m_RenderUsedResources[i] != resource)
+            {
+                continue;
+            }
+
+            const MTL::ResourceUsage current_usage = context->m_RenderUsedResourceUsage[i];
+            if ((current_usage & usage) == usage)
+            {
+                return;
+            }
+
+            const MTL::ResourceUsage merged_usage = (MTL::ResourceUsage)(current_usage | usage);
+            encoder->useResource(resource, merged_usage);
+            context->m_RenderUsedResourceUsage[i] = merged_usage;
+            return;
+        }
+
+        encoder->useResource(resource, usage);
+        if (context->m_RenderUsedResourceCount < MAX_ENCODER_RESOURCE_CACHE)
+        {
+            const uint16_t index = context->m_RenderUsedResourceCount++;
+            context->m_RenderUsedResources[index] = resource;
+            context->m_RenderUsedResourceUsage[index] = usage;
+        }
+    }
+
+    static void UseResourceCached(MetalContext* context, MTL::ComputeCommandEncoder* encoder, MTL::Resource* resource, MTL::ResourceUsage usage)
+    {
+        if (!resource)
+        {
+            return;
+        }
+
+        for (uint16_t i = 0; i < context->m_ComputeUsedResourceCount; ++i)
+        {
+            if (context->m_ComputeUsedResources[i] != resource)
+            {
+                continue;
+            }
+
+            const MTL::ResourceUsage current_usage = context->m_ComputeUsedResourceUsage[i];
+            if ((current_usage & usage) == usage)
+            {
+                return;
+            }
+
+            const MTL::ResourceUsage merged_usage = (MTL::ResourceUsage)(current_usage | usage);
+            encoder->useResource(resource, merged_usage);
+            context->m_ComputeUsedResourceUsage[i] = merged_usage;
+            return;
+        }
+
+        encoder->useResource(resource, usage);
+        if (context->m_ComputeUsedResourceCount < MAX_ENCODER_RESOURCE_CACHE)
+        {
+            const uint16_t index = context->m_ComputeUsedResourceCount++;
+            context->m_ComputeUsedResources[index] = resource;
+            context->m_ComputeUsedResourceUsage[index] = usage;
+        }
+    }
+
     MetalContext::MetalContext(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
@@ -242,8 +333,6 @@ namespace dmGraphics
                     case RESOURCE_TYPE_RENDER_TARGET:
                         break;
                     default:
-
-
                         //assert(0);
                         break;
                 }
@@ -377,6 +466,8 @@ namespace dmGraphics
         rt->m_ColorAttachmentClearValue[0][1] = 0.0f;
         rt->m_ColorAttachmentClearValue[0][2] = 0.0f;
         rt->m_ColorAttachmentClearValue[0][3] = 1.0f;
+        rt->m_DepthClearValue = 1.0f;
+        rt->m_StencilClearValue = 0;
     }
 
     static void SetupSupportedTextureFormats(MetalContext* context)
@@ -659,70 +750,6 @@ namespace dmGraphics
         return context->m_ClearData.m_PipelineCache.Get(hash);
     }
 
-    /*
-    static void SetupClearPipeline(MetalContext* context)
-    {
-        static const char* src = R"(
-            #include <metal_stdlib>
-            using namespace metal;
-
-            struct VSOut {
-                float4 position [[position]];
-            };
-
-            // Fullscreen triangle
-            vertex VSOut ClearVS(uint vid [[vertex_id]])
-            {
-                float2 positions[3] = {
-                    float2(-1.0, -1.0),
-                    float2(-1.0,  3.0),
-                    float2( 3.0, -1.0)
-                };
-
-                VSOut out;
-                out.position = float4(positions[vid], 0.0, 1.0);
-                return out;
-            }
-
-            struct ClearParams
-            {
-                float4 clearColor;
-                float  clearDepth;
-                uint   clearStencil;
-            };
-
-            // Always-returning outputs; actual writes controlled via pipeline write masks and DS state
-            struct ClearFSOutput {
-                float4 color [[color(0)]];
-                float depth [[depth(any)]];
-                uint stencil [[stencil]];
-            };
-
-            fragment ClearFSOutput ClearFS(constant ClearParams& params [[buffer(0)]])
-            {
-                ClearFSOutput out;
-                out.color = params.clearColor;
-                out.depth = params.clearDepth;
-                out.stencil = params.clearStencil;
-                return out;
-            }
-            )";
-
-        NS::Error* error  = 0;
-        MTL::Library* library = context->m_Device->newLibrary(NS::String::string(src, NS::StringEncoding::UTF8StringEncoding), 0, &error);
-
-        if (error)
-        {
-            dmLogError("Failed to create Metal clear pipeline: %s", error ? error->localizedDescription()->utf8String() : "Unknown error");
-        }
-        else
-        {
-            context->m_ClearData.m_Library = library;
-            context->m_ClearData.m_PipelineCache.SetCapacity(16,32);
-        }
-    }
-    */
-
     static bool MetalInitialize(MetalContext* context)
     {
         context->m_Device            = MTL::CreateSystemDefaultDevice();
@@ -732,6 +759,7 @@ namespace dmGraphics
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
         context->m_MSAASampleCount   = MetalGetClosestSampleCount(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
@@ -938,6 +966,7 @@ namespace dmGraphics
         }
 
         context->m_RenderTargetBound = 0;
+        ResetRenderEncoderStateCache(context);
     }
 
     static void FlushPendingRenderTargetClear(MetalContext* context, HRenderTarget render_target)
@@ -951,7 +980,7 @@ namespace dmGraphics
         {
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-            has_pending_clear = rt && rt->m_HasPendingClearColor;
+            has_pending_clear = rt && (rt->m_HasPendingClearColor || rt->m_HasPendingClearDepth || rt->m_HasPendingClearStencil);
         }
 
         if (has_pending_clear)
@@ -992,7 +1021,9 @@ namespace dmGraphics
         // Build a render pass descriptor
         MTL::RenderPassDescriptor* rpDesc = MTL::RenderPassDescriptor::alloc()->init();
         const bool is_main_rt = render_target == context->m_MainRenderTarget;
-        const bool has_pending_clear = rt->m_HasPendingClearColor;
+        const bool has_pending_color_clear = rt->m_HasPendingClearColor;
+        const bool has_pending_depth_clear = rt->m_HasPendingClearDepth;
+        const bool has_pending_stencil_clear = rt->m_HasPendingClearStencil;
 
         // --- Configure color attachments ---
         for (uint32_t i = 0; i < rt->m_ColorAttachmentCount; ++i)
@@ -1006,7 +1037,7 @@ namespace dmGraphics
 
             MTL::RenderPassColorAttachmentDescriptor* colorAttachment = rpDesc->colorAttachments()->object(i);
             MTL::LoadAction load_action = MetalLoadAction(rt->m_ColorBufferLoadOps[i]);
-            if (has_pending_clear)
+            if (has_pending_color_clear)
             {
                 load_action = MTL::LoadActionClear;
             }
@@ -1041,12 +1072,14 @@ namespace dmGraphics
             if (tex && tex->m_Texture)
             {
                 MTL::RenderPassDepthAttachmentDescriptor* depthAttachment = rpDesc->depthAttachment();
-                depthAttachment->setLoadAction(MTL::LoadActionLoad);
-                depthAttachment->setClearDepth(1.0);
+                MTL::LoadAction depth_load_action = has_pending_depth_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
+                depthAttachment->setLoadAction(depth_load_action);
+                depthAttachment->setClearDepth(rt->m_DepthClearValue);
 
                 MTL::RenderPassStencilAttachmentDescriptor* stencilAttachment = rpDesc->stencilAttachment();
-                stencilAttachment->setLoadAction(MTL::LoadActionLoad);
-                stencilAttachment->setClearStencil(0);
+                MTL::LoadAction stencil_load_action = has_pending_stencil_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
+                stencilAttachment->setLoadAction(stencil_load_action);
+                stencilAttachment->setClearStencil(rt->m_StencilClearValue);
 
                 if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
                 {
@@ -1084,11 +1117,16 @@ namespace dmGraphics
         frame.m_RenderCommandEncoder = encoder;
         context->m_CurrentRenderTarget = render_target;
         context->m_RenderTargetBound = 1;
+        ResetRenderEncoderStateCache(context);
+        context->m_ViewportChanged = 1;
+        context->m_CullFaceChanged = 1;
         if (is_main_rt)
         {
             context->m_MainRTBegunThisFrame = 1;
         }
         rt->m_HasPendingClearColor = 0;
+        rt->m_HasPendingClearDepth = 0;
+        rt->m_HasPendingClearStencil = 0;
         rt->m_IsBound = 1;
 
         rpDesc->release();
@@ -1120,6 +1158,7 @@ namespace dmGraphics
         frame.m_ArgumentBufferPool.Rewind();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        ResetRenderEncoderStateCache(context);
 
         // Setup the initial render pass state
         frame.m_RenderPassDescriptor = 0;
@@ -1221,22 +1260,41 @@ namespace dmGraphics
             }
         }
 
-        if (pass_not_bound && want_color && all_colors_in_flags && !clear_ds)
+        if (pass_not_bound && (!want_color || all_colors_in_flags) && (want_color || clear_ds))
         {
-            const float r = (float) red   / 255.0f;
-            const float g = (float) green / 255.0f;
-            const float b = (float) blue  / 255.0f;
-            const float a = (float) alpha / 255.0f;
-
-            for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+            if (want_color)
             {
-                current_rt->m_ColorAttachmentClearValue[i][0] = r;
-                current_rt->m_ColorAttachmentClearValue[i][1] = g;
-                current_rt->m_ColorAttachmentClearValue[i][2] = b;
-                current_rt->m_ColorAttachmentClearValue[i][3] = a;
+                const float r = (float) red   / 255.0f;
+                const float g = (float) green / 255.0f;
+                const float b = (float) blue  / 255.0f;
+                const float a = (float) alpha / 255.0f;
+
+                for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+                {
+                    current_rt->m_ColorAttachmentClearValue[i][0] = r;
+                    current_rt->m_ColorAttachmentClearValue[i][1] = g;
+                    current_rt->m_ColorAttachmentClearValue[i][2] = b;
+                    current_rt->m_ColorAttachmentClearValue[i][3] = a;
+                }
+                current_rt->m_HasPendingClearColor = 1;
             }
-            current_rt->m_HasPendingClearColor = 1;
-            return;
+
+            if (want_depth && rt_has_ds)
+            {
+                current_rt->m_DepthClearValue = depth;
+                current_rt->m_HasPendingClearDepth = 1;
+            }
+
+            if (want_stencil && rt_has_ds)
+            {
+                current_rt->m_StencilClearValue = stencil;
+                current_rt->m_HasPendingClearStencil = 1;
+            }
+
+            if (want_color || want_depth || want_stencil)
+            {
+                return;
+            }
         }
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
@@ -2190,9 +2248,9 @@ namespace dmGraphics
                         arg_encoder->setBuffer(bound_ubo->m_DeviceBuffer.m_Buffer, 0, (NSUInteger) msl_index);
 
                         if (is_compute)
-                            cenc->useResource(bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                            UseResourceCached(context, cenc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
                         else
-                            renc->useResource(bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                            UseResourceCached(context, renc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
                     }
                     else
                     {
@@ -2235,9 +2293,9 @@ namespace dmGraphics
                     }
 
                     if (is_compute)
-                        cenc->useResource(texture->m_Texture, texture->m_Usage);
+                        UseResourceCached(context, cenc, texture->m_Texture, texture->m_Usage);
                     else
-                        renc->useResource(texture->m_Texture, texture->m_Usage);
+                        UseResourceCached(context, renc, texture->m_Texture, texture->m_Usage);
                 } break;
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
@@ -2253,9 +2311,9 @@ namespace dmGraphics
 
         // Maybe move this call to a "prepare scratch buffer" function or something?
         if (is_compute)
-            cenc->useResource(scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+            UseResourceCached(context, cenc, scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
         else
-            renc->useResource(scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+            UseResourceCached(context, renc, scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
 
         for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
         {
@@ -2266,18 +2324,40 @@ namespace dmGraphics
                 if (is_compute)
                 {
                     // Compute encoder uses only one stage
-                    cenc->useResource(arg_binding.m_Buffer, MTL::ResourceUsageRead);
+                    UseResourceCached(context, cenc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
                     cenc->setBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                 }
                 else
                 {
                     // Render encoder can bind to either vertex or fragment
-                    renc->useResource(arg_binding.m_Buffer, MTL::ResourceUsageRead);
+                    UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
 
                     if (set == 0)
-                        renc->setVertexBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
+                    {
+                        if (context->m_CurrentVertexArgumentBuffer[set] != arg_binding.m_Buffer)
+                        {
+                            renc->setVertexBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
+                            context->m_CurrentVertexArgumentBuffer[set] = arg_binding.m_Buffer;
+                        }
+                        else if (context->m_CurrentVertexArgumentBufferOffset[set] != arg_binding.m_Offset)
+                        {
+                            renc->setVertexBufferOffset(arg_binding.m_Offset, set);
+                        }
+                        context->m_CurrentVertexArgumentBufferOffset[set] = arg_binding.m_Offset;
+                    }
                     if (set == 1)
-                        renc->setFragmentBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
+                    {
+                        if (context->m_CurrentFragmentArgumentBuffer[set] != arg_binding.m_Buffer)
+                        {
+                            renc->setFragmentBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
+                            context->m_CurrentFragmentArgumentBuffer[set] = arg_binding.m_Buffer;
+                        }
+                        else if (context->m_CurrentFragmentArgumentBufferOffset[set] != arg_binding.m_Offset)
+                        {
+                            renc->setFragmentBufferOffset(arg_binding.m_Offset, set);
+                        }
+                        context->m_CurrentFragmentArgumentBufferOffset[set] = arg_binding.m_Offset;
+                    }
                 }
             }
         }
@@ -2288,6 +2368,7 @@ namespace dmGraphics
         MetalFrameResource& frame = GetCurrentFrameResource(context);
 
         frame.m_ConstantScratchBuffer.EnsureSize(context, context->m_CurrentProgram->m_UniformDataSizeAligned);
+        ResetComputeEncoderStateCache(context);
 
         MetalPipeline* pipeline = GetOrCreateComputePipeline(context, context->m_CurrentProgram);
         assert(pipeline);
@@ -2314,8 +2395,22 @@ namespace dmGraphics
             if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
                 vx_declarations[num_vx_buffers] = context->m_CurrentVertexDeclaration[i];
+                const uint32_t slot = num_vx_buffers + vx_buffer_start_ix;
+                const uint32_t buffer_offset = context->m_CurrentVertexBufferOffset[i];
+                MTL::Buffer* vertex_buffer = context->m_CurrentVertexBuffer[i]->m_Buffer;
 
-                encoder->setVertexBuffer(context->m_CurrentVertexBuffer[i]->m_Buffer, 0, num_vx_buffers + vx_buffer_start_ix);
+                assert(slot < MAX_VERTEX_BUFFER_SLOTS);
+
+                if (context->m_CurrentVertexBufferBindings[slot] != vertex_buffer)
+                {
+                    encoder->setVertexBuffer(vertex_buffer, buffer_offset, slot);
+                    context->m_CurrentVertexBufferBindings[slot] = vertex_buffer;
+                }
+                else if (context->m_CurrentVertexBufferBindingOffsets[slot] != buffer_offset)
+                {
+                    encoder->setVertexBufferOffset(buffer_offset, slot);
+                }
+                context->m_CurrentVertexBufferBindingOffsets[slot] = buffer_offset;
 
                 num_vx_buffers++;
             }
@@ -2329,10 +2424,14 @@ namespace dmGraphics
             context->m_CurrentProgram, current_rt, vx_declarations, num_vx_buffers);
         assert(pipeline);
 
-        encoder->setRenderPipelineState(pipeline->m_RenderPipelineState);
-        if (pipeline->m_DepthStencilState)
+        if (pipeline != context->m_CurrentPipeline)
         {
-            encoder->setDepthStencilState(pipeline->m_DepthStencilState);
+            encoder->setRenderPipelineState(pipeline->m_RenderPipelineState);
+            if (pipeline->m_DepthStencilState)
+            {
+                encoder->setDepthStencilState(pipeline->m_DepthStencilState);
+            }
+            context->m_CurrentPipeline = pipeline;
         }
         MTL::Viewport metal_vp;
         metal_vp.originX = context->m_MainViewport.m_X;
@@ -2354,18 +2453,7 @@ namespace dmGraphics
         if (context->m_ViewportChanged)
         {
             encoder->setViewport(metal_vp);
-
-            /*
-            SetViewportHelper(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
-                    vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
-            */
-
-            // MTL::ScissorRect scissor;
-            // scissor.x      = current_rt->m_Scissor.offset.x;
-            // scissor.y      = current_rt->m_Scissor.offset.y;
-            // scissor.width  = current_rt->m_Scissor.extent.width;
-            // scissor.height = current_rt->m_Scissor.extent.height;
-            // encoder->setScissorRect(scissor);
+            context->m_ViewportChanged = 0;
         }
 
         MTL::CullMode cull_mode = MTL::CullModeNone;
@@ -2395,8 +2483,12 @@ namespace dmGraphics
             }
         }
 
-        encoder->setCullMode(cull_mode);
-        encoder->setFrontFacingWinding(MTL::WindingCounterClockwise);
+        if (context->m_CullFaceChanged)
+        {
+            encoder->setCullMode(cull_mode);
+            encoder->setFrontFacingWinding(MTL::WindingCounterClockwise);
+            context->m_CullFaceChanged = 0;
+        }
 
         CommitUniforms(context, encoder, &frame.m_ConstantScratchBuffer, &frame.m_ArgumentBufferPool, context->m_CurrentProgram, UNIFORM_BUFFER_ALIGNMENT, false);
     }
