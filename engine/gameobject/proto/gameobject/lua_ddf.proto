@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmLuaDDF;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 
 import "script/lua_source_ddf.proto";
 

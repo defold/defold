@@ -220,8 +220,8 @@ main: |
     {
         // Make sure glue isn't stripped.
         app_dummy();
-        _glfwPreMain(state);
         dmAndroid::SetAndroidApp(state);
+        _glfwPreMain(state);
     }
 
     #if __cplusplus

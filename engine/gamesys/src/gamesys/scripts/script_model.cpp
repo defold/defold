@@ -911,6 +911,7 @@ namespace dmGameSystem
             if (!lua_isnumber(L, -1))
             {
                 lua_pop(L, 1);
+                buffer.SetCapacity(0); // Required as luaL_error longjmps and skips the destructor
                 return luaL_error(L, "blend weights must be numbers (bad value at index %d)", (int)(i + 1));
             }
             buffer[(uint32_t)i] = (float)lua_tonumber(L, -1);

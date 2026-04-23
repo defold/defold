@@ -339,12 +339,17 @@ dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPl
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = Project dependencies have changed. Do you want to fetch the libraries now?
-notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
-notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
-notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
-notification.fetch-libraries.min-version.error = Library {uri} requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
+notification.fetch-libraries.changed = Project dependencies have changed. Do you want to fetch the libraries now?
+notification.fetch-libraries.problems = Problems were found in the following dependencies:\n{dependencies}
+notification.fetch-libraries.action.fetch = Fetch Libraries
+notification.fetch-libraries.action.open-game-project = Open game.project
+notification.fetch-libraries.problem.missing = missing
+notification.fetch-libraries.problem.fetch-failed = failed to fetch
+notification.fetch-libraries.problem.invalid-archive = not a valid Defold archive
+notification.fetch-libraries.problem.defold-min-version = requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
+notification.fetch-libraries.problem.install-failed = failed to install
+notification.fetch-libraries.problem.unknown = unknown problem — {problem}
+notification.fetch-libraries.dependency-problem = {uri}: {problem}
 
 # Settings notifications
 

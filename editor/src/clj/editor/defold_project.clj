@@ -1490,8 +1490,8 @@
           notifications
           {:id notification-id
            :type :info
-           :message (localization/message "notification.fetch-libraries.dependencies-changed.prompt")
-           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
+           :message (localization/message "notification.fetch-libraries.changed")
+           :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
                       :on-action #(ui/execute-command
                                     (ui/contexts (ui/main-scene) true)
                                     :project.fetch-libraries
@@ -1816,7 +1816,7 @@
   (with-open [game-project-reader (io/reader game-project-resource)]
     (-> (settings-core/parse-settings game-project-reader)
         (settings-core/get-setting ["project" "dependencies"])
-        (library/parse-library-uris))))
+        (library/parse-uris))))
 
 (defn- project-resource-node? [basis node-id]
   (if-some [resource (resource-node/as-resource-original basis node-id)]
@@ -1886,11 +1886,8 @@
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
-    ;; Fetch+install libs if we have network, otherwise fallback to disk state
-    (if (workspace/dependencies-reachable? dependencies)
-      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
-           (workspace/install-validated-libraries! workspace-id))
-      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-directory workspace-id) dependencies)))
+    (->> (library/fetch! (workspace/project-directory workspace-id) dependencies (progress/nest-render-progress render-progress! @progress 4))
+         (workspace/set-project-dependencies! workspace-id))
 
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))
     (du/log-time "Initial resource sync"

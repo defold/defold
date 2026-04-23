@@ -2231,6 +2231,7 @@ TEST(MDNS, ZeroTtlAnnouncements)
     Pump(mdns, 0, 20, 5 * 1000);
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
+    dmTime::Sleep(100 * 1000);
     ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
     DrainSocket(capture.m_Socket, 100);
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));

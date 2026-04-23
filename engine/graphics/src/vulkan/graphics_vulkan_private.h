@@ -32,7 +32,7 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 2; // In flight frames - number of concurrent frames being processed
+    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
     const static uint8_t MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
 
     enum VulkanResourceType
@@ -161,6 +161,13 @@ namespace dmGraphics
         struct VulkanHandle
         {
             VkRenderPass  m_RenderPass;
+            // Render-pass variant compatible with m_RenderPass but with LOAD_OP_CLEAR on all color
+            // attachments. Used to fold a render.clear() call issued between SetRenderTarget and
+            // the first Draw into the attachment load op, avoiding vkCmdClearAttachments in the
+            // common post-process case.
+            // For the main RT this aliases context->m_MainRenderPass.
+            // For offscreen RTs this is a distinct, RT-owned render pass.
+            VkRenderPass  m_RenderPassClear;
             VkFramebuffer m_Framebuffer;
             uint8_t       m_LastUsedFrame;
         };
@@ -184,6 +191,10 @@ namespace dmGraphics
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
+        // Set by VulkanClear when the pass has not yet been begun and all color attachments
+        // are being cleared. Consumed by the next BeginRenderPass which picks the CLEAR
+        // variant render pass and uses m_ColorAttachmentClearValue as load-op clear colors.
+        uint32_t       m_HasPendingClearColor : 1;
         uint32_t       m_ColorAttachmentCount : 7;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;
@@ -262,6 +273,15 @@ namespace dmGraphics
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo;
     };
 
+    struct DescriptorSetCacheEntry
+    {
+        VkDescriptorSet m_DescriptorSets[MAX_SET_COUNT];
+        uint32_t        m_DescriptorSetCount;
+        uint64_t        m_BindingSignature;
+        uint32_t        m_AllocatorGeneration;
+        uint8_t         m_Valid;
+    };
+
     struct VulkanProgram
     {
         VulkanProgram()
@@ -293,6 +313,9 @@ namespace dmGraphics
         uint16_t       m_TextureSamplerCount;
         uint16_t       m_TotalResourcesCount;
         uint8_t        m_Destroyed : 1;
+
+        DescriptorSetCacheEntry m_GraphicsDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorSetCacheEntry m_ComputeDescriptorCache[DM_MAX_FRAMES_IN_FLIGHT];
 
         const VulkanResourceType GetType();
     };
@@ -411,6 +434,7 @@ namespace dmGraphics
         ResourcesToDestroyList*         m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
         ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
+        uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
         VkRenderPass                    m_MainRenderPassLoad; // Compatible with m_MainRenderPass, but uses LOAD_OP_LOAD to preserve contents when the main RT is rebound mid-frame.
         VulkanTexture                   m_MainTextureDepthStencil;
@@ -444,9 +468,10 @@ namespace dmGraphics
         uint32_t                        m_WindowHeight;
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
-        uint32_t                        m_MainRTBegunThisFrame : 1;
-        uint32_t                        m_CurrentFrameInFlight : 1;
+        uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;
+        uint32_t                        m_MainRTBegunThisFrame : 1;
+        uint32_t                        m_RenderTargetBound    : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
