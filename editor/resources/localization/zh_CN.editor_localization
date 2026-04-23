@@ -336,11 +336,6 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = 项目依赖项已更改。您想现在获取库吗？
-notification.fetch-libraries.dependencies-changed.action.fetch = 获取库
-notification.fetch-libraries.dependencies-missing.warning = 以下依赖项缺失：\n{dependencies}\n缺少这些依赖项，项目可能无法正常运行。\n如需下载，请连接互联网并获取相关库。
-notification.fetch-libraries.dependencies-error.error = 无法安装以下依赖：\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = 打开 game.project
 
 # Settings notifications
 
