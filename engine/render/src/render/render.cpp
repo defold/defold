@@ -403,9 +403,21 @@ namespace dmRender
     {
         #define HAS_CHANGED(name) (ps_now.name != ps_orig.name)
 
-        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor) ||
+            HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
-            dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
+            dmGraphics::SetBlendFuncSeparate(graphics_context,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactorAlpha,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactorAlpha);
+        }
+
+        if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
+        {
+            dmGraphics::SetBlendEquationSeparate(graphics_context,
+                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationColor,
+                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationAlpha);
         }
 
         if (HAS_CHANGED(m_FaceWinding))
@@ -464,8 +476,10 @@ namespace dmRender
 
         if (ro->m_SetBlendFactors)
         {
-            ps_now.m_BlendSrcFactor = ro->m_SourceBlendFactor;
-            ps_now.m_BlendDstFactor = ro->m_DestinationBlendFactor;
+            ps_now.m_BlendSrcFactor      = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactor      = ro->m_DestinationBlendFactor;
+            ps_now.m_BlendSrcFactorAlpha = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactorAlpha = ro->m_DestinationBlendFactor;
         }
 
         if (ro->m_SetFaceWinding)
