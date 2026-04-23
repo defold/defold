@@ -1427,14 +1427,8 @@ class Configuration(object):
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
-
-        strip = "strip"
-        if 'android' in self.target_platform:
-            sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
-            strip = os.path.join(sdk_info['bintools'], 'llvm-strip')
-
-        if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
-            strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
+        sdk_info = self.sdk_info if self.sdk_info else sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
+        strip = sdk.get_strip_executable(self.target_platform, sdk_info)
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1935,12 +1929,12 @@ class Configuration(object):
         if self.keep_bob_uncompressed:
             flags = '-Pkeep-bob-uncompressed'
 
-        # Clean and build the project
-        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
-
-        # Run tests if not skipped
-        if not self.skip_tests:
-            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+        if self.skip_tests:
+            # Clean and build the project
+            run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        else:
+            # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
+            run.command(" ".join([gradle, flags, 'clean', 'install', 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):

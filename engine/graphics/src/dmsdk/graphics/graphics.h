@@ -574,6 +574,26 @@ namespace dmGraphics
     };
 
     /*#
+     * Blend equation operations.
+     * Determines how source and destination colors are combined during blending
+     * @enum
+     * @name BlendEquation
+     * @member BLEND_EQUATION_ADD                 Source + Destination
+     * @member BLEND_EQUATION_SUBTRACT            Source - Destination
+     * @member BLEND_EQUATION_REVERSE_SUBTRACT    Destination - Source
+     * @member BLEND_EQUATION_MIN                 Min(Source, Destination)
+     * @member BLEND_EQUATION_MAX                 Max(Source, Destination)
+     */
+    enum BlendEquation
+    {
+        BLEND_EQUATION_ADD              = 0,
+        BLEND_EQUATION_SUBTRACT         = 1,
+        BLEND_EQUATION_REVERSE_SUBTRACT = 2,
+        BLEND_EQUATION_MIN              = 3,
+        BLEND_EQUATION_MAX              = 4,
+    };
+
+    /*#
      * Graphics adapter family.
      * Identifies the type of graphics backend used by the rendering system
      * @enum
@@ -728,6 +748,10 @@ namespace dmGraphics
         uint64_t m_BlendEnabled             : 1;
         uint64_t m_BlendSrcFactor           : 4;
         uint64_t m_BlendDstFactor           : 4;
+        uint64_t m_BlendSrcFactorAlpha      : 4;
+        uint64_t m_BlendDstFactorAlpha      : 4;
+        uint64_t m_BlendEquationColor       : 3;
+        uint64_t m_BlendEquationAlpha       : 3;
         // Culling
         uint64_t m_CullFaceEnabled          : 1;
         uint64_t m_CullFaceType             : 2;
@@ -1438,6 +1462,26 @@ namespace dmGraphics
      * @param destination_factor [type:dmGraphics::BlendFactor]
      */
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+
+    /*#
+     * Set separate blend factors for color and alpha channels.
+     * @name SetBlendFuncSeparate
+     * @param context [type:dmGraphics::HContext]
+     * @param src_factor_color [type:dmGraphics::BlendFactor]
+     * @param dst_factor_color [type:dmGraphics::BlendFactor]
+     * @param src_factor_alpha [type:dmGraphics::BlendFactor]
+     * @param dst_factor_alpha [type:dmGraphics::BlendFactor]
+     */
+    void SetBlendFuncSeparate(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha);
+
+    /*#
+     * Set separate blend equations for color and alpha channels.
+     * @name SetBlendEquationSeparate
+     * @param context [type:dmGraphics::HContext]
+     * @param equation_color [type:dmGraphics::BlendEquation]
+     * @param equation_alpha [type:dmGraphics::BlendEquation]
+     */
+    void SetBlendEquationSeparate(HContext context, BlendEquation equation_color, BlendEquation equation_alpha);
 
     /*#
      * @name SetColorMask

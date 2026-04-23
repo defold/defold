@@ -29,6 +29,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ErrorNode;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
@@ -295,6 +296,9 @@ public class LuaScanner {
                 } else {
                     var parseResult = parsePropertyValue(tokenStream, argsCtx, resourceKindPredicate);
                     switch (parseResult) {
+                        case InvalidSyntax ignored -> {
+                            property = new Property(Status.INVALID_VALUE, startLine, startColumn, endLine, endColumn, propertyName, null, null, null);
+                        }
                         case InvalidValue invalidValue -> {
                             property = new Property(Status.INVALID_VALUE, startLine, startColumn, endLine, endColumn, propertyName, null, null, null);
                             errors.add(new ParseError(invalidValue.message, startLine, startColumn, endLine, endColumn));
@@ -544,23 +548,63 @@ public class LuaScanner {
         return stringArgs;
     }
 
-    // returns boolean if parsing successful and fill double[] with parsed values with needed length.
-    private static boolean getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
+    private static boolean containsErrorNode(ParseTree tree) {
+        if (tree instanceof ErrorNode) {
+            return true;
+        }
+        for (int i = 0; i < tree.getChildCount(); i++) {
+            if (containsErrorNode(tree.getChild(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static LuaParser.NumberContext getNumberContext(LuaParser.ExpContext expCtx) {
+        LuaParser.NumberContext num = expCtx.number();
+        if (num != null) {
+            return num;
+        }
+        LuaParser.ExpContext unaryExp = expCtx.exp(0);
+        if (unaryExp != null && expCtx.getStart().getType() == LuaParser.MINUS) {
+            return unaryExp.number();
+        }
+        return null;
+    }
+
+    private static double parseLuaNumber(String text, int tokenType) {
+        if (tokenType == LuaParser.HEX) {
+            return Double.parseDouble(text + "p0");
+        } else if (tokenType == LuaParser.HEX_FLOAT && text.indexOf('p') == -1 && text.indexOf('P') == -1) {
+            return Double.parseDouble(text + "p0");
+        } else {
+            return Double.parseDouble(text);
+        }
+    }
+
+    // returns InvalidValue if parsing fails and fills double[] if successful.
+    private static InvalidValue getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
         LuaParser.ExplistContext expListCtx = argsCtx.explist();
         // no values for example vmath.vector3()
         if (expListCtx != null) {
             List<LuaParser.ExpContext> args = expListCtx.exp();
             int count = 0;
             for (LuaParser.ExpContext val : args) {
-                LuaParser.NumberContext num = val.number();
-                LuaParser.ExpContext exp = val.exp(0);
-                int firstTokenType = val.getStart().getType();
-                if (num != null || (exp != null && exp.number() != null && firstTokenType == LuaParser.MINUS)) {
-                    resultArgs[count] = Double.parseDouble(val.getText());
+                LuaParser.NumberContext num = getNumberContext(val);
+                if (num != null) {
+                    if (count >= resultArgs.length) {
+                        return new InvalidValue("wrong number of numeric arguments");
+                    }
+                    try {
+                        resultArgs[count] = parseLuaNumber(val.getText(), num.getStart().getType());
+                    }
+                    catch (NumberFormatException e) {
+                        return new InvalidValue("wrong number format: '" + val.getText() + "'");
+                    }
                     count++;
                 } else {
                     // the value isn't a number
-                    return false;
+                    return new InvalidValue("invalid numeric argument: '" + val.getText() + "'");
                 }
 
             }
@@ -570,10 +614,12 @@ public class LuaScanner {
                     resultArgs[i] = resultArgs[0];
                 }
             } else {
-                return count == resultArgs.length;
+                if (count != resultArgs.length) {
+                    return new InvalidValue("wrong number of numeric arguments");
+                }
             }
         }
-        return true;
+        return null;
     }
 
     private record FunctionDescriptor(String objectName, String functionName) {
@@ -613,7 +659,10 @@ public class LuaScanner {
         return new FunctionDescriptor(objectName, functionName);
     }
 
-    private sealed interface ParsePropertyResult permits InvalidValue, Success {
+    private sealed interface ParsePropertyResult permits InvalidSyntax, InvalidValue, Success {
+    }
+
+    private record InvalidSyntax() implements ParsePropertyResult {
     }
 
     private record InvalidValue(String message) implements ParsePropertyResult {
@@ -629,6 +678,9 @@ public class LuaScanner {
     }
 
     private static ParsePropertyResult parsePropertyValue(CommonTokenStream tokenStream, LuaParser.ArgsContext argsCtx, Predicate<String> resourceKindPredicate) {
+        if (containsErrorNode(argsCtx)) {
+            return new InvalidSyntax();
+        }
         List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext) argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
         // go.property(name, value) should have a value and only one value
         if (expCtxList.size() == 2) {
@@ -645,7 +697,7 @@ public class LuaScanner {
             }
             if (type == LuaParser.INT || type == LuaParser.HEX || type == LuaParser.FLOAT || type == LuaParser.HEX_FLOAT) {
                 try {
-                    return new Success(expCtx, PropertyType.PROPERTY_TYPE_NUMBER, Double.parseDouble(expCtx.getText()));
+                    return new Success(expCtx, PropertyType.PROPERTY_TYPE_NUMBER, parseLuaNumber(expCtx.getText(), type));
                 }
                 catch (NumberFormatException e) {
                     return new InvalidValue("wrong number format: '" + expCtx.getText() +"'");
@@ -666,30 +718,30 @@ public class LuaScanner {
                     if (fnDesc.isName("vector3")) {
                         Vector3d v = new Vector3d();
                         double[] resultArgs = new double[3];
-                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
-                            v.set(resultArgs);
-                            return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR3, v);
-                        } else {
-                            return new InvalidValue("invalid vmath.vector3() arguments");
+                        var invalidValue = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        if (invalidValue != null) {
+                            return invalidValue;
                         }
+                        v.set(resultArgs);
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR3, v);
                     } else if (fnDesc.isName("vector4")) {
                         Vector4d v = new Vector4d();
                         double[] resultArgs = new double[4];
-                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
-                            v.set(resultArgs);
-                            return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR4, v);
-                        } else {
-                            return new InvalidValue("invalid vmath.vector4() arguments");
+                        var invalidValue = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        if (invalidValue != null) {
+                            return invalidValue;
                         }
+                        v.set(resultArgs);
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR4, v);
                     } else if (fnDesc.isName("quat")) {
                         Quat4d q = new Quat4d();
                         double[] resultArgs = new double[4];
-                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
-                            q.set(resultArgs);
-                            return new Success(ctx, PropertyType.PROPERTY_TYPE_QUAT, q);
-                        } else {
-                            return new InvalidValue("invalid vmath.quat() arguments");
+                        var invalidValue = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        if (invalidValue != null) {
+                            return invalidValue;
                         }
+                        q.set(resultArgs);
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_QUAT, q);
                     } else {
                         return new InvalidValue("unexpected vmath function");
                     }
