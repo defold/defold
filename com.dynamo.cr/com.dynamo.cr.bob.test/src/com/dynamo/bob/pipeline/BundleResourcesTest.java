@@ -83,7 +83,7 @@ public class BundleResourcesTest {
             this.fileSystem.addMountPoint(this.mp);
         }
         else {
-            this.mp = new ZipMountPoint(null, path, false);
+            this.mp = new ZipMountPoint(null, path);
             this.mp.mount();
         }
 

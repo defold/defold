@@ -23,10 +23,10 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.gui-test :as gui-test]
             [integration.test-util :as test-util]
+            local-extensions
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
             [util.diff :as diff]))
@@ -37,7 +37,7 @@
 
 (def ^:private migration-project-path "test/resources/spine_migration_project")
 
-(def ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
+(def ^:private extension-spine-url (local-extensions/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 

@@ -33,22 +33,18 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
-            [editor.url :as url]
             [editor.util :as util]
             [internal.java :as java]
-            [internal.util :as iutil]
-            [schema.core :as s]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
-            [util.eduction :as e]
             [util.fn :as fn]
             [util.path :as path])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
+           [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FetchFailed Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
-           [java.net URI]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -536,68 +532,43 @@ ordinary paths."
   (let [escaped-name (protobuf/escape-string name)]
     (string/replace template "{{NAME}}" escaped-name)))
 
-(defn- update-dependency-notifications! [workspace lib-states]
-  (let [{:keys [error missing]} (->> lib-states
-                                     (eduction
-                                       (keep (fn [{:keys [status file uri]}]
-                                               (cond
-                                                 (= status :error) (pair :error uri)
-                                                 (nil? file) (pair :missing uri)))))
-                                     (iutil/group-into {} [] key val))
-        notifications (notifications workspace)
-        min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
-        failing-uris (into #{} (map :uri) min-version-states)]
-    ;; Single min-version notification (only first error).
-    (if-let [{:keys [uri required current]} (first min-version-states)]
-      (notifications/show!
-        notifications
-        {:id ::dependencies-min-version
-         :type :error
-         :message (localization/message
-                    "notification.fetch-libraries.min-version.error"
-                    {"uri" (str uri)
-                     "required" (str required)
-                     "current" (str current)})
-         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                    :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene) true)
-                                  :file.open
-                                  "/game.project")}]})
-      (notifications/close! notifications ::dependencies-min-version))
-    (if (pos? (count missing))
-      (notifications/show!
-        notifications
-        {:id ::dependencies-missing
-         :type :warning
-         :message (localization/message
-                    "notification.fetch-libraries.dependencies-missing.warning"
-                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
-         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
-                    :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene) true)
-                                  :project.fetch-libraries
-                                  nil)}]})
-      (notifications/close! notifications ::dependencies-missing))
-    (let [other-errors (into [] (remove failing-uris) (or error []))]
-      (if (pos? (count other-errors))
+(defn- update-dependency-notifications! [workspace lib-results]
+  (let [problem-results (filterv Library$Result/.problem lib-results)
+        notifications (notifications workspace)]
+    (if (coll/empty? problem-results)
+      (notifications/close! notifications ::dependencies-problems)
+      (let [show-fetch (coll/any? (fn [^Library$Result result]
+                                    (let [problem (.problem result)]
+                                      (or (instance? Library$Problem$Missing problem)
+                                          (instance? Library$Problem$FetchFailed problem)
+                                          (instance? Library$Problem$InstallFailed problem))))
+                                  problem-results)
+            show-open-project (coll/any? (fn [^Library$Result result]
+                                           (let [problem (.problem result)]
+                                             (or (instance? Library$Problem$InvalidArchive problem)
+                                                 (instance? Library$Problem$DefoldMinVersion problem))))
+                                         problem-results)]
         (notifications/show!
           notifications
-          {:id ::dependencies-error
+          {:id ::dependencies-problems
            :type :error
-           :message (localization/message
-                      "notification.fetch-libraries.dependencies-error.error"
-                      {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet other-errors))})
-           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                      :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene) true)
-                                    :file.open
-                                    "/game.project")}]})
-        (notifications/close! notifications ::dependencies-error)))))
+           :message
+           (localization/message
+             "notification.fetch-libraries.problems"
+             {"dependencies" (->> problem-results
+                                  (mapv #(localization/transform (library/result-message %) dialogs/indent-with-bullet))
+                                  (localization/join "\n"))})
+           :actions
+           (cond-> []
+                   show-fetch (conj {:message (localization/message "notification.fetch-libraries.action.fetch")
+                                     :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :project.fetch-libraries nil)})
+                   show-open-project (conj {:message (localization/message "notification.fetch-libraries.action.open-game-project")
+                                            :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :file.open "/game.project")}))})))))
 
-(defn set-project-dependencies! [workspace lib-states]
-  (g/set-property! workspace :dependencies lib-states)
-  (update-dependency-notifications! workspace lib-states)
-  lib-states)
+(defn set-project-dependencies! [workspace lib-results]
+  (g/set-property! workspace :dependencies lib-results)
+  (update-dependency-notifications! workspace lib-results)
+  lib-results)
 
 (defn dependencies
   ([workspace]
@@ -605,10 +576,6 @@ ordinary paths."
      (dependencies workspace evaluation-context)))
   ([workspace evaluation-context]
    (g/node-value workspace :dependency-uris evaluation-context)))
-
-(defn dependencies-reachable? [dependencies]
-  (let [hosts (into #{} (map url/strip-path) dependencies)]
-    (every? url/reachable? hosts)))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
@@ -907,15 +874,6 @@ ordinary paths."
              (render-progress! progress/done)))))
      changes)))
 
-(defn fetch-and-validate-libraries [workspace library-uris render-fn]
-  (->> (library/current-library-state (project-directory workspace) library-uris)
-       (library/fetch-library-updates library/default-http-resolver render-fn)
-       (library/validate-updated-libraries)))
-
-(defn install-validated-libraries! [workspace lib-states]
-  (let [new-lib-states (library/install-validated-libraries! (project-directory workspace) lib-states)]
-    (set-project-dependencies! workspace new-lib-states)))
-
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
@@ -928,15 +886,10 @@ ordinary paths."
              (into [resource-listener-entry]
                    resource-listener-entries)))))
 
-(g/deftype Dependencies
-  [{:uri URI
-    (s/optional-key :file) File
-    s/Keyword s/Any}])
-
 (g/defnode Workspace
   (property root g/Str
             (set (gu/immutable-property-setter root)))
-  (property dependencies Dependencies)
+  (property dependencies g/Any)
   (property opened-files g/Any)
   (property resource-snapshot g/Any (default resource-watch/empty-snapshot)
             (set (fn [evaluation-context self _old-value new-value]
@@ -983,7 +936,7 @@ ordinary paths."
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
 
-  (output dependency-uris g/Any (g/fnk [dependencies] (mapv :uri dependencies))))
+  (output dependency-uris g/Any (g/fnk [dependencies] (mapv Library$Result/.uri dependencies))))
 
 (defn node-attachments [basis workspace]
   (g/raw-property-value basis workspace :node-attachments))
