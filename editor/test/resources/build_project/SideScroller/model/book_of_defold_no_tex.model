@@ -1,4 +1,4 @@
-mesh: "/model/book_of_defold.dae"
+mesh: "/builtins/assets/gltf/cube.gltf"
 materials {
   name: "default"
   material: "/builtins/materials/sprite.material"

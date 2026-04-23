@@ -118,6 +118,11 @@ public abstract class Builder {
     protected Task createSubTask(String inputPath, String field, Task.TaskBuilder builder) throws CompileExceptionError {
         IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, inputPath);
         Task subTask = project.createTask(res);
+        if (subTask == null) {
+            throw new CompileExceptionError(res,
+                    0,
+                    String.format("Unsupported resource type for '%s': '%s'", field, res.getPath()));
+        }
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }

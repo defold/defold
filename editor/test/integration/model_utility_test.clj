@@ -15,12 +15,10 @@
 (ns integration.model-utility-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
-            [dynamo.graph :as g]
             [editor.model-loader :as model-loader]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [service.log :as log]))
+            [integration.test-util :as test-util]))
 
 (defn- sequence-buffer-in-mesh [mesh data-stride data-key index-key]
   (let [partitioned-data (vec (partition data-stride (mesh data-key)))
@@ -49,7 +47,7 @@
 
 (deftest mesh-normals
   (test-util/with-loaded-project
-    (let [{:keys [mesh-set]} (load-scene workspace project "/mesh/box_blender.dae")
+    (let [{:keys [mesh-set]} (load-scene workspace project "/builtins/assets/gltf/cube.gltf")
           content (sequence-vertices-in-mesh-set mesh-set)]
       (is (every? (fn [[x y z]]
                     (< (Math/abs (- (Math/sqrt (+ (* x x) (* y y) (* z z))) 1.0)) 0.000001))
@@ -58,21 +56,19 @@
 
 (deftest mesh-texcoords
   (test-util/with-loaded-project
-    (let [{:keys [mesh-set]} (load-scene workspace project "/mesh/plane.dae")
-          content (sequence-vertices-in-mesh-set mesh-set)]
-      (let [c (get-in content [:mesh-entries 0 :meshes 0])
-            zs (map #(nth % 2) (partition 3 (:positions c)))
-            vs (map second (partition 2 (:texcoord0 c)))]
-        (is (= vs (map (fn [y] (- 1.0 (* (+ y 1.0) 0.5))) zs)))))))
-
-(deftest comma-decimal-points-throws-number-format-exception
-  (test-util/with-loaded-project
-    (is (g/error? (log/without-logging
-                    (load-scene workspace project "/mesh/test_autodesk_dae.dae"))))))
+    (let [{:keys [mesh-set]} (load-scene workspace project "/builtins/assets/gltf/quad.gltf")
+          content (sequence-vertices-in-mesh-set mesh-set)
+          texcoords (->> (get-in content [:mesh-entries 0 :meshes 0 :texcoord0])
+                         (partition 2))]
+      (is (seq texcoords))
+      (is (every? (fn [[u v]]
+                    (and (<= 0.0 u 1.0)
+                         (<= 0.0 v 1.0)))
+                  texcoords)))))
 
 (deftest bones
   (test-util/with-loaded-project
-    (let [{:keys [animation-set bones]} (load-scene workspace project "/mesh/treasure_chest.dae")]
+    (let [{:keys [animation-set bones]} (load-scene workspace project "/mesh/treasure_chest.gltf")]
       (is (= 3 (count bones)))
       (is (set/subset? (:bone-list animation-set) (set (map :id bones)))))))
 

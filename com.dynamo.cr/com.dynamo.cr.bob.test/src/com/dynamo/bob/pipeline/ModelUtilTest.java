@@ -254,42 +254,8 @@ public class ModelUtilTest {
         return scene;
     }
 
-    // @Test
-    // public void testMayaQuad() throws Exception {
-    //     Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
-    //     loadBuiltScene("maya_quad.dae", meshSet);
-    //     Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
-
-    //     List<Float> pos = mesh.getPositionsList();
-    //     List<Float> nrm = mesh.getNormalsList();
-    //     List<Float> uvs = mesh.getTexcoord0List();
-    //     assertThat(2 * 3 * 3, is(pos.size()));
-    //     assertThat(2 * 3 * 3, is(nrm.size()));
-
-    //     assertVtx(pos, 0, -0.005, -0.005, 0);
-    //     assertVtx(pos, 1,  0.005, -0.005, 0);
-    //     assertVtx(pos, 2, -0.005,  0.005, 0);
-    //     assertVtx(pos, 3, -0.005,  0.005, 0);
-    //     assertVtx(pos, 4,  0.005, -0.005, 0);
-    //     assertVtx(pos, 5,  0.005,  0.005, 0);
-
-    //     assertNrm(nrm, 0, 0, 0, 1);
-    //     assertNrm(nrm, 1, 0, 0, 1);
-    //     assertNrm(nrm, 2, 0, 0, 1);
-    //     assertNrm(nrm, 3, 0, 0, 1);
-    //     assertNrm(nrm, 4, 0, 0, 1);
-    //     assertNrm(nrm, 5, 0, 0, 1);
-
-    //     assertUV(uvs, 0, 0, 0);
-    //     assertUV(uvs, 1, 1, 0);
-    //     assertUV(uvs, 2, 0, 1);
-    //     assertUV(uvs, 3, 0, 1);
-    //     assertUV(uvs, 4, 1, 0);
-    //     assertUV(uvs, 5, 1, 1);
-    // }
-
     /*
-     * Tests a collada file with fewer, and more, than 4 bone influences per vertex.
+     * Tests a glTF file with fewer, and more, than 4 bone influences per vertex.
      */
     @Test
     public void testBoneInfluences() throws Exception {
@@ -354,7 +320,7 @@ public class ModelUtilTest {
     }
 
     /*
-     *  Tests a collada with two connected bones, each with their own animation track.
+     *  Tests a glTF file with two connected bones, each with their own animation track.
      */
     @Test
     public void testTwoBoneAnimation() throws Exception {
@@ -428,7 +394,7 @@ public class ModelUtilTest {
     }
 
     /*
-     * Collada file with a asset unit scale set to 0.01.
+     * glTF file with an asset unit scale set to 0.01.
      */
     @Test
     public void testAssetUnit() throws Exception {

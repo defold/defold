@@ -42,7 +42,7 @@
                                     "/test2.go"
                                     "/test.font"
                                     "/test.material"
-                                    "/test.dae"
+                                    "/test.gltf"
                                     "/builtins/materials/model.material"
                                     "/test.wav"
                                     "/test.atlas"
@@ -65,7 +65,7 @@
    "/test.collectionproxy" ["/test.collection"]   
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
-   "/test.dae" []
+   "/test.gltf" []
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"
@@ -93,7 +93,7 @@
                                    "/test2.go"
                                    "/test.font"
                                    "/test.material"
-                                   "/test.dae"
+                                   "/test.gltf"
                                    "/builtins/materials/model.material"
                                    "/test.wav"
                                    "/test.atlas"
@@ -112,7 +112,7 @@
    "/test.lua" []
    "/test.material" ["/test.vp"
                      "/test.fp"]
-   "/test.model" ["/test.dae"
+   "/test.model" ["/test.gltf"
                   "/test.material"
                   "/test.animationset"]
    "/test.particlefx" ["/test.tilesource"
@@ -134,7 +134,7 @@
    "/test2.gui" ["/test.material"]})
 
 (defn fallback-dependencies-fn [resource-type]
-  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "dae"} (:ext resource-type))
+  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script"} (:ext resource-type))
     (constantly [])))
 
 (deftest dependencies
@@ -182,7 +182,7 @@
                                      "/test2.go"
                                      "/test.font"
                                      "/test.material"
-                                     "/test.dae"
+                                     "/builtins/assets/gltf/cube.gltf"
                                      "/builtins/materials/model.material"
                                      "/test.wav"
                                      "/test.atlas"

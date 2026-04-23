@@ -1,5 +1,5 @@
-mesh: "/misc/dispatch_buffers_instancing_test/quad_2x2.dae"
+mesh: "/misc/dispatch_buffers_instancing_test/quad_2x2.prebuilt_meshsetc"
 skeleton: ""
-animations: "/misc/dispatch_buffers_instancing_test/quad_2x2.dae"
+animations: "/misc/dispatch_buffers_instancing_test/quad_2x2.prebuilt_animationsetc"
 default_animation: ""
 material: "/misc/dispatch_buffers_instancing_test/material_a.material"

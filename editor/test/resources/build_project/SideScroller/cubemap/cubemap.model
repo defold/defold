@@ -1,4 +1,4 @@
-mesh: "/builtins/assets/meshes/sphere.dae"
+mesh: "/builtins/assets/gltf/sphere.gltf"
 name: "cubemap"
 materials {
   name: "default"

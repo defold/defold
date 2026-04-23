@@ -160,7 +160,7 @@ embedded_instances {
   "embedded_components {\n"
   "  id: \"model\"\n"
   "  type: \"model\"\n"
-  "  data: \"mesh: \\\"/test.dae\\\"\\n"
+  "  data: \"mesh: \\\"/test.gltf\\\"\\n"
   "material: \\\"/builtins/materials/model.material\\\"\\n"
   "skeleton: \\\"\\\"\\n"
   "animations: \\\"\\\"\\n"

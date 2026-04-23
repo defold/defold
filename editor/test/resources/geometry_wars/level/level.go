@@ -46,7 +46,7 @@ components {
 embedded_components {
   id: "blur"
   type: "model"
-  data: "mesh: \"/materials/quad.dae\"\n"
+  data: "mesh: \"/builtins/assets/gltf/quad.gltf\"\n"
   "material: \"/materials/blur.material\"\n"
   "skeleton: \"\"\n"
   "animations: \"\"\n"
@@ -173,7 +173,7 @@ embedded_components {
 embedded_components {
   id: "model"
   type: "model"
-  data: "mesh: \"/level/grid6.dae\"\n"
+  data: "mesh: \"/builtins/assets/gltf/quad.gltf\"\n"
   "material: \"/level/grid.material\"\n"
   "textures: \"/level/line.png\"\n"
   "skeleton: \"\"\n"
@@ -195,7 +195,7 @@ embedded_components {
 embedded_components {
   id: "quad"
   type: "model"
-  data: "mesh: \"/materials/quad.dae\"\n"
+  data: "mesh: \"/builtins/assets/gltf/quad.gltf\"\n"
   "material: \"/materials/quad.material\"\n"
   "skeleton: \"\"\n"
   "animations: \"\"\n"
