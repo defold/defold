@@ -68,10 +68,10 @@
         (let [r (workspace/resolve-workspace-resource workspace "/nope.convexshape")]
           (test-util/with-prop [node-id :collision-shape r]
             (is (g/error? (test-util/prop-error node-id :collision-shape))))))
-      (doseq [[type index props] [["sphere" 0 {:diameter 0.001}]
-                                  ["box" 1 {:dimensions [0.01 0.01 0.01]}]
-                                  ["capsule" 2 {:diameter 0.01
-                                                :height 0.01}]]]
+      (doseq [[type index props] [["sphere" 0 {:diameter 0.0}]
+                                  ["box" 1 {:dimensions [0.0 0.0 0.0]}]
+                                  ["capsule" 2 {:diameter 0.0
+                                                :height 0.0}]]]
         (testing type
           (let [shape (:node-id (test-util/outline node-id [index]))]
             (doseq [[prop value] props]
@@ -81,10 +81,10 @@
 (deftest shape-errors-block-build-targets
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
-      (doseq [[type index props] [["sphere" 0 {:diameter 0.001}]
-                                  ["box" 1 {:dimensions [0.01 0.01 0.01]}]
-                                  ["capsule" 2 {:diameter 0.01
-                                                :height 0.01}]]]
+      (doseq [[type index props] [["sphere" 0 {:diameter 0.0}]
+                                  ["box" 1 {:dimensions [0.0 0.0 0.0]}]
+                                  ["capsule" 2 {:diameter 0.0
+                                                :height 0.0}]]]
         (testing (str type " shape error blocks build targets")
           (let [shape (:node-id (test-util/outline node-id [index]))]
             (doseq [[prop value] props]
