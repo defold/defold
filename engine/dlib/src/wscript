@@ -3,7 +3,7 @@
 import os, re, sys
 from waflib import Options
 from waflib.TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature, feature_enabled
 from BuildUtility import BuildUtilityException, create_build_utility
 
 def options(opt):
@@ -70,6 +70,8 @@ def build(bld):
     if platform == 'win':
         platform = "win32"
 
+    use_mbedtls = feature_enabled('mbedtls')
+
     source_files = bld.path.ant_glob(source_dirs)
 
     platform_source_files = []
@@ -88,8 +90,9 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
-    # build image sources as separate libraries to make it excludable
-    remove_files(source_files, ['image.cpp', 'image_null.cpp'])
+    # build image and SSL socket backends as separate selectable sources
+    source_files = remove_files(source_files, ['image.cpp', 'image_null.cpp',
+                                                'sslsocket_darwin.mm', 'sslsocket_mbedtls.cpp', 'sslsocket_null.cpp'])
 
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
@@ -123,15 +126,34 @@ def build(bld):
         else:
             source_files = remove_files(source_files, ['mutex_empty.cpp'])
 
-    if build_util.get_target_os() in ['macos', 'ios']:
+    target_os = build_util.get_target_os()
+
+    if target_os in ['macos', 'ios']:
         source_files = remove_files(source_files, ['time_posix.cpp'])
 
+    crypt_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios']
+    sslsocket_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios', 'web']
+
+    crypt_files = ['crypt.cpp']
+    if crypt_uses_mbedtls:
+        crypt_files.append('crypt_mbedtls.cpp')
+    elif target_os in ['macos', 'ios']:
+        crypt_files.append('crypt_darwin.mm')
+    crypt_source_files = bld.path.ant_glob(['dlib/crypt/%s' % file for file in crypt_files])
+
     if 'web' in bld.env.PLATFORM:
-        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'sslsocket.cpp', 'configfile_http.cpp'])
+        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'configfile_http.cpp'])
         extra_defines.append('DM_NO_HTTP_CACHE')
 
+    sslsocket_files = []
+    if sslsocket_uses_mbedtls:
+        sslsocket_files.append('sslsocket_mbedtls.cpp')
+    elif target_os in ['macos', 'ios']:
+        sslsocket_files.append('sslsocket_darwin.mm')
+    sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
+
     dlib = bld.stlib(features = 'c cxx',
-                     source   = source_files + platform_source_files,
+                     source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
                      includes = ['.', './mbedtls/include'],
                      target   = 'dlib',
                      use      = ['zip'],
@@ -165,6 +187,8 @@ def build(bld):
     FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
     remove_flags = {}
     new_opt_level = False
+
+    mbedtls_defines = ['MBEDTLS_THREADING_ALT']
     if opt_level in ['3','2']:
         remove_flags['CFLAGS'] = []
         remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
@@ -172,16 +196,16 @@ def build(bld):
         remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
         new_opt_level = True
         # if in release mode we'll only keep a (non verbose) print function
-        extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
+        mbedtls_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
     else:
-        extra_defines += ['MBEDTLS_ERROR_C']
+        mbedtls_defines += ['MBEDTLS_ERROR_C']
 
     mbedtls = bld.stlib(features    = 'c cxx remove_flags',
                   includes    = '. ./mbedtls/include',
                   target      = 'mbedtls',
-                  source      = bld.path.ant_glob(mbedtls_dirs) + ['dlib/mbedtls.cpp'],
+                  source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
-                  defines     = ['VALGRIND'] + extra_defines)
+                  defines     = mbedtls_defines)
     if new_opt_level:
         mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
@@ -193,14 +217,6 @@ def build(bld):
                          target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
-
-    # MbedTLS version with more options enabled
-    mbedtls_full = bld.stlib(features = mbedtls.features,
-                             includes    = mbedtls.includes,
-                             target      = 'mbedtls_full',
-                             source      = [x for x in mbedtls.source],
-                             remove_flags= remove_flags,
-                             defines     = mbedtls.defines + ['MBEDTLS_THREADING_ALT'])
 
     libzip_dirs = ['zip/**/*.c']
 
@@ -344,18 +360,20 @@ def build(bld):
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
 
-    bld(features='javac seq',
-        classpath=classpath,
-        srcdir='java',
-        outdir='java')
-
     bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
-    bld(features='jar seq',
-        basedir='java',
-        destfile='dlib.jar')
+    java_dir = bld.path.find_dir('java')
+    if java_dir and java_dir.ant_glob('**/*.java'):
+        bld(features='javac seq',
+            classpath=classpath,
+            srcdir='java',
+            outdir='java')
 
-    bld.install_files('${PREFIX}/share/java', 'dlib.jar')
+        bld(features='jar seq',
+            basedir='java',
+            destfile='dlib.jar')
+
+        bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
     java_test_dir = bld.path.find_dir('java_test')
     if java_test_dir and java_test_dir.ant_glob('**/*.java'):
@@ -383,7 +401,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
+    bld.install_files('${PREFIX}/include/dlib/crypt', 'dlib/crypt/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/double_linked_list.h')
@@ -437,8 +455,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webserver.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
-
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mbedtls.hpp')
 
     # for tools + tests
     bld.install_files('${PREFIX}/include/dlib/', 'dlib/testutil.h')

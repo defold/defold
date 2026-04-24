@@ -24,7 +24,7 @@
 #include <sys/param.h>
 #endif
 
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include <dlib/dalloca.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>

@@ -39,7 +39,6 @@
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
-#include <dlib/mbedtls.hpp>
 #include <graphics/graphics.h>
 #include <extension/extension.hpp>
 #include <gamesys/gamesys.h>
@@ -2539,7 +2538,6 @@ void dmEngineInitialize()
 
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
-    dmMbedTls::Initialize();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
@@ -2564,7 +2562,6 @@ void dmEngineFinalize()
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
-    dmMbedTls::Finalize();
 
     dmEngine::PlatformFinalize();
 

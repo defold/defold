@@ -31,8 +31,6 @@
 #include "dlib/http_cache_verify.h"
 #include "dlib/testutil.h"
 
-#include <dlib/mbedtls.hpp>
-
 #define JC_TEST_IMPLEMENTATION
 #if !defined(JC_TEST_NO_DEATH_TEST)
     #define JC_TEST_NO_DEATH_TEST
@@ -1802,13 +1800,11 @@ int main(int argc, char **argv)
     }
 
     dmLogSetLevel(LOG_SEVERITY_INFO);
-    dmMbedTls::Initialize();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
 
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
-    dmMbedTls::Finalize();
     return ret;
 }

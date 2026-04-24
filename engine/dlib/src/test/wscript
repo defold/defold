@@ -2,7 +2,7 @@
 import os, re, sys
 import sdk
 import waf_dynamo
-from waf_dynamo import is_platform_private, platform_supports_feature
+from waf_dynamo import feature_enabled, is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
@@ -53,7 +53,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_defines != None:
         req_defines.extend(extra_defines)
 
-    local_libs = 'dlib mbedtls zip'.split()
+    local_libs = 'dlib zip'.split()
+    if feature_enabled('mbedtls') or target_os not in ['macos', 'ios']:
+        local_libs.append('mbedtls')
 
     use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
     if use_profile_null:
@@ -180,15 +182,11 @@ def build(bld):
 
     if not skip_http:
         create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_httpclient', extra_libs = ['THREAD', 'mbedtls_full'], exclude_libs = ['mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpclient_mbedtls_full')
         create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-        create_test(bld, 'test_httpserver', extra_libs = ['THREAD', 'mbedtls_full'], exclude_libs = ['mbedtls'], extra_defines = extra_defines, skip_run = skip_http_run, target_name = 'test_httpserver_mbedtls_full')
         create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
                     extra_includes = ['.'], extra_defines = extra_defines)
-        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD', 'mbedtls_full'], exclude_libs = ['mbedtls'],
-                    extra_includes = ['.'], extra_defines = extra_defines, target_name = 'test_connection_pool_mbedtls_full')
 
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
@@ -238,6 +236,7 @@ def build(bld):
                                 'data/gray_alpha_check_2x2.png',
                                 'data/defold_64.jpg',
                                 'data/defold_64_progressive.jpg'],
+                extra_local_libs = ['image'],
                 extra_includes = ['.']
                 )
 
@@ -246,7 +245,6 @@ def build(bld):
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
-    create_test(bld, 'test_crypt', extra_libs=['mbedtls_full'], exclude_libs = ['mbedtls'], target_name = 'test_crypt_mbedtls_full')
 
     if bld.env.DOTNET:
         b = bld.stlib(features= 'cs_stlib',

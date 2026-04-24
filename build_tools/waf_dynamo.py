@@ -71,7 +71,12 @@ if 'waf_dynamo_vendor' not in sys.modules:
 def is_platform_private(platform):
     return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
 
+def feature_enabled(feature):
+    return feature in getattr(Options.options, 'enable_features', [])
+
 def platform_supports_feature(platform, feature, data):
+    if feature == 'mbedtls' and feature_enabled(feature):
+        return True
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
@@ -418,7 +423,7 @@ def default_flags(self):
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
-        self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
+        self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch, '-dead_strip'])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -468,7 +473,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-fstack-protector',
+                                      '-fpic', '-ffunction-sections', '-fdata-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/sources/android/native_app_glue' % (self.sdkinfo['ndk']),
                                       '-I%s/sources/android/cpufeatures' % (self.sdkinfo['ndk']),
@@ -485,6 +490,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++',
+                '-Wl,--gc-sections',
                 '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
@@ -1978,8 +1984,11 @@ def detect(conf):
         conf.env['LIB_OPENAL'] = ['openal']
 
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
-    conf.env['STLIB_MBEDTLS'] = ['mbedtls']
-    conf.env['STLIB_MBEDTLS_FULL'] = ['mbedtls_full']
+    if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['STLIB_DLIB'].append('mbedtls')
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork']
+
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
@@ -2152,5 +2161,5 @@ def options(opt):
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5)
-    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')
+    # Currently supported features: physics, simd (html5), mbedtls
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --enable-feature=foo')

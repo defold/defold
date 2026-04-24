@@ -14,7 +14,7 @@
 
 #include "resource_util.h"
 
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 

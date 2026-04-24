@@ -14,11 +14,10 @@
 
 #include <string.h>
 #include <assert.h>
-#include "shared_library.h"
+#include "../shared_library.h"
 #include "crypt.h"
 
 #include <dlib/endian.h>
-#include "mbedtls_private.hpp"
 
 namespace dmCrypt
 {
@@ -77,35 +76,6 @@ namespace dmCrypt
         return RESULT_OK;
     }
 
-    void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        dmMbedTls::HashSha1(buf, buflen, digest);
-    }
-
-    void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        dmMbedTls::HashSha256(buf, buflen, digest);
-    }
-
-    void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        dmMbedTls::HashSha512(buf, buflen, digest);
-    }
-
-    void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
-    {
-        dmMbedTls::HashMd5(buf, buflen, digest);
-    }
-
-    bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
-    {
-        return dmMbedTls::Base64Encode(src, src_len, dst, dst_len);
-    }
-
-    bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
-    {
-        return dmMbedTls::Base64Decode(src, src_len, dst, dst_len);
-    }
 }
 
 extern "C" {

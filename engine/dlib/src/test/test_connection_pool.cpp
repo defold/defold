@@ -22,7 +22,6 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/testutil.h>
-#include <dlib/mbedtls.hpp>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -312,13 +311,11 @@ int main(int argc, char **argv)
     }
 
     dmLogSetLevel(LOG_SEVERITY_INFO);
-    dmMbedTls::Initialize();
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
-    dmMbedTls::Finalize();
     return ret;
 }
