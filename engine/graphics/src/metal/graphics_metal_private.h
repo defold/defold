@@ -306,6 +306,7 @@ namespace dmGraphics
         MTL::Texture*                      m_MainDepthStencilTexture;
         MetalClearData                     m_ClearData;
         dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_SwapInterval;
 
         // Async process resources
         HJobContext                        m_JobContext;

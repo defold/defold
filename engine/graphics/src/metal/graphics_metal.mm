@@ -169,6 +169,7 @@ namespace dmGraphics
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
+        m_SwapInterval                          = params.m_SwapInterval;
         m_JobContext                            = params.m_JobContext;
 
         assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
@@ -473,16 +474,16 @@ namespace dmGraphics
     static void SetupSupportedTextureFormats(MetalContext* context)
     {
         // PVRTC is always supported on Apple GPUs
-        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-        context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
 
         // ETC2 support
         if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
         {
-            context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGB_ETC1);
-            context->m_BaseContext.m_TextureFormatSupport |= (1 << TEXTURE_FORMAT_RGBA_ETC2);
+            context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_ETC1);
+            context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGBA_ETC2);
         }
 
         // ASTC support
@@ -507,12 +508,16 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(base_formats); ++i)
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << base_formats[i];
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << base_formats[i];
         }
 
         // RGB isn't supported as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
-        context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+
+        // Render-target creation scripts rely on these being available from the graphics namespace.
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_DEPTH;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_STENCIL;
     }
 
     static MTL::Texture* CreateMSAATexture(MetalContext* ctx, uint32_t width, uint32_t height, MTL::PixelFormat fmt, uint32_t sampleCount)
@@ -892,6 +897,7 @@ namespace dmGraphics
         context->m_Layer.device        = (__bridge id<MTLDevice>) context->m_Device;
         context->m_Layer.pixelFormat   = MTLPixelFormatBGRA8Unorm;
         context->m_Layer.drawableSize  = CGSizeMake(window_width, window_height);
+        context->m_Layer.displaySyncEnabled = context->m_SwapInterval != 0;
 
         [context->m_View setLayer:context->m_Layer];
         [context->m_View setWantsLayer:YES];
@@ -3390,7 +3396,7 @@ namespace dmGraphics
     static bool MetalIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         MetalContext* context = (MetalContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static inline MTL::ResourceUsage GetMetalUsageFromHints(uint8_t hints)

@@ -1113,26 +1113,26 @@ namespace dmGraphics
         // Check for optional extensions so that we can enable them if they exist
         if (VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
     #endif
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionETC2)
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
         }
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionBC)
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_BC1;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
         }
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
@@ -1166,7 +1166,9 @@ namespace dmGraphics
 
         // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
-        context->m_BaseContext.m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_DEPTH;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_STENCIL;
 
         // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
@@ -1178,7 +1180,7 @@ namespace dmGraphics
             if (vk_format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT ||
                 vk_format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)
             {
-                context->m_BaseContext.m_TextureFormatSupport |= 1 << texture_format;
+                context->m_BaseContext.m_TextureFormatSupport |= 1ULL << texture_format;
             }
         }
     }
@@ -4398,7 +4400,7 @@ bail:
     static bool VulkanIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
+        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params)
