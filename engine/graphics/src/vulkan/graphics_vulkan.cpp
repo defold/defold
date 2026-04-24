@@ -65,6 +65,8 @@ namespace dmGraphics
     static void           VulkanSetTextureParamsInternal(VulkanContext* context, VulkanTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     static void           CopyToTexture(VulkanContext* context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut);
     static VkFormat       GetVulkanFormatFromTextureFormat(TextureFormat format);
+    static bool           EndRenderPass(VulkanContext* context);
+    static void           BeginRenderPass(VulkanContext* context, HRenderTarget render_target);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -253,6 +255,28 @@ namespace dmGraphics
         return current_rt ? current_rt->m_IsBound : 0;
     }
 
+    static void FlushPendingRenderTargetClear(VulkanContext* context, HRenderTarget render_target)
+    {
+        if (render_target == 0x0 || context->m_RenderTargetBound)
+        {
+            return;
+        }
+
+        bool has_pending_clear = false;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            has_pending_clear = rt && rt->m_HasPendingClearColor;
+        }
+
+        if (has_pending_clear)
+        {
+            // Materialize clear-only passes before command order moves on to another target.
+            BeginRenderPass(context, render_target);
+            EndRenderPass(context);
+        }
+    }
+
     static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t frame_resource_count, FrameResource* frame_resources_out)
     {
         VkSemaphoreCreateInfo vk_create_semaphore_info;
@@ -438,11 +462,18 @@ namespace dmGraphics
 
         vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
         current_rt->m_IsBound = 0;
+        context->m_RenderTargetBound = 0;
         return true;
     }
 
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
     {
+        // Lock-free fast path: avoid mutex when already bound to the same render target (common in heavy draw-call scenes)
+        if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
+        {
+            return;
+        }
+
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
@@ -473,20 +504,32 @@ namespace dmGraphics
             vk_clear_values[i].color.float32[3] = rt->m_ColorAttachmentClearValue[i][3];
         }
 
-        // Clear depth
-        vk_clear_values[1].depthStencil.depth   = 1.0f;
-        vk_clear_values[1].depthStencil.stencil = 0;
+        // Clear depth: placed at attachment index m_ColorAttachmentCount (depth always follows
+        // the color attachments in the render pass). Using index 1 here happens to be correct
+        // for single-color RTs but clobbers color[1]'s clear value for MRTs, which becomes a
+        // real issue for MRT offscreens once they use LOAD_OP_CLEAR via the CLEAR variant.
+        const uint32_t depth_clear_index                  = rt->m_ColorAttachmentCount;
+        vk_clear_values[depth_clear_index].depthStencil.depth   = 1.0f;
+        vk_clear_values[depth_clear_index].depthStencil.stencil = 0;
 
-        // For the main render target, choose between the "clear" render pass (first begin of the
-        // frame) and the "load" render pass (subsequent rebinds) so that the main RT's contents are
-        // preserved when rebinding to it mid-frame without triggering the UNDEFINED-initial-layout
-        // discard behavior.
+        // Render pass selection:
+        // 1. A pending clear (recorded by VulkanClear before any work was emitted on this RT)
+        //    takes precedence and uses the LOAD_OP_CLEAR variant. The clear values come from
+        //    m_ColorAttachmentClearValue, which VulkanClear already wrote.
+        // 2. For the main render target, subsequent rebinds within a frame must preserve the
+        //    previously rendered contents, so we fall back to m_MainRenderPassLoad.
+        // 3. Otherwise we use the RT's default render pass (honoring the user-configured load ops).
         VkRenderPass vk_render_pass = rt->m_Handle.m_RenderPass;
         const bool is_main_rt = (render_target == context->m_MainRenderTarget);
-        if (is_main_rt && context->m_MainRTBegunThisFrame)
+        if (rt->m_HasPendingClearColor && rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE)
+        {
+            vk_render_pass = rt->m_Handle.m_RenderPassClear;
+        }
+        else if (is_main_rt && context->m_MainRTBegunThisFrame)
         {
             vk_render_pass = context->m_MainRenderPassLoad;
         }
+        rt->m_HasPendingClearColor = 0;
 
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -513,6 +556,7 @@ namespace dmGraphics
         }
 
         context->m_CurrentRenderTarget = render_target;
+        context->m_RenderTargetBound = 1;
 
         // We need to update the current frame stamp for all attachments and framebuffer, since they are part of the render pass
         TouchResource(context, rt);
@@ -700,10 +744,14 @@ namespace dmGraphics
             context->m_MainRenderTarget = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         }
 
-        rt->m_Handle.m_RenderPass  = context->m_MainRenderPass;
-        rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[0];
-        rt->m_Extent               = context->m_SwapChain->m_ImageExtent;
-        rt->m_ColorAttachmentCount = 1;
+        rt->m_Handle.m_RenderPass      = context->m_MainRenderPass;
+        // Main RT's default render pass already uses LOAD_OP_CLEAR on first begin-of-frame, so
+        // the CLEAR variant is the same render pass. Aliasing avoids an extra vkCreateRenderPass
+        // and is recognised by DestroyRenderTarget to avoid a double-destroy.
+        rt->m_Handle.m_RenderPassClear = context->m_MainRenderPass;
+        rt->m_Handle.m_Framebuffer     = context->m_MainFrameBuffers[0];
+        rt->m_Extent                   = context->m_SwapChain->m_ImageExtent;
+        rt->m_ColorAttachmentCount     = 1;
 
         return VK_SUCCESS;
     }
@@ -1571,6 +1619,7 @@ bail:
 
         // Reset per-frame scratch buffer and descriptor pools
         ScratchBuffer* scratch = &context->m_MainScratchBuffers[frameInFlight];
+        context->m_DescriptorAllocatorGeneration[frameInFlight]++;
         ResetScratchBuffer(vk_device, scratch);
 
         res = scratch->m_DeviceBuffer.MapMemory(vk_device);
@@ -1730,6 +1779,62 @@ bail:
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
+        const BufferType color_buffers[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
+        float r = ((float)red)/255.0f;
+        float g = ((float)green)/255.0f;
+        float b = ((float)blue)/255.0f;
+        float a = ((float)alpha)/255.0f;
+
+        // Fast path: fold the clear into LOAD_OP_CLEAR.
+        //
+        // Preconditions:
+        //   - No render pass is currently open (so we can still pick the render pass variant).
+        //   - We have a CLEAR variant for this RT.
+        //   - Every color attachment on the RT is being cleared (partial color clears would
+        //     require per-attachment variants).
+        //   - No depth/stencil clear is needed on an RT that actually has depth/stencil.
+        //     Depth/stencil still uses vkCmdClearAttachments because CreateRenderPass forces
+        //     LOAD_OP_DONT_CARE for depth; in that case we take the slow path below so both
+        //     color and depth clear inside the open pass.
+        //
+        // If the caller passes BUFFER_TYPE_DEPTH_BIT but the RT has no depth attachment
+        // (common when scripts pass identical flags to every render.clear()), the bit is a
+        // no-op and must not prevent folding.
+        const bool pass_not_bound    = !context->m_RenderTargetBound;
+        const bool rt_has_ds         = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil != 0;
+        const bool clear_ds          = rt_has_ds && ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) != 0);
+        const bool has_clear_variant = current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE;
+        bool all_colors_in_flags     = current_rt->m_ColorAttachmentCount > 0;
+        for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+        {
+            if (!(flags & color_buffers[i]))
+            {
+                all_colors_in_flags = false;
+                break;
+            }
+        }
+
+        if (pass_not_bound && has_clear_variant && all_colors_in_flags && !clear_ds)
+        {
+            // Record clear colors on the RT; BeginRenderPass reads these into pClearValues.
+            for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
+            {
+                current_rt->m_ColorAttachmentClearValue[i][0] = r;
+                current_rt->m_ColorAttachmentClearValue[i][1] = g;
+                current_rt->m_ColorAttachmentClearValue[i][2] = b;
+                current_rt->m_ColorAttachmentClearValue[i][3] = a;
+            }
+            current_rt->m_HasPendingClearColor = 1;
+            return;
+        }
+
+        // Slow path: open the pass (if not already) and clear via vkCmdClearAttachments.
         BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         uint32_t attachment_count = 0;
@@ -1745,20 +1850,16 @@ bail:
         vk_clear_rect.layerCount         = 1;
 
         bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil;
-        bool clear_depth_stencil       = flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
+        bool clear_depth_stencil       = clear_ds;
 
-        float r = ((float)red)/255.0f;
-        float g = ((float)green)/255.0f;
-        float b = ((float)blue)/255.0f;
-        float a = ((float)alpha)/255.0f;
-
-        const BufferType color_buffers[] = {
-            BUFFER_TYPE_COLOR0_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-        };
-
+        // If the pass was just opened via the CLEAR variant above (pending-clear was consumed),
+        // the color attachments are already cleared by load op; skip the redundant
+        // vkCmdClearAttachments on color in that case. This happens when e.g. the caller does
+        // render.clear(COLOR | DEPTH) on a RT that has both: color folds, depth doesn't.
+        // We detect "was pending" by the fact that we just cleared m_HasPendingClearColor in
+        // BeginRenderPass; re-checking here would require an extra flag, so for simplicity we
+        // always emit the color clear too when taking this slow path. The cost is one extra
+        // attachment entry which is negligible.
         for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
         {
             if (flags & color_buffers[i])
@@ -2339,6 +2440,16 @@ bail:
         return 0x0;
     }
 
+    static inline VulkanTexture* ResolveTextureDescriptorTexture(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding)
+    {
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_handle);
+        if (texture == 0x0)
+        {
+            texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
+        }
+        return texture;
+    }
+
     static inline VkDescriptorType TextureTypeToDescriptorType(ShaderDesc::ShaderDataType type)
     {
         switch(type)
@@ -2387,12 +2498,7 @@ bail:
 
     static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
-        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_handle);
-
-        if (texture == 0x0)
-        {
-            texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
-        }
+        VulkanTexture* texture = ResolveTextureDescriptorTexture(context, texture_handle, binding);
 
         if (texture->m_PendingUpload != INVALID_OPAQUE_HANDLE)
         {
@@ -2472,7 +2578,7 @@ bail:
         vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
     }
 
-    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment)
+    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, VulkanProgram* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment, bool perform_vk_update)
     {
         const uint32_t max_write_descriptors = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
         VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
@@ -2594,7 +2700,96 @@ bail:
             uniform_to_write_index++;
         }
 
-        vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+        if (perform_vk_update)
+        {
+            vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+        }
+    }
+
+    static uint64_t GetDescriptorBindingSignature(VulkanContext* context, VulkanProgram* program, ScratchBuffer* scratch_buffer)
+    {
+        HashState64 hash_state;
+        dmHashInit64(&hash_state, false);
+
+        ProgramResourceBindingIterator it(&program->m_BaseProgram);
+        const ProgramResourceBinding* next;
+        while ((next = it.Next()))
+        {
+            ShaderResourceBinding* res = next->m_Res;
+
+            dmHashUpdateBuffer64(&hash_state, &res->m_Set, sizeof(res->m_Set));
+            dmHashUpdateBuffer64(&hash_state, &res->m_Binding, sizeof(res->m_Binding));
+            dmHashUpdateBuffer64(&hash_state, &res->m_BindingFamily, sizeof(res->m_BindingFamily));
+
+            switch (res->m_BindingFamily)
+            {
+                case BINDING_FAMILY_TEXTURE:
+                {
+                    VulkanTexture* texture = ResolveTextureDescriptorTexture(context, context->m_TextureUnits[next->m_TextureUnit], res);
+                    VkImageView image_view = texture ? texture->m_Handle.m_ImageView : VK_NULL_HANDLE;
+                    VkSampler image_sampler = texture ? context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler : VK_NULL_HANDLE;
+
+                    if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+                    {
+                        image_sampler = VK_NULL_HANDLE;
+                    }
+                    else if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_IMAGE2D || res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_UIMAGE2D)
+                    {
+                        image_sampler = VK_NULL_HANDLE;
+                    }
+                    else if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    {
+                        image_view = VK_NULL_HANDLE;
+                    }
+
+                    dmHashUpdateBuffer64(&hash_state, &image_view, sizeof(image_view));
+                    dmHashUpdateBuffer64(&hash_state, &image_sampler, sizeof(image_sampler));
+                } break;
+
+                case BINDING_FAMILY_STORAGE_BUFFER:
+                {
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
+                    VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
+                    dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
+                    dmHashUpdateBuffer64(&hash_state, &binding.m_BufferOffset, sizeof(binding.m_BufferOffset));
+                } break;
+
+                case BINDING_FAMILY_UNIFORM_BUFFER:
+                {
+                    VulkanUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
+                    VkBuffer vk_buffer = VK_NULL_HANDLE;
+                    uint32_t block_size = res->m_BindingInfo.m_BlockSize;
+
+                    if (bound_ubo)
+                    {
+                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash == pgm_layout->m_Hash)
+                        {
+                            vk_buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
+                        }
+                        else
+                        {
+                            // Fallback to scratch buffer representation
+                            bound_ubo = 0;
+                        }
+                    }
+
+                    if (!bound_ubo)
+                    {
+                        vk_buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
+                    }
+
+                    dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
+                    dmHashUpdateBuffer64(&hash_state, &block_size, sizeof(block_size));
+                } break;
+
+                default:
+                    break;
+            }
+        }
+
+        return dmHashFinal64(&hash_state);
     }
 
     static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
@@ -2609,14 +2804,72 @@ bail:
             return VK_SUCCESS;
         }
 
-        VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayouts, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, num_descriptors, &vk_descriptor_set_list);
-        if (res != VK_SUCCESS)
+        const uint8_t frame_index = (uint8_t) context->m_CurrentFrameInFlight;
+
+        DescriptorSetCacheEntry* cache_entry = 0x0;
+        if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS)
         {
-            return res;
+            cache_entry = &program_ptr->m_GraphicsDescriptorCache[frame_index];
+        }
+        else if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE)
+        {
+            cache_entry = &program_ptr->m_ComputeDescriptorCache[frame_index];
         }
 
-        UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
+        const uint32_t allocator_generation = context->m_DescriptorAllocatorGeneration[frame_index];
+        uint64_t binding_signature = 0;
+
+        VkDescriptorSet* vk_descriptor_set_list = 0x0;
+        VkResult res = VK_SUCCESS;
+
+        if (cache_entry)
+        {
+            binding_signature = GetDescriptorBindingSignature(context, program_ptr, scratch_buffer);
+
+            if (cache_entry->m_Valid &&
+                cache_entry->m_AllocatorGeneration == allocator_generation &&
+                cache_entry->m_BindingSignature == binding_signature &&
+                cache_entry->m_DescriptorSetCount == program_ptr->m_Handle.m_DescriptorSetLayoutsCount)
+            {
+                vk_descriptor_set_list = cache_entry->m_DescriptorSets;
+            }
+        }
+
+        const bool cache_hit = vk_descriptor_set_list != 0;
+
+        if (!cache_hit)
+        {
+            res = scratch_buffer->m_DescriptorAllocator->Allocate(
+                vk_device,
+                program_ptr->m_Handle.m_DescriptorSetLayouts,
+                program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+                num_descriptors,
+                &vk_descriptor_set_list);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
+            UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, true);
+
+            if (cache_entry)
+            {
+                cache_entry->m_DescriptorSetCount    = program_ptr->m_Handle.m_DescriptorSetLayoutsCount;
+                cache_entry->m_BindingSignature      = binding_signature;
+                cache_entry->m_AllocatorGeneration   = allocator_generation;
+                cache_entry->m_Valid                 = 1;
+
+                for (uint8_t i = 0; i < program_ptr->m_Handle.m_DescriptorSetLayoutsCount; ++i)
+                {
+                    cache_entry->m_DescriptorSets[i] = vk_descriptor_set_list[i];
+                }
+            }
+        }
+        else
+        {
+            // Recompute dynamic offsets and scratch uniform data without touching descriptor bindings
+            UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment, false);
+        }
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             bind_point,
@@ -3456,8 +3709,30 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         assert(context);
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void VulkanSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context);
+        context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void VulkanSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        assert(context);
+        context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void VulkanSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
@@ -3659,7 +3934,7 @@ bail:
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, uint32_t width, uint32_t height, RenderTarget* rtOut)
     {
-        assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE);
+        assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPassClear == VK_NULL_HANDLE);
         const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
 
         RenderPassAttachment  rp_attachments[num_attachments];
@@ -3716,6 +3991,38 @@ bail:
             return res;
         }
 
+        // Create a second, render-pass-compatible variant with LOAD_OP_CLEAR on all color
+        // attachments. Used by BeginRenderPass when VulkanClear was called before any work was
+        // recorded on this RT, so the clear happens via the attachment load op instead of a
+        // follow-up vkCmdClearAttachments. Render-pass compatibility is preserved because only
+        // the load op differs, so pipelines created against m_RenderPass remain valid.
+        if (num_color_textures > 0)
+        {
+            bool needs_clear_variant = false;
+            for (int i = 0; i < num_color_textures; ++i)
+            {
+                if (rp_attachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_CLEAR)
+                {
+                    needs_clear_variant = true;
+                }
+                rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            }
+            if (needs_clear_variant)
+            {
+                res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_Handle.m_RenderPassClear);
+                if (res != VK_SUCCESS)
+                {
+                    return res;
+                }
+            }
+            else
+            {
+                // All color attachments already clear by default; the CLEAR variant is identical
+                // to the normal one, so alias it to avoid creating a duplicate render pass.
+                rtOut->m_Handle.m_RenderPassClear = rtOut->m_Handle.m_RenderPass;
+            }
+        }
+
         res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_Handle.m_RenderPass,
             fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Handle.m_Framebuffer);
         if (res != VK_SUCCESS)
@@ -3740,8 +4047,10 @@ bail:
     static void DestroyRenderTarget(VulkanContext* context, RenderTarget* renderTarget)
     {
         DestroyResourceDeferred(context, renderTarget);
-        renderTarget->m_Handle.m_Framebuffer = VK_NULL_HANDLE;
-        renderTarget->m_Handle.m_RenderPass = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_Framebuffer     = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPass      = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPassClear = VK_NULL_HANDLE;
+        renderTarget->m_HasPendingClearColor     = 0;
     }
 
     static inline VkImageUsageFlags GetVulkanUsageFromHints(uint8_t hint_bits)
@@ -3937,8 +4246,29 @@ bail:
     {
         (void) transient_buffer_types;
         VulkanContext* context = (VulkanContext*) _context;
-        context->m_ViewportChanged = 1;
-        BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
+        HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+
+        if (context->m_CurrentRenderTarget == new_rt)
+        {
+            // Same target: nothing to do. If a pass is already open on it we keep it open;
+            // if not, the next Clear/DrawSetup will open it lazily.
+            return;
+        }
+
+        FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
+
+        // End the currently open render pass (if any) without eagerly beginning the new one.
+        // The new pass is opened on demand by VulkanClear / DrawSetup, which both call
+        // BeginRenderPass as their first step. Deferring the begin avoids emitting empty
+        // begin/end render-pass pairs when scripts rebind targets without issuing any work
+        // on every intermediate target (very common in post-process chains).
+        if (context->m_RenderTargetBound)
+        {
+            EndRenderPass(context);
+        }
+
+        context->m_CurrentRenderTarget = new_rt;
+        context->m_ViewportChanged     = 1;
     }
 
     static HTexture VulkanGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)

@@ -39,6 +39,7 @@ namespace dmGraphics
         , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_HasPendingClearColor(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
@@ -1170,6 +1171,14 @@ bail:
         VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
     };
 
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX
+    };
+
     static const VkStencilOp g_vk_stencil_ops[] = {
         VK_STENCIL_OP_KEEP,
         VK_STENCIL_OP_ZERO,
@@ -1323,10 +1332,10 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationColor];
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactorAlpha];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
@@ -1412,6 +1421,7 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -1505,8 +1515,15 @@ bail:
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
-        handle->m_Framebuffer = VK_NULL_HANDLE;
-        handle->m_RenderPass = VK_NULL_HANDLE;
+        // Only destroy the CLEAR variant if it's a distinct object. For the main RT it aliases
+        // context->m_MainRenderPass, which is destroyed by the context teardown instead.
+        if (handle->m_RenderPassClear != VK_NULL_HANDLE && handle->m_RenderPassClear != handle->m_RenderPass)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClear);
+        }
+        handle->m_Framebuffer     = VK_NULL_HANDLE;
+        handle->m_RenderPass      = VK_NULL_HANDLE;
+        handle->m_RenderPassClear = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
