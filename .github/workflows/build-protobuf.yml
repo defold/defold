@@ -37,8 +37,8 @@ jobs:
           - { name: 'wasm_pthread-web', runner: 'ubuntu-22.04', target: 'web' }
           - { name: 'win32', runner: 'windows-2025', target: 'windows', msvc_arch: 'x86' }
           - { name: 'x86_64-win32', runner: 'windows-2025', target: 'windows', msvc_arch: 'x64' }
-          - { name: 'arm64-android', runner: 'ubuntu-22.04', target: 'android' }
           - { name: 'armv7-android', runner: 'ubuntu-22.04', target: 'android' }
+          - { name: 'arm64-android', runner: 'ubuntu-22.04', target: 'android' }
     runs-on: ${{ matrix.platforms.runner }}
     steps:
       - name: Checkout repo
