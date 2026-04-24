@@ -17,12 +17,12 @@
 #include <set>
 #include <dlib/configfile.h>
 #include <dlib/connection_pool.h>
-#include <dlib/defold_mbedtls.hpp>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/testutil.h>
+#include <mbedtls/defold_mbedtls.hpp>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
