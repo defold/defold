@@ -179,7 +179,7 @@ def build(bld):
     mbedtls = bld.stlib(features    = 'c cxx remove_flags',
                   includes    = '. ./mbedtls/include',
                   target      = 'mbedtls',
-                  source      = bld.path.ant_glob(mbedtls_dirs) + ['mbedtls/defold_mbedtls.cpp'],
+                  source      = bld.path.ant_glob(mbedtls_dirs) + ['dlib/defold_mbedtls.cpp'],
                   remove_flags= remove_flags,
                   defines     = ['VALGRIND'] + extra_defines)
     if new_opt_level:
@@ -438,7 +438,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
 
-    bld.install_files('${PREFIX}/include/dlib', 'mbedtls/defold_mbedtls.hpp')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/defold_mbedtls.hpp')
 
     # for tools + tests
     bld.install_files('${PREFIX}/include/dlib/', 'dlib/testutil.h')

@@ -31,7 +31,7 @@
 #include "dlib/http_cache_verify.h"
 #include "dlib/testutil.h"
 
-#include "mbedtls/defold_mbedtls.hpp"
+#include <dlib/defold_mbedtls.hpp>
 
 #define JC_TEST_IMPLEMENTATION
 #if !defined(JC_TEST_NO_DEATH_TEST)

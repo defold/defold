@@ -15,8 +15,18 @@
 #ifndef DM_DEFOLD_MBEDTLS_H
 #define DM_DEFOLD_MBEDTLS_H
 
+#include <stdint.h>
+
 namespace dmMbedTls
 {
+    void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest);      // output is 20 bytes
+    void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest);    // output is 32 bytes
+    void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest);    // output is 64 bytes
+    void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest);       // output is 16 bytes
+
+    bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
+    bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
+
     void Initialize();
     void Finalize();
 }
