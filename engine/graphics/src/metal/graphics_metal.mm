@@ -54,7 +54,7 @@ namespace dmGraphics
     static MetalTexture* MetalNewTextureInternal(const TextureCreationParams& params);
     static void          MetalSetTextureInternal(MetalContext* context, MetalTexture* texture, const TextureParams& params);
     static void          CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage);
-    static void          CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage);
+    static void          CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::PixelFormat format, MTL::TextureUsage usage);
     static int16_t       CreateTextureSampler(MetalContext* context, TextureFilter minFilter, TextureFilter magFilter, TextureWrap uWrap, TextureWrap vWrap, uint8_t maxLod, float maxAnisotropy);
     static void          FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list);
     static void          BeginRenderPass(MetalContext* context, HRenderTarget render_target);
@@ -532,6 +532,33 @@ namespace dmGraphics
         return t;
     }
 
+    static inline bool MetalFormatHasDepth(MTL::PixelFormat fmt)
+    {
+        switch (fmt)
+        {
+            case MTL::PixelFormatDepth16Unorm:
+            case MTL::PixelFormatDepth32Float:
+            case MTL::PixelFormatDepth24Unorm_Stencil8:
+            case MTL::PixelFormatDepth32Float_Stencil8:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static inline bool MetalFormatHasStencil(MTL::PixelFormat fmt)
+    {
+        switch (fmt)
+        {
+            case MTL::PixelFormatStencil8:
+            case MTL::PixelFormatDepth24Unorm_Stencil8:
+            case MTL::PixelFormatDepth32Float_Stencil8:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     // TODO: implement a better sample counting
     static uint32_t MetalGetClosestSampleCount(uint32_t requested)
     {
@@ -704,8 +731,8 @@ namespace dmGraphics
         }
 
         // depth/stencil format (if RT has one)
-        desc->setDepthAttachmentPixelFormat(key.m_DepthStencilFormat);
-        desc->setStencilAttachmentPixelFormat(key.m_DepthStencilFormat);
+        desc->setDepthAttachmentPixelFormat(MetalFormatHasDepth(key.m_DepthStencilFormat) ? key.m_DepthStencilFormat : MTL::PixelFormatInvalid);
+        desc->setStencilAttachmentPixelFormat(MetalFormatHasStencil(key.m_DepthStencilFormat) ? key.m_DepthStencilFormat : MTL::PixelFormatInvalid);
 
         NS::Error* error = NULL;
         MetalPipeline pipeline = {};
@@ -1072,31 +1099,50 @@ namespace dmGraphics
             MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             if (tex && tex->m_Texture)
             {
-                MTL::RenderPassDepthAttachmentDescriptor* depthAttachment = rpDesc->depthAttachment();
-                MTL::LoadAction depth_load_action = has_pending_depth_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
-                depthAttachment->setLoadAction(depth_load_action);
-                depthAttachment->setClearDepth(rt->m_DepthClearValue);
+                const bool has_depth = MetalFormatHasDepth(rt->m_DepthStencilFormat);
+                const bool has_stencil = MetalFormatHasStencil(rt->m_DepthStencilFormat);
 
-                MTL::RenderPassStencilAttachmentDescriptor* stencilAttachment = rpDesc->stencilAttachment();
-                MTL::LoadAction stencil_load_action = has_pending_stencil_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
-                stencilAttachment->setLoadAction(stencil_load_action);
-                stencilAttachment->setClearStencil(rt->m_StencilClearValue);
+                MTL::RenderPassDepthAttachmentDescriptor* depthAttachment = has_depth ? rpDesc->depthAttachment() : 0;
+                if (depthAttachment)
+                {
+                    MTL::LoadAction depth_load_action = has_pending_depth_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
+                    depthAttachment->setLoadAction(depth_load_action);
+                    depthAttachment->setClearDepth(rt->m_DepthClearValue);
+                }
+
+                MTL::RenderPassStencilAttachmentDescriptor* stencilAttachment = has_stencil ? rpDesc->stencilAttachment() : 0;
+                if (stencilAttachment)
+                {
+                    MTL::LoadAction stencil_load_action = has_pending_stencil_clear ? MTL::LoadActionClear : MTL::LoadActionLoad;
+                    stencilAttachment->setLoadAction(stencil_load_action);
+                    stencilAttachment->setClearStencil(rt->m_StencilClearValue);
+                }
 
                 if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
                 {
-                    depthAttachment->setTexture(frame.m_MSAADepthTexture);
-                    stencilAttachment->setTexture(frame.m_MSAADepthTexture);
-
-                    depthAttachment->setStoreAction(MTL::StoreActionDontCare);
-                    stencilAttachment->setStoreAction(MTL::StoreActionDontCare);
+                    if (depthAttachment)
+                    {
+                        depthAttachment->setTexture(frame.m_MSAADepthTexture);
+                        depthAttachment->setStoreAction(MTL::StoreActionDontCare);
+                    }
+                    if (stencilAttachment)
+                    {
+                        stencilAttachment->setTexture(frame.m_MSAADepthTexture);
+                        stencilAttachment->setStoreAction(MTL::StoreActionDontCare);
+                    }
                 }
                 else
                 {
-                    depthAttachment->setTexture(tex->m_Texture);
-                    stencilAttachment->setTexture(tex->m_Texture);
-
-                    depthAttachment->setStoreAction(MTL::StoreActionStore);
-                    stencilAttachment->setStoreAction(MTL::StoreActionStore);
+                    if (depthAttachment)
+                    {
+                        depthAttachment->setTexture(tex->m_Texture);
+                        depthAttachment->setStoreAction(MTL::StoreActionStore);
+                    }
+                    if (stencilAttachment)
+                    {
+                        stencilAttachment->setTexture(tex->m_Texture);
+                        stencilAttachment->setStoreAction(MTL::StoreActionStore);
+                    }
                 }
             }
         }
@@ -1256,8 +1302,9 @@ namespace dmGraphics
         bool want_depth                     = (flags & BUFFER_TYPE_DEPTH_BIT) != 0;
         bool want_stencil                   = (flags & BUFFER_TYPE_STENCIL_BIT) != 0;
         bool pass_not_bound                 = !context->m_RenderTargetBound;
-        bool rt_has_ds                      = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil != 0;
-        bool clear_ds                       = rt_has_ds && (want_depth || want_stencil);
+        bool rt_has_depth                   = MetalFormatHasDepth(current_rt->m_DepthStencilFormat);
+        bool rt_has_stencil                 = MetalFormatHasStencil(current_rt->m_DepthStencilFormat);
+        bool clear_ds                       = (rt_has_depth && want_depth) || (rt_has_stencil && want_stencil);
         bool all_colors_in_flags            = current_rt->m_ColorAttachmentCount > 0;
 
         for (int i = 0; i < current_rt->m_ColorAttachmentCount; ++i)
@@ -1288,13 +1335,13 @@ namespace dmGraphics
                 current_rt->m_HasPendingClearColor = 1;
             }
 
-            if (want_depth && rt_has_ds)
+            if (want_depth && rt_has_depth)
             {
                 current_rt->m_DepthClearValue = depth;
                 current_rt->m_HasPendingClearDepth = 1;
             }
 
-            if (want_stencil && rt_has_ds)
+            if (want_stencil && rt_has_stencil)
             {
                 current_rt->m_StencilClearValue = stencil;
                 current_rt->m_HasPendingClearStencil = 1;
@@ -1318,8 +1365,8 @@ namespace dmGraphics
         key.m_ClearColor             = want_color;
         key.m_DepthStencilFormat     = current_rt->m_DepthStencilFormat;
         key.m_ColorAttachmentCount   = current_rt->m_ColorAttachmentCount;
-        key.m_ClearDepth             = want_depth && current_rt->m_DepthStencilFormat != MTL::PixelFormatInvalid;
-        key.m_ClearStencil           = want_stencil && current_rt->m_DepthStencilFormat != MTL::PixelFormatInvalid;
+        key.m_ClearDepth             = want_depth && rt_has_depth;
+        key.m_ClearStencil           = want_stencil && rt_has_stencil;
         key.m_ColorWriteMaskBits     = 0;
         key.m_SampleCount            = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID ? context->m_MSAASampleCount : 1;
 
@@ -1988,8 +2035,8 @@ namespace dmGraphics
                 colorAttachment->setAlphaBlendOperation(GetMetalBlendOperation((BlendEquation) pipeline_state.m_BlendEquationAlpha));
             }
         }
-        pipeline_desc->setDepthAttachmentPixelFormat(rt->m_DepthStencilFormat);
-        pipeline_desc->setStencilAttachmentPixelFormat(rt->m_DepthStencilFormat);
+        pipeline_desc->setDepthAttachmentPixelFormat(MetalFormatHasDepth(rt->m_DepthStencilFormat) ? rt->m_DepthStencilFormat : MTL::PixelFormatInvalid);
+        pipeline_desc->setStencilAttachmentPixelFormat(MetalFormatHasStencil(rt->m_DepthStencilFormat) ? rt->m_DepthStencilFormat : MTL::PixelFormatInvalid);
 
         NS::Error* error = nullptr;
         pipeline->m_RenderPipelineState = context->m_Device->newRenderPipelineState(pipeline_desc, &error);
@@ -3184,7 +3231,8 @@ namespace dmGraphics
             MetalTexture* depth_texture_ptr = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);
             assert(depth_texture_ptr);
 
-            CreateMetalDepthStencilTexture(context, depth_texture_ptr, ds_params, MTL::TextureUsageRenderTarget);
+            const MTL::PixelFormat ds_format = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
+            CreateMetalDepthStencilTexture(context, depth_texture_ptr, ds_params, ds_format, MTL::TextureUsageRenderTarget);
         }
 
         // record info into the render target object
@@ -3197,7 +3245,7 @@ namespace dmGraphics
         if (texture_depth_stencil)
         {
             rt->m_TextureDepthStencil = texture_depth_stencil;
-            rt->m_DepthStencilFormat = MTL::PixelFormatDepth32Float_Stencil8; // or chosenDepthFormat
+            rt->m_DepthStencilFormat = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
         }
 
         // store the RT in the asset container and return handle
@@ -3332,7 +3380,7 @@ namespace dmGraphics
             MetalTexture* depth_stencil_texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             if (depth_stencil_texture)
             {
-                CreateMetalDepthStencilTexture(context, depth_stencil_texture, rt->m_DepthStencilTextureParams, MTL::TextureUsageRenderTarget);
+                CreateMetalDepthStencilTexture(context, depth_stencil_texture, rt->m_DepthStencilTextureParams, rt->m_DepthStencilFormat, MTL::TextureUsageRenderTarget);
             }
         }
 
@@ -3581,10 +3629,10 @@ namespace dmGraphics
         uploadBuffer->release();
     }
 
-    static void CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage)
+    static void CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::PixelFormat format, MTL::TextureUsage usage)
     {
         MTL::TextureDescriptor* desc = MTL::TextureDescriptor::texture2DDescriptor(
-            MTL::PixelFormatDepth32Float_Stencil8,
+            format,
             params.m_Width,
             params.m_Height,
             false
