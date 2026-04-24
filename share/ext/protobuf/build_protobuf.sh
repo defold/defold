@@ -76,13 +76,14 @@ function cmake_configure_protobuf() {
     local platform=$4
     shift 4
 
+    local cmake_generator=${CMAKE_GENERATOR:-"Unix Makefiles"}
     local c_compiler
     local cxx_compiler
     c_compiler=$(cmake_compiler "${CC}")
     cxx_compiler=$(cmake_compiler "${CXX}")
 
     local cmake_args=(
-        -G "Unix Makefiles"
+        -G "${cmake_generator}"
         -S "${source_dir}"
         -B "${build_dir}"
         -DCMAKE_BUILD_TYPE=Release
@@ -196,7 +197,7 @@ tar xf "${FILE_URL}" --directory "${TMP_HOST}" --strip-components=1
 echo "SOURCE_HOST:" ${SOURCE_HOST}
 cmake_configure_protobuf "${SOURCE_HOST}" "${HOST_BUILD_DIR}" "${INSTALL_HOST}" "${PLATFORM}" \
     -Dprotobuf_BUILD_PROTOC_BINARIES=ON
-cmake --build "${HOST_BUILD_DIR}" --config Release --target install -- -j8
+cmake --build "${HOST_BUILD_DIR}" --config Release --target install --parallel 8
 
 echo "**************************************************"
 echo "BUILD TARGET LIB for ${PLATFORM}"
@@ -241,7 +242,7 @@ cmake_configure_protobuf "${SOURCE_TARGET}" "${TARGET_BUILD_DIR}" "${INSTALL_TAR
     -Dprotobuf_BUILD_LIBUPB=OFF \
     "${TARGET_CMAKE_ARGS[@]}" \
     -DWITH_PROTOC="${INSTALL_HOST}/bin/${PLATFORM}/protoc${PROTOC_SUFFIX}"
-cmake --build "${TARGET_BUILD_DIR}" --config Release --target install -- -j8
+cmake --build "${TARGET_BUILD_DIR}" --config Release --target install --parallel 8
 
 
 echo "**************************************************"

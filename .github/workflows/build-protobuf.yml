@@ -1,0 +1,184 @@
+name: Build Protobuf
+
+permissions:
+  contents: write
+
+on:
+  # TEMP: run on commits while the protobuf 34 package migration is being finished.
+  # Remove this push trigger before merging the protobuf package update.
+  push:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        description: 'Commit built protobuf packages to ./packages on the branch'
+        type: boolean
+        default: false
+      target_branch:
+        description: 'Branch to update; defaults to the selected workflow branch'
+        type: string
+        default: ''
+
+env:
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  PROTOBUF_VERSION: '34.0'
+  PROTOBUF_PYTHON_VERSION: '7.34.0'
+  BUILD_BRANCH: ${{ github.event.inputs.target_branch || github.ref_name }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platforms:
+          - { name: 'x86_64-linux', runner: 'ubuntu-22.04', target: 'linux' }
+          - { name: 'arm64-linux', runner: 'ubuntu-22.04-arm', target: 'linux' }
+          - { name: 'arm64-macos', runner: 'macOS-14', target: 'macos' }
+          - { name: 'x86_64-macos', runner: 'macOS-14', target: 'macos' }
+          - { name: 'arm64-ios', runner: 'macOS-14', target: 'macos' }
+          - { name: 'x86_64-ios', runner: 'macOS-14', target: 'macos' }
+          - { name: 'wasm-web', runner: 'ubuntu-22.04', target: 'web' }
+          - { name: 'wasm_pthread-web', runner: 'ubuntu-22.04', target: 'web' }
+          - { name: 'win32', runner: 'windows-2025', target: 'windows', msvc_arch: 'x86' }
+          - { name: 'x86_64-win32', runner: 'windows-2025', target: 'windows', msvc_arch: 'x64' }
+          - { name: 'arm64-android', runner: 'ubuntu-22.04', target: 'android' }
+          - { name: 'armv7-android', runner: 'ubuntu-22.04', target: 'android' }
+    runs-on: ${{ matrix.platforms.runner }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ env.BUILD_BRANCH }}
+
+      - name: Setup MSVC
+        if: ${{ matrix.platforms.target == 'windows' }}
+        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
+        with:
+          arch: ${{ matrix.platforms.msvc_arch }}
+
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: 3.13
+
+      - name: Install dependencies
+        shell: bash
+        run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
+
+      - name: Install platform SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIG_PATH="$PATH"
+          source ci/env.sh
+          if [ "${{ matrix.platforms.target }}" = "windows" ]; then
+            export PATH="$ORIG_PATH:$PATH"
+          fi
+          python scripts/build.py --platform=${{ matrix.platforms.name }} install_sdk
+
+      - name: Build protobuf
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/build.py --save-env-path=ci/env.sh save_env
+
+          ORIG_PATH="$PATH"
+          source ci/env.sh
+          if [ "${{ matrix.platforms.target }}" = "windows" ]; then
+            export PATH="$ORIG_PATH:$PATH:$DYNAMO_HOME/ext/bin"
+            export CMAKE_GENERATOR="NMake Makefiles"
+          fi
+
+          cd share/ext/protobuf
+          ./build_protobuf.sh ${{ matrix.platforms.name }}
+
+          echo "Final package includes:"
+          tar -tzf "package/protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz" | grep -E 'libprotobuf|libabsl|libutf8' || true
+          if [ -f "package/protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz" ]; then
+            ls -lh "package/protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz"
+          fi
+
+      - name: Archive results (common)
+        if: ${{ matrix.platforms.name == 'x86_64-linux' }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: protobuf-${{ env.PROTOBUF_VERSION }}-common.tar.gz
+          path: share/ext/protobuf/package/protobuf-${{ env.PROTOBUF_VERSION }}-common.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Archive results (platform-specific)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz
+          path: share/ext/protobuf/package/protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  python-wheel:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: 3.13
+
+      - name: Download Python protobuf wheel
+        run: |
+          set -euo pipefail
+          mkdir -p package
+          python -m pip download --only-binary=:all: --no-deps "protobuf==${PROTOBUF_PYTHON_VERSION}" -d package
+
+      - name: Archive Python wheel
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: protobuf-${{ env.PROTOBUF_PYTHON_VERSION }}-py3-none-any.whl
+          path: package/protobuf-${{ env.PROTOBUF_PYTHON_VERSION }}-py3-none-any.whl
+          if-no-files-found: error
+          retention-days: 1
+
+  push-packages:
+    if: ${{ github.event_name == 'push' || inputs.push_changes }}
+    needs: [build, python-wheel]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ env.BUILD_BRANCH }}
+          fetch-depth: 0
+
+      - name: Download artifacts to packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+        with:
+          pattern: protobuf-${{ env.PROTOBUF_VERSION }}*.tar.gz
+          path: packages
+          merge-multiple: true
+
+      - name: Download Python wheel to packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+        with:
+          pattern: protobuf-${{ env.PROTOBUF_PYTHON_VERSION }}-py3-none-any.whl
+          path: packages
+          merge-multiple: true
+
+      - name: Setup git user
+        run: |
+          git config user.email "services@defold.se"
+          git config user.name "Defold Services"
+
+      - name: Commit package updates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add \
+            "packages/protobuf-${PROTOBUF_VERSION}-"*.tar.gz \
+            "packages/protobuf-${PROTOBUF_PYTHON_VERSION}-py3-none-any.whl"
+
+          if git diff --cached --quiet; then
+            echo "No package changes to commit"
+            exit 0
+          fi
+
+          git commit -m "packages: update protobuf ${PROTOBUF_VERSION}"
+          git push origin "HEAD:${BUILD_BRANCH}"
