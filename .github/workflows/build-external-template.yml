@@ -147,7 +147,7 @@ jobs:
       - name: Archive results (common)
         # archive common package once
         if: "${{ matrix.platforms.name == 'x86_64-linux' }}"
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ inputs.package_name }}-${{ inputs.package_version }}-common.tar.gz
           path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-common.tar.gz
@@ -155,7 +155,7 @@ jobs:
           retention-days: 1
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ inputs.package_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
           path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz

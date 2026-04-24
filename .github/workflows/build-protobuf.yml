@@ -4,9 +4,6 @@ permissions:
   contents: write
 
 on:
-  # TEMP: run on commits while the protobuf 34 package migration is being finished.
-  # Remove this push trigger before merging the protobuf package update.
-  push:
   workflow_dispatch:
     inputs:
       push_changes:
@@ -112,7 +109,7 @@ jobs:
 
       - name: Archive results (common)
         if: ${{ matrix.platforms.name == 'x86_64-linux' }}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: protobuf-${{ env.PROTOBUF_VERSION }}-common.tar.gz
           path: share/ext/protobuf/package/protobuf-${{ env.PROTOBUF_VERSION }}-common.tar.gz
@@ -120,7 +117,7 @@ jobs:
           retention-days: 1
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz
           path: share/ext/protobuf/package/protobuf-${{ env.PROTOBUF_VERSION }}-${{ matrix.platforms.name }}.tar.gz
@@ -151,7 +148,7 @@ jobs:
           ls -lh package
 
       - name: Archive Python wheel
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: protobuf-${{ env.PROTOBUF_PYTHON_VERSION }}-py3-none-any.whl
           path: package/protobuf-${{ env.PROTOBUF_PYTHON_VERSION }}-py3-none-any.whl
