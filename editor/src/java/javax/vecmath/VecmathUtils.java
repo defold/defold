@@ -15,6 +15,123 @@
 package javax.vecmath;
 
 public final class VecmathUtils {
+    public static final double EPSILON = 0.000001;
+
+    private static Vector3d orthogonalUnitVector(Vector3d axis) {
+        var absX = Math.abs(axis.x);
+        var absY = Math.abs(axis.y);
+        var absZ = Math.abs(axis.z);
+        var candidate = new Vector3d();
+
+        if (absX <= absY && absX <= absZ) {
+            candidate.set(1.0, 0.0, 0.0);
+        } else if (absY <= absZ) {
+            candidate.set(0.0, 1.0, 0.0);
+        } else {
+            candidate.set(0.0, 0.0, 1.0);
+        }
+
+        var orthogonal = new Vector3d();
+        orthogonal.cross(axis, candidate);
+        orthogonal.normalize();
+        return orthogonal;
+    }
+
+    private static Vector3d scaledColumn(Matrix3d matrix, int column, double scale) {
+        var result = new Vector3d();
+        matrix.getColumn(column, result);
+        result.scale(scale);
+        return result;
+    }
+
+    private static void completeOrthonormalBasis(Matrix3d inOutRotationMatrix, Tuple3d scale) {
+        var hasXScale = Math.abs(scale.x) > EPSILON;
+        var hasYScale = Math.abs(scale.y) > EPSILON;
+        var hasZScale = Math.abs(scale.z) > EPSILON;
+        var nonZeroScaleAxisCount = (hasXScale ? 1 : 0)
+                                  + (hasYScale ? 1 : 0)
+                                  + (hasZScale ? 1 : 0);
+
+        if (nonZeroScaleAxisCount == 0) {
+            inOutRotationMatrix.setIdentity();
+            return;
+        }
+
+        if (nonZeroScaleAxisCount == 1) {
+            if (hasXScale) {
+                var axisX = scaledColumn(inOutRotationMatrix, 0, 1.0 / scale.x);
+                var axisY = orthogonalUnitVector(axisX);
+                var axisZ = new Vector3d();
+                axisZ.cross(axisX, axisY);
+                axisZ.normalize();
+                axisY.cross(axisZ, axisX);
+                inOutRotationMatrix.setColumn(0, axisX);
+                inOutRotationMatrix.setColumn(1, axisY);
+                inOutRotationMatrix.setColumn(2, axisZ);
+            } else if (hasYScale) {
+                var axisY = scaledColumn(inOutRotationMatrix, 1, 1.0 / scale.y);
+                var axisZ = orthogonalUnitVector(axisY);
+                var axisX = new Vector3d();
+                axisX.cross(axisY, axisZ);
+                axisX.normalize();
+                axisZ.cross(axisX, axisY);
+                inOutRotationMatrix.setColumn(0, axisX);
+                inOutRotationMatrix.setColumn(1, axisY);
+                inOutRotationMatrix.setColumn(2, axisZ);
+            } else {
+                var axisZ = scaledColumn(inOutRotationMatrix, 2, 1.0 / scale.z);
+                var axisX = orthogonalUnitVector(axisZ);
+                var axisY = new Vector3d();
+                axisY.cross(axisZ, axisX);
+                axisY.normalize();
+                axisX.cross(axisY, axisZ);
+                inOutRotationMatrix.setColumn(0, axisX);
+                inOutRotationMatrix.setColumn(1, axisY);
+                inOutRotationMatrix.setColumn(2, axisZ);
+            }
+
+            return;
+        }
+
+        if (!hasXScale) {
+            var axisY = scaledColumn(inOutRotationMatrix, 1, 1.0 / scale.y);
+            var axisZ = scaledColumn(inOutRotationMatrix, 2, 1.0 / scale.z);
+            var axisX = new Vector3d();
+            axisX.cross(axisY, axisZ);
+            axisX.normalize();
+            axisZ.cross(axisX, axisY);
+            inOutRotationMatrix.setColumn(0, axisX);
+            inOutRotationMatrix.setColumn(1, axisY);
+            inOutRotationMatrix.setColumn(2, axisZ);
+            return;
+        }
+
+        if (!hasYScale) {
+            var axisX = scaledColumn(inOutRotationMatrix, 0, 1.0 / scale.x);
+            var axisZ = scaledColumn(inOutRotationMatrix, 2, 1.0 / scale.z);
+            var axisY = new Vector3d();
+            axisY.cross(axisZ, axisX);
+            axisY.normalize();
+            axisZ.cross(axisX, axisY);
+            inOutRotationMatrix.setColumn(0, axisX);
+            inOutRotationMatrix.setColumn(1, axisY);
+            inOutRotationMatrix.setColumn(2, axisZ);
+            return;
+        }
+
+        if (!hasZScale) {
+            var axisX = scaledColumn(inOutRotationMatrix, 0, 1.0 / scale.x);
+            var axisY = scaledColumn(inOutRotationMatrix, 1, 1.0 / scale.y);
+            var axisZ = new Vector3d();
+            axisZ.cross(axisX, axisY);
+            axisZ.normalize();
+            axisY.cross(axisZ, axisX);
+            inOutRotationMatrix.setColumn(0, axisX);
+            inOutRotationMatrix.setColumn(1, axisY);
+            inOutRotationMatrix.setColumn(2, axisZ);
+        }
+    }
+
     public static void assignFromOrthonormal(Quat4d target, Matrix3d source) {
         var tr = source.m00 + source.m11 + source.m22;
 
@@ -85,6 +202,29 @@ public final class VecmathUtils {
         return matrixArray;
     }
 
+    public static void cancelScale(Matrix3d inOutRotationScaleMatrix, Tuple3d scale) {
+        if (Math.abs(scale.x) > EPSILON) {
+            var scaleXInverse = 1.0 / scale.x;
+            inOutRotationScaleMatrix.m00 *= scaleXInverse;
+            inOutRotationScaleMatrix.m10 *= scaleXInverse;
+            inOutRotationScaleMatrix.m20 *= scaleXInverse;
+        }
+
+        if (Math.abs(scale.y) > EPSILON) {
+            var scaleYInverse = 1.0 / scale.y;
+            inOutRotationScaleMatrix.m01 *= scaleYInverse;
+            inOutRotationScaleMatrix.m11 *= scaleYInverse;
+            inOutRotationScaleMatrix.m21 *= scaleYInverse;
+        }
+
+        if (Math.abs(scale.z) > EPSILON) {
+            var scaleZInverse = 1.0 / scale.z;
+            inOutRotationScaleMatrix.m02 *= scaleZInverse;
+            inOutRotationScaleMatrix.m12 *= scaleZInverse;
+            inOutRotationScaleMatrix.m22 *= scaleZInverse;
+        }
+    }
+
     public static void correctHandedness(Matrix3d inOutRotationMatrix, Tuple3d inOutScale) {
         // The rotation matrix might have a different handedness than we expect.
         // This can happen when there is a negatively scaled axis. Correct the
@@ -107,73 +247,57 @@ public final class VecmathUtils {
     }
 
     public static void extractTranslation(Matrix4d matrix, Tuple3d outTranslation) {
-        var fourthColumn = new Vector4d();
-        matrix.getColumn(3, fourthColumn);
-        outTranslation.set(fourthColumn.x, fourthColumn.y, fourthColumn.z);
+        outTranslation.set(matrix.m03, matrix.m13, matrix.m23);
     }
 
-    public static void extractRotationScaleOrthogonal(Matrix3d rotationScaleMatrix, Matrix3d outRotationMatrix, Tuple3d outScale) throws SingularMatrixException {
+    public static void extractRotationScaleOrthogonal(Matrix3d rotationScaleMatrix, Matrix3d outRotationMatrix, Tuple3d outScale) {
         var sx = Math.sqrt(rotationScaleMatrix.m00 * rotationScaleMatrix.m00 + rotationScaleMatrix.m10 * rotationScaleMatrix.m10 + rotationScaleMatrix.m20 * rotationScaleMatrix.m20);
         var sy = Math.sqrt(rotationScaleMatrix.m01 * rotationScaleMatrix.m01 + rotationScaleMatrix.m11 * rotationScaleMatrix.m11 + rotationScaleMatrix.m21 * rotationScaleMatrix.m21);
         var sz = Math.sqrt(rotationScaleMatrix.m02 * rotationScaleMatrix.m02 + rotationScaleMatrix.m12 * rotationScaleMatrix.m12 + rotationScaleMatrix.m22 * rotationScaleMatrix.m22);
-
-        if (sx == 0.0 || sy == 0.0 || sz == 0.0) {
-            throw new SingularMatrixException();
-        }
-
+        outRotationMatrix.set(rotationScaleMatrix);
         outScale.set(sx, sy, sz);
-        outRotationMatrix.m00 = rotationScaleMatrix.m00 / sx;
-        outRotationMatrix.m10 = rotationScaleMatrix.m10 / sx;
-        outRotationMatrix.m20 = rotationScaleMatrix.m20 / sx;
-        outRotationMatrix.m01 = rotationScaleMatrix.m01 / sy;
-        outRotationMatrix.m11 = rotationScaleMatrix.m11 / sy;
-        outRotationMatrix.m21 = rotationScaleMatrix.m21 / sy;
-        outRotationMatrix.m02 = rotationScaleMatrix.m02 / sz;
-        outRotationMatrix.m12 = rotationScaleMatrix.m12 / sz;
-        outRotationMatrix.m22 = rotationScaleMatrix.m22 / sz;
+        cancelScale(outRotationMatrix, outScale);
+        completeOrthonormalBasis(outRotationMatrix, outScale);
         correctHandedness(outRotationMatrix, outScale);
     }
 
-    public static void extractRotationScaleOrthogonal(Matrix4d rotationScaleMatrix, Matrix3d outRotationMatrix, Tuple3d outScale) throws SingularMatrixException {
+    public static void extractRotationScaleOrthogonal(Matrix4d rotationScaleMatrix, Matrix3d outRotationMatrix, Tuple3d outScale) {
         var sx = Math.sqrt(rotationScaleMatrix.m00 * rotationScaleMatrix.m00 + rotationScaleMatrix.m10 * rotationScaleMatrix.m10 + rotationScaleMatrix.m20 * rotationScaleMatrix.m20);
         var sy = Math.sqrt(rotationScaleMatrix.m01 * rotationScaleMatrix.m01 + rotationScaleMatrix.m11 * rotationScaleMatrix.m11 + rotationScaleMatrix.m21 * rotationScaleMatrix.m21);
         var sz = Math.sqrt(rotationScaleMatrix.m02 * rotationScaleMatrix.m02 + rotationScaleMatrix.m12 * rotationScaleMatrix.m12 + rotationScaleMatrix.m22 * rotationScaleMatrix.m22);
-
-        if (sx == 0.0 || sy == 0.0 || sz == 0.0) {
-            throw new SingularMatrixException();
-        }
-
+        outRotationMatrix.m00 = rotationScaleMatrix.m00;
+        outRotationMatrix.m10 = rotationScaleMatrix.m10;
+        outRotationMatrix.m20 = rotationScaleMatrix.m20;
+        outRotationMatrix.m01 = rotationScaleMatrix.m01;
+        outRotationMatrix.m11 = rotationScaleMatrix.m11;
+        outRotationMatrix.m21 = rotationScaleMatrix.m21;
+        outRotationMatrix.m02 = rotationScaleMatrix.m02;
+        outRotationMatrix.m12 = rotationScaleMatrix.m12;
+        outRotationMatrix.m22 = rotationScaleMatrix.m22;
         outScale.set(sx, sy, sz);
-        outRotationMatrix.m00 = rotationScaleMatrix.m00 / sx;
-        outRotationMatrix.m10 = rotationScaleMatrix.m10 / sx;
-        outRotationMatrix.m20 = rotationScaleMatrix.m20 / sx;
-        outRotationMatrix.m01 = rotationScaleMatrix.m01 / sy;
-        outRotationMatrix.m11 = rotationScaleMatrix.m11 / sy;
-        outRotationMatrix.m21 = rotationScaleMatrix.m21 / sy;
-        outRotationMatrix.m02 = rotationScaleMatrix.m02 / sz;
-        outRotationMatrix.m12 = rotationScaleMatrix.m12 / sz;
-        outRotationMatrix.m22 = rotationScaleMatrix.m22 / sz;
+        cancelScale(outRotationMatrix, outScale);
+        completeOrthonormalBasis(outRotationMatrix, outScale);
         correctHandedness(outRotationMatrix, outScale);
     }
 
-    public static void extractRotationScaleOrthogonal(Matrix3d rotationScaleMatrix, Quat4d outRotation, Tuple3d outScale) throws SingularMatrixException {
+    public static void extractRotationScaleOrthogonal(Matrix3d rotationScaleMatrix, Quat4d outRotation, Tuple3d outScale) {
         var rotationMatrix = new Matrix3d();
         extractRotationScaleOrthogonal(rotationScaleMatrix, rotationMatrix, outScale);
         assignFromOrthonormal(outRotation, rotationMatrix);
     }
 
-    public static void extractRotationScaleOrthogonal(Matrix4d rotationScaleMatrix, Quat4d outRotation, Tuple3d outScale) throws SingularMatrixException {
+    public static void extractRotationScaleOrthogonal(Matrix4d rotationScaleMatrix, Quat4d outRotation, Tuple3d outScale) {
         var rotationMatrix = new Matrix3d();
         extractRotationScaleOrthogonal(rotationScaleMatrix, rotationMatrix, outScale);
         assignFromOrthonormal(outRotation, rotationMatrix);
     }
 
-    public static void extractTranslationRotationScaleOrthogonal(Matrix4d matrix, Tuple3d outTranslation, Matrix3d outRotationMatrix, Tuple3d outScale) throws SingularMatrixException {
+    public static void extractTranslationRotationScaleOrthogonal(Matrix4d matrix, Tuple3d outTranslation, Matrix3d outRotationMatrix, Tuple3d outScale) {
         extractTranslation(matrix, outTranslation);
         extractRotationScaleOrthogonal(matrix, outRotationMatrix, outScale);
     }
 
-    public static void extractTranslationRotationScaleOrthogonal(Matrix4d matrix, Tuple3d outTranslation, Quat4d outRotation, Tuple3d outScale) throws SingularMatrixException {
+    public static void extractTranslationRotationScaleOrthogonal(Matrix4d matrix, Tuple3d outTranslation, Quat4d outRotation, Tuple3d outScale) {
         extractTranslation(matrix, outTranslation);
         extractRotationScaleOrthogonal(matrix, outRotation, outScale);
     }
@@ -185,6 +309,7 @@ public final class VecmathUtils {
         Matrix3d.compute_svd(rotationScaleMatrixArray, scaleArray, rotationMatrixArray);
         outRotationMatrix.set(rotationMatrixArray);
         outScale.set(scaleArray);
+        completeOrthonormalBasis(outRotationMatrix, outScale);
         correctHandedness(outRotationMatrix, outScale);
     }
 
