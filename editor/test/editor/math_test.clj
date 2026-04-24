@@ -273,6 +273,82 @@
 
     (is (= [] non-equivalent))))
 
+(deftest split-mat4-collapsed-axis-round-trip
+  (let [collapsed-scales
+        [(Vector3d. 1.0 1.0 0.0)
+         (Vector3d. 1.0 0.0 1.0)
+         (Vector3d. 0.0 1.0 1.0)
+         (Vector3d. 1.0 0.0 0.0)
+         (Vector3d. 0.0 1.0 0.0)
+         (Vector3d. 0.0 0.0 1.0)]
+
+        eulers
+        [(vector-of :double 0.0 0.0 90.0)
+         (vector-of :double 45.0 0.0 0.0)
+         (vector-of :double 0.0 45.0 0.0)
+         (vector-of :double 10.0 20.0 30.0)]
+
+        split-translation (Vector3d.)
+        split-rotation (Quat4d.)
+        split-scale (Vector3d.)
+
+        non-equivalent
+        (for [scale collapsed-scales
+              euler eulers
+              :let [rotation (math/euler->quat euler)
+                    translation (Vector3d. 1.0 2.0 3.0)
+                    input-matrix (math/->mat4-non-uniform translation rotation scale)
+                    _ (math/split-mat4 input-matrix split-translation split-rotation split-scale)
+                    reconstructed-matrix (math/->mat4-non-uniform split-translation split-rotation split-scale)
+                    rotation-length-squared (+ (* (.x split-rotation) (.x split-rotation))
+                                               (* (.y split-rotation) (.y split-rotation))
+                                               (* (.z split-rotation) (.z split-rotation))
+                                               (* (.w split-rotation) (.w split-rotation)))]
+              :when (or (not (near? 1.0 rotation-length-squared))
+                        (not (mat4-eq? input-matrix reconstructed-matrix)))]
+          {:euler euler
+           :scale (math/vecmath->clj scale)
+           :split-rotation (math/vecmath->clj split-rotation)
+           :rotation-length-squared rotation-length-squared
+           :split-scale (math/vecmath->clj split-scale)})]
+
+    (is (= [] non-equivalent))))
+
+(deftest split-mat4-uniform-zero-scale
+  (let [eulers
+        [(vector-of :double 0.0 0.0 0.0)
+         (vector-of :double 0.0 0.0 90.0)
+         (vector-of :double 45.0 0.0 0.0)
+         (vector-of :double 10.0 20.0 30.0)]
+
+        split-translation (Vector3d.)
+        split-rotation (Quat4d.)
+        split-scale (Vector3d.)
+
+        non-equivalent
+        (for [euler eulers
+              :let [rotation (math/euler->quat euler)
+                    translation (Vector3d. 1.0 2.0 3.0)
+                    scale (Vector3d. 0.0 0.0 0.0)
+                    input-matrix (math/->mat4-non-uniform translation rotation scale)
+                    _ (math/split-mat4 input-matrix split-translation split-rotation split-scale)
+                    reconstructed-matrix (math/->mat4-non-uniform split-translation split-rotation split-scale)
+                    rotation-length-squared (+ (* (.x split-rotation) (.x split-rotation))
+                                               (* (.y split-rotation) (.y split-rotation))
+                                               (* (.z split-rotation) (.z split-rotation))
+                                               (* (.w split-rotation) (.w split-rotation)))]
+              :when (or (not (vec3-eq? translation split-translation))
+                        (not (vec3-eq? scale split-scale))
+                        (not (near? 1.0 rotation-length-squared))
+                        (not (mat4-eq? input-matrix reconstructed-matrix)))]
+          {:euler euler
+           :split-translation (math/vecmath->clj split-translation)
+           :split-rotation (math/vecmath->clj split-rotation)
+           :rotation-length-squared rotation-length-squared
+           :split-scale (math/vecmath->clj split-scale)})]
+
+    (is (= [] non-equivalent))))
+
 (deftest from-to->quat->vec
   (let [test-vals [[1 0 0]
                    [0 1 0]
