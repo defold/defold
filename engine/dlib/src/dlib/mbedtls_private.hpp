@@ -31,13 +31,14 @@ namespace dmMbedTls
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
 
-    const char* ResultToString(int ret);
-    void FormatError(int ret, char* buffer, uint32_t buffer_size);
-    dmSocket::Result SocketResultFromSSL(int ret);
-
     dmSSLSocket::Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen);
-    void ConfigureCertificateChain(void* ssl_config);
     void ClearCertificateChain();
+
+    dmSSLSocket::Result NewSocket(dmSocket::Socket socket, const char* host, uint64_t timeout, dmSSLSocket::Socket* sslsocket);
+    dmSSLSocket::Result DeleteSocket(dmSSLSocket::Socket socket);
+    dmSocket::Result SendSocket(dmSSLSocket::Socket socket, const void* buffer, int length, int* sent_bytes);
+    dmSocket::Result ReceiveSocket(dmSSLSocket::Socket socket, void* buffer, int length, int* received_bytes);
+    dmSocket::Result SetSocketReceiveTimeout(dmSSLSocket::Socket socket, uint64_t timeout);
 }
 
 #endif // DM_MBEDTLS_PRIVATE_H
