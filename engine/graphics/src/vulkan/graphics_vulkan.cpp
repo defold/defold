@@ -41,6 +41,28 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
+    #if !ANDROID
+    static PFN_vkCmdBeginRenderingKHR g_vkCmdBeginRenderingKHR = 0;
+    static PFN_vkCmdEndRenderingKHR   g_vkCmdEndRenderingKHR   = 0;
+
+    static void ResolveDynamicRenderingFunctions(VkInstance vk_instance)
+    {
+        if (g_vkCmdBeginRenderingKHR && g_vkCmdEndRenderingKHR)
+        {
+            return;
+        }
+
+        g_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR) vkGetInstanceProcAddr(vk_instance, "vkCmdBeginRenderingKHR");
+        g_vkCmdEndRenderingKHR   = (PFN_vkCmdEndRenderingKHR) vkGetInstanceProcAddr(vk_instance, "vkCmdEndRenderingKHR");
+
+        // Some loaders only expose the promoted Vulkan 1.3 names.
+        if (!g_vkCmdBeginRenderingKHR)
+            g_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR) vkGetInstanceProcAddr(vk_instance, "vkCmdBeginRendering");
+        if (!g_vkCmdEndRenderingKHR)
+            g_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR) vkGetInstanceProcAddr(vk_instance, "vkCmdEndRendering");
+    }
+    #endif
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static HContext                     VulkanGetContext();
@@ -467,7 +489,12 @@ namespace dmGraphics
             const bool is_main_rt = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
             const bool has_msaa = is_main_rt && context->m_SwapChain->HasMultiSampling();
 
+        #if ANDROID
             vkCmdEndRenderingKHR(vk_command_buffer);
+        #else
+            assert(g_vkCmdEndRenderingKHR);
+            g_vkCmdEndRenderingKHR(vk_command_buffer);
+        #endif
 
             if (is_main_rt)
             {
@@ -693,7 +720,12 @@ namespace dmGraphics
             vk_begin_rendering_info.pDepthAttachment     = has_depth_attachment ? &depth_attachment : 0;
             vk_begin_rendering_info.pStencilAttachment   = stencil_attachment_ptr;
 
+        #if ANDROID
             vkCmdBeginRenderingKHR(vk_command_buffer, &vk_begin_rendering_info);
+        #else
+            assert(g_vkCmdBeginRenderingKHR);
+            g_vkCmdBeginRenderingKHR(vk_command_buffer, &vk_begin_rendering_info);
+        #endif
         }
         else
         {
@@ -1749,6 +1781,8 @@ bail:
 
         #if ANDROID
             LoadVulkanFunctions(vk_instance);
+        #else
+            ResolveDynamicRenderingFunctions(vk_instance);
         #endif
 
             g_VulkanContext = new VulkanContext(params, vk_instance);
