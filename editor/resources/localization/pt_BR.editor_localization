@@ -2084,6 +2084,7 @@ error.property-must-be-at-least = "{property}" deve ser pelo menos {min}.
 error.property-must-be-at-most = "{property}" deve ser no máximo {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" não pode ter mais do que {max} anexos de cor.
 error.render-target.color-attachment-width-must-be-greater-than-zero = O anexo de cor {index} deve ter uma largura maior que zero.
+error.collision-object-shape-dimensions-must-be-greater-than-zero = Todas as dimensões devem ser maiores que zero.
 error.collision-object-has-no-shapes = Objeto de Colisão não tem formas.
 error.collision-object-shape-not-supported-in-physics = As formas {shape} não são suportadas na física {physics}.
 error.texture-profiles.format-not-supported-by-texture-compressor = O formato da textura não é suportado pelo compressor de textura.
