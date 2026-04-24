@@ -22,7 +22,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.proto.DdfExtensions;
 import com.dynamo.bob.ProtoBuilder;
 
-import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
@@ -81,7 +80,7 @@ public class ResourceWalker {
             return;
         }
 
-        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(ext);
+        Message.Builder builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {

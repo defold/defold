@@ -118,8 +118,11 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
+PROTOBUF_PACKAGE="protobuf-3.20.1"
+PROTOBUF_JAVA_PROTOC_PACKAGE="protobuf-java-protoc-34.0"
+
 PACKAGES_ALL=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
     "junit-4.6",
     "jsign-4.2",
     "bundletool-all",
@@ -148,7 +151,7 @@ PACKAGES_HOST=[
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_X86_64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -162,7 +165,7 @@ PACKAGES_IOS_X86_64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_IOS_64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -177,7 +180,8 @@ PACKAGES_IOS_64=[
     "SkriBidi-1e8038"]
 
 PACKAGES_MACOS_X86_64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
+    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -207,7 +211,8 @@ PACKAGES_MACOS_X86_64=[
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
+    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -236,7 +241,8 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
+    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "bullet-2.77",
@@ -251,7 +257,8 @@ PACKAGES_WIN32=[
     "SkriBidi-1e8038"]
 
 PACKAGES_WIN32_64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
+    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
@@ -280,7 +287,8 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
+    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-ba5c010c",
@@ -310,7 +318,8 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
+    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-2fed4fc0",
@@ -333,7 +342,7 @@ PACKAGES_LINUX_ARM64=[
     "gltf-validator-2.0.0-dev.3.10"]
 
 PACKAGES_ANDROID=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -348,7 +357,7 @@ PACKAGES_ANDROID=[
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "bullet-2.77",
@@ -363,7 +372,7 @@ PACKAGES_ANDROID_64=[
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
-    "protobuf-3.20.1",
+    PROTOBUF_PACKAGE,
     "bullet-2.77",
     "glfw-2.7.1",
     "wagyu-69",

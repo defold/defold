@@ -19,7 +19,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.Message;
 
 /**
  * Proto builder parameters
@@ -29,6 +29,6 @@ import com.google.protobuf.GeneratedMessageV3;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface ProtoParams {
-    Class<? extends GeneratedMessageV3> messageClass(); // output format
-    Class<? extends GeneratedMessageV3> srcClass();     // input format
+    Class<? extends Message> messageClass(); // output format
+    Class<? extends Message> srcClass();     // input format
 }

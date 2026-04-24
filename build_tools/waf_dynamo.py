@@ -1646,7 +1646,11 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
-    conf.find_program('protoc', var='PROTOC', mandatory = True, path_list = [os.path.join(dynamo_home, "ext", "bin", host_platform)])
+    protoc_path = [os.path.join(dynamo_home, "ext", "bin", host_platform)]
+    conf.find_program('protoc', var='PROTOC', mandatory = True, path_list = protoc_path)
+    conf.find_program('protoc-java', var='PROTOC_JAVA', mandatory = False, path_list = protoc_path)
+    if not conf.env.PROTOC_JAVA:
+        conf.env.PROTOC_JAVA = conf.env.PROTOC
 
     # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
