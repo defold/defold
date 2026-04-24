@@ -956,6 +956,7 @@ namespace dmGraphics
             return;
 
         frame.m_RenderCommandEncoder->endEncoding();
+        frame.m_RenderCommandEncoder->release();
         frame.m_RenderCommandEncoder = 0;
 
         MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
@@ -1100,8 +1101,15 @@ namespace dmGraphics
             }
         }
 
-        // Create a render encoder for this render target
+        // Create a render encoder for this render target. renderCommandEncoder() returns
+        // an autoreleased object, so retain it before draining the local pool.
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         MTL::RenderCommandEncoder* encoder = commandBuffer->renderCommandEncoder(rpDesc);
+        if (encoder)
+        {
+            encoder->retain();
+        }
+        pool->release();
 
         // Configure viewport/scissor
         const uint32_t width  = rt->m_ColorTextureParams[0].m_Width;
@@ -1140,7 +1148,7 @@ namespace dmGraphics
         MetalFrameResource& frame = GetCurrentFrameResource(context);
         assert(!frame.m_InFlight);
 
-        frame.m_AutoReleasePool = 0;
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         frame.m_Drawable = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
         if (frame.m_Drawable)
         {
@@ -1154,6 +1162,7 @@ namespace dmGraphics
         {
             frame.m_CommandBuffer->retain();
         }
+        pool->release();
         frame.m_ConstantScratchBuffer.Rewind();
         frame.m_ArgumentBufferPool.Rewind();
         context->m_RenderTargetBound = 0;
@@ -2590,7 +2599,13 @@ namespace dmGraphics
 
         MetalFrameResource& frame = GetCurrentFrameResource(context);
 
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         MTL::ComputeCommandEncoder* encoder = frame.m_CommandBuffer->computeCommandEncoder();
+        if (encoder)
+        {
+            encoder->retain();
+        }
+        pool->release();
 
         DrawSetupCompute(context, encoder);
 
@@ -2600,6 +2615,7 @@ namespace dmGraphics
         );
 
         encoder->endEncoding();
+        encoder->release();
     }
 
     static MetalShaderModule* CreateShaderModule(MTL::Device* device, const char* src, uint32_t src_size, char* error_buffer, uint32_t error_buffer_size)
@@ -3509,8 +3525,15 @@ namespace dmGraphics
             }
         }
 
-        // Create command buffer and blit encoder
+        // Create command buffer. commandBuffer() returns an autoreleased object, so keep an
+        // owned reference while this helper blocks on completion.
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         MTL::CommandBuffer* cmdBuf = context->m_CommandQueue->commandBuffer();
+        if (cmdBuf)
+        {
+            cmdBuf->retain();
+        }
+        pool->release();
 
         // For each slice, issue copyFromBuffer with the placed footprint
         for (uint32_t slice = 0; slice < layerCount; ++slice)
@@ -3526,7 +3549,13 @@ namespace dmGraphics
             // destination size
             MTL::Size copySize = { (NSUInteger)copyWidth, (NSUInteger)copyHeight, 1 };
 
+            NS::AutoreleasePool* blit_pool = NS::AutoreleasePool::alloc()->init();
             MTL::BlitCommandEncoder* blit = cmdBuf->blitCommandEncoder();
+            if (blit)
+            {
+                blit->retain();
+            }
+            blit_pool->release();
 
             blit->copyFromBuffer(
                 uploadBuffer,
@@ -3541,10 +3570,12 @@ namespace dmGraphics
             );
 
             blit->endEncoding();
+            blit->release();
         }
 
         cmdBuf->commit();
         cmdBuf->waitUntilCompleted();
+        cmdBuf->release();
 
         // cleanup
         uploadBuffer->release();
