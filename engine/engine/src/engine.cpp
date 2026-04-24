@@ -39,7 +39,7 @@
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
-#include <dlib/defold_mbedtls.hpp>
+#include <dlib/mbedtls.hpp>
 #include <graphics/graphics.h>
 #include <extension/extension.hpp>
 #include <gamesys/gamesys.h>

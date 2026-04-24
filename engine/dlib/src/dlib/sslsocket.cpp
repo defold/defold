@@ -16,6 +16,7 @@
 #include "log.h"
 #include "math.h"
 #include "time.h"
+#include "mbedtls_private.hpp"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -70,128 +71,23 @@ struct SSLSocket
     uint64_t                    m_TimeLimit2;
 };
 
-struct SSLSocketContext
-{
-    mbedtls_x509_crt*           m_x509CertChain;
-} g_SSLSocketContext;
-
-#define MBEDTLS_RESULT_TO_STRING_CASE(x) case x: return #x;
-
-// see net_sockets.h, ssl.h and x509.h for error codes
-static const char* MbedTlsToString(int ret)
-{
-    switch(ret)
-    {
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_SOCKET_FAILED);           // -0x0042  /**< Failed to open a socket. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_CONNECT_FAILED);          // -0x0044  /**< The connection to the given server / port failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_BIND_FAILED);             // -0x0046  /**< Binding of the socket failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_LISTEN_FAILED);           // -0x0048  /**< Could not listen on the socket. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_ACCEPT_FAILED);           // -0x004A  /**< Could not accept the incoming connection. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_RECV_FAILED);             // -0x004C  /**< Reading information from the socket failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_SEND_FAILED);             // -0x004E  /**< Sending information through the socket failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_CONN_RESET);              // -0x0050  /**< Connection was reset by peer. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_UNKNOWN_HOST);            // -0x0052  /**< Failed to get an IP address for the given hostname. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_BUFFER_TOO_SMALL);        // -0x0043  /**< Buffer is too small to hold the data. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_INVALID_CONTEXT);         // -0x0045  /**< The context is invalid, eg because it was free()ed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_POLL_FAILED);             // -0x0047  /**< Polling the net context failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_NET_BAD_INPUT_DATA);          // -0x0049  /**< Input invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE);    // -0x2080  /**< Unavailable feature, e.g. RSA hashing/encryption combination. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_UNKNOWN_OID);            // -0x2100  /**< Requested OID is unknown. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_FORMAT);         // -0x2180  /**< The CRT/CRL/CSR format is invalid, e.g. different type expected. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_VERSION);        // -0x2200  /**< The CRT/CRL/CSR version element is invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_SERIAL);         // -0x2280  /**< The serial tag or value is invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_ALG);            // -0x2300  /**< The algorithm tag or value is invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_NAME);           // -0x2380  /**< The name tag or value is invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_DATE);           // -0x2400  /**< The date tag or value is invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_SIGNATURE);      // -0x2480  /**< The signature tag or value invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_INVALID_EXTENSIONS);     // -0x2500  /**< The extension tag or value is invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_UNKNOWN_VERSION);        // -0x2580  /**< CRT/CRL/CSR has an unsupported version number. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_UNKNOWN_SIG_ALG);        // -0x2600  /**< Signature algorithm (oid) is unsupported. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_SIG_MISMATCH);           // -0x2680  /**< Signature algorithms do not match. (see \c ::mbedtls_x509_crt sig_oid) */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_CERT_VERIFY_FAILED);     // -0x2700  /**< Certificate verification failed, e.g. CRL, CA or signature check failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_CERT_UNKNOWN_FORMAT);    // -0x2780  /**< Format not recognized as DER or PEM. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_BAD_INPUT_DATA);         // -0x2800  /**< Input invalid. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_ALLOC_FAILED);           // -0x2880  /**< Allocation of memory failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FILE_IO_ERROR);          // -0x2900  /**< Read/write of file failed. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_BUFFER_TOO_SMALL);       // -0x2980  /**< Destination buffer is too small. */
-    MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FATAL_ERROR);            // -0x3000  /**< A fatal error occurred, eg the chain is too long or the vrfy callback failed. */
-
-    default:
-        return "Unknown error";
-    }
-}
-
-#undef MBEDTLS_RESULT_TO_STRING_CASE
-
-#define SSL_LOGW(MSG, RET) dmLogWarning(MSG  ": %s - %d (%c0x%04X)", MbedTlsToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
-#define SSL_LOGE(MSG, RET) dmLogError(MSG  ": %s - %d (%c0x%04X)", MbedTlsToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
-
-static dmSocket::Result SSLToSocket(int r) {
-    // Currently a very limited list but
-    // connection lost -> RESULT_CONNRESET is essential
-    // for the reconnection functionality/logic.
-    // The majority of the error codes in mbedtls can't
-    // be translated into dmSocket::Result and must be
-    // handled specifically, e.g. ssl_handshake_status and RESULT_HANDSHAKE_FAILED
-    // above.
-    switch (r) {
-        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-        case MBEDTLS_ERR_NET_CONN_RESET:
-        case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
-            return dmSocket::RESULT_CONNRESET;
-        case MBEDTLS_ERR_SSL_TIMEOUT:
-            return dmSocket::RESULT_WOULDBLOCK;
-        case MBEDTLS_ERR_NET_RECV_FAILED:
-        return dmSocket::RESULT_TRY_AGAIN;
-        default:
-            SSL_LOGW("Unhandled ssl status code", r);
-            // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
-            // and abort the request
-            return dmSocket::RESULT_UNKNOWN;
-    }
-}
+#define SSL_LOGW(MSG, RET) dmLogWarning(MSG  ": %s - %d (%c0x%04X)", dmMbedTls::ResultToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
+#define SSL_LOGE(MSG, RET) dmLogError(MSG  ": %s - %d (%c0x%04X)", dmMbedTls::ResultToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET));
 
 Result Initialize()
 {
-    g_SSLSocketContext.m_x509CertChain = 0;
     return RESULT_OK;
 }
 
 Result Finalize()
 {
-    if (g_SSLSocketContext.m_x509CertChain)
-    {
-        mbedtls_x509_crt_free( g_SSLSocketContext.m_x509CertChain );
-        free((void*)g_SSLSocketContext.m_x509CertChain);
-    }
-    g_SSLSocketContext.m_x509CertChain = 0;
+    dmMbedTls::ClearCertificateChain();
     return RESULT_OK;
 }
 
 Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
 {
-    // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
-    if (g_SSLSocketContext.m_x509CertChain)
-    {
-        mbedtls_x509_crt_free( g_SSLSocketContext.m_x509CertChain );
-        free((void*)g_SSLSocketContext.m_x509CertChain);
-    }
-
-    g_SSLSocketContext.m_x509CertChain = (mbedtls_x509_crt*)calloc(1, sizeof(mbedtls_x509_crt));
-    if (!g_SSLSocketContext.m_x509CertChain)
-    {
-        return RESULT_UNKNOWN;
-    }
-
-    int ret = mbedtls_x509_crt_parse(g_SSLSocketContext.m_x509CertChain, key, keylen + 1);
-    if (ret != 0)
-    {
-        char buffer[512] = "";
-        mbedtls_strerror(ret, buffer, sizeof(buffer));
-        dmLogError("SSLSocket mbedtls_x509_crt_parse: %s0x%04x - %s", ret < 0 ? "-":"", ret < 0 ? -ret:ret, buffer);
-        return RESULT_SSL_INIT_FAILED;
-    }
-    return RESULT_OK;
+    return dmMbedTls::SetSslPublicKeys(key, keylen);
 }
 
 static void TimingSetDelay(void* data, uint32_t int_ms, uint32_t fin_ms)
@@ -349,12 +245,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
     mbedtls_ssl_init( c->m_SSLContext );
 
 
-    // The size of buf, including the terminating \c NULL byte in case of PEM encoded data.
-    if (g_SSLSocketContext.m_x509CertChain)
-    {
-        mbedtls_ssl_conf_authmode( c->m_MbedConf, MBEDTLS_SSL_VERIFY_REQUIRED );
-        mbedtls_ssl_conf_ca_chain( c->m_MbedConf, g_SSLSocketContext.m_x509CertChain, NULL);
-    }
+    dmMbedTls::ConfigureCertificateChain(c->m_MbedConf);
 
     if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, c->m_MbedConf ) ) != 0 )
     {
@@ -395,7 +286,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
     if (ret != 0)
     {
         char buffer[512] = "";
-        mbedtls_strerror(ret, buffer, sizeof(buffer));
+        dmMbedTls::FormatError(ret, buffer, sizeof(buffer));
         dmLogError("SSLSocket mbedtls_ssl_handshake: %d - %s  %p",ret, buffer, c);
         if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
         {
@@ -443,7 +334,10 @@ dmSocket::Result Send(SSLSocket* socket, const void* buffer, int length, int* se
 
     if (r < 0) {
         mbedtls_ssl_session_reset(socket->m_SSLContext);
-        return SSLToSocket(r);
+        dmSocket::Result socket_result = dmMbedTls::SocketResultFromSSL(r);
+        if (socket_result == dmSocket::RESULT_UNKNOWN)
+            SSL_LOGW("Unhandled ssl status code", r);
+        return socket_result;
     }
 
     *sent_bytes = r;
@@ -467,7 +361,10 @@ dmSocket::Result Receive(SSLSocket* socket, void* buffer, int length, int* recei
     if( ret <= 0 )
     {
         mbedtls_ssl_session_reset(socket->m_SSLContext);
-        return SSLToSocket(ret);
+        dmSocket::Result socket_result = dmMbedTls::SocketResultFromSSL(ret);
+        if (socket_result == dmSocket::RESULT_UNKNOWN)
+            SSL_LOGW("Unhandled ssl status code", ret);
+        return socket_result;
     }
 
     ((uint8_t*)buffer)[ret] = 0;

@@ -18,7 +18,7 @@
 #include "crypt.h"
 
 #include <dlib/endian.h>
-#include <dlib/defold_mbedtls.hpp>
+#include "mbedtls_private.hpp"
 
 namespace dmCrypt
 {

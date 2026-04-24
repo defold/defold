@@ -12,10 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_DEFOLD_MBEDTLS_H
-#define DM_DEFOLD_MBEDTLS_H
+#ifndef DM_MBEDTLS_PRIVATE_H
+#define DM_MBEDTLS_PRIVATE_H
+
+#include "mbedtls.hpp"
 
 #include <stdint.h>
+#include <dmsdk/dlib/socket.h>
+#include <dmsdk/dlib/sslsocket.h>
 
 namespace dmMbedTls
 {
@@ -27,8 +31,13 @@ namespace dmMbedTls
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
 
-    void Initialize();
-    void Finalize();
+    const char* ResultToString(int ret);
+    void FormatError(int ret, char* buffer, uint32_t buffer_size);
+    dmSocket::Result SocketResultFromSSL(int ret);
+
+    dmSSLSocket::Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen);
+    void ConfigureCertificateChain(void* ssl_config);
+    void ClearCertificateChain();
 }
 
-#endif // DM_DEFOLD_MBEDTLS_H
+#endif // DM_MBEDTLS_PRIVATE_H

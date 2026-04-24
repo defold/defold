@@ -22,7 +22,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/testutil.h>
-#include <dlib/defold_mbedtls.hpp>
+#include <dlib/mbedtls.hpp>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
