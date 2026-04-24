@@ -68,7 +68,7 @@ ANDROID_NDK_VERSION='25b'
 ANDROID_TARGET_API_LEVEL = 36
 ANDROID_PACKAGE = "android-%s" % ANDROID_TARGET_API_LEVEL
 ANDROID_BUILD_TOOLS_VERSION = '36.1.0'
-ANDROID_NDK_API_VERSION='19' # Android 4.4
+ANDROID_NDK_API_VERSION='21' # Android 5.0
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 
 ## **********************************************************************************************
