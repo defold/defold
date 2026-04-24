@@ -37,6 +37,10 @@ if [ -z "${PLATFORM}" ]; then
     exit 1
 fi
 
+if [ "${PLATFORM}" == "armv7-android" ]; then
+    ANDROID_VERSION=21
+fi
+
 if [ "${PLATFORM}" == "arm64-macos" ]; then
     MACOS_ARCHS=arm64
 fi
@@ -212,7 +216,7 @@ cmi_setup_cc ${PLATFORM}
 
 TARGET_CMAKE_ARGS=()
 case ${PLATFORM} in
-    arm64-android|armv7-android)
+    arm64-ios|x86_64-ios|arm64-android|armv7-android)
         TARGET_CMAKE_ARGS+=(
             -DCMAKE_HAVE_LIBC_PTHREAD=1
             -DCMAKE_USE_PTHREADS_INIT=1

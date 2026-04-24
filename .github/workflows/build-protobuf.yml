@@ -65,15 +65,24 @@ jobs:
         run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
 
       - name: Install platform SDK
+        if: ${{ matrix.platforms.target != 'windows' }}
         shell: bash
         run: |
           set -euo pipefail
-          ORIG_PATH="$PATH"
           source ci/env.sh
-          if [ "${{ matrix.platforms.target }}" = "windows" ]; then
-            export PATH="$ORIG_PATH:$PATH"
-          fi
           python scripts/build.py --platform=${{ matrix.platforms.name }} install_sdk
+
+      - name: Install platform SDK (Windows)
+        if: ${{ matrix.platforms.target == 'windows' }}
+        shell: bash
+        env:
+          DEFOLD_HOME: ${{ github.workspace }}
+          DYNAMO_HOME: ${{ github.workspace }}/tmp/dynamo_home
+          PYTHONPATH: ${{ github.workspace }}/tmp/dynamo_home/lib/python:${{ github.workspace }}/build_tools:${{ github.workspace }}/tmp/dynamo_home/ext/lib/python
+          JAVA_HOME: ${{ github.workspace }}/tmp/fake_java
+        run: |
+          set -euo pipefail
+          python ./scripts/build.py --platform=${{ matrix.platforms.name }} install_sdk
 
       - name: Build protobuf
         shell: bash
@@ -82,10 +91,14 @@ jobs:
           ./scripts/build.py --save-env-path=ci/env.sh save_env
 
           ORIG_PATH="$PATH"
-          source ci/env.sh
           if [ "${{ matrix.platforms.target }}" = "windows" ]; then
-            export PATH="$ORIG_PATH:$PATH:$DYNAMO_HOME/ext/bin"
+            export DEFOLD_HOME="$PWD"
+            export DYNAMO_HOME="$PWD/tmp/dynamo_home"
+            export PYTHONPATH="$DYNAMO_HOME/lib/python:$PWD/build_tools:$DYNAMO_HOME/ext/lib/python"
+            export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin:$DYNAMO_HOME/ext/bin/${{ matrix.platforms.name }}:$DYNAMO_HOME/bin:$DYNAMO_HOME/bin/${{ matrix.platforms.name }}"
             export CMAKE_GENERATOR="NMake Makefiles"
+          else
+            source ci/env.sh
           fi
 
           cd share/ext/protobuf
@@ -126,7 +139,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p package
-          python -m pip download --only-binary=:all: --no-deps "protobuf==${PROTOBUF_PYTHON_VERSION}" -d package
+          python -m pip download \
+            --only-binary=:all: \
+            --no-deps \
+            --platform any \
+            --implementation py \
+            --python-version 310 \
+            --abi none \
+            "protobuf==${PROTOBUF_PYTHON_VERSION}" \
+            -d package
+          ls -lh package
 
       - name: Archive Python wheel
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
