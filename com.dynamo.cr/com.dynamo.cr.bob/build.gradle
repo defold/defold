@@ -32,16 +32,16 @@ dependencies {
     implementation fileTree(dir: "${project.bobDir}/lib/aws", include: '*.jar')
 }
 
-def protocJavaPackage = "protobuf-java-protoc-34.0"
+def protobufPackage = "protobuf-34.0"
 
-def protocJavaExecutable = {
+def protocExecutable = {
     if (!project.hostPlatform) {
         throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
     }
-    def executable = project.hostPlatform.endsWith("win32") ? "protoc-java.exe" : "protoc-java"
+    def executable = project.hostPlatform.endsWith("win32") ? "protoc.exe" : "protoc"
     def path = file("${project.dynamoHome}/ext/bin/${project.hostPlatform}/${executable}")
     if (!path.exists()) {
-        throw new RuntimeException("${executable} is missing for ${project.hostPlatform}. Run install_ext to install ${protocJavaPackage} (${path}).")
+        throw new RuntimeException("${executable} is missing for ${project.hostPlatform}. Run install_ext to install ${protobufPackage} (${path}).")
     }
     return path.absolutePath
 }
@@ -68,7 +68,7 @@ gradle.projectsEvaluated {
         tasks.create(name: protoTaskName, type: Exec) {
             group = 'build'
             inputs.file(protoFilePath)
-            inputs.property("protocJavaPackage", protocJavaPackage)
+            inputs.property("protobufPackage", protobufPackage)
             outputs.dir("${project.bobDir}/generated")
             doFirst {
                 if (!protoDir.exists()) {
@@ -78,7 +78,7 @@ gradle.projectsEvaluated {
                     throw new RuntimeException("File '${protoFilePath}' does not exist")
                 }
                 mkdir "${project.bobDir}/generated"
-                commandLine protocJavaExecutable(), "--java_out=${project.bobDir}/generated",
+                commandLine protocExecutable(), "--java_out=${project.bobDir}/generated",
                         "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
                         "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
             }
@@ -97,14 +97,14 @@ task proto(type: Exec) {
     def protoDir = project.findProperty('protoDir') ?: ''
     def protoFile = project.findProperty('protoFile') ?: ''
     inputs.file("${protoDir}/${protoFile}")
-    inputs.property("protocJavaPackage", protocJavaPackage)
+    inputs.property("protobufPackage", protobufPackage)
     outputs.dir("${project.bobDir}/generated")
     doFirst {
         if (!protoDir || !protoFile) {
             throw new RuntimeException("Properties 'protoDir' and 'protoFile' must be specified")
         }
         mkdir "${project.bobDir}/generated"
-        commandLine protocJavaExecutable(), "--java_out=${project.bobDir}/generated",
+        commandLine protocExecutable(), "--java_out=${project.bobDir}/generated",
                 "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
                 "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
     }

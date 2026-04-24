@@ -46,7 +46,7 @@ def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
 
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls']
-    conf.env['STLIB_PROTOBUF'] = ['protobuf']
+    conf.env['STLIB_PROTOBUF'] = waf_dynamo.get_protobuf_stlibs()
 
     if conf.env.PLATFORM == 'linux':
         conf.env['LIB_PTHREAD'] = ['pthread']

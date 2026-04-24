@@ -36,7 +36,7 @@ endif()
 #**************************************************************************
 # Common compile settings
 # Provide the C++ standard via target-level usage requirements
-target_compile_features(defold_sdk INTERFACE cxx_std_11)
+target_compile_features(defold_sdk INTERFACE cxx_std_17)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)

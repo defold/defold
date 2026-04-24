@@ -1,5 +1,37 @@
 defold_log("functions_libs.cmake:")
 
+# Static link closure for protobuf 34.0's protobuf::libprotobuf target. Keep
+# this in the order reported by protobuf's pkg-config metadata.
+set(DEFOLD_PROTOBUF_LIBS
+  protobuf
+  absl_log_internal_check_op absl_die_if_null absl_log_internal_conditions
+  absl_log_internal_message absl_examine_stack absl_log_internal_format
+  absl_log_internal_nullguard absl_log_internal_structured_proto
+  absl_log_internal_proto absl_log_internal_log_sink_set absl_log_sink
+  absl_flags_internal absl_flags_marshalling absl_flags_reflection
+  absl_flags_private_handle_accessor absl_flags_commandlineflag
+  absl_flags_commandlineflag_internal absl_flags_config absl_flags_program_name
+  absl_log_initialize absl_log_internal_globals absl_log_globals
+  absl_vlog_config_internal absl_log_internal_fnmatch absl_raw_hash_set
+  absl_hash absl_city absl_low_level_hash absl_hashtablez_sampler
+  absl_random_distributions absl_random_seed_sequences
+  absl_random_internal_entropy_pool absl_random_internal_randen
+  absl_random_internal_randen_hwaes absl_random_internal_randen_hwaes_impl
+  absl_random_internal_randen_slow absl_random_internal_platform
+  absl_random_internal_seed_material absl_random_seed_gen_exception
+  absl_statusor absl_status absl_cord absl_cordz_info absl_cord_internal
+  absl_cordz_functions absl_exponential_biased absl_cordz_handle
+  absl_crc_cord_state absl_crc32c absl_crc_internal absl_crc_cpu_detect
+  absl_leak_check absl_strerror absl_str_format_internal absl_synchronization
+  absl_graphcycles_internal absl_kernel_timeout_internal absl_stacktrace
+  absl_symbolize absl_debugging_internal absl_demangle_internal
+  absl_demangle_rust absl_decode_rust_punycode absl_utf8_for_code_point
+  absl_malloc_internal absl_tracing_internal absl_time absl_civil_time
+  absl_time_zone utf8_validity utf8_range absl_strings absl_strings_internal
+  absl_string_view absl_int128 absl_base absl_spinlock_wait
+  absl_throw_delegate absl_raw_logging_internal absl_log_severity
+)
+
 # defold_target_link_libraries
 # Link libraries to a target with platform-aware name adjustments.
 #
@@ -30,7 +62,14 @@ function(defold_target_link_libraries target platform)
   endif()
 
   # Remaining unparsed arguments are libraries to link
-  set(_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  set(_LIBS)
+  foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+    if(_lib STREQUAL "PROTOBUF")
+      list(APPEND _LIBS ${DEFOLD_PROTOBUF_LIBS})
+    else()
+      list(APPEND _LIBS "${_lib}")
+    endif()
+  endforeach()
 
   # Derive OS from tuple (e.g., x86_64-win32 -> win32)
   string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")

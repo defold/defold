@@ -30,7 +30,7 @@ echo "Copying linux tools for Docker"
 mkdir testsdk/defoldsdk/lib/x86_64-linux
 mkdir testsdk/defoldsdk/ext/bin/x86_64-linux
 
-tar xvf ./packages/protobuf-2.3.0-x86_64-linux.tar.gz -C testsdk/defoldsdk/ext bin/x86_64-linux/protoc
+tar xvf ./packages/protobuf-34.0-x86_64-linux.tar.gz -C testsdk/defoldsdk/ext bin/x86_64-linux/protoc
 #cp -v ${DYNAMO_HOME}/ext/bin/x86_64-linux/protoc testsdk/defoldsdk/ext/bin/x86_64-linux
 
 if [ ! -f ${DYNAMO_HOME}/lib/x86_64-linux/libdlib_shared.so ]; then

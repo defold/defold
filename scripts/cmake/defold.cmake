@@ -38,7 +38,7 @@ if(TARGET_PLATFORM MATCHES "macos|ios")
 endif()
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
 
-# Force -std=c++11 (no GNU extensions like gnu++11)
+# Force standard C++ mode without GNU extensions.
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Determine which language families we need across the toolchain logic

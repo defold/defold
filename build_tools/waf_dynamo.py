@@ -176,6 +176,41 @@ SDK_ROOT=sdk.SDK_ROOT
 
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
+# Keep this in the order reported by protobuf 34.0's pkg-config metadata for
+# static linking of protobuf::libprotobuf.
+PROTOBUF_STLIBS = """
+protobuf
+absl_log_internal_check_op absl_die_if_null absl_log_internal_conditions
+absl_log_internal_message absl_examine_stack absl_log_internal_format
+absl_log_internal_nullguard absl_log_internal_structured_proto
+absl_log_internal_proto absl_log_internal_log_sink_set absl_log_sink
+absl_flags_internal absl_flags_marshalling absl_flags_reflection
+absl_flags_private_handle_accessor absl_flags_commandlineflag
+absl_flags_commandlineflag_internal absl_flags_config absl_flags_program_name
+absl_log_initialize absl_log_internal_globals absl_log_globals
+absl_vlog_config_internal absl_log_internal_fnmatch absl_raw_hash_set
+absl_hash absl_city absl_low_level_hash absl_hashtablez_sampler
+absl_random_distributions absl_random_seed_sequences
+absl_random_internal_entropy_pool absl_random_internal_randen
+absl_random_internal_randen_hwaes absl_random_internal_randen_hwaes_impl
+absl_random_internal_randen_slow absl_random_internal_platform
+absl_random_internal_seed_material absl_random_seed_gen_exception
+absl_statusor absl_status absl_cord absl_cordz_info absl_cord_internal
+absl_cordz_functions absl_exponential_biased absl_cordz_handle
+absl_crc_cord_state absl_crc32c absl_crc_internal absl_crc_cpu_detect
+absl_leak_check absl_strerror absl_str_format_internal absl_synchronization
+absl_graphcycles_internal absl_kernel_timeout_internal absl_stacktrace
+absl_symbolize absl_debugging_internal absl_demangle_internal
+absl_demangle_rust absl_decode_rust_punycode absl_utf8_for_code_point
+absl_malloc_internal absl_tracing_internal absl_time absl_civil_time
+absl_time_zone utf8_validity utf8_range absl_strings absl_strings_internal
+absl_string_view absl_int128 absl_base absl_spinlock_wait
+absl_throw_delegate absl_raw_logging_internal absl_log_severity
+""".split()
+
+def get_protobuf_stlibs():
+    return list(PROTOBUF_STLIBS)
+
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
 os.environ['CCACHE_CPP2'] = 'yes'
@@ -337,8 +372,10 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    if not use_cl_exe:
-        self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
+    if use_cl_exe:
+        self.env.append_value('CXXFLAGS', ['/std:c++17'])
+    else:
+        self.env.append_value('CXXFLAGS', ['-std=c++17'])
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
         self.env.append_value('DEFINES', 'GITHUB_CI')
@@ -1648,9 +1685,6 @@ def detect(conf):
 
     protoc_path = [os.path.join(dynamo_home, "ext", "bin", host_platform)]
     conf.find_program('protoc', var='PROTOC', mandatory = True, path_list = protoc_path)
-    conf.find_program('protoc-java', var='PROTOC_JAVA', mandatory = False, path_list = protoc_path)
-    if not conf.env.PROTOC_JAVA:
-        conf.env.PROTOC_JAVA = conf.env.PROTOC
 
     # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())

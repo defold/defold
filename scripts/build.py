@@ -118,8 +118,8 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PROTOBUF_PACKAGE="protobuf-3.20.1"
-PROTOBUF_JAVA_PROTOC_PACKAGE="protobuf-java-protoc-34.0"
+PROTOBUF_VERSION="34.0"
+PROTOBUF_PACKAGE="protobuf-%s" % PROTOBUF_VERSION
 
 PACKAGES_ALL=[
     PROTOBUF_PACKAGE,
@@ -181,7 +181,6 @@ PACKAGES_IOS_64=[
 
 PACKAGES_MACOS_X86_64=[
     PROTOBUF_PACKAGE,
-    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -212,7 +211,6 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     PROTOBUF_PACKAGE,
-    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
     "tremolo-b0cb4d1",
@@ -242,7 +240,6 @@ PACKAGES_MACOS_ARM64=[
 
 PACKAGES_WIN32=[
     PROTOBUF_PACKAGE,
-    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "bullet-2.77",
@@ -258,7 +255,6 @@ PACKAGES_WIN32=[
 
 PACKAGES_WIN32_64=[
     PROTOBUF_PACKAGE,
-    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
@@ -288,7 +284,6 @@ PACKAGES_WIN32_64=[
 
 PACKAGES_LINUX_X86_64=[
     PROTOBUF_PACKAGE,
-    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-ba5c010c",
@@ -319,7 +314,6 @@ PACKAGES_LINUX_X86_64=[
 
 PACKAGES_LINUX_ARM64=[
     PROTOBUF_PACKAGE,
-    PROTOBUF_JAVA_PROTOC_PACKAGE,
     "luajit-2.1.0-3e223cb",
     "bullet-2.77",
     "glslang-2fed4fc0",

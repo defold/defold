@@ -5,7 +5,7 @@ if(NOT WIN32)
 endif()
 
 # Ensure C++ standard on Windows builds via target usage
-target_compile_features(defold_sdk INTERFACE cxx_std_14)
+target_compile_features(defold_sdk INTERFACE cxx_std_17)
 
 # Detect compiler front-end (prefer inspecting CMake metadata, but fall back to path checks)
 set(_DEFOLD_MSVC_LIKE OFF)

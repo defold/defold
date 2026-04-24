@@ -158,7 +158,7 @@ proto_gen_py_package = waflib.Task.task_factory('proto_gen_py_package', 'echo ""
                                              after='proto_b',
                                              shell=True)
 
-proto_gen_java = waflib.Task.task_factory('proto_gen_java', '${PROTOC_JAVA} --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_java = waflib.Task.task_factory('proto_gen_java', '${PROTOC} --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
                                        color='RED',
                                        
                                        after='proto_b',
