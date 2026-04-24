@@ -208,8 +208,25 @@ absl_string_view absl_int128 absl_base absl_spinlock_wait
 absl_throw_delegate absl_raw_logging_internal absl_log_severity
 """.split()
 
-def get_protobuf_stlibs():
-    return list(PROTOBUF_STLIBS)
+def is_windows_platform(platform):
+    return platform in ['win32', 'x86_64-win32']
+
+def is_android_platform(platform):
+    return platform in ['armv7-android', 'arm64-android']
+
+def get_protobuf_stlibs(platform=None):
+    if is_windows_platform(platform):
+        return [lib for lib in PROTOBUF_STLIBS if not lib.startswith('absl_')]
+
+    libs = list(PROTOBUF_STLIBS)
+    if is_android_platform(platform):
+        libs += ['c++_static', 'c++abi']
+    return libs
+
+def get_protobuf_libs(platform=None):
+    if is_windows_platform(platform):
+        return [lib for lib in PROTOBUF_STLIBS if lib.startswith('absl_')]
+    return []
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234

@@ -37,6 +37,10 @@ import yaml
 import script_doc_ddf_pb2
 
 
+def field_is_repeated(field):
+    return getattr(field, 'label', None) == FieldDescriptor.LABEL_REPEATED or bool(getattr(field, 'is_repeated', False))
+
+
 LUA_MTL = """
 --[[
 Generated using Defold build pipeline
@@ -566,7 +570,7 @@ def message_to_dict(message):
     ret = {}
     for field in message.DESCRIPTOR.fields:
         value = getattr(message, field.name)
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if field_is_repeated(field):
             lst = []
             for element in value:
                 if isinstance(element, Message):
@@ -767,4 +771,3 @@ if __name__ == '__main__':
     else:
         print ('Unknown type: %s' % options.type)
         sys.exit(5)
-

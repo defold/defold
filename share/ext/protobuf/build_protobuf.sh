@@ -27,6 +27,17 @@ readonly PACKAGE_DIR=${SCRIPTDIR}/package
 
 set -e
 
+case ${PLATFORM} in
+    arm64-android|armv7-android)
+        PACKAGED_ANDROID_NDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"
+        if [ -d "${PACKAGED_ANDROID_NDK_ROOT}" ]; then
+            export ANDROID_NDK_ROOT="${PACKAGED_ANDROID_NDK_ROOT}"
+            export ANDROID_NDK_HOME="${PACKAGED_ANDROID_NDK_ROOT}"
+        fi
+        echo "Using Android NDK root: ${ANDROID_NDK_ROOT}"
+        ;;
+esac
+
 export TMP_HOST=tmp_host
 export TMP_TARGET=tmp_target
 readonly HOST_BUILD_DIR=${SCRIPTDIR}/${TMP_HOST}/_build
@@ -232,9 +243,11 @@ case ${PLATFORM} in
         ;;
     arm64-android|armv7-android)
         TARGET_CMAKE_ARGS+=(
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
             -DCMAKE_HAVE_LIBC_PTHREAD=1
             -DCMAKE_USE_PTHREADS_INIT=1
             -DThreads_FOUND=1
+            -Dprotobuf_HAVE_BUILTIN_ATOMICS=1
         )
         ;;
 esac

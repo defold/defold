@@ -44,6 +44,15 @@ class DefoldImporter(PathFinder):
 
 sys.meta_path.insert(0, DefoldImporter())
 
+def _field_is_repeated(field, FieldDescriptor):
+    return getattr(field, 'label', None) == FieldDescriptor.LABEL_REPEATED or bool(getattr(field, 'is_repeated', False))
+
+def _field_is_optional(field, FieldDescriptor):
+    label = getattr(field, 'label', None)
+    if label is not None:
+        return label == FieldDescriptor.LABEL_OPTIONAL
+    return not bool(getattr(field, 'is_repeated', False)) and not bool(getattr(field, 'is_required', False))
+
 
 @feature('*')
 @before('apply_core')
@@ -69,7 +78,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
         def _validate_field(task, field, value):
             # Handle regular message fields (non-map)
             if field.type == FieldDescriptor.TYPE_MESSAGE and not (field.message_type and field.message_type.GetOptions().map_entry):
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+                if _field_is_repeated(field, FieldDescriptor):
                     for x in value:
                         if isinstance(x, google.protobuf.message.Message):
                             if not validate_resource_files(task, x):
@@ -99,13 +108,13 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             # Handle scalar resource fields
             if is_resource(field):
 
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+                if _field_is_repeated(field, FieldDescriptor):
                     lst = value
                 else:
                     lst = [value]
 
                 for x in lst:
-                    if field.label == FieldDescriptor.LABEL_OPTIONAL and len(x) == 0:
+                    if _field_is_optional(field, FieldDescriptor) and len(x) == 0:
                         # Skip not specified optional fields
                         # These are accepted as "resources"
                         # NOTE: Somewhat strange to test this predicate in a loop
@@ -208,7 +217,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
 
             # Handle regular message fields (non-map)
             if field.type == FieldDescriptor.TYPE_MESSAGE and not (field.message_type and field.message_type.GetOptions().map_entry):
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+                if _field_is_repeated(field, FieldDescriptor):
                     for x in value:
                         if isinstance(x, google.protobuf.message.Message):
                             local_depnodes.extend(scan_msg(task, x))
@@ -233,7 +242,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             # Handle scalar resource fields
             if is_resource(field):
 
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+                if _field_is_repeated(field, FieldDescriptor):
                     lst = value
                 else:
                     lst = [value]

@@ -38,6 +38,10 @@ def normalize_resource_path(value: str) -> str:
     return "/" + value
 
 
+def field_is_repeated(field, field_descriptor_type) -> bool:
+    return getattr(field, "label", None) == field_descriptor_type.LABEL_REPEATED or bool(getattr(field, "is_repeated", False))
+
+
 def collection_node_depth_histogram(message) -> Counter[str]:
     parents = {}
     for node in message.nodes:
@@ -185,14 +189,14 @@ def iter_resource_strings(message) -> list[str]:
     for field in descriptor.fields:
         value = getattr(message, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field_is_repeated(field, FieldDescriptor):
                 for item in value:
                     resources.extend(iter_resource_strings(item))
             else:
                 if message.HasField(field.name):
                     resources.extend(iter_resource_strings(value))
         elif is_resource_field(field):
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field_is_repeated(field, FieldDescriptor):
                 for item in value:
                     normalized = normalize_resource_path(item)
                     if normalized:

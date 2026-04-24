@@ -32,6 +32,9 @@ def is_resource(field_desc):
             return True
     return False
 
+def field_is_repeated(field_desc, FieldDescriptor):
+    return getattr(field_desc, 'label', None) == FieldDescriptor.LABEL_REPEATED or bool(getattr(field_desc, 'is_repeated', False))
+
 def fix_resource_files(msg):
     import google.protobuf
     from google.protobuf.descriptor import FieldDescriptor
@@ -40,13 +43,13 @@ def fix_resource_files(msg):
     for field in descriptor.fields:
         value = getattr(msg, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field_is_repeated(field, FieldDescriptor):
                 for x in value:
                     fix_resource_files(x)
             else:
                 fix_resource_files(value)
         elif is_resource(field):
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field_is_repeated(field, FieldDescriptor):
                 for i, x in enumerate(value):
                     if not x.startswith('/'):
                         value[i] = '/' + x

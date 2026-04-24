@@ -40,11 +40,10 @@ set(DEFOLD_PROTOBUF_LIBS
 #                                 [SCOPE <PRIVATE|PUBLIC|INTERFACE>] <libs...>)
 #
 # Behavior:
-# - For Windows platforms (…-win32), each library name in <libs> is prefixed
-#   with "lib" unless it already starts with "lib", is an absolute path,
-#   is a generator expression (starts with "$<"), is a linker flag (starts with "-"),
-#   or already ends with ".lib".
-# - Exceptions (these already follow Windows naming): hid, hid_null, input,
+# - For Windows platforms (…-win32), Defold static libraries are prefixed with
+#   "lib" unless they already use an exact library name. Protobuf's transitive
+#   Abseil libraries keep their upstream Windows names.
+# - Other exceptions that already follow Windows naming: hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
 # - Other platforms link the names as-is.
 
@@ -66,6 +65,9 @@ function(defold_target_link_libraries target platform)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
     if(_lib STREQUAL "PROTOBUF")
       list(APPEND _LIBS ${DEFOLD_PROTOBUF_LIBS})
+      if(platform MATCHES "-android$")
+        list(APPEND _LIBS c++_static c++abi)
+      endif()
     else()
       list(APPEND _LIBS "${_lib}")
     endif()
@@ -82,7 +84,8 @@ function(defold_target_link_libraries target platform)
       set(_is_exception OFF)
       if(_lib STREQUAL "hid" OR _lib STREQUAL "hid_null"
          OR _lib STREQUAL "input"
-         OR _lib STREQUAL "platform" OR _lib STREQUAL "platform_null" OR _lib STREQUAL "platform_vulkan")
+         OR _lib STREQUAL "platform" OR _lib STREQUAL "platform_null" OR _lib STREQUAL "platform_vulkan"
+         OR _lib MATCHES "^absl_")
         set(_is_exception ON)
       endif()
 
