@@ -15,6 +15,7 @@
 (ns editor.ui.settings-popup
   (:require [cljfx.api :as fx]
             [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.region :as fx.region]
             [cljfx.fx.slider :as fx.slider]
             [clojure.string :as string]
             [editor.colors :as colors]
@@ -34,7 +35,7 @@
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Node Parent]
            [javafx.scene.control Button CheckBox Control Label PopupControl Separator Skin Slider TextField ToggleButton ToggleGroup]
-           [javafx.scene.layout HBox Priority Region]
+           [javafx.scene.layout HBox Priority Region StackPane]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]))
 
@@ -55,6 +56,7 @@
     (prefs/set! prefs (conj prefs-prefix key) v)
     (when on-change-fn (on-change-fn key v))))
 
+;; TODO JOE: Inline this
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
   (let [popup (proxy [PopupControl] []
@@ -295,12 +297,12 @@
            [rows controls] (build-controls keymap localization settings-store popup setting-descriptors hidden-settings)
            anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)]
        (.setPrefWidth region width)
-       (ui/children! region [(doto (Region.)
-                               (ui/add-style! "popup-shadow"))
-                             (doto (VBox. (ui/node-array rows))
-                               (.setFocusTraversable true)
-                               (ensure-focus-traversable!)
-                               (ui/add-style! "popup-settings"))])
+       ;; (ui/children! region [(doto (Region.)
+       ;;                         (ui/add-style! "popup-shadow"))
+       ;;                       (doto (VBox. (ui/node-array rows))
+       ;;                         (.setFocusTraversable true)
+       ;;                         (ensure-focus-traversable!)
+       ;;                         (ui/add-style! "popup-settings"))])
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
@@ -312,10 +314,14 @@
 
 ;; CLJFX Port from here on out
 
-(defn- make-toggle-row-fx [{:keys [label accelerator selected on-selected-changed]}]
+(defn- make-toggle-row-fx [{:keys [label accelerator state swap-state selected on-selected-changed]}]
+   (println state)
   {:fx/type fxui/horizontal
    :style-class "toggle-row"
    :alignment :center-left
+   :on-mouse-clicked (fn [_]
+                       (on-selected-changed (not selected)))
+   ;; :disable true
    :children [{:fx/type fxui/label
                :style-class "slide-switch-label"
                :text (or label "")
@@ -396,19 +402,21 @@
                                        :fx/event axis}}))
                    axes)})
 
-(defn- make-row-fx [keymap localization state descriptor]
+(defn- make-row-fx [keymap localization-state state swap-state descriptor]
   (case (:type descriptor)
     :toggle
     {:fx/type make-toggle-row-fx
-     :label (localization (localization/message (:label descriptor)))
+     :label (localization-state (localization/message (:label descriptor)))
      :accelerator (keymap/display-text keymap (:command descriptor) "")
-     :selected (get state (:key descriptor))
-     :on-selected-changed {:event-type :set-value
-                           :key (:key descriptor)}}
+     :selected (:value descriptor)
+     :state state
+     :swap-state swap-state
+     :on-selected-changed (fn [v]
+                            (:on-value-changed descriptor))}
 
     :slider
     {:fx/type make-slider-row-fx
-     :label (localization (localization/message (:label descriptor)))
+     :label (localization-state (localization/message (:label descriptor)))
      :min (:min descriptor)
      :max (:max descriptor)
      :snap-to (:snap-to descriptor)
@@ -419,7 +427,7 @@
 
     :color
     {:fx/type make-color-row-fx
-     :label (localization (localization/message (:label descriptor)))
+     :label (localization-state (localization/message (:label descriptor)))
      :value (get state (:key descriptor))
      :on-value-changed {:event-type :set-value
                         :key (:key descriptor)}}
@@ -433,18 +441,35 @@
     :vec3-toggle
     {:fx/type make-vec3-toggle-row-fx
      :label (when-let [l (:label descriptor)]
-              (localization (localization/message l)))
+              (localization-state (localization/message (:label descriptor))))
      :value (get state (:key descriptor))
      :on-value-changed {:event-type :set-value
                         :key (:key descriptor)}}
 
     nil))
 
-(defn- cljfx-popup-view [{:keys [descriptors keymap localization state]}]
+(fxui/defc cljfx-popup-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}
+             {:fx/type fx/ext-state
+              :initial-state (:state props)}]}
+  [{:keys [descriptors keymap state swap-state on-change localization-state]}]
+  (println swap-state)
   {:fx/type fxui/vertical
-   :children (into []
-                   (keep (partial make-row-fx keymap localization state))
+   :style-class "popup-settings"
+   :focus-traversable true
+   :children (keep (fn [descriptor]
+                     (make-row-fx keymap localization-state state swap-state descriptor))
                    descriptors)})
+
+(defn- cljfx-popup-desc [descriptors keymap localization state on-change]
+  {:fx/type cljfx-popup-view
+   :descriptors descriptors
+   :keymap keymap
+   :localization localization
+   :state state
+   :on-change on-change})
 
 (defn show!
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors]
@@ -454,37 +479,30 @@
   ([^Parent owner keymap localization state on-change width x-offset setting-descriptors hidden-settings on-closed]
    (when-not (ui/user-data owner ::popup)
      (let [visible-descriptors (remove #(contains? hidden-settings (:key %)) setting-descriptors)
-           state-atom (atom state)
-           renderer (fx/create-renderer
-                      :opts {:fx.opt/map-event-handler
-                             (fx/wrap-effects
-                               identity
-                               {:set-value (fn [[key value] _]
-                                             (swap! state-atom assoc key value)
-                                             (on-change key value))})}
-                      :middleware (fx/wrap-map-desc
-                                    (fn [state]
-                                      {:fx/type cljfx-popup-view
-                                       :descriptors visible-descriptors
-                                       :keymap keymap
-                                       :localization localization
-                                       :state state})))
-           node (fx/instance (fx/create-component
-                               {:fx/type cljfx-popup-view
-                                :descriptors visible-descriptors
-                                :keymap keymap
-                                :localization localization
-                                :state state}
-                               {:fx.opt/map-event-handler (fn [_])}))
-           popup (make-popup owner node)
-           anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)]
-       (fx/mount-renderer state-atom renderer)
+           content (StackPane.)
+           popup (make-popup owner content)
+           anchor ^Point2D (pref-popup-position (.getParent owner) width x-offset)
+           advance! (fn [state]
+                      (fxui/advance-ui-user-data-component!
+                        content ::popup
+                        {:fx/type fxui/ext-with-stack-pane-props
+                         :desc {:fx/type fxui/ext-value :value content}
+                         :props {:children [{:fx/type fx.region/lifecycle
+                                             :style-class "popup-shadow"}
+                                            {:fx/type cljfx-popup-view
+                                             :descriptors visible-descriptors
+                                             :keymap keymap
+                                             :localization localization
+                                             :state state
+                                             :on-change on-change}]}}))]
+       (.setPrefWidth content width)
+       (advance! state)
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
          (ui/on-closed! (fn [e]
-                          (fx/unmount-renderer state-atom renderer)
+                          (fxui/advance-ui-user-data-component! content ::popup nil)
                           (when on-closed (on-closed e))
                           (ui/user-data! owner ::popup nil)))
          (.show owner (.getX anchor) (.getY anchor)))
-       state-atom))))
+       advance!))))
