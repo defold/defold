@@ -58,6 +58,10 @@ namespace dmGraphics
     static int16_t       CreateTextureSampler(MetalContext* context, TextureFilter minFilter, TextureFilter magFilter, TextureWrap uWrap, TextureWrap vWrap, uint8_t maxLod, float maxAnisotropy);
     static void          FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list);
     static void          BeginRenderPass(MetalContext* context, HRenderTarget render_target);
+    static bool          MetalPrepareTextureForUploading(MetalContext* context, MetalTexture* texture, const TextureParams& params);
+    static void          MetalUploadTextureData(MetalContext* context, MetalTexture* texture, const TextureParams& params);
+    static void          MetalDeleteTextureAsync(MetalContext* context, HTexture texture);
+    static void          MetalPostDeleteTextures(MetalContext* context, bool force_delete);
 
     struct ClearParams
     {
@@ -220,6 +224,7 @@ namespace dmGraphics
         if (g_MetalContext)
         {
             MetalContext* context = (MetalContext*) _context;
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
 
             for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
             {
@@ -247,8 +252,20 @@ namespace dmGraphics
                 }
             }
 
+            if (context->m_AsyncProcessingSupport)
+            {
+                MetalPostDeleteTextures(context, true);
+                ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+            }
+
             context->m_Device->release();
             context->m_CommandQueue->release();
+
+            if (context->m_BaseContext.m_AssetHandleContainerMutex)
+            {
+                dmMutex::Delete(context->m_BaseContext.m_AssetHandleContainerMutex);
+                context->m_BaseContext.m_AssetHandleContainerMutex = 0;
+            }
 
             delete (MetalContext*) context;
             g_MetalContext = 0x0;
@@ -1282,6 +1299,11 @@ namespace dmGraphics
         });
 
         frame.m_CommandBuffer->commit();
+
+        if (context->m_AsyncProcessingSupport)
+        {
+            MetalPostDeleteTextures(context, false);
+        }
 
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun = 0;
@@ -3458,16 +3480,69 @@ namespace dmGraphics
 
     static void MetalDeleteTextureInternal(MetalContext* context, MetalTexture* texture)
     {
+        if (!texture)
+        {
+            return;
+        }
         DestroyResourceDeferred(context, texture);
         delete texture;
+    }
+
+    static void MetalDeleteTextureAsync(MetalContext* context, HTexture texture)
+    {
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalDeleteTextureInternal(context, GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
+        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
+    }
+
+    static void MetalPostDeleteTextures(MetalContext* context, bool force_delete)
+    {
+        if (force_delete)
+        {
+            uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                MetalDeleteTextureAsync(context, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
+            }
+            context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
+            return;
+        }
+
+        uint32_t i = 0;
+        while (i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
+        {
+            HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
+            if (!(dmGraphics::GetTextureStatusFlags((HContext) context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            {
+                MetalDeleteTextureAsync(context, texture);
+                context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
     }
 
     static void MetalDeleteTexture(HContext _context, HTexture texture)
     {
         MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        MetalDeleteTextureInternal(context, GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
-        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
+        assert(texture);
+
+        if (!IsAssetHandleValid(_context, texture))
+        {
+            return;
+        }
+
+        if (context->m_AsyncProcessingSupport &&
+            (dmGraphics::GetTextureStatusFlags(_context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+        {
+            PushSetTextureAsyncDeleteTexture(context->m_SetTextureAsyncState, texture);
+        }
+        else
+        {
+            MetalDeleteTextureAsync(context, texture);
+        }
     }
 
     // Helper to compute aligned pitch
@@ -3741,13 +3816,18 @@ namespace dmGraphics
         texture->m_LayerCount         = tex_layer_count;
     }
 
-    static void MetalSetTextureInternal(MetalContext* context, MetalTexture* texture, const TextureParams& params)
+    static bool MetalPrepareTextureForUploading(MetalContext* context, MetalTexture* texture, const TextureParams& params)
     {
+        if (!texture)
+        {
+            return false;
+        }
+
         // Reject unsupported formats
         if (params.m_Format == TEXTURE_FORMAT_DEPTH || params.m_Format == TEXTURE_FORMAT_STENCIL)
         {
             dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(params.m_Format));
-            return;
+            return false;
         }
 
         // Clamp size to Metal limits
@@ -3755,37 +3835,9 @@ namespace dmGraphics
         assert(params.m_Width  <= maxSize);
         assert(params.m_Height <= maxSize);
 
-        // Compute layer count, depth, and bits per pixel
-        uint8_t tex_layer_count = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
-        uint16_t tex_depth      = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
-        uint8_t tex_bpp         = GetTextureFormatBitsPerPixel(params.m_Format);
-        size_t tex_data_size    = params.m_DataSize * tex_layer_count * 8; // bits
-        void* tex_data_ptr      = (void*)params.m_Data;
         texture->m_Base.m_MipMapCount = dmMath::Max(texture->m_Base.m_MipMapCount, (uint8_t)(params.m_MipMap+1));
 
-        // Expand RGB to RGBA if needed
-        TextureFormat format_orig = params.m_Format;
-        TextureFormat format_new = format_orig;
-
-        if (format_orig == TEXTURE_FORMAT_RGB)
-        {
-            uint32_t pixel_count = params.m_Width * params.m_Height * tex_layer_count;
-            uint8_t* data_new = new uint8_t[pixel_count * 4]; // RGBA
-            RepackRGBToRGBA(pixel_count, (uint8_t*)tex_data_ptr, data_new);
-            tex_data_ptr = data_new;
-            tex_bpp = 32;
-            format_new = TEXTURE_FORMAT_RGBA;
-        }
-
-        // Compute tex_data_size in bytes
-        tex_data_size = tex_bpp / 8 * params.m_Width * params.m_Height * tex_depth * tex_layer_count;
-
-        if (params.m_SubUpdate)
-        {
-            // Same as vulkan
-            tex_data_size = params.m_Width * params.m_Height * tex_bpp * tex_layer_count;
-        }
-        else if (params.m_MipMap == 0)
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
         {
             if (texture->m_Base.m_Format != params.m_Format ||
                 texture->m_Base.m_Width != params.m_Width ||
@@ -3801,16 +3853,44 @@ namespace dmGraphics
             CreateMetalTexture(context, texture, params, texture->m_Usage);
         }
 
-        if (tex_data_ptr && tex_data_size > 0)
+        return true;
+    }
+
+    static void MetalUploadTextureData(MetalContext* context, MetalTexture* texture, const TextureParams& params)
+    {
+        if (!texture || !params.m_Data || params.m_DataSize == 0)
         {
-            MetalCopyToTexture(context, texture, format_new, params, (const uint8_t*) tex_data_ptr);
+            return;
         }
 
-        // Clean up temporary RGB->RGBA conversion
+        const TextureFormat format_orig = params.m_Format;
+        TextureFormat format_upload = format_orig;
+        const uint8_t* tex_data_ptr = (const uint8_t*) params.m_Data;
+        uint8_t* data_new = 0;
+
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
-            delete[] (uint8_t*)tex_data_ptr;
+            uint32_t tex_layer_count = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+            uint32_t pixel_count = params.m_Width * params.m_Height * tex_layer_count;
+            data_new = new uint8_t[pixel_count * 4];
+            RepackRGBToRGBA(pixel_count, (uint8_t*) tex_data_ptr, data_new);
+            tex_data_ptr = data_new;
+            format_upload = TEXTURE_FORMAT_RGBA;
         }
+
+        MetalCopyToTexture(context, texture, format_upload, params, tex_data_ptr);
+
+        delete[] data_new;
+    }
+
+    static void MetalSetTextureInternal(MetalContext* context, MetalTexture* texture, const TextureParams& params)
+    {
+        if (!MetalPrepareTextureForUploading(context, texture, params))
+        {
+            return;
+        }
+
+        MetalUploadTextureData(context, texture, params);
     }
 
     static void MetalSetTexture(HContext _context, HTexture texture, const TextureParams& params)
@@ -4037,13 +4117,104 @@ namespace dmGraphics
         }
     }
 
+    static int AsyncProcessTextureCallback(HJobContext, HJob, void* _context, void* data)
+    {
+        MetalContext* context     = (MetalContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (dmAtomicGet32(&context->m_DeleteContextRequested))
+        {
+            return 0;
+        }
+
+        MetalTexture* tex;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
+        }
+
+        if (!tex)
+        {
+            return 0;
+        }
+
+        MetalUploadTextureData(context, tex, ap.m_Params);
+
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
+            if (tex)
+            {
+                int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
+                data_state &= ~(1 << ap.m_Params.m_MipMap);
+                dmAtomicStore32(&tex->m_Base.m_DataState, data_state);
+            }
+        }
+
+        return 0;
+    }
+
+    static void AsyncCompleteTextureCallback(HJobContext, HJob, JobSystemStatus, void* _context, void* data, int)
+    {
+        MetalContext* context     = (MetalContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (ap.m_Callback)
+        {
+            ap.m_Callback(ap.m_Texture, ap.m_UserData);
+        }
+
+        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+    }
+
     static void MetalSetTextureAsync(HContext _context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        // TODO
-        SetTexture(_context, texture, params);
-        if (callback)
+        MetalContext* context = (MetalContext*) _context;
+        if (context->m_AsyncProcessingSupport)
         {
-            callback(texture, user_data);
+            {
+                bool prepare_ok = false;
+                {
+                    DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+                    MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+                    prepare_ok = MetalPrepareTextureForUploading(context, tex, params);
+                    if (prepare_ok)
+                    {
+                        int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
+                        dmAtomicStore32(&tex->m_Base.m_DataState, data_state | (1 << params.m_MipMap));
+
+                        uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
+
+                        Job job = {0};
+                        job.m_Process = AsyncProcessTextureCallback;
+                        job.m_Callback = AsyncCompleteTextureCallback;
+                        job.m_Context = (void*) context;
+                        job.m_Data = (void*) (uintptr_t) param_array_index;
+
+                        HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+                        JobSystemPushJob(context->m_JobContext, hjob);
+                    }
+                }
+
+                if (!prepare_ok)
+                {
+                    if (callback)
+                    {
+                        callback(texture, user_data);
+                    }
+                    return;
+                }
+            }
+        }
+        else
+        {
+            SetTexture(_context, texture, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 
