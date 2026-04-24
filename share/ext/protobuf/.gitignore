@@ -1,3 +1,5 @@
 tmp_*
 install/
+install_host/
+install_target/
 package/

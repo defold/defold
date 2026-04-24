@@ -94,13 +94,13 @@ function cmake_configure_protobuf() {
         -DCMAKE_INSTALL_PREFIX="${install_dir}"
         -DCMAKE_INSTALL_BINDIR="bin/${platform}"
         -DCMAKE_INSTALL_LIBDIR="lib/${platform}"
-        -DCMAKE_OSX_ARCHITECTURES="${MACOS_ARCHS}"
         -DCMAKE_C_COMPILER_WORKS=1
         -DCMAKE_CXX_COMPILER_WORKS=1
         -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}"
         -DCMAKE_CXX_FLAGS="${FLAGS} ${CXXFLAGS}"
         -DCMAKE_CXX_STANDARD=17
         -DCMAKE_CXX_EXTENSIONS=OFF
+        -DABSL_PROPAGATE_CXX_STD=ON
         -Dprotobuf_BUILD_EXAMPLES=OFF
         -Dprotobuf_BUILD_TESTS=OFF
         -Dprotobuf_BUILD_CONFORMANCE=OFF
@@ -117,7 +117,10 @@ function cmake_configure_protobuf() {
         cmake_args+=(-DCMAKE_CXX_COMPILER="${cxx_compiler}")
     fi
     if [ "${MACOS_ARCHS}" != "" ]; then
-        cmake_args+=(-DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_MIN_SDK_VERSION}")
+        cmake_args+=(
+            -DCMAKE_OSX_ARCHITECTURES="${MACOS_ARCHS}"
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_MIN_SDK_VERSION}"
+        )
     fi
 
     cmake "${cmake_args[@]}" "$@"
@@ -211,12 +214,23 @@ unset CFLAGS
 unset CXXFLAGS
 unset CPPFLAGS
 unset FLAGS
+unset MACOSX_DEPLOYMENT_TARGET
+unset SDKROOT
 
 cmi_setup_cc ${PLATFORM}
 
 TARGET_CMAKE_ARGS=()
 case ${PLATFORM} in
-    arm64-ios|x86_64-ios|arm64-android|armv7-android)
+    arm64-ios|x86_64-ios)
+        TARGET_CMAKE_ARGS+=(
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
+            -DCMAKE_HAVE_LIBC_PTHREAD=1
+            -DCMAKE_USE_PTHREADS_INIT=1
+            -DThreads_FOUND=1
+            -Dprotobuf_HAVE_BUILTIN_ATOMICS=1
+        )
+        ;;
+    arm64-android|armv7-android)
         TARGET_CMAKE_ARGS+=(
             -DCMAKE_HAVE_LIBC_PTHREAD=1
             -DCMAKE_USE_PTHREADS_INIT=1
