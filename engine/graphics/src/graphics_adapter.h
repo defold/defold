@@ -103,6 +103,8 @@ namespace dmGraphics
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);
     typedef void (*SetBlendFuncFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+    typedef void (*SetBlendFuncSeparateFn)(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha);
+    typedef void (*SetBlendEquationSeparateFn)(HContext context, BlendEquation equation_color, BlendEquation equation_alpha);
     typedef void (*SetColorMaskFn)(HContext context, bool red, bool green, bool blue, bool alpha);
     typedef void (*SetDepthMaskFn)(HContext context, bool enable_mask);
     typedef void (*SetDepthFuncFn)(HContext context, CompareFunc func);
@@ -202,6 +204,8 @@ namespace dmGraphics
         EnableStateFn m_EnableState;
         DisableStateFn m_DisableState;
         SetBlendFuncFn m_SetBlendFunc;
+        SetBlendFuncSeparateFn m_SetBlendFuncSeparate;
+        SetBlendEquationSeparateFn m_SetBlendEquationSeparate;
         SetColorMaskFn m_SetColorMask;
         SetDepthMaskFn m_SetDepthMask;
         SetDepthFuncFn m_SetDepthFunc;
@@ -303,6 +307,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendFunc); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendFuncSeparate); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendEquationSeparate); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetColorMask); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetDepthMask); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetDepthFunc); \

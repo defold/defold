@@ -39,7 +39,7 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.io ByteArrayInputStream ByteArrayOutputStream]
+  (:import [java.io BufferedReader ByteArrayInputStream ByteArrayOutputStream InputStreamReader OutputStream]
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
            [javafx.scene.layout Region]
@@ -170,6 +170,16 @@
            (http-server/response
              200
              (ByteArrayInputStream. (.getBytes "input stream" StandardCharsets/UTF_8)))
+           :as :string)))
+  (is (= {:status 200
+          :headers {"transfer-encoding" "chunked"}
+          :body "connection write"}
+         (get-written-response
+           (http-server/response
+             200
+             (reify http-server/ConnectionWrite
+               (connection-write! [_ output-stream]
+                 (.write ^OutputStream output-stream (.getBytes "connection write" StandardCharsets/UTF_8)))))
            :as :string))))
 
 (defn- schema-leaves
@@ -298,6 +308,7 @@
               (let [json-body (json/read-str body)]
                 (is (= "3.0.3" (get json-body "openapi")))
                 (is (contains? (get json-body "paths") "/console"))
+                (is (contains? (get json-body "paths") "/console/stream"))
                 (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
                   (is (= "Execute an editor command" (get post-command "summary")))
                   (is (string/includes? (get post-command "description") "`build-html5`"))
@@ -314,6 +325,19 @@
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (string/includes? body "\"lines\":")))
+            (testing "Console streaming"
+              (console/clear-console!)
+              (console/append-console-line! "before")
+              (let [{:keys [status headers body]} @(http/request (str url "/console/stream") :as :input-stream)]
+                (is (= 200 status))
+                (is (= "text/plain; charset=utf-8" (get headers "content-type")))
+                (with-open [^java.io.InputStream body body
+                            ^BufferedReader reader (BufferedReader. (InputStreamReader. body StandardCharsets/UTF_8))]
+                  (is (= "before" (deref (future (.readLine reader)) 2000 ::timeout)))
+                  (console/append-console-line! "after")
+                  (is (= "after" (deref (future (.readLine reader)) 2000 ::timeout)))
+                  (console/clear-console!)
+                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout))))))
             (let [{:keys [status]} @(http/request (str url "/command/") :as :string)]
               (is (= 404 status)))
             (let [{:keys [status headers body]} @(http/request (str url "/command/build-html5") :as :string)]
