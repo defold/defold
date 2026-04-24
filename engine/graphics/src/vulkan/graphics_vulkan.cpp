@@ -1276,6 +1276,7 @@ namespace dmGraphics
         uint32_t created_height = context->m_BaseContext.m_Height;
         const bool want_vsync   = context->m_SwapInterval != 0;
         VkSampleCountFlagBits vk_closest_multisample_flag;
+        VkPipelineCacheCreateInfo vk_pipeline_cache_create_info;
 
         void* device_pNext_chain = 0;
         VkPhysicalDevicePresentIdFeaturesKHR present_id_feature_support = {};
@@ -1406,6 +1407,16 @@ namespace dmGraphics
     #endif
 
         context->m_PipelineCache.SetCapacity(32,64);
+        memset(&vk_pipeline_cache_create_info, 0, sizeof(vk_pipeline_cache_create_info));
+        vk_pipeline_cache_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+        res = vkCreatePipelineCache(context->m_LogicalDevice.m_Device, &vk_pipeline_cache_create_info, 0, &context->m_VkPipelineCache);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create Vulkan pipeline cache, reason: %s", VkResultToStr(res));
+            goto bail;
+        }
+
         context->m_TextureSamplers.SetCapacity(4);
         context->m_FenceResourcesToDestroy.Allocate(8);
 
@@ -1952,7 +1963,7 @@ bail:
         }
     }
 
-    static Pipeline* GetOrCreateComputePipeline(VkDevice vk_device, PipelineCache& pipelineCache, VulkanProgram* program)
+    static Pipeline* GetOrCreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, PipelineCache& pipelineCache, VulkanProgram* program)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
@@ -1965,7 +1976,7 @@ bail:
         {
             Pipeline new_pipeline = {};
 
-            VkResult res = CreateComputePipeline(vk_device, program, &new_pipeline);
+            VkResult res = CreateComputePipeline(vk_device, vk_pipeline_cache, program, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1982,7 +1993,7 @@ bail:
         return cached_pipeline;
     }
 
-    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
+    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
         VulkanProgram* program, RenderTarget* rt, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount)
     {
@@ -2013,7 +2024,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreateGraphicsPipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
+            VkResult res = CreateGraphicsPipeline(vk_device, vk_pipeline_cache, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
             if (res == VK_ERROR_INITIALIZATION_FAILED)
             {
                 dmLogError("Failed to create VkPipeline");
@@ -2941,7 +2952,7 @@ bail:
         VkResult res               = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, VK_PIPELINE_BIND_POINT_COMPUTE, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
-        Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_PipelineCache, program_ptr);
+        Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_VkPipelineCache, context->m_PipelineCache, program_ptr);
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
     }
 
@@ -3026,7 +3037,7 @@ bail:
             vk_sample_count = context->m_SwapChain->m_SampleCountFlag;
         }
 
-        Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
+        Pipeline* pipeline = GetOrCreatePipeline(vk_device, context->m_VkPipelineCache, vk_sample_count,
             pipeline_state_draw, context->m_PipelineCache,
             program_ptr, current_rt, vx_declarations, num_vx_buffers);
 
@@ -4795,6 +4806,11 @@ bail:
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
         context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
+        if (context->m_VkPipelineCache != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineCache(vk_device, context->m_VkPipelineCache, 0);
+            context->m_VkPipelineCache = VK_NULL_HANDLE;
+        }
 
         DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
