@@ -16,6 +16,7 @@ package com.defold.libs;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
@@ -31,9 +32,9 @@ public class MouseCapture {
     static {
         try {
             ResourceUnpacker.unpackResources();
-            Native.register("mouse_capture_shared");
+            Native.register(MouseCapture.class, NativeLibrary.getInstance(ResourceUnpacker.getPreloadedLibraryPath("mouse_capture_shared").toString()));
         } catch (Exception e) {
-            logger.error("Failed to extract/register mousecapture so/dll", e);
+            logger.error("Failed to register bundled mouse_capture_shared", e);
         }
     }
 
