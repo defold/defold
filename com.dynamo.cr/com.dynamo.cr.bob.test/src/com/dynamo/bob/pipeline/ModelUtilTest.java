@@ -23,6 +23,8 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -151,6 +153,15 @@ public class ModelUtilTest {
     }
 
     /*
+     * Helper to test that a track has a certain scale at a specific keyframe.
+     */
+    private void assertAnimationScale(Rig.AnimationTrack track, int keyframe, Vector3d expectedScale) {
+        int i = keyframe * 3;
+        Vector3d actualScale = new Vector3d(track.getScale(i), track.getScale(i+1), track.getScale(i+2));
+        assertV(expectedScale, actualScale);
+    }
+
+    /*
      * Testing that it's the same key through out the track
      */
     private void assertAnimationSamePosScale(Rig.AnimationTrack track) {
@@ -252,6 +263,102 @@ public class ModelUtilTest {
         Modelimporter.Scene scene = loadSceneNoException(path);
         ModelUtil.loadSkeleton(scene, skeletonBuilder);
         return scene;
+    }
+
+    private Rig.AnimationTrack findAnimationTrack(Rig.RigAnimation animation, long boneId) {
+        for (Rig.AnimationTrack track : animation.getTracksList()) {
+            if (track.getBoneId() == boneId) {
+                return track;
+            }
+        }
+        fail("Animation track not found for bone id " + boneId);
+        return null;
+    }
+
+    @Test
+    public void testGltfMeshAttributesAndIndices() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene("quad_mesh.gltf", meshSetBuilder);
+
+        assertNotNull(scene);
+        assertEquals(1, meshSetBuilder.getModelsCount());
+        assertEquals(1, meshSetBuilder.getModels(0).getMeshesCount());
+
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
+        assertEquals(12, mesh.getPositionsCount());
+        assertEquals(12, mesh.getNormalsCount());
+        assertEquals(8, mesh.getTexcoord0Count());
+        assertEquals(2, mesh.getNumTexcoord0Components());
+
+        assertVtx(mesh.getPositionsList(), 0, -1.0, 0.0,  1.0);
+        assertVtx(mesh.getPositionsList(), 1,  1.0, 0.0,  1.0);
+        assertVtx(mesh.getPositionsList(), 2, -1.0, 0.0, -1.0);
+        assertVtx(mesh.getPositionsList(), 3,  1.0, 0.0, -1.0);
+
+        for (int i = 0; i < 4; ++i) {
+            assertNrm(mesh.getNormalsList(), i, 0.0, 1.0, 0.0f);
+        }
+
+        assertUV(mesh.getTexcoord0List(), 0, 0.0, 1.0);
+        assertUV(mesh.getTexcoord0List(), 1, 1.0, 1.0);
+        assertUV(mesh.getTexcoord0List(), 2, 0.0, 0.0);
+        assertUV(mesh.getTexcoord0List(), 3, 1.0, 0.0);
+
+        assertEquals(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndicesFormat());
+        assertEquals(12, mesh.getIndices().size());
+
+        ByteBuffer indices = mesh.getIndices().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        int[] expectedIndices = new int[] {0, 1, 2, 2, 1, 3};
+        for (int i = 0; i < expectedIndices.length; ++i) {
+            assertEquals(expectedIndices[i], indices.getShort(i * 2) & 0xffff);
+        }
+    }
+
+    @Test
+    public void testGltfNoMeshSkeletonAnimation() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene("no_mesh_animated_skeleton.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        assertNotNull(scene);
+        assertEquals(0, meshSetBuilder.getModelsCount());
+        assertEquals(2, skeletonBuilder.getBonesCount());
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+
+        Rig.Bone root = skeletonBuilder.getBones(0);
+        Rig.Bone child = skeletonBuilder.getBones(1);
+        assertEquals("root", root.getName());
+        assertEquals("AnimatedChild", child.getName());
+        assertEquals(-1, root.getParent());
+        assertEquals(0, child.getParent());
+        assertBone(root, new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+        assertBone(child, new Vector3d(0.0, 2.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+
+        Vector3 rootScale = root.getLocal().getScale();
+        assertEquals(0.5, rootScale.getX(), EPSILON);
+        assertEquals(0.5, rootScale.getY(), EPSILON);
+        assertEquals(0.5, rootScale.getZ(), EPSILON);
+
+        Rig.RigAnimation animation = animSetBuilder.getAnimations(0);
+        assertEquals(1.0, animation.getDuration(), EPSILON);
+
+        Rig.AnimationTrack rootTrack = findAnimationTrack(animation, root.getId());
+        Rig.AnimationTrack childTrack = findAnimationTrack(animation, child.getId());
+        assertTrue(rootTrack.getRotationsCount() > 4);
+        assertTrue(childTrack.getPositionsCount() > 3);
+        assertTrue(childTrack.getScaleCount() > 3);
+
+        int lastRootRotationKey = rootTrack.getRotationsCount() / 4 - 1;
+        int lastChildPositionKey = childTrack.getPositionsCount() / 3 - 1;
+        int lastChildScaleKey = childTrack.getScaleCount() / 3 - 1;
+
+        assertAnimationRotation(rootTrack, 0, new Quat4d(0.0, 0.0, 0.0, 1.0));
+        assertAnimationRotation(rootTrack, lastRootRotationKey, new Quat4d(0.0, 0.0, 0.707107, 0.707107));
+        assertAnimationPosition(childTrack, 0, new Vector3d(0.0, 2.0, 0.0));
+        assertAnimationPosition(childTrack, lastChildPositionKey, new Vector3d(0.0, 4.0, 0.0));
+        assertAnimationScale(childTrack, 0, new Vector3d(1.0, 1.0, 1.0));
+        assertAnimationScale(childTrack, lastChildScaleKey, new Vector3d(1.0, 3.0, 1.0));
     }
 
     /*
@@ -394,28 +501,29 @@ public class ModelUtilTest {
     }
 
     /*
-     * glTF file with an asset unit scale set to 0.01.
+     * Tests that the imported GLTF skinned mesh bounds and bone transforms stay within
+     * the expected unscaled bend2bones fixture dimensions.
      */
     @Test
-    public void testAssetUnit() throws Exception {
+    public void testGltfSkinnedMeshBounds() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
 
-        // Bone scale should be unaffected
+        // Bone scale should be unchanged.
         Vector3 boneScale = skeletonBuilder.getBones(1).getLocal().getScale();
         assertEquals(1.0, boneScale.getX(), EPSILON);
         assertEquals(1.0, boneScale.getY(), EPSILON);
         assertEquals(1.0, boneScale.getZ(), EPSILON);
 
-        // Bone positions should be orig_position * unit
+        // Bone positions should match the GLTF fixture.
         Vector3 bonePosition = skeletonBuilder.getBones(1).getLocal().getTranslation();
         assertEquals(0.0, bonePosition.getX(), EPSILON);
         assertEquals(3.0, bonePosition.getY(), EPSILON);
         assertEquals(0.0, bonePosition.getZ(), EPSILON);
 
-        // Mesh vertex position should also be scaled with unit
+        // Mesh vertex bounds should match the GLTF fixture.
         Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         float minX = 1000000.0f;

@@ -40,13 +40,23 @@
   (test-util/with-loaded-project
     (let [{:keys [mesh-set]} (load-scene workspace project "/mesh/quad.gltf")
           content mesh-set
+          positions (->> (get-in content [:models 0 :meshes 0 :positions])
+                         (partition 3)
+                         (mapv vec))
           texcoords (->> (get-in content [:models 0 :meshes 0 :texcoord0])
-                         (partition 2))]
+                         (partition 2)
+                         (mapv vec))]
       (is (seq texcoords))
-      (is (every? (fn [[u v]]
-                    (and (<= 0.0 u 1.0)
-                         (<= 0.0 v 1.0)))
-                  texcoords)))))
+      (is (= [[-0.5 0.0 0.5]
+              [0.5 0.0 0.5]
+              [-0.5 0.0 -0.5]
+              [0.5 0.0 -0.5]]
+             positions))
+      (is (= [[0.0 0.0]
+              [1.0 0.0]
+              [0.0 1.0]
+              [1.0 1.0]]
+             texcoords)))))
 
 (deftest bones
   (test-util/with-loaded-project

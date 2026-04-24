@@ -173,7 +173,7 @@ embedded_components {
 embedded_components {
   id: "model"
   type: "model"
-  data: "mesh: \"/builtins/assets/gltf/quad.gltf\"\n"
+  data: "mesh: \"/level/grid6.gltf\"\n"
   "material: \"/level/grid.material\"\n"
   "textures: \"/level/line.png\"\n"
   "skeleton: \"\"\n"
