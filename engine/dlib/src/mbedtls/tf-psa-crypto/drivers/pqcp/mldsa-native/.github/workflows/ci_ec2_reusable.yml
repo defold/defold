@@ -1,0 +1,235 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: ci-ec2-reusable
+permissions:
+  contents: read
+on:
+  workflow_call:
+    inputs:
+      name:
+        type: string
+        description: Alternative name of instance
+        default: Graviton2
+      ec2_instance_type:
+        type: string
+        description: Type if EC2 instance to benchmark on
+        default: t4g.small
+      ec2_ami:
+        type: string
+        description: Textual description of AMI
+        default: ubuntu-latest (aarch64)
+      ec2_ami_id:
+        type: string
+        description: AMI ID
+        default: ami-0e8c824f386e1de06
+      ec2_volume_size:
+        type: string
+        default: ""
+      cflags:
+        type: string
+        description: Custom CFLAGS for compilation
+        default: ""
+      verbose:
+        description: Determine for the log verbosity
+        type: boolean
+        default: false
+      compile_mode:
+        type: string
+        description: either all, native, cross or none
+        default: all
+      opt:
+        type: string
+        description: either all, opt or no_opt
+        default: all
+      functest:
+        type: boolean
+        default: true
+      kattest:
+        type: boolean
+        default: true
+      acvptest:
+        type: boolean
+        default: true
+      lint:
+        type: boolean
+        default: true
+      test:
+        type: boolean
+        default: true
+      config_variations:
+        type: string
+        description: List of configuration variation tests to run (space-separated IDs) or empty for no tests
+        default: ''
+      cbmc:
+        type: boolean
+        default: false
+      slothy:
+        type: boolean
+        default: false
+      cbmc_mldsa_parameter_set:
+        type: string
+        default: 44
+env:
+  AWS_ROLE: arn:aws:iam::904233116199:role/mldsa-native-ci
+  AWS_REGION: us-east-1
+  AMI_UBUNTU_LATEST_X86_64: ami-084568db4383264d4
+  AMI_UBUNTU_LATEST_AARCH64: ami-0c4e709339fa8521a
+jobs:
+  start-ec2-runner:
+    name: Start instance (${{ inputs.ec2_instance_type }})
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # The point is to make this step non-cancellable,
+                        # avoiding race conditions where an instance is started,
+                        # but isn't yet done registering as a runner and reporting back.
+    outputs:
+      label: ${{ steps.remember-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.remember-runner.outputs.ec2-instance-id }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Determine AMI ID
+        id: det_ami_id
+        run: |
+          if [[ "${{ inputs.ec2_ami }}" == "ubuntu-latest (x86_64)" ]]; then
+            AMI_ID=${{ env.AMI_UBUNTU_LATEST_X86_64 }}
+          elif [[ "${{ inputs.ec2_ami }}" == "ubuntu-latest (aarch64)" ]]; then
+            AMI_ID=${{ env.AMI_UBUNTU_LATEST_AARCH64 }}
+          elif [[ "${{ inputs.ec2_ami }}" == "ubuntu-latest (custom AMI)" ]]; then
+            AMI_ID=${{ inputs.ec2_ami_id }}
+          fi
+          echo "Using AMI ID: $AMI_ID"
+          echo "AMI_ID=$AMI_ID" >> $GITHUB_OUTPUT
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner-first
+        continue-on-error: true
+        uses: machulav/ec2-github-runner@a6dbcefcf8a31a861f5e078bb153ed332130c512 # v2.4.3
+        with:
+          mode: start
+          github-token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          ec2-image-id: ${{ steps.det_ami_id.outputs.AMI_ID }}
+          ec2-volume-size: ${{ inputs.ec2_volume_size }}
+          ec2-instance-type: ${{ inputs.ec2_instance_type }}
+          subnet-id: subnet-094d73eb42eb6bf5b
+          security-group-id: sg-0282706dbc92a1579
+      - name: Start EC2c runner (wait before retry)
+        if: steps.start-ec2-runner-first.outcome == 'failure'
+        shell: bash
+        run: |
+          sleep 30 # Wait 30s before retrying
+          sleep $((1 + RANDOM % 30))
+      - name: Start EC2 runner (retry)
+        id: start-ec2-runner-second
+        if: steps.start-ec2-runner-first.outcome == 'failure'
+        uses: machulav/ec2-github-runner@a6dbcefcf8a31a861f5e078bb153ed332130c512 # v2.4.3
+        with:
+          mode: start
+          github-token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          ec2-image-id: ${{ steps.det_ami_id.outputs.AMI_ID }}
+          ec2-volume-size: ${{ inputs.ec2_volume_size }}
+          ec2-instance-type: ${{ inputs.ec2_instance_type }}
+          subnet-id: subnet-094d73eb42eb6bf5b
+          security-group-id: sg-0282706dbc92a1579
+      - name: Remember runner
+        id: remember-runner
+        shell: bash
+        run: |
+          if [[ "${{ steps.start-ec2-runner-first.outcome }}" == "failure" ]]; then
+            echo "label=${{ steps.start-ec2-runner-second.outputs.label }}" >> "$GITHUB_OUTPUT"
+            echo "ec2-instance-id=${{ steps.start-ec2-runner-second.outputs.ec2-instance-id }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=${{ steps.start-ec2-runner-first.outputs.label }}" >> "$GITHUB_OUTPUT"
+            echo "ec2-instance-id=${{ steps.start-ec2-runner-first.outputs.ec2-instance-id }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  tests:
+    name: Run tests
+    needs: start-ec2-runner
+    runs-on: ${{ needs.start-ec2-runner.outputs.label }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Linting
+        if: ${{ inputs.lint }}
+        uses: ./.github/actions/lint
+        with:
+          nix-shell: ci-linter
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          nix-verbose: ${{ inputs.verbose }}
+      - name: Functional Tests
+        if: ${{ inputs.test }}
+        uses: ./.github/actions/multi-functest
+        with:
+          nix-shell: ${{ (inputs.compile_mode == 'cross' || inputs.compile_mode == 'all') && 'ci-cross' || 'ci' }}
+          nix-cache: ${{ inputs.cbmc || inputs.compile_mode == 'cross' || inputs.compile_mode == 'all' }}
+          nix-verbose: ${{ inputs.verbose }}
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          cflags: ${{ inputs.cflags }}
+          compile_mode: ${{ inputs.compile_mode }}
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.functest }}
+          kat: ${{ inputs.kattest }}
+          acvp: ${{ inputs.acvptest }}
+      - name: Config Variations
+        if: ${{ inputs.config_variations != '' && (success() || failure()) }}
+        uses: ./.github/actions/config-variations
+        with:
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          tests: ${{ inputs.config_variations }}
+          opt: opt
+      - name: CBMC
+        if: ${{ inputs.cbmc && (success() || failure()) }}
+        uses: ./.github/actions/cbmc
+        with:
+          nix-shell: ci-cbmc
+          nix-verbose: ${{ inputs.verbose }}
+          mldsa_parameter_set: ${{ inputs.cbmc_mldsa_parameter_set }}
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+      - name: SLOTHY
+        if: ${{ inputs.slothy }}
+        uses: ./.github/actions/setup-shell
+        with:
+          gh_token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          nix-cache: true
+          nix-shell: ci-slothy
+          script: |
+            autogen --slothy
+            tests all --opt opt
+            # Force testing of SLOTHY-optimized Keccak variants
+            # We can't run the examples here because some of them also specify the backend
+            make clean
+            tests all --no-examples --opt opt --cflags="-DMLD_CONFIG_FIPS202_BACKEND_FILE=\\\"fips202/native/aarch64/x1_scalar.h\\\""
+            make clean
+            tests all --no-examples --opt opt --cflags="-DMLD_CONFIG_FIPS202_BACKEND_FILE=\\\"fips202/native/aarch64/x4_v8a_scalar.h\\\""
+            make clean
+            tests all --no-examples --opt opt --cflags="-march=armv8.4-a+sha3 -DMLD_CONFIG_FIPS202_BACKEND_FILE=\\\"fips202/native/aarch64/x4_v8a_v84a_scalar.h\\\""
+  stop-ec2-runner:
+    name: Stop instance (${{ inputs.ec2_instance_type }})
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs:
+      - start-ec2-runner
+      - tests
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@a6dbcefcf8a31a861f5e078bb153ed332130c512 # v2.4.3
+        with:
+          mode: stop
+          github-token: ${{ secrets.AWS_GITHUB_TOKEN }}
+          label: ${{ needs.start-ec2-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-ec2-runner.outputs.ec2-instance-id }}
