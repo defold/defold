@@ -332,12 +332,14 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
     dmSocket::SetSendTimeout(socket, (int)timeout);
     dmSocket::SetReceiveTimeout(socket, (int)timeout);
 
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
     if (timeout != 0)
     {
         int mbed_ssl_timeout = dmMath::Max((int)timeout, dmSocket::SOCKET_TIMEOUT) / 1000;
         mbed_ssl_timeout = dmMath::Max(1, mbed_ssl_timeout);
         mbedtls_ssl_conf_handshake_timeout(c->m_MbedConf, 1, mbed_ssl_timeout);
     }
+#endif
 
     c->m_SSLNetContext->m_Timeout = timeout;
     mbedtls_ssl_init(c->m_SSLContext);

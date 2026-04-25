@@ -156,12 +156,40 @@ def build(bld):
 
     mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include', './mbedtls/tf-psa-crypto/drivers/builtin/include']
 
+    # If we have optimizations on, let's minimize this library
+    opt_level = getattr(Options.options, 'opt_level', '')
+    FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
+    remove_flags = {}
+    new_opt_level = False
+
+    mbedtls_defines = [
+        'MBEDTLS_THREADING_ALT',
+        'MBEDTLS_THREADING_C',
+        'DM_MBEDTLS_DISABLE_ASM',
+        'MBEDTLS_USER_CONFIG_FILE="mbedtls_user_config.h"',
+        'TF_PSA_CRYPTO_USER_CONFIG_FILE="tf_psa_crypto_user_config.h"',
+    ]
+    if bld.env.PLATFORM == 'wasm-web':
+        mbedtls_defines += ['DM_MBEDTLS_CRYPTO_ONLY']
+    elif sslsocket_uses_mbedtls:
+        mbedtls_defines += ['DM_MBEDTLS_TLS_CLIENT_ONLY']
+    if opt_level in ['3','2']:
+        remove_flags['CFLAGS'] = []
+        remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        remove_flags['CXXFLAGS'] = []
+        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        new_opt_level = True
+        # if in release mode we'll only keep a (non verbose) print function
+        mbedtls_defines += ['DM_MBEDTLS_ERROR_STRERROR_DUMMY']
+    else:
+        mbedtls_defines += ['DM_MBEDTLS_ERROR_C']
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
                      includes = mbedtls_public_includes,
                      target   = 'dlib',
                      use      = ['zip'],
-                     defines  = ['VALGRIND'] + extra_defines)
+                     defines  = ['VALGRIND'] + extra_defines + mbedtls_defines)
 
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
@@ -205,32 +233,6 @@ def build(bld):
         ]
     if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
         mbedtls_dirs = 'mbedtls_stub/**/*.c'.split()
-
-    # If we have optimizations on, let's minimize this library
-    opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
-    remove_flags = {}
-    new_opt_level = False
-
-    mbedtls_defines = [
-        'MBEDTLS_THREADING_ALT',
-        'MBEDTLS_THREADING_C',
-        'DM_MBEDTLS_DISABLE_ASM',
-        'MBEDTLS_USER_CONFIG_FILE="mbedtls_user_config.h"',
-        'TF_PSA_CRYPTO_USER_CONFIG_FILE="tf_psa_crypto_user_config.h"',
-    ]
-    if bld.env.PLATFORM == 'wasm-web':
-        mbedtls_defines += ['DM_MBEDTLS_CRYPTO_ONLY']
-    if opt_level in ['3','2']:
-        remove_flags['CFLAGS'] = []
-        remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        remove_flags['CXXFLAGS'] = []
-        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        new_opt_level = True
-        # if in release mode we'll only keep a (non verbose) print function
-        mbedtls_defines += ['DM_MBEDTLS_ERROR_STRERROR_DUMMY']
-    else:
-        mbedtls_defines += ['DM_MBEDTLS_ERROR_C']
 
     mbedtls_includes = mbedtls_public_includes + [
         './mbedtls/library',
@@ -346,7 +348,7 @@ def build(bld):
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
                                 includes = mbedtls_public_includes,
                                 target = 'dlib_shared',
-                                defines= ['VALGRIND'] + extra_defines,
+                                defines= ['VALGRIND'] + extra_defines + mbedtls_defines,
                                 use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
