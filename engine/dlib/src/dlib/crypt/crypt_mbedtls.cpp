@@ -17,52 +17,38 @@
 #include <string.h>
 
 #include <mbedtls/base64.h>
-#include <mbedtls/md5.h>
-#include <mbedtls/sha1.h>
-#include <mbedtls/sha256.h>
-#include <mbedtls/sha512.h>
+#include <mbedtls/md.h>
 
 namespace dmCrypt
 {
-    void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
+    static void HashMbedTLS(mbedtls_md_type_t type, const uint8_t* buf, uint32_t buflen, uint8_t* digest, uint32_t digest_len)
     {
-        mbedtls_sha1_context ctx;
-        mbedtls_sha1_init(&ctx);
-        mbedtls_sha1_starts(&ctx);
-        mbedtls_sha1_update(&ctx, (const unsigned char*)buf, (size_t)buflen);
-        int ret = mbedtls_sha1_finish(&ctx, (unsigned char*)digest);
-        mbedtls_sha1_free(&ctx);
+        const mbedtls_md_info_t* md_info = mbedtls_md_info_from_type(type);
+        int ret = md_info ? mbedtls_md(md_info, (const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest) : -1;
         if (ret != 0)
         {
-            memset(digest, 0, 20);
+            memset(digest, 0, digest_len);
         }
+    }
+
+    void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
+    {
+        HashMbedTLS(MBEDTLS_MD_SHA1, buf, buflen, digest, 20);
     }
 
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        int ret = mbedtls_sha256((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
-        if (ret != 0)
-        {
-            memset(digest, 0, 32);
-        }
+        HashMbedTLS(MBEDTLS_MD_SHA256, buf, buflen, digest, 32);
     }
 
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        int ret = mbedtls_sha512((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
-        if (ret != 0)
-        {
-            memset(digest, 0, 64);
-        }
+        HashMbedTLS(MBEDTLS_MD_SHA512, buf, buflen, digest, 64);
     }
 
     void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        int ret = mbedtls_md5((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest);
-        if (ret != 0)
-        {
-            memset(digest, 0, 16);
-        }
+        HashMbedTLS(MBEDTLS_MD_MD5, buf, buflen, digest, 16);
     }
 
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)

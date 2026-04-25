@@ -472,39 +472,87 @@ dmSocket::Result SetReceiveTimeout(Socket socket, uint64_t timeout)
 
 #if defined(MBEDTLS_THREADING_ALT)
 
+#include <dlib/condition_variable.h>
 #include <dlib/mutex.h>
 #include <mbedtls/threading.h>
 
-static void dm_mbedtls_mutex_init(mbedtls_threading_mutex_t* mutex_wrapper)
+static int dm_mbedtls_mutex_init(mbedtls_platform_mutex_t* mutex_wrapper)
 {
     mutex_wrapper->mutex = dmMutex::New();
+    return mutex_wrapper->mutex ? 0 : MBEDTLS_ERR_THREADING_USAGE_ERROR;
 }
 
-static void dm_mbedtls_mutex_free(mbedtls_threading_mutex_t* mutex_wrapper)
+static void dm_mbedtls_mutex_free(mbedtls_platform_mutex_t* mutex_wrapper)
 {
     if (mutex_wrapper->mutex != 0x0)
     {
         dmMutex::Delete((dmMutex::HMutex)mutex_wrapper->mutex);
+        mutex_wrapper->mutex = 0x0;
     }
 }
 
-static int dm_mbedtls_mutex_lock(mbedtls_threading_mutex_t* mutex_wrapper)
+static int dm_mbedtls_mutex_lock(mbedtls_platform_mutex_t* mutex_wrapper)
 {
     if (mutex_wrapper == 0x0 || mutex_wrapper->mutex == 0x0)
     {
-        return MBEDTLS_ERR_THREADING_BAD_INPUT_DATA;
+        return MBEDTLS_ERR_THREADING_USAGE_ERROR;
     }
     dmMutex::Lock((dmMutex::HMutex)mutex_wrapper->mutex);
     return 0;
 }
 
-static int dm_mbedtls_mutex_unlock(mbedtls_threading_mutex_t* mutex_wrapper)
+static int dm_mbedtls_mutex_unlock(mbedtls_platform_mutex_t* mutex_wrapper)
 {
     if (mutex_wrapper == 0x0 || mutex_wrapper->mutex == 0x0)
     {
-        return MBEDTLS_ERR_THREADING_BAD_INPUT_DATA;
+        return MBEDTLS_ERR_THREADING_USAGE_ERROR;
     }
     dmMutex::Unlock((dmMutex::HMutex)mutex_wrapper->mutex);
+    return 0;
+}
+
+static int dm_mbedtls_condition_init(mbedtls_platform_condition_variable_t* condition_wrapper)
+{
+    condition_wrapper->condition = dmConditionVariable::New();
+    return condition_wrapper->condition ? 0 : MBEDTLS_ERR_THREADING_USAGE_ERROR;
+}
+
+static void dm_mbedtls_condition_free(mbedtls_platform_condition_variable_t* condition_wrapper)
+{
+    if (condition_wrapper->condition != 0x0)
+    {
+        dmConditionVariable::Delete((dmConditionVariable::HConditionVariable)condition_wrapper->condition);
+        condition_wrapper->condition = 0x0;
+    }
+}
+
+static int dm_mbedtls_condition_signal(mbedtls_platform_condition_variable_t* condition_wrapper)
+{
+    if (condition_wrapper == 0x0 || condition_wrapper->condition == 0x0)
+    {
+        return MBEDTLS_ERR_THREADING_USAGE_ERROR;
+    }
+    dmConditionVariable::Signal((dmConditionVariable::HConditionVariable)condition_wrapper->condition);
+    return 0;
+}
+
+static int dm_mbedtls_condition_broadcast(mbedtls_platform_condition_variable_t* condition_wrapper)
+{
+    if (condition_wrapper == 0x0 || condition_wrapper->condition == 0x0)
+    {
+        return MBEDTLS_ERR_THREADING_USAGE_ERROR;
+    }
+    dmConditionVariable::Broadcast((dmConditionVariable::HConditionVariable)condition_wrapper->condition);
+    return 0;
+}
+
+static int dm_mbedtls_condition_wait(mbedtls_platform_condition_variable_t* condition_wrapper, mbedtls_platform_mutex_t* mutex_wrapper)
+{
+    if (condition_wrapper == 0x0 || condition_wrapper->condition == 0x0 || mutex_wrapper == 0x0 || mutex_wrapper->mutex == 0x0)
+    {
+        return MBEDTLS_ERR_THREADING_USAGE_ERROR;
+    }
+    dmConditionVariable::Wait((dmConditionVariable::HConditionVariable)condition_wrapper->condition, (dmMutex::HMutex)mutex_wrapper->mutex);
     return 0;
 }
 
@@ -517,7 +565,12 @@ Result Initialize()
         dm_mbedtls_mutex_init,
         dm_mbedtls_mutex_free,
         dm_mbedtls_mutex_lock,
-        dm_mbedtls_mutex_unlock
+        dm_mbedtls_mutex_unlock,
+        dm_mbedtls_condition_init,
+        dm_mbedtls_condition_free,
+        dm_mbedtls_condition_signal,
+        dm_mbedtls_condition_broadcast,
+        dm_mbedtls_condition_wait
     );
     return RESULT_OK;
 }

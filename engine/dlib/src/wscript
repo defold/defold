@@ -154,9 +154,11 @@ def build(bld):
     if sslsocket_files:
         sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
 
+    mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include']
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
-                     includes = ['.', './mbedtls/include'],
+                     includes = mbedtls_public_includes,
                      target   = 'dlib',
                      use      = ['zip'],
                      defines  = ['VALGRIND'] + extra_defines)
@@ -180,7 +182,14 @@ def build(bld):
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
-    mbedtls_dirs = 'mbedtls/library/**/*.c'.split()
+    mbedtls_dirs = [
+        'mbedtls/library/**/*.c',
+        'mbedtls/tf-psa-crypto/core/*.c',
+        'mbedtls/tf-psa-crypto/drivers/builtin/src/*.c',
+        'mbedtls/tf-psa-crypto/extras/*.c',
+        'mbedtls/tf-psa-crypto/platform/*.c',
+        'mbedtls/tf-psa-crypto/utilities/*.c',
+    ]
     if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
         mbedtls_dirs = 'mbedtls_stub/**/*.c'.split()
 
@@ -190,7 +199,13 @@ def build(bld):
     remove_flags = {}
     new_opt_level = False
 
-    mbedtls_defines = ['MBEDTLS_THREADING_ALT']
+    mbedtls_defines = [
+        'MBEDTLS_THREADING_ALT',
+        'MBEDTLS_THREADING_C',
+        'DM_MBEDTLS_DISABLE_ASM',
+        'MBEDTLS_USER_CONFIG_FILE="mbedtls_user_config.h"',
+        'TF_PSA_CRYPTO_USER_CONFIG_FILE="tf_psa_crypto_user_config.h"',
+    ]
     if opt_level in ['3','2']:
         remove_flags['CFLAGS'] = []
         remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
@@ -198,12 +213,26 @@ def build(bld):
         remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
         new_opt_level = True
         # if in release mode we'll only keep a (non verbose) print function
-        mbedtls_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
+        mbedtls_defines += ['DM_MBEDTLS_ERROR_STRERROR_DUMMY']
     else:
-        mbedtls_defines += ['MBEDTLS_ERROR_C']
+        mbedtls_defines += ['DM_MBEDTLS_ERROR_C']
+
+    mbedtls_includes = mbedtls_public_includes + [
+        './mbedtls/library',
+        './mbedtls/tf-psa-crypto/core',
+        './mbedtls/tf-psa-crypto/dispatch',
+        './mbedtls/tf-psa-crypto/drivers/builtin/include',
+        './mbedtls/tf-psa-crypto/drivers/builtin/src',
+        './mbedtls/tf-psa-crypto/drivers/everest/include',
+        './mbedtls/tf-psa-crypto/drivers/p256-m',
+        './mbedtls/tf-psa-crypto/drivers/pqcp/include',
+        './mbedtls/tf-psa-crypto/extras',
+        './mbedtls/tf-psa-crypto/platform',
+        './mbedtls/tf-psa-crypto/utilities',
+    ]
 
     mbedtls = bld.stlib(features    = 'c cxx remove_flags',
-                  includes    = '. ./mbedtls/include',
+                  includes    = mbedtls_includes,
                   target      = 'mbedtls',
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
@@ -301,7 +330,7 @@ def build(bld):
 
     if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
-                                includes = '. ./mbedtls/include',
+                                includes = mbedtls_public_includes,
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
