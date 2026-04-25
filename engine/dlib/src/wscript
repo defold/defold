@@ -150,7 +150,9 @@ def build(bld):
         sslsocket_files.append('sslsocket_mbedtls.cpp')
     elif target_os in ['macos', 'ios']:
         sslsocket_files.append('sslsocket_darwin.mm')
-    sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
+    sslsocket_source_files = []
+    if sslsocket_files:
+        sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
 
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
