@@ -33,7 +33,7 @@
 
 namespace
 {
-    #define MBED_DEBUG_LEVEL 1
+    #define MBED_DEBUG_LEVEL 0
     #define SSL_LOGW(MSG, RET) dmLogWarning(MSG  ": %s - %d (%c0x%04X)", ResultToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET))
     #define SSL_LOGE(MSG, RET) dmLogError(MSG  ": %s - %d (%c0x%04X)", ResultToString(RET), (RET), (RET) < 0 ? '-':' ', (RET)<0?-(RET):(RET))
 
@@ -344,6 +344,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
     c->m_SSLNetContext->m_Timeout = timeout;
     mbedtls_ssl_init(c->m_SSLContext);
 
+    bool verify_certificate = g_MbedTlsContext.m_x509CertChain != 0;
     ConfigureCertificateChain(c->m_MbedConf);
 
     if ((ret = mbedtls_ssl_setup(c->m_SSLContext, c->m_MbedConf)) != 0)
@@ -399,7 +400,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
     }
 
     int flags = mbedtls_ssl_get_verify_result(c->m_SSLContext);
-    if (flags != 0)
+    if (flags != 0 && (verify_certificate || flags != MBEDTLS_X509_BADCERT_SKIP_VERIFY))
     {
         char vrfy_buf[512];
         mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ! ", flags);
@@ -435,7 +436,12 @@ dmSocket::Result Send(Socket socket, const void* buffer, int length, int* sent_b
 
 dmSocket::Result Receive(Socket socket, void* buffer, int length, int* received_bytes)
 {
-    int ret = mbedtls_ssl_read(socket->m_SSLContext, (unsigned char*)buffer, length - 1);
+    int ret = 0;
+    do
+    {
+        ret = mbedtls_ssl_read(socket->m_SSLContext, (unsigned char*)buffer, length - 1);
+    } while (ret == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET);
+
     if (ret == MBEDTLS_ERR_SSL_WANT_READ ||
         ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
         ret == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS)
@@ -559,12 +565,6 @@ namespace dmSSLSocket
 
 Result Initialize()
 {
-    Result result = InitializePSA();
-    if (result != RESULT_OK)
-    {
-        return result;
-    }
-
     mbedtls_threading_set_alt(
         dm_mbedtls_mutex_init,
         dm_mbedtls_mutex_free,
@@ -576,7 +576,13 @@ Result Initialize()
         dm_mbedtls_condition_broadcast,
         dm_mbedtls_condition_wait
     );
-    return RESULT_OK;
+
+    Result result = InitializePSA();
+    if (result != RESULT_OK)
+    {
+        mbedtls_threading_free_alt();
+    }
+    return result;
 }
 
 Result Finalize()

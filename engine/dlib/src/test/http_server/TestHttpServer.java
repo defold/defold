@@ -15,9 +15,12 @@
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSession;
 
 import java.net.*;
+import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.*;
@@ -67,6 +70,52 @@ class TestSslSocketConnector extends ServerConnector
             throw new RuntimeException(e);
         }
         super.accept(acceptorID);
+    }
+}
+
+class Tls12SslContextFactory extends SslContextFactory.Server
+{
+    private static final String[] TLS12_SIGNATURE_SCHEMES = {
+        "rsa_pkcs1_sha512",
+        "rsa_pkcs1_sha384",
+        "rsa_pkcs1_sha256",
+        "rsa_pkcs1_sha1"
+    };
+
+    private static final Method SET_SIGNATURE_SCHEMES = GetSetSignatureSchemesMethod();
+
+    @Override
+    public void customize(SSLEngine engine)
+    {
+        super.customize(engine);
+
+        if (SET_SIGNATURE_SCHEMES == null)
+        {
+            return;
+        }
+
+        SSLParameters parameters = engine.getSSLParameters();
+        try
+        {
+            SET_SIGNATURE_SCHEMES.invoke(parameters, (Object)TLS12_SIGNATURE_SCHEMES);
+            engine.setSSLParameters(parameters);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Method GetSetSignatureSchemesMethod()
+    {
+        try
+        {
+            return SSLParameters.class.getMethod("setSignatureSchemes", String[].class);
+        }
+        catch (NoSuchMethodException e)
+        {
+            return null;
+        }
     }
 }
 
@@ -373,7 +422,11 @@ public class TestHttpServer extends AbstractHandler
 
     static SslContextFactory.Server NewSslContextFactory(String... protocols)
     {
-        SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
+        return NewSslContextFactory(new SslContextFactory.Server(), protocols);
+    }
+
+    static SslContextFactory.Server NewSslContextFactory(SslContextFactory.Server sslContextFactory, String... protocols)
+    {
         sslContextFactory.setSniRequired(false);
         sslContextFactory.setSslSessionTimeout(5); // seconds
         sslContextFactory.setKeyStorePath("src/test/data/keystore");
@@ -856,7 +909,7 @@ public class TestHttpServer extends AbstractHandler
             HttpConnectionFactory connectionFactory = new HttpConnectionFactory(httpConfig);
 
             SslContextFactory.Server defaultSslContextFactory = NewSslContextFactory();
-            SslContextFactory.Server tls12SslContextFactory = NewSslContextFactory("TLSv1.2");
+            SslContextFactory.Server tls12SslContextFactory = NewSslContextFactory(new Tls12SslContextFactory(), "TLSv1.2");
             SslContextFactory.Server tls13SslContextFactory = NewSslContextFactory("TLSv1.3");
 
             ServerConnector tlsConnector = new ServerConnector(server, defaultSslContextFactory, connectionFactory);
