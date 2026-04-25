@@ -154,7 +154,7 @@ def build(bld):
     if sslsocket_files:
         sslsocket_source_files = bld.path.ant_glob(['dlib/%s' % file for file in sslsocket_files])
 
-    mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include']
+    mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include', './mbedtls/tf-psa-crypto/drivers/builtin/include']
 
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files + crypt_source_files + sslsocket_source_files,
@@ -182,14 +182,27 @@ def build(bld):
                           target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
-    mbedtls_dirs = [
-        'mbedtls/library/**/*.c',
-        'mbedtls/tf-psa-crypto/core/*.c',
-        'mbedtls/tf-psa-crypto/drivers/builtin/src/*.c',
-        'mbedtls/tf-psa-crypto/extras/*.c',
-        'mbedtls/tf-psa-crypto/platform/*.c',
-        'mbedtls/tf-psa-crypto/utilities/*.c',
-    ]
+    if bld.env.PLATFORM == 'wasm-web':
+        mbedtls_dirs = [
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/md5.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/sha1.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/sha256.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/sha512.c',
+            'mbedtls/tf-psa-crypto/extras/md.c',
+            'mbedtls/tf-psa-crypto/platform/platform.c',
+            'mbedtls/tf-psa-crypto/platform/platform_util.c',
+            'mbedtls/tf-psa-crypto/utilities/base64.c',
+            'mbedtls/tf-psa-crypto/utilities/constant_time.c',
+        ]
+    else:
+        mbedtls_dirs = [
+            'mbedtls/library/**/*.c',
+            'mbedtls/tf-psa-crypto/core/*.c',
+            'mbedtls/tf-psa-crypto/drivers/builtin/src/*.c',
+            'mbedtls/tf-psa-crypto/extras/*.c',
+            'mbedtls/tf-psa-crypto/platform/*.c',
+            'mbedtls/tf-psa-crypto/utilities/*.c',
+        ]
     if is_platform_private(bld.env.PLATFORM) and not platform_supports_feature(bld.env.PLATFORM, 'mbedtls', {}):
         mbedtls_dirs = 'mbedtls_stub/**/*.c'.split()
 
@@ -206,6 +219,8 @@ def build(bld):
         'MBEDTLS_USER_CONFIG_FILE="mbedtls_user_config.h"',
         'TF_PSA_CRYPTO_USER_CONFIG_FILE="tf_psa_crypto_user_config.h"',
     ]
+    if bld.env.PLATFORM == 'wasm-web':
+        mbedtls_defines += ['DM_MBEDTLS_CRYPTO_ONLY']
     if opt_level in ['3','2']:
         remove_flags['CFLAGS'] = []
         remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
@@ -221,7 +236,6 @@ def build(bld):
         './mbedtls/library',
         './mbedtls/tf-psa-crypto/core',
         './mbedtls/tf-psa-crypto/dispatch',
-        './mbedtls/tf-psa-crypto/drivers/builtin/include',
         './mbedtls/tf-psa-crypto/drivers/builtin/src',
         './mbedtls/tf-psa-crypto/drivers/everest/include',
         './mbedtls/tf-psa-crypto/drivers/p256-m',
@@ -336,6 +350,9 @@ def build(bld):
                                 use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
+
+        if target_os == 'macos':
+            dlib_shared.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
 
         if 'win32' not in bld.env['PLATFORM']:
             dlib_memprofile = bld(features = 'c cxx cshlib',

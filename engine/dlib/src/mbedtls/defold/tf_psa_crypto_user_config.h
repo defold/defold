@@ -19,4 +19,14 @@
 #undef MBEDTLS_HAVE_ASM
 #endif
 
+#if defined(DM_MBEDTLS_CRYPTO_ONLY)
+#undef PSA_WANT_ALG_RIPEMD160
+#undef PSA_WANT_ALG_SHA_224
+#undef PSA_WANT_ALG_SHA_384
+#undef PSA_WANT_ALG_SHA3_224
+#undef PSA_WANT_ALG_SHA3_256
+#undef PSA_WANT_ALG_SHA3_384
+#undef PSA_WANT_ALG_SHA3_512
+#endif
+
 #endif

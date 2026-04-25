@@ -24,13 +24,12 @@
 #include <dlib/time.h>
 #include <dmsdk/dlib/socket.h>
 
-#include <mbedtls/ctr_drbg.h>
 #include <mbedtls/debug.h>
-#include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509_crt.h>
+#include <psa/crypto.h>
 
 namespace
 {
@@ -69,8 +68,6 @@ namespace dmSSLSocket
 {
     struct SSLSocket
     {
-        mbedtls_entropy_context*  m_MbedEntropy;
-        mbedtls_ctr_drbg_context* m_MbedCtrDrbg;
         mbedtls_ssl_config*       m_MbedConf;
         mbedtls_ssl_context*      m_SSLContext;
         CustomNetContext*         m_SSLNetContext;
@@ -187,7 +184,6 @@ const char* ResultToString(int ret)
         MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_BAD_INPUT_DATA);
         MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_ALLOC_FAILED);
         MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FILE_IO_ERROR);
-        MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_BUFFER_TOO_SMALL);
         MBEDTLS_RESULT_TO_STRING_CASE(MBEDTLS_ERR_X509_FATAL_ERROR);
         default:
             return "Unknown error";
@@ -237,6 +233,17 @@ void ConfigureCertificateChain(mbedtls_ssl_config* conf)
     mbedtls_ssl_conf_ca_chain(conf, g_MbedTlsContext.m_x509CertChain, 0);
 }
 
+dmSSLSocket::Result InitializePSA()
+{
+    psa_status_t status = psa_crypto_init();
+    if (status != PSA_SUCCESS)
+    {
+        dmLogError("psa_crypto_init failed: %d", (int)status);
+        return dmSSLSocket::RESULT_SSL_INIT_FAILED;
+    }
+    return dmSSLSocket::RESULT_OK;
+}
+
 } // namespace
 
 namespace dmSSLSocket
@@ -273,12 +280,8 @@ Result Delete(Socket socket)
         mbedtls_net_free((mbedtls_net_context*)socket->m_SSLNetContext);
         mbedtls_ssl_free(socket->m_SSLContext);
         mbedtls_ssl_config_free(socket->m_MbedConf);
-        mbedtls_ctr_drbg_free(socket->m_MbedCtrDrbg);
-        mbedtls_entropy_free(socket->m_MbedEntropy);
 
         free(socket->m_MbedConf);
-        free(socket->m_MbedCtrDrbg);
-        free(socket->m_MbedEntropy);
         free(socket->m_SSLNetContext);
         free(socket->m_SSLContext);
         free(socket);
@@ -295,15 +298,11 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
 
 #define MBED_CALLOC(_TYPE) (_TYPE*)calloc(1, sizeof(_TYPE))
     c->m_MbedConf      = MBED_CALLOC(mbedtls_ssl_config);
-    c->m_MbedCtrDrbg   = MBED_CALLOC(mbedtls_ctr_drbg_context);
-    c->m_MbedEntropy   = MBED_CALLOC(mbedtls_entropy_context);
     c->m_SSLContext    = MBED_CALLOC(mbedtls_ssl_context);
     c->m_SSLNetContext = MBED_CALLOC(CustomNetContext);
 #undef MBED_CALLOC
 
     mbedtls_ssl_config_init(c->m_MbedConf);
-    mbedtls_ctr_drbg_init(c->m_MbedCtrDrbg);
-    mbedtls_entropy_init(c->m_MbedEntropy);
 
 #if defined(MBEDTLS_DEBUG_C)
     mbedtls_debug_set_threshold(MBED_DEBUG_LEVEL);
@@ -311,13 +310,11 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
 #endif
 
     int ret = 0;
-    const char* pers = "defold_ssl_client";
-    if ((ret = mbedtls_ctr_drbg_seed(c->m_MbedCtrDrbg, mbedtls_entropy_func, c->m_MbedEntropy,
-                                     (const unsigned char*)pers, strlen(pers))) != 0)
+    Result result = InitializePSA();
+    if (result != RESULT_OK)
     {
-        SSL_LOGE("mbedtls_ctr_drbg_seed failed", ret);
         Delete(c);
-        return RESULT_SSL_INIT_FAILED;
+        return result;
     }
 
     if ((ret = mbedtls_ssl_config_defaults(c->m_MbedConf,
@@ -330,7 +327,6 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
         return RESULT_SSL_INIT_FAILED;
     }
 
-    mbedtls_ssl_conf_rng(c->m_MbedConf, mbedtls_ctr_drbg_random, c->m_MbedCtrDrbg);
     mbedtls_ssl_conf_authmode(c->m_MbedConf, MBEDTLS_SSL_VERIFY_NONE);
 
     dmSocket::SetSendTimeout(socket, (int)timeout);
@@ -561,6 +557,12 @@ namespace dmSSLSocket
 
 Result Initialize()
 {
+    Result result = InitializePSA();
+    if (result != RESULT_OK)
+    {
+        return result;
+    }
+
     mbedtls_threading_set_alt(
         dm_mbedtls_mutex_init,
         dm_mbedtls_mutex_free,
@@ -591,7 +593,7 @@ namespace dmSSLSocket
 
 Result Initialize()
 {
-    return RESULT_OK;
+    return InitializePSA();
 }
 
 Result Finalize()
