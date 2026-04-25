@@ -92,6 +92,8 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     test = bld(**task_args)
     test.install_path = None
+    if target_os in ['macos', 'ios']:
+        test.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
 
     js_lib_paths = {}
     js_lib_paths['library_sys.js'] = '../src/dlib/js'

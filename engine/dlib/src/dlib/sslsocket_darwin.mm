@@ -20,7 +20,134 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CFNetwork/CFNetwork.h>
-#include <Security/SecBase.h>
+#include <Foundation/Foundation.h>
+#include <Security/Security.h>
+
+namespace
+{
+    CFArrayRef g_TrustedCertificates = 0;
+
+    static void ClearTrustedCertificates()
+    {
+        if (g_TrustedCertificates != 0)
+        {
+            CFRelease(g_TrustedCertificates);
+            g_TrustedCertificates = 0;
+        }
+    }
+
+    static SecCertificateRef CreateCertificateFromData(NSData* data)
+    {
+        if (data == nil || [data length] == 0)
+        {
+            return 0;
+        }
+        return SecCertificateCreateWithData(kCFAllocatorDefault, (CFDataRef)data);
+    }
+
+    static bool AddPEMCertificates(CFMutableArrayRef certificates, NSString* text)
+    {
+        static NSString* begin_marker = @"-----BEGIN CERTIFICATE-----";
+        static NSString* end_marker = @"-----END CERTIFICATE-----";
+
+        bool added = false;
+        NSRange search_range = NSMakeRange(0, [text length]);
+        while (search_range.location < [text length])
+        {
+            NSRange begin_range = [text rangeOfString:begin_marker options:0 range:search_range];
+            if (begin_range.location == NSNotFound)
+            {
+                break;
+            }
+
+            NSUInteger content_start = begin_range.location + begin_range.length;
+            NSRange end_search_range = NSMakeRange(content_start, [text length] - content_start);
+            NSRange end_range = [text rangeOfString:end_marker options:0 range:end_search_range];
+            if (end_range.location == NSNotFound)
+            {
+                break;
+            }
+
+            NSString* base64 = [text substringWithRange:NSMakeRange(content_start, end_range.location - content_start)];
+            NSArray* parts = [base64 componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            NSString* compact_base64 = [parts componentsJoinedByString:@""];
+            NSData* der = [[[NSData alloc] initWithBase64EncodedString:compact_base64 options:NSDataBase64DecodingIgnoreUnknownCharacters] autorelease];
+            SecCertificateRef certificate = CreateCertificateFromData(der);
+            if (certificate != 0)
+            {
+                CFArrayAppendValue(certificates, certificate);
+                CFRelease(certificate);
+                added = true;
+            }
+
+            NSUInteger next_location = end_range.location + end_range.length;
+            search_range = NSMakeRange(next_location, [text length] - next_location);
+        }
+
+        return added;
+    }
+
+    static CFArrayRef CreateCertificatesFromBuffer(const uint8_t* key, uint32_t keylen)
+    {
+        @autoreleasepool
+        {
+            CFMutableArrayRef certificates = CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks);
+            if (certificates == 0)
+            {
+                return 0;
+            }
+
+            NSString* text = [[[NSString alloc] initWithBytes:key length:keylen encoding:NSASCIIStringEncoding] autorelease];
+            if (text != nil)
+            {
+                AddPEMCertificates(certificates, text);
+            }
+
+            if (CFArrayGetCount(certificates) == 0)
+            {
+                NSData* der = [NSData dataWithBytes:key length:keylen];
+                SecCertificateRef certificate = CreateCertificateFromData(der);
+                if (certificate != 0)
+                {
+                    CFArrayAppendValue(certificates, certificate);
+                    CFRelease(certificate);
+                }
+            }
+
+            if (CFArrayGetCount(certificates) == 0)
+            {
+                CFRelease(certificates);
+                return 0;
+            }
+
+            return certificates;
+        }
+    }
+
+    static bool ValidatePeerCertificateChain(CFReadStreamRef read_stream)
+    {
+        if (g_TrustedCertificates == 0)
+        {
+            return true;
+        }
+
+        SecTrustRef trust = (SecTrustRef)CFReadStreamCopyProperty(read_stream, kCFStreamPropertySSLPeerTrust);
+        if (trust == 0)
+        {
+            return false;
+        }
+
+        OSStatus status = SecTrustSetAnchorCertificates(trust, g_TrustedCertificates);
+        if (status == errSecSuccess)
+        {
+            status = SecTrustSetAnchorCertificatesOnly(trust, true);
+        }
+
+        bool trusted = status == errSecSuccess && SecTrustEvaluateWithError(trust, 0);
+        CFRelease(trust);
+        return trusted;
+    }
+}
 
 namespace dmSSLSocket
 {
@@ -94,13 +221,20 @@ namespace dmSSLSocket
 
     Result Finalize()
     {
+        ClearTrustedCertificates();
         return RESULT_OK;
     }
 
     Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
     {
-        (void) key;
-        (void) keylen;
+        ClearTrustedCertificates();
+
+        g_TrustedCertificates = CreateCertificatesFromBuffer(key, keylen);
+        if (g_TrustedCertificates == 0)
+        {
+            return RESULT_SSL_INIT_FAILED;
+        }
+
         return RESULT_OK;
     }
 
@@ -165,6 +299,15 @@ namespace dmSSLSocket
             CFRelease(read_stream);
             CFRelease(write_stream);
             return result;
+        }
+
+        if (!ValidatePeerCertificateChain(read_stream))
+        {
+            CFReadStreamClose(read_stream);
+            CFWriteStreamClose(write_stream);
+            CFRelease(read_stream);
+            CFRelease(write_stream);
+            return RESULT_HANDSHAKE_FAILED;
         }
 
         Socket ssl_socket = (Socket)malloc(sizeof(SSLSocket));

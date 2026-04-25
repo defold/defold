@@ -1987,7 +1987,7 @@ def detect(conf):
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['STLIB_DLIB'].append('mbedtls')
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork']
+        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
