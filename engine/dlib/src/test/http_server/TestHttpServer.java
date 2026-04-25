@@ -15,6 +15,7 @@
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
+import javax.net.ssl.SSLSession;
 
 import java.net.*;
 import java.security.MessageDigest;
@@ -362,9 +363,26 @@ public class TestHttpServer extends AbstractHandler
     Pattern m_CloseReusedPattern = Pattern.compile("/close-reused");
     Pattern m_SleepPattern = Pattern.compile("/sleep/(\\d+)");
     Map<Object, Integer> m_CloseReusedConnections = Collections.synchronizedMap(new IdentityHashMap<Object, Integer>());
+
+    static final String SSL_SESSION_ATTRIBUTE = "defold.tsl.session";
+
     public TestHttpServer()
     {
         super();
+    }
+
+    static SslContextFactory.Server NewSslContextFactory(String... protocols)
+    {
+        SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
+        sslContextFactory.setSniRequired(false);
+        sslContextFactory.setSslSessionTimeout(5); // seconds
+        sslContextFactory.setKeyStorePath("src/test/data/keystore");
+        sslContextFactory.setKeyStorePassword("defold");
+        if (protocols.length > 0)
+        {
+            sslContextFactory.setIncludeProtocols(protocols);
+        }
+        return sslContextFactory;
     }
 
     public static void digestStreamRange(MessageDigest md, InputStream input, long start, long size) throws IOException
@@ -596,6 +614,20 @@ public class TestHttpServer extends AbstractHandler
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
         }
+        else if (target.equals("/tls-info"))
+        {
+            Object sslSession = request.getAttribute(SSL_SESSION_ATTRIBUTE);
+            if (sslSession instanceof SSLSession)
+            {
+                response.getWriter().print(((SSLSession)sslSession).getProtocol());
+                response.setStatus(HttpServletResponse.SC_OK);
+            }
+            else
+            {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            }
+            baseRequest.setHandled(true);
+        }
         else if (target.equals("/__verify_etags__")) {
             baseRequest.setHandled(true);
             if (!request.getMethod().equals("POST")) {
@@ -818,23 +850,30 @@ public class TestHttpServer extends AbstractHandler
 
             SecureRequestCustomizer src = new SecureRequestCustomizer();
             src.setSniHostCheck(false);
+            src.setSslSessionAttribute(SSL_SESSION_ATTRIBUTE);
             HttpConfiguration httpConfig = new HttpConfiguration();
             httpConfig.addCustomizer(src);
             HttpConnectionFactory connectionFactory = new HttpConnectionFactory(httpConfig);
 
-            SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
-            sslContextFactory.setSniRequired(false);
-            sslContextFactory.setSslSessionTimeout(5); // seconds
-            sslContextFactory.setKeyStorePath("src/test/data/keystore");
-            sslContextFactory.setKeyStorePassword("defold");
+            SslContextFactory.Server defaultSslContextFactory = NewSslContextFactory();
+            SslContextFactory.Server tls12SslContextFactory = NewSslContextFactory("TLSv1.2");
+            SslContextFactory.Server tls13SslContextFactory = NewSslContextFactory("TLSv1.3");
 
-            ServerConnector sslConnector = new ServerConnector(server, sslContextFactory, connectionFactory);
-            sslConnector.setIdleTimeout(10000); // millis
-            server.addConnector(sslConnector);
+            ServerConnector tlsConnector = new ServerConnector(server, defaultSslContextFactory, connectionFactory);
+            tlsConnector.setIdleTimeout(10000); // millis
+            server.addConnector(tlsConnector);
 
-            TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory, connectionFactory);
-            testsslConnector.setIdleTimeout(10000); // millis
-            server.addConnector(testsslConnector);
+            ServerConnector tls12Connector = new ServerConnector(server, tls12SslContextFactory, connectionFactory);
+            tls12Connector.setIdleTimeout(10000); // millis
+            server.addConnector(tls12Connector);
+
+            ServerConnector tls13Connector = new ServerConnector(server, tls13SslContextFactory, connectionFactory);
+            tls13Connector.setIdleTimeout(10000); // millis
+            server.addConnector(tls13Connector);
+
+            TestSslSocketConnector testtlsConnector = new TestSslSocketConnector(server, defaultSslContextFactory, connectionFactory);
+            testtlsConnector.setIdleTimeout(10000); // millis
+            server.addConnector(testtlsConnector);
 
             HandlerList handlerList = new HandlerList();
             handlerList.addHandler(new TestHttpServer());
@@ -890,8 +929,10 @@ public class TestHttpServer extends AbstractHandler
 
             final Connector[] connectors = server.getConnectors();
             int port = ((ServerConnector)connectors[0]).getLocalPort();
-            int port_ssl = ((ServerConnector)connectors[1]).getLocalPort();
-            int port_ssl_test = ((ServerConnector)connectors[2]).getLocalPort();
+            int port_tls = ((ServerConnector)connectors[1]).getLocalPort();
+            int port_tls12 = ((ServerConnector)connectors[2]).getLocalPort();
+            int port_tls13 = ((ServerConnector)connectors[3]).getLocalPort();
+            int port_tls_test = ((ServerConnector)connectors[4]).getLocalPort();
             int port_proxy = proxyServer.getLocalPort();
 
             // Early exit if any of the connectors is not opened or closed.
@@ -899,12 +940,20 @@ public class TestHttpServer extends AbstractHandler
                 System.out.println("ERROR: Connector 0 is not opened or closed!");
                 return;
             }
-            if ((port_ssl == -1) || (port_ssl == -2)) {
+            if ((port_tls == -1) || (port_tls == -2)) {
                 System.out.println("ERROR: Connector 1 is not opened or closed!");
                 return;
             }
-            if ((port_ssl_test == -1) || (port_ssl_test == -2)) {
+            if ((port_tls12 == -1) || (port_tls12 == -2)) {
                 System.out.println("ERROR: Connector 2 is not opened or closed!");
+                return;
+            }
+            if ((port_tls13 == -1) || (port_tls13 == -2)) {
+                System.out.println("ERROR: Connector 3 is not opened or closed!");
+                return;
+            }
+            if ((port_tls_test == -1) || (port_tls_test == -2)) {
+                System.out.println("ERROR: Connector 4 is not opened or closed!");
                 return;
             }
             if ((port_proxy == -1) || (port_proxy == -2)) {
@@ -920,8 +969,10 @@ public class TestHttpServer extends AbstractHandler
                 writer.println("# These are the sockets the test server currently listens to");
                 writer.println("[server]");
                 writer.println(String.format("socket=%d", port));
-                writer.println(String.format("socket_ssl=%d", port_ssl));
-                writer.println(String.format("socket_ssl_test=%d", port_ssl_test));
+                writer.println(String.format("socket_tls=%d", port_tls));
+                writer.println(String.format("socket_tls12=%d", port_tls12));
+                writer.println(String.format("socket_tls13=%d", port_tls13));
+                writer.println(String.format("socket_tls_test=%d", port_tls_test));
                 writer.println(String.format("socket_proxy=%d", port_proxy));
                 writer.close();
 

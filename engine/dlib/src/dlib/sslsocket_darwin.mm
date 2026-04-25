@@ -20,6 +20,7 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CFNetwork/CFNetwork.h>
+#include <Security/SecBase.h>
 
 namespace dmSSLSocket
 {
@@ -50,7 +51,35 @@ namespace dmSSLSocket
                     break;
             }
         }
+        else if (error.domain == kCFStreamErrorDomainSSL)
+        {
+            switch (error.error)
+            {
+                case errSSLWouldBlock:
+                    return dmSocket::RESULT_WOULDBLOCK;
+                case errSSLClosedAbort:
+                case errSSLClosedNoNotify:
+                case errSSLClosedGraceful:
+                    return dmSocket::RESULT_CONNRESET;
+                default:
+                    break;
+            }
+        }
         return dmSocket::RESULT_UNKNOWN;
+    }
+
+    static Result StreamErrorToSSLResult(CFStreamError error)
+    {
+        dmSocket::Result socket_result = StreamErrorToSocketResult(error);
+        if (socket_result == dmSocket::RESULT_WOULDBLOCK)
+        {
+            return RESULT_WOULDBLOCK;
+        }
+        if (socket_result == dmSocket::RESULT_CONNRESET || socket_result == dmSocket::RESULT_PIPE)
+        {
+            return RESULT_CONNREFUSED;
+        }
+        return RESULT_HANDSHAKE_FAILED;
     }
 
     static bool SetStreamProperty(CFReadStreamRef read_stream, CFWriteStreamRef write_stream, CFStringRef property, CFTypeRef value)
@@ -100,9 +129,9 @@ namespace dmSSLSocket
         }
 
         CFStringRef peer_name = host != 0 ? CFStringCreateWithCString(kCFAllocatorDefault, host, kCFStringEncodingUTF8) : 0;
-        const void* keys[] = { kCFStreamSSLLevel, kCFStreamSSLPeerName };
-        const void* values[] = { kCFStreamSocketSecurityLevelNegotiatedSSL, peer_name != 0 ? (CFTypeRef)peer_name : (CFTypeRef)kCFNull };
-        CFDictionaryRef settings = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 2, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        const void* keys[] = { kCFStreamSSLLevel, kCFStreamSSLPeerName, kCFStreamSSLValidatesCertificateChain };
+        const void* values[] = { kCFStreamSocketSecurityLevelNegotiatedSSL, peer_name != 0 ? (CFTypeRef)peer_name : (CFTypeRef)kCFNull, kCFBooleanFalse };
+        CFDictionaryRef settings = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 3, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 
         bool ok = settings != 0 &&
                   SetStreamProperty(read_stream, write_stream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanFalse) &&
@@ -124,12 +153,18 @@ namespace dmSSLSocket
             return RESULT_SSL_INIT_FAILED;
         }
 
+        dmSocket::SetSendTimeout(socket, timeout);
         dmSocket::SetReceiveTimeout(socket, timeout);
-        if (!CFReadStreamOpen(read_stream) || !CFWriteStreamOpen(write_stream))
+        dmSocket::SetBlocking(socket, false);
+
+        bool read_opened = CFReadStreamOpen(read_stream);
+        bool write_opened = CFWriteStreamOpen(write_stream);
+        if (!read_opened || !write_opened)
         {
+            Result result = StreamErrorToSSLResult(read_opened ? CFWriteStreamGetError(write_stream) : CFReadStreamGetError(read_stream));
             CFRelease(read_stream);
             CFRelease(write_stream);
-            return RESULT_HANDSHAKE_FAILED;
+            return result;
         }
 
         Socket ssl_socket = (Socket)malloc(sizeof(SSLSocket));

@@ -18,19 +18,19 @@
 namespace dmTestUtil
 {
 
-void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* socket_ssl, int* socket_ssl_test)
+void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* socket_tls, int* socket_tls_test)
 {
     if( socket != 0 )
     {
         *socket = dmConfigFile::GetInt(config, "server.socket", -1);
     }
-    if( socket_ssl != 0 )
+    if( socket_tls != 0 )
     {
-        *socket_ssl = dmConfigFile::GetInt(config, "server.socket_ssl", -1);
+        *socket_tls = dmConfigFile::GetInt(config, "server.socket_tls", -1);
     }
-    if( socket_ssl_test != 0 )
+    if( socket_tls_test != 0 )
     {
-        *socket_ssl_test = dmConfigFile::GetInt(config, "server.socket_ssl_test", -1);
+        *socket_tls_test = dmConfigFile::GetInt(config, "server.socket_tls_test", -1);
     }
 }
 
