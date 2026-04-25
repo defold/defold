@@ -44,7 +44,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip', 'mbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
@@ -55,7 +55,7 @@ def configure(conf):
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STLIB_GRAPHICS_GAMESYS_TEST'] = ['graphics_null', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_GAMESYS_TEST'] = ['graphics_null', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_TEST_SCRIPT'] = 'test_script'
 

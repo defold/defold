@@ -17,6 +17,8 @@ def _get_native_source(target_os, feature):
 def build(bld):
 
     build_util = create_build_utility(bld.env)
+    graphics_use = 'DDF DLIB image'
+    graphics_noasan_use = 'DDF DLIB image_noasan'
 
     # this is a library that is built for all platforms, so we let this one generate the ddf bindings
     obj = bld.stlib(features        = 'ddf cxx',
@@ -43,7 +45,7 @@ def build(bld):
                     includes        = ['.', 'null'] + proto_cpp_includes,
                     source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + proto_cpp_source,
                     defines         = ['DM_GRAPHICS_NULL'],
-                    use             = 'DDF DLIB',
+                    use             = graphics_use,
                     target          = 'graphics_null')
 
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
@@ -53,7 +55,7 @@ def build(bld):
                     includes        = obj.includes,
                     source          = obj.source,
                     defines         = obj.defines,
-                    use             = obj.use,
+                    use             = graphics_noasan_use,
                     target          = 'graphics_null_noasan')
 
     for graphics_feature in ['opengl', 'opengles']:
@@ -75,7 +77,7 @@ def build(bld):
             obj = bld.stlib(features        = 'cxx',
                             includes        = ['.', 'opengl'] + proto_cpp_includes + opengl_platform_includes,
                             source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + proto_cpp_source,
-                            use             = 'DDF DLIB',
+                            use             = graphics_use,
                             defines         = opengl_defines,
                             target          = opengl_target)
 
@@ -83,7 +85,7 @@ def build(bld):
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'webgpu'] + proto_cpp_includes,
                         defines         = ['DM_GRAPHICS_WEBGPU'],
-                        use             = 'DDF DLIB',
+                        use             = graphics_use,
                         source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_webgpu')
 
@@ -91,7 +93,7 @@ def build(bld):
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'webgpu'] + proto_cpp_includes,
                         defines         = ['DM_GRAPHICS_WEBGPU_WAGYU'],
-                        use             = 'DDF DLIB',
+                        use             = graphics_use,
                         source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_webgpu_wagyu')
 
@@ -108,7 +110,7 @@ def build(bld):
 
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'vulkan'] + proto_cpp_includes,
-                        use             = 'DDF DLIB',
+                        use             = graphics_use,
                         source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + proto_cpp_source,
                         defines         = vulkan_defines,
                         target          = 'graphics_vulkan')
@@ -140,7 +142,7 @@ def build(bld):
 
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'dx12'] + proto_cpp_includes + dx12_header_includes,
-                        use             = 'DDF DLIB',
+                        use             = graphics_use,
                         source          = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_dx12')
 
