@@ -17,8 +17,25 @@ def build(bld):
         after  = 'copy_plugin.proto',
         shell  = True)
 
+    ddf_py = bld(
+         rule   = '${PROTOC} --python_out=${TGT[0].parent.bld_dir()} -I ${SRC[0].parent.bld_dir()} -I ${SRC[0].bld_dir()} -I %s ${SRC}' % (proto_include_path),
+         source = 'ddf_extensions.proto ddf_math.proto ddf_struct.proto',
+         target = 'ddf_extensions_pb2.py ddf_math_pb2.py ddf_struct_pb2.py',
+         shell = True)
+
+    ddf_init = bld(
+         rule   = 'echo "" > ${TGT}',
+         target = '__init__.py',
+         shell = True)
+
     bld.install_files('${PREFIX}/lib/python',
                       bld.path.find_or_declare('plugin_pb2.py'))
+
+    bld.install_files('${PREFIX}/lib/python/ddf',
+                      [ddf_py.path.find_or_declare('ddf_extensions_pb2.py'),
+                       ddf_py.path.find_or_declare('ddf_math_pb2.py'),
+                       ddf_py.path.find_or_declare('ddf_struct_pb2.py'),
+                       ddf_init.path.find_or_declare('__init__.py')])
 
     bld.add_group()
 
@@ -27,14 +44,10 @@ def build(bld):
         source = 'ddf_extensions.proto ddf_math.proto ddf_struct.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
         proto_gen_cc = True,
         proto_compile_cc = True,
-        proto_gen_py = True,
         protoc_includes = '..',
         target = 'ddf')
 
     bld.add_group() # depend on the proto outputs
-
-    bld.install_files('${PREFIX}/lib/python/ddf',
-                      bld.path.find_or_declare('ddf_extensions_pb2.py'))
 
     ddf_noasan_source = [bld.path.find_resource(proto).change_ext('.cpp')
                          for proto in 'ddf_extensions.proto ddf_math.proto ddf_struct.proto'.split()]
