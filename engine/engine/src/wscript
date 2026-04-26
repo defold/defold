@@ -36,9 +36,6 @@ def build(bld):
         'extension.cpp',
         './script/script_engine.cpp',
         '../proto/engine/engine_ddf.proto']
-    engine_ddf_proto = bld.path.find_resource('../proto/engine/engine_ddf.proto')
-    engine_release_source = [src for src in source if src != '../proto/engine/engine_ddf.proto']
-    engine_release_source.append(engine_ddf_proto.change_ext('.cpp'))
 
     if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
         source.append('engine_web.cpp')
@@ -53,6 +50,11 @@ def build(bld):
     if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web'):
         engine_defines.append('DM_NO_HTTP_CACHE')
 
+    engine_ddf_proto = bld.path.find_resource('../proto/engine/engine_ddf.proto')
+    engine_release_source = [
+        engine_ddf_proto.change_ext('.cpp') if src == '../proto/engine/engine_ddf.proto' else src
+        for src in source]
+
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
                     target = 'engine',
@@ -66,12 +68,10 @@ def build(bld):
 
     bld.add_group()
 
-    bld.stlib(features = 'cxx ddf',
+    bld.stlib(features = 'cxx',
                     includes = '../proto . ..',
                     target = 'engine_release',
                     defines = ['DM_RELEASE=1'] + engine_defines,
-                    proto_gen_py = True,
-                    protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     source = engine_release_source,
                     install_path = platform_lib_install_path,
                     use = 'engine_service_null')

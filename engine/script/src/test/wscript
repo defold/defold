@@ -15,8 +15,14 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
     test_ddf_proto = bld.path.find_resource('test_ddf.proto')
-    test_ddf_cpp = test_ddf_proto.change_ext('.cpp')
     test_types_lua = bld.path.find_resource('scripts/test_types.lua')
+
+    bld.stlib(features = 'cxx ddf',
+              includes = '..',
+              use = 'DDF DLIB',
+              proto_gen_py = True,
+              target = 'test_ddf_proto',
+              source = [test_ddf_proto])
 
     bld(source = test_types_lua,
         name = 'test_types_luac')
@@ -35,19 +41,18 @@ def build(bld):
 
     test_script_ddf = bld.program(features = flist,
                                   includes = '..',
-                                  use = libs,
+                                  use = libs + ' test_ddf_proto',
                                   web_libs = web_libs,
                                   exported_symbols = exported_symbols,
-                                  proto_gen_py = True,
                                   target = 'test_script_ddf',
-                                  source = ['test_script_ddf.cpp', test_ddf_proto])
+                                  source = 'test_script_ddf.cpp')
 
     test_script_msg = bld.program(features = flist,
                                         includes = '..',
-                                        use = libs,
+                                        use = libs + ' test_ddf_proto',
                                         web_libs = web_libs,
                                         target = 'test_script_msg',
-                                        source = ['test_script_msg.cpp', test_ddf_cpp])
+                                        source = 'test_script_msg.cpp')
 
     test_script_hash = bld.program(features = flist,
                                         includes = '..',

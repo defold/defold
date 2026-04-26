@@ -31,10 +31,9 @@ def build(bld):
 
     bld.add_group()
 
-    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+    obj = bld.stlib(features        = 'cxx skip_asan',
                     includes        = obj.includes,
                     source          = bld.path.ant_glob(['graphics_proto.cpp']) + graphics_proto_cpp_source,
-                    protoc_includes = obj.protoc_includes,
                     use             = obj.use,
                     target          = 'graphics_proto_noasan')
 

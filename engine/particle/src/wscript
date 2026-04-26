@@ -33,10 +33,9 @@ def build(bld):
 
     # We only need this library in the editor
     if bld.env.IS_TARGET_DESKTOP:
-        o = bld.shlib(features = 'cxx ddf skip_asan',
+        o = bld.shlib(features = 'cxx skip_asan',
                   includes = ['.', '../proto'],
                   target = 'particle_shared',
-                  protoc_includes = '../proto',
                   use = 'DDF_NOASAN DLIB_NOASAN SOCKET PROFILE_NULL_NOASAN PLATFORM_NULL GRAPHICS_NULL_NOASAN',
                   source = ['particle.cpp', particle_ddf_cpp])
 

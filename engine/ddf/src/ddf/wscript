@@ -17,9 +17,6 @@ def build(bld):
         after  = 'copy_plugin.proto',
         shell  = True)
 
-    bld.install_files('${PREFIX}/lib/python/ddf',
-                      bld.path.find_or_declare('ddf_extensions_pb2.py'))
-
     bld.install_files('${PREFIX}/lib/python',
                       bld.path.find_or_declare('plugin_pb2.py'))
 
@@ -36,15 +33,16 @@ def build(bld):
 
     bld.add_group() # depend on the proto outputs
 
+    bld.install_files('${PREFIX}/lib/python/ddf',
+                      bld.path.find_or_declare('ddf_extensions_pb2.py'))
+
     ddf_noasan_source = [bld.path.find_resource(proto).change_ext('.cpp')
                          for proto in 'ddf_extensions.proto ddf_math.proto ddf_struct.proto'.split()]
     ddf_noasan_source += 'ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp'.split()
 
-    bld.stlib(features = 'cxx ddf skip_asan',
+    bld.stlib(features = 'cxx skip_asan',
         includes = '../.. ..',
         source = ddf_noasan_source,
-        proto_compile_cc = True,
-        protoc_includes = '..',
         target = 'ddf_noasan')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
