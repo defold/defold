@@ -941,8 +941,7 @@ def create_export_symbols(task):
 
 task = Task.task_factory('create_export_symbols',
                          func  = create_export_symbols,
-                         color = 'PINK',
-                         before  = 'c cxx')
+                         color = 'PINK')
 
 create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
 def sig_export_symbols(self):
@@ -1248,8 +1247,7 @@ def copy_stub(task):
 
 task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+                                color = 'PINK')
 
 copy_stub_sig_explicit_deps = task.sig_explicit_deps
 def sig_copy_stub(self):
@@ -1317,7 +1315,6 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_files',
                       shell=True)
 
 @task_gen
@@ -1336,8 +1333,7 @@ def apply_dex(self):
 Task.task_factory('embed_file',
                   func = embed_build,
                   vars = ['SRC', 'DST'],
-                  color = 'RED',
-                  before  = 'c cxx')
+                  color = 'RED')
 
 @feature('embed')
 @before('process_source')

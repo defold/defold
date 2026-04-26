@@ -30,6 +30,9 @@ def run_bob(task):
 
     args = task.generator.run_args
     output = run.env_command(env, args.split())
+    for out in task.outputs:
+        out.parent.mkdir()
+        out.write('')
 
 def build(bld):
     java_runtime_flags = os.environ.get('DM_JAVA_RUNTIME_FLAGS', '')
@@ -100,6 +103,7 @@ def build(bld):
     bld(rule = run_bob,
         run_args = f'java {java_runtime_flags} -cp {classpath} com.dynamo.bob.Bob -root ./src/test clean',
         source = 'wscript',
+        target = 'bob-clean.stamp',
         always = True)
 
     # Build custom collections first to prevent overrides in default game.projectc
@@ -112,6 +116,7 @@ def build(bld):
         bld(rule = run_bob,
             run_args = f'java {java_runtime_flags} -cp {classpath} com.dynamo.bob.Bob -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
             source = 'wscript',
+            target = 'bob-%s.stamp' % os.path.splitext(setting_file)[0],
             always = True)
 
     # Build main setup
@@ -120,4 +125,5 @@ def build(bld):
     bld(rule = run_bob,
         run_args = bob_command,
         source = 'wscript',
+        target = 'bob-main.stamp',
         always = True)

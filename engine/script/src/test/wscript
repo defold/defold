@@ -14,6 +14,14 @@ def build(bld):
         lib_dirs['library_script.js'] = '../lib/js'
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
+    test_ddf_proto = bld.path.find_resource('test_ddf.proto')
+    test_ddf_cpp = test_ddf_proto.change_ext('.cpp')
+    test_types_lua = bld.path.find_resource('scripts/test_types.lua')
+
+    bld(source = test_types_lua,
+        name = 'test_types_luac')
+
+    bld.add_group()
 
     bld.stlib(features = 'c cxx test test_install',
               includes = '..',
@@ -32,15 +40,14 @@ def build(bld):
                                   exported_symbols = exported_symbols,
                                   proto_gen_py = True,
                                   target = 'test_script_ddf',
-                                  source = 'test_script_ddf.cpp test_ddf.proto'.split())
+                                  source = ['test_script_ddf.cpp', test_ddf_proto])
 
     test_script_msg = bld.program(features = flist,
                                         includes = '..',
                                         use = libs,
                                         web_libs = web_libs,
-                                        proto_gen_py = True,
                                         target = 'test_script_msg',
-                                        source = 'test_script_msg.cpp test_ddf.proto'.split())
+                                        source = ['test_script_msg.cpp', test_ddf_cpp])
 
     test_script_hash = bld.program(features = flist,
                                         includes = '..',
@@ -168,7 +175,7 @@ def build(bld):
                                        exported_symbols = exported_symbols + ['ScriptTypesExt'],
                                        proto_gen_py = True,
                                        target = 'test_script_types',
-                                       source = 'test_script_types.cpp scripts/test_types.lua'.split())
+                                       source = 'test_script_types.cpp'.split())
 
     test_script_types_null = bld.program(features = flist,
                                        includes = '..',
@@ -177,7 +184,6 @@ def build(bld):
                                        exported_symbols = exported_symbols,
                                        proto_gen_py = True,
                                        target = 'test_script_types_null',
-                                       source = 'test_script_types_null.cpp scripts/test_types.lua'.split())
+                                       source = 'test_script_types_null.cpp'.split())
 
     bld.install_files('${PREFIX}/include/script', 'test_script.h')
-
