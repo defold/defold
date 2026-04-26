@@ -28,18 +28,37 @@ new_copy_task('script', '.script', '.scriptc')
 
 def add_to_zip_file(task):
     cwd = task.cwd.abspath()
-    zip_path = task.generator.zip_file.abspath()
-    with zipfile.ZipFile(zip_path, 'a') as zipf:
-        for i in task.inputs:
-            src = i.abspath()
-            if src == zip_path:
-                continue
-            dst = os.path.relpath(src, cwd)
-            zipf.write(src, dst)
+    base_zip = task.inputs[0].abspath()
+    output_zip = task.outputs[0].abspath()
+    output_dir = os.path.dirname(output_zip)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    for out in task.outputs:
-        out.parent.mkdir()
-        out.write('')
+    extra_entries = {}
+    for i in task.inputs[1:]:
+        if i.isdir():
+            continue
+        extra_entries[os.path.relpath(i.abspath(), cwd)] = i
+
+    tmp_zip = output_zip + '.tmp'
+    with zipfile.ZipFile(base_zip, 'r') as src_zip:
+        with zipfile.ZipFile(tmp_zip, 'w') as dst_zip:
+            written = set()
+            for info in src_zip.infolist():
+                if info.filename in extra_entries or info.filename in written:
+                    continue
+                dst_zip.writestr(info, src_zip.read(info.filename))
+                written.add(info.filename)
+
+            for dst, src in sorted(extra_entries.items()):
+                dst_zip.write(src.abspath(), dst)
+
+    os.replace(tmp_zip, output_zip)
+
+def copy_archive_files(task):
+    for src, dst in zip(task.inputs, task.outputs):
+        dst.parent.mkdir()
+        shutil.copyfile(src.abspath(), dst.abspath())
 
 
 def copy_file_to_output(task):
@@ -103,9 +122,21 @@ def build(bld):
     bld(features='barchive',
         source_root='src/test',
         name='luresources',
-        resource_name='luresources',
+        resource_name='luresources_base',
         use_compression=False,
         source=archive_outputs)
+
+    bld.add_group()
+
+    luresources_outputs = []
+    luresources_base_outputs = []
+    for ext in ['arci', 'arcd', 'dmanifest', 'manifest_hash']:
+        luresources_outputs.append(bld.path.find_or_declare('luresources.%s' % ext))
+        luresources_base_outputs.append(bld.path.find_or_declare('luresources_base.%s' % ext))
+
+    bld(rule = copy_archive_files,
+        source = luresources_base_outputs,
+        target = luresources_outputs)
 
     bld.add_group()
 
@@ -133,11 +164,11 @@ def build(bld):
     zip_inputs = [zip_input_node(node) for node in bld.path.ant_glob('zipfiles/**/*')]
 
     luresources_zip = bld.path.find_or_declare('luresources.zip')
+    luresources_base_zip = bld.path.find_or_declare('luresources_base.zip')
     bld(rule = add_to_zip_file,
-        target = bld.path.find_or_declare('luresources_zip.stamp'),
-        source = [luresources_zip] + zip_inputs,
-        cwd = bld.path.find_or_declare('zipfiles'),
-        zip_file = luresources_zip)
+        target = luresources_zip,
+        source = [luresources_base_zip] + zip_inputs,
+        cwd = bld.path.find_or_declare('zipfiles'))
 
     bld.add_group()
 
