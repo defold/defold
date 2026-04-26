@@ -101,7 +101,9 @@ excluded_paths = [
     "./engine/dlib/src/basis/transcoder",
     "./engine/dlib/src/dlib/jsmn",
     "./engine/dlib/src/lz4",
-    "./engine/dlib/src/mbedtls",
+    "./engine/dlib/src/mbedtls/include",
+    "./engine/dlib/src/mbedtls/library",
+    "./engine/dlib/src/mbedtls/tf-psa-crypto",
     "./engine/dlib/src/stb",
     "./engine/dlib/src/jc",
     "./engine/dlib/src/zlib",
@@ -117,12 +119,6 @@ excluded_paths = [
     "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
 ]
 
-included_files = [
-    "./engine/dlib/src/mbedtls/include/defold_mbedtls_threading.h",
-    "./engine/dlib/src/mbedtls/include/threading_alt.h",
-    "./engine/dlib/src/mbedtls/defold_mbedtls_threading.cpp",
-]
-
 dryrun = False
 
 
@@ -136,7 +132,7 @@ def skip_path(path):
     return match_patterns(path, excluded_paths)
 
 def skip_filename(filepath):
-    return match_patterns(filepath, excluded_files) and not match_patterns(filepath, included_files)
+    return match_patterns(filepath, excluded_files)
 
 def has_defold_license(s):
     return re.search(RE_LICENSE, s[0:2000], flags=re.DOTALL) is not None
