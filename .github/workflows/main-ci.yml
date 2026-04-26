@@ -435,11 +435,15 @@ jobs:
 
   build-editor-macos:
     needs: [build-bob, build-sdk]
-    runs-on: macos-26
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
       matrix:
-        platform: [x86_64-macos, arm64-macos]
+        include:
+          - platform: x86_64-macos
+            runner: macos-26-intel
+          - platform: arm64-macos
+            runner: macos-26
     steps: [
       {
         name: 'Checkout',
