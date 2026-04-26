@@ -59,7 +59,7 @@ def build(bld):
     profiler_exported_symbols = ['ProfilerExt', 'ProfilerBasic', 'GraphicsAdapterNull']
     profiler_test = bld(
         features = 'c cxx cprogram test',
-        use = 'TESTMAIN APP RESOURCE DDF FONT GRAPHICS_NULL PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION DLIB MBEDTLS'.split() + additional_libs + ['PROFILE', 'PROFILEREXT'],
+        use = 'TESTMAIN APP RESOURCE DDF FONT GRAPHICS_NULL PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION DLIB'.split() + additional_libs + ['PROFILE', 'PROFILEREXT'],
         exported_symbols = profiler_exported_symbols,
         web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
         includes = '../../proto .',
@@ -75,7 +75,6 @@ def build(bld):
     obj = bld(
         features = 'c cxx cprogram test',
         use = 'TESTMAIN APP RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE FONT GAMESYS RESOURCE GRAPHICS_NULL GRAPHICS_UTIL PHYSICS PLATFORM_NULL RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB APP engine engine_service'.split()
-                + ['MBEDTLS']
                 + additional_libs
                 + profile_lib,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
