@@ -165,7 +165,7 @@ def build(bld):
     if 'TREMOLO' in soundlibs:
         bld.program(features = 'cxx embed test',
                     includes = '../../src .',
-                    use = 'TESTMAIN DLIB MBEDTLS SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
+                    use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_perf',
@@ -178,7 +178,7 @@ def build(bld):
 
     test = bld.program(features = 'cxx embed test'.split() + extra_features,
                 includes = '../../src .',
-                use = 'TESTMAIN DLIB MBEDTLS SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
+                use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs embedded_opus'.split() + soundlibs,
                 web_libs = ['library_sys.js', 'library_sound.js'],
                 exported_symbols = exported_symbols + ['LoopBackDevice'],
                 target = 'test_sound',
