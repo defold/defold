@@ -439,7 +439,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke, should-release)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke, should-release, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -466,6 +466,10 @@ def main(argv):
     args = parser.parse_args()
 
     platform = args.platform
+
+    if args.commands == ["should-build-platform"]:
+        print("true" if platform and is_platform_supported(platform) else "false")
+        return
 
     if platform and not is_platform_supported(platform):
         print("Platform {} is private and the repo '{}' cannot build for this platform. Skipping".format(platform, os.environ.get('GITHUB_REPOSITORY', '')))

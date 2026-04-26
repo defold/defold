@@ -255,20 +255,22 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 60
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} }, # v1.3.1
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
+      { name: 'Check platform support', id: platform, shell: bash, run: 'echo "should_build=$(python ci-check/ci/ci.py --platform=${{ matrix.platform }} should-build-platform)" >> "$GITHUB_OUTPUT"' },
+      { name: 'Checkout', if: &should_build_switch steps.platform.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
+      { name: 'Cache Defold downloads', if: *should_build_switch, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Free Disk Space', if: *should_build_switch, uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} }, # v1.3.1
+      { name: 'Install Python', if: *should_build_switch, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Install Java', if: *should_build_switch, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', if: *should_build_switch, uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
+      { name: 'Install dependencies', if: *should_build_switch, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: steps.platform.outputs.should_build == 'true' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
-      { name: 'Stop Gradle Daemon', run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
+      { name: 'Stop Gradle Daemon', if: *should_build_switch, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
         name: 'Notify if build status changed',
         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
@@ -284,20 +286,22 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 60
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} }, # v1.3.1
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
+      { name: 'Check platform support', id: platform, shell: bash, run: 'echo "should_build=$(python ci-check/ci/ci.py --platform=${{ matrix.platform }} should-build-platform)" >> "$GITHUB_OUTPUT"' },
+      { name: 'Checkout', if: &should_build_ps steps.platform.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
+      { name: 'Cache Defold downloads', if: *should_build_ps, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Free Disk Space', if: *should_build_ps, uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} }, # v1.3.1
+      { name: 'Install Python', if: *should_build_ps, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Install Java', if: *should_build_ps, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', if: *should_build_ps, uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
+      { name: 'Install dependencies', if: *should_build_ps, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: steps.platform.outputs.should_build == 'true' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
-      { name: 'Stop Gradle Daemon', run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
+      { name: 'Stop Gradle Daemon', if: *should_build_ps, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
         name: 'Notify if build status changed',
         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
@@ -313,20 +317,22 @@ jobs:
         platform: [x86_64-xbone]
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} }, # v1.3.1
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
+      { name: 'Check platform support', id: platform, shell: bash, run: 'echo "should_build=$(python ci-check/ci/ci.py --platform=${{ matrix.platform }} should-build-platform)" >> "$GITHUB_OUTPUT"' },
+      { name: 'Checkout', if: &should_build_xbox steps.platform.outputs.should_build == 'true', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
+      { name: 'Cache Defold downloads', if: *should_build_xbox, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Free Disk Space', if: *should_build_xbox, uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} }, # v1.3.1
+      { name: 'Install Python', if: *should_build_xbox, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Install Java', if: *should_build_xbox, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', if: *should_build_xbox, uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
+      { name: 'Install dependencies', if: *should_build_xbox, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        if: steps.platform.outputs.should_build == 'true' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
-      { name: 'Stop Gradle Daemon', run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
+      { name: 'Stop Gradle Daemon', if: *should_build_xbox, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
         name: 'Notify if build status changed',
         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
@@ -551,26 +557,26 @@ jobs:
       {
         name: 'Checkout',
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
-        if: steps.release.outputs.should_release == 'true',
+        if: &should_release steps.release.outputs.should_release == 'true',
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Cache Defold downloads', if: steps.release.outputs.should_release == 'true', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', if: steps.release.outputs.should_release == 'true', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Setup git user', if: steps.release.outputs.should_release == 'true', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
-      { name: 'Install dependencies', if: steps.release.outputs.should_release == 'true', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Cache Defold downloads', if: *should_release, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Install Python', if: *should_release, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Setup git user', if: *should_release, run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
+      { name: 'Install dependencies', if: *should_release, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         # only needed for some python dependencies (should have a separate python setup function?)
         name: 'Install ext dependencies',
-        if: steps.release.outputs.should_release == 'true',
+        if: *should_release,
         shell: bash,
         run: 'ci/ci.sh install_ext'
       },
       {
         name: 'Release',
-        if: steps.release.outputs.should_release == 'true',
+        if: *should_release,
         run: 'ci/ci.sh release'
       },
       {
