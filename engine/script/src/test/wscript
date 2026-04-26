@@ -17,7 +17,7 @@ def build(bld):
     test_ddf_proto = bld.path.find_resource('test_ddf.proto')
     test_types_lua = bld.path.find_resource('scripts/test_types.lua')
 
-    bld.stlib(features = 'cxx ddf',
+    bld.stlib(features = 'cxx ddf test',
               includes = '..',
               use = 'DDF DLIB',
               proto_gen_py = True,
