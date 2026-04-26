@@ -250,7 +250,7 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.nso')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_headless.nso')
 
-    if not waflib.Options.options.skip_build_tests:
+    if not bld.is_install and not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

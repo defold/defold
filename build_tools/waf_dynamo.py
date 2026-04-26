@@ -17,7 +17,6 @@ from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
-from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
@@ -945,7 +944,11 @@ task = Task.task_factory('create_export_symbols',
                          color = 'PINK',
                          before  = 'c cxx')
 
-task.runnable_status = lambda self: RUN_ME
+create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
+def sig_export_symbols(self):
+    create_export_symbols_sig_explicit_deps(self)
+    self.m.update(Utils.h_list(Utils.to_list(getattr(self, 'exported_symbols', []))))
+task.sig_explicit_deps = sig_export_symbols
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1248,7 +1251,11 @@ task = Task.task_factory('copy_stub',
                                 color = 'PINK',
                                 before  = 'c cxx')
 
-task.runnable_status = lambda self: RUN_ME
+copy_stub_sig_explicit_deps = task.sig_explicit_deps
+def sig_copy_stub(self):
+    copy_stub_sig_explicit_deps(self)
+    self.m.update(ANDROID_STUB.encode('utf-8'))
+task.sig_explicit_deps = sig_copy_stub
 
 @task_gen
 @before('process_source')
