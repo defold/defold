@@ -44,6 +44,7 @@ target_link_options(defold_sdk INTERFACE
   -stdlib=libc++
   -mmacosx-version-min=${_DEFOLD_MACOS_MIN}
   -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
+  -dead_strip
   # Frameworks
   -Wl,-framework,AppKit
   -Wl,-framework,Carbon
