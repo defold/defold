@@ -366,13 +366,19 @@ def install_ext(platform = None):
 
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
-def build_bob(channel, branch = None):
+def build_bob(channel, branch = None, skip_tests = False):
     args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
+    if skip_tests:
+        opts.append("--skip-tests")
 
     cmd = ' '.join(args + opts)
     call(cmd)
+
+def test_bob(channel):
+    call("python scripts/build.py install_ext sync_archive --channel=%s" % channel)
+    call("python scripts/build.py test_bob --channel=%s" % channel)
 
 
 def release(channel):
@@ -439,7 +445,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -538,7 +544,9 @@ def main(argv):
         elif command == "archive-editor":
             archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
         elif command == "bob":
-            build_bob(channel, branch = branch)
+            build_bob(channel, branch = branch, skip_tests = args.skip_tests)
+        elif command == "test-bob":
+            test_bob(channel)
         elif command == "sdk":
             build_sdk(channel)
         elif command == "smoke":
