@@ -25,7 +25,6 @@ env:
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
   DOTNET_CHANNEL: 9.0.1xx
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ---- BUILD ENGINE VERSIONS ------------------
