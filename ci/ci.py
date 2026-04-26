@@ -336,7 +336,7 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
 
-def archive_editor2(channel, engine_artifacts = None, platform = None):
+def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
@@ -350,7 +350,10 @@ def archive_editor2(channel, engine_artifacts = None, platform = None):
 
     opts_string = ' '.join(opts)
     for platform in platforms:
-        call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
+        if skip_install_ext:
+            call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
+        else:
+            call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 def distclean():
     call("python scripts/build.py distclean")
@@ -364,7 +367,7 @@ def install_ext(platform = None):
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
 def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
+    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -432,6 +435,7 @@ def main(argv):
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -524,7 +528,7 @@ def main(argv):
                 gcloud_keyfile = gcloud_keyfile, 
                 gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
-            archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform)
+            archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
         elif command == "bob":
             build_bob(channel, branch = branch)
         elif command == "sdk":
