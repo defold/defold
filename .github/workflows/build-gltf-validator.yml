@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -39,7 +39,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -53,13 +53,13 @@ jobs:
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -78,7 +78,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -92,13 +92,13 @@ jobs:
     runs-on: macOS-14 # Apple Silicon (M1)
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -117,7 +117,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -131,13 +131,13 @@ jobs:
     runs-on: macos-15-intel # Last Intel runner on GitHub Actions
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -156,7 +156,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.tar.xz || true
 
       - name: Archive results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.tar.xz
@@ -170,13 +170,13 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Checkout glTF Validator
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: KhronosGroup/glTF-Validator
           ref: 2.0.0-dev.3.10
 
       - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: 2.19.6  # last stable before Dart 3
 
@@ -197,7 +197,7 @@ jobs:
         run: ls -lh build/gltf_validator-${{ matrix.platform }}.zip || true
 
       - name: Archive results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gltf_validator-${{ matrix.platform }}
           path: build/gltf_validator-${{ matrix.platform }}.zip

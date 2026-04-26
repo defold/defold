@@ -17,15 +17,15 @@ jobs:
   bld-eng-macos-64:
     runs-on: macos-26
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.2.0' } },
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.2.0' } }, # v1.7.0
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -43,7 +43,7 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
          if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
@@ -52,14 +52,14 @@ jobs:
   bld-eng-linux-x64:
     runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -81,7 +81,7 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
          if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
@@ -90,14 +90,14 @@ jobs:
   bld-eng-linux-arm64:
     runs-on: ubuntu-22.04-arm
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -119,7 +119,7 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
          if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
@@ -131,17 +131,17 @@ jobs:
         platform: [wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
-      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e, with: {version: '4.0.6'}}, # v14
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984, with: {version: '4.0.6'}}, # v16
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
       },
@@ -154,7 +154,7 @@ jobs:
       },
       {
        name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+       uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
@@ -163,14 +163,14 @@ jobs:
   bld-eng-win:
     runs-on: windows-2025
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
-      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
-      { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
+      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
+      { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
+      { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
-        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7,
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7, # v5.2.0
         with: { dotnet-version: '${{ env.DOTNET_CHANNEL }}' }
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -180,7 +180,7 @@ jobs:
       },
       {
          name: 'Notify if build status changed',
-         uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
          if: failure(),
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
