@@ -377,7 +377,7 @@ def build_bob(channel, branch = None, skip_tests = False):
     call(cmd)
 
 def test_bob(channel):
-    call("python scripts/build.py install_ext sync_archive --channel=%s" % channel)
+    call("python scripts/build.py install_ext --channel=%s" % channel)
     call("python scripts/build.py test_bob --channel=%s" % channel)
 
 
