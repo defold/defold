@@ -535,31 +535,48 @@ jobs:
     runs-on: ubuntu-22.04
     steps: [
       {
+        name: 'Checkout CI scripts',
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
+        with: {
+          ref: '${{env.BUILD_BRANCH}}',
+          path: ci-check,
+          sparse-checkout: 'ci'
+        }
+      },
+      {
+        name: 'Check release branch',
+        id: release,
+        run: 'echo "should_release=$(python3 ci-check/ci/ci.py should-release)" >> "$GITHUB_OUTPUT"'
+      },
+      {
         name: 'Checkout',
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
+        if: steps.release.outputs.should_release == 'true',
         with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
-      { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
-      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      { name: 'Cache Defold downloads', if: steps.release.outputs.should_release == 'true', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Install Python', if: steps.release.outputs.should_release == 'true', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Setup git user', if: steps.release.outputs.should_release == 'true', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
+      { name: 'Install dependencies', if: steps.release.outputs.should_release == 'true', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         # only needed for some python dependencies (should have a separate python setup function?)
         name: 'Install ext dependencies',
+        if: steps.release.outputs.should_release == 'true',
         shell: bash,
         run: 'ci/ci.sh install_ext'
       },
       {
         name: 'Release',
+        if: steps.release.outputs.should_release == 'true',
         run: 'ci/ci.sh release'
       },
       {
         name: 'Publish updated API ref',
         uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3, # 1.2.1
-        if: (github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
+        if: steps.release.outputs.should_release == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev')),
         with: {
           repo: 'defold/defold.github.io',
           token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',

@@ -402,6 +402,11 @@ def smoke_test():
 
 
 def get_branch():
+    # Repository dispatch runs use this payload-derived ref for checkout.
+    branch = os.environ.get('BUILD_BRANCH', '')
+    if branch:
+        return branch
+
     # The name of the head branch. Only set for pull request events.
     branch = os.environ.get('GITHUB_HEAD_REF', '')
     if branch == '':
@@ -410,11 +415,23 @@ def get_branch():
 
     if branch == '':
         # https://stackoverflow.com/a/55276236/1266551
-        branch = call("git rev-parse --abbrev-ref HEAD").strip()
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
         if branch == "HEAD":
-            branch = call("git rev-parse HEAD")
+            branch = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
     return branch
+
+def release_settings_for_branch(branch, engine_artifacts):
+    if branch == "master":
+        return "stable", True, engine_artifacts or "archived"
+    if branch == "beta":
+        return "beta", True, engine_artifacts or "archived"
+    if branch == "dev":
+        return "alpha", True, engine_artifacts or "archived"
+    return "dev", False, engine_artifacts or "archived"
+
+def should_release_branch(branch):
+    return release_settings_for_branch(branch, None)[1]
 
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
@@ -422,7 +439,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke, should-release)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -469,24 +486,11 @@ def main(argv):
 
     branch = get_branch()
 
-    # configure build flags based on the branch
-    channel = None
-    make_release = False
-    if branch == "master":
-        channel = "stable"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "beta":
-        channel = "beta"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "dev":
-        channel = "alpha"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    else: # engine dev branch
-        channel = "dev"
-        engine_artifacts = args.engine_artifacts or "archived"
+    if args.commands == ["should-release"]:
+        print("true" if should_release_branch(branch) else "false")
+        return
+
+    channel, make_release, engine_artifacts = release_settings_for_branch(branch, args.engine_artifacts)
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={engine_artifacts}")
 
