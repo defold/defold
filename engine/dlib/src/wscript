@@ -409,21 +409,18 @@ def build(bld):
 
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)
+    bld(features='javac seq',
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
 
     bld.env["JAVACFLAGS"] = '-g --release 8 -Xlint:-options'.split()
 
-    java_dir = bld.path.find_dir('java')
-    if java_dir and java_dir.ant_glob('**/*.java'):
-        bld(features='javac seq',
-            classpath=classpath,
-            srcdir='java',
-            outdir='java')
+    bld(features='jar seq',
+        basedir='java',
+        destfile='dlib.jar')
 
-        bld(features='jar seq',
-            basedir='java',
-            destfile='dlib.jar')
-
-        bld.install_files('${PREFIX}/share/java', 'dlib.jar')
+    bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
     java_test_dir = bld.path.find_dir('java_test')
     if java_test_dir and java_test_dir.ant_glob('**/*.java'):
