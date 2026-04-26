@@ -15,6 +15,8 @@
 #ifndef DM_TF_PSA_CRYPTO_USER_CONFIG_H
 #define DM_TF_PSA_CRYPTO_USER_CONFIG_H
 
+#include "mbedtls_rename.h"
+
 #if defined(DM_MBEDTLS_DISABLE_ASM)
 #undef MBEDTLS_HAVE_ASM
 #undef MBEDTLS_AESNI_C

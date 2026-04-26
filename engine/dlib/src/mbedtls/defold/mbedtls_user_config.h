@@ -15,6 +15,8 @@
 #ifndef DM_MBEDTLS_USER_CONFIG_H
 #define DM_MBEDTLS_USER_CONFIG_H
 
+#include "mbedtls_rename.h"
+
 #if defined(DM_MBEDTLS_ERROR_STRERROR_DUMMY)
 #undef MBEDTLS_ERROR_C
 #if !defined(MBEDTLS_ERROR_STRERROR_DUMMY)
