@@ -30,6 +30,11 @@
 /**
  * System to handle particle systems
  */
+namespace dmIntersection
+{
+    struct Frustum;
+}
+
 namespace dmParticle
 {
     /**
@@ -70,6 +75,15 @@ namespace dmParticle
     extern const char* MAX_PARTICLE_GPU_COUNT_KEY;
     /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
     extern const char* MAX_PARTICLE_CPU_COUNT_KEY;
+    /// Config key to select frustum culling mode for particle fx.
+    extern const char* FRUSTUM_CULLING_MODE_KEY;
+
+    enum FrustumCullingMode
+    {
+        FRUSTUM_CULLING_MODE_DISABLED    = 0,
+        FRUSTUM_CULLING_MODE_PER_EMITTER = 1,
+        FRUSTUM_CULLING_MODE_PER_PARTICLE = 2,
+    };
 
     /**
      * Render constants supplied to the render callback.
@@ -179,6 +193,8 @@ namespace dmParticle
         uint32_t                     m_EmitterIndex;
         uint32_t                     m_MixedHash;
         uint32_t                     m_MixedHashNoMaterial;
+        dmVMath::Point3              m_FrustumCullingCenter;
+        float                        m_FrustumCullingRadiusSq;
     };
 
     /**
@@ -417,6 +433,9 @@ namespace dmParticle
      * @return Result enum value
      */
     DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+
+    DM_PARTICLE_PROTO(void, SetRenderFrustum, HParticleContext context, const dmIntersection::Frustum* frustum);
+    DM_PARTICLE_PROTO(void, SetFrustumCullingMode, HParticleContext context, FrustumCullingMode mode);
 
     /**
      * Debug render the status of the instances within the specified context.

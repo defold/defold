@@ -17,6 +17,7 @@
 #define DM_PARTICLE_PRIVATE_H
 
 #include <dlib/index_pool.h>
+#include <dmsdk/dlib/intersection.h>
 #include <dlib/transform.h>
 
 #include "particle/particle_ddf.h"
@@ -189,6 +190,8 @@ namespace dmParticle
         , m_MaxParticleCount(max_particle_count)
         , m_NextVersionNumber(1)
         , m_InstanceSeeding(0)
+        , m_FrustumCullingMode(FRUSTUM_CULLING_MODE_PER_EMITTER)
+        , m_HasRenderFrustum(0)
         {
             memset(&m_Stats, 0, sizeof(m_Stats));
             m_Instances.SetCapacity(max_instance_count);
@@ -221,6 +224,9 @@ namespace dmParticle
         uint16_t            m_InstanceSeeding;
         /// Stats
         Stats               m_Stats;
+        dmIntersection::Frustum m_RenderFrustum;
+        uint8_t             m_FrustumCullingMode;
+        uint8_t             m_HasRenderFrustum;
     };
 
     struct LinearSegment

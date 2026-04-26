@@ -30,6 +30,7 @@
 
 DM_PROPERTY_GROUP(rmtp_Particles, "Particles", 0);
 DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, PROFILE_PROPERTY_FRAME_RESET, "# particles alive", &rmtp_Particles);
+DM_PROPERTY_U32(rmtp_ParticlesCulledByFrustum, 0, PROFILE_PROPERTY_FRAME_RESET, "# particles culled by frustum", &rmtp_Particles);
 
 namespace dmParticle
 {
@@ -52,6 +53,8 @@ namespace dmParticle
     const char* MAX_PARTICLE_GPU_COUNT_KEY = "particle_fx.max_particle_count";
     /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
     const char* MAX_PARTICLE_CPU_COUNT_KEY = "particle_fx.max_particle_buffer_count";
+    /// Config key to select frustum culling mode for particle fx.
+    const char* FRUSTUM_CULLING_MODE_KEY = "particle_fx.frustum_culling_mode";
 
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
@@ -102,6 +105,24 @@ namespace dmParticle
             free(context->m_AttributeDataPtrs[i]);
         }
         delete context;
+    }
+
+    void SetRenderFrustum(HParticleContext context, const dmIntersection::Frustum* frustum)
+    {
+        if (frustum)
+        {
+            context->m_RenderFrustum = *frustum;
+            context->m_HasRenderFrustum = 1;
+        }
+        else
+        {
+            context->m_HasRenderFrustum = 0;
+        }
+    }
+
+    void SetFrustumCullingMode(HParticleContext context, FrustumCullingMode mode)
+    {
+        context->m_FrustumCullingMode = (uint8_t)mode;
     }
 
     uint32_t GetContextMaxParticleCount(HParticleContext context)
@@ -1284,6 +1305,7 @@ namespace dmParticle
 
         uint32_t particle_full_count = emitter->m_Particles.Size();
         uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
+        const bool use_per_particle_culling = context->m_FrustumCullingMode == FRUSTUM_CULLING_MODE_PER_PARTICLE && context->m_HasRenderFrustum;
         for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
@@ -1345,6 +1367,18 @@ namespace dmParticle
             Vector3 scale = particle_transform.GetScale();
             float hx = width_factor * scale.getX();
             float hy = height_factor * scale.getY();
+
+            if (use_per_particle_culling)
+            {
+                const dmVMath::Point3 culling_center = dmVMath::Point3(particle_transform.GetTranslation());
+                const float culling_radius_sq = hx * hx + hy * hy;
+                if (!dmIntersection::TestFrustumSphereSq(context->m_RenderFrustum, culling_center, culling_radius_sq))
+                {
+                    DM_PROPERTY_ADD_U32(rmtp_ParticlesCulledByFrustum, 1);
+                    continue;
+                }
+            }
+
             position_local_flat[0] = Point3(-hx, -hy, 0.0f);
             position_local_flat[1] = Point3(-hx,  hy, 0.0f);
             position_local_flat[2] = Point3( hx,  hy, 0.0f);
@@ -2058,6 +2092,60 @@ namespace dmParticle
             emitter->m_RenderConstants.Size());
     }
 
+    static void CalculateEmitterCullingSphere(Instance* inst, Emitter* emitter, dmParticleDDF::Emitter* ddf, dmVMath::Point3& center, float& radius_sq)
+    {
+        const uint32_t particle_count = emitter->m_Particles.Size();
+        if (particle_count == 0)
+        {
+            center = dmVMath::Point3(inst->m_WorldTransform.GetTranslation());
+            radius_sq = 0.0f;
+            return;
+        }
+
+        dmTransform::TransformS1 emission_transform;
+        emission_transform.SetIdentity();
+        if (ddf->m_Space == EMISSION_SPACE_EMITTER)
+        {
+            emission_transform = inst->m_WorldTransform;
+        }
+
+        dmVMath::Vector3 aabb_min(FLT_MAX, FLT_MAX, FLT_MAX);
+        dmVMath::Vector3 aabb_max(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+        float max_extent = 0.0f;
+
+        for (uint32_t i = 0; i < particle_count; ++i)
+        {
+            const Particle& p = emitter->m_Particles[i];
+            dmVMath::Point3 world_pos = p.GetPosition();
+            if (ddf->m_Space == EMISSION_SPACE_EMITTER)
+            {
+                world_pos = dmVMath::Point3(dmTransform::Apply(emission_transform, world_pos));
+            }
+
+            const dmVMath::Vector3 world_pos_v(world_pos.getX(), world_pos.getY(), world_pos.getZ());
+            aabb_min = minPerElem(aabb_min, world_pos_v);
+            aabb_max = maxPerElem(aabb_max, world_pos_v);
+
+            dmVMath::Vector3 particle_size = p.GetScale() * p.GetSourceSize();
+            if (ddf->m_Space == EMISSION_SPACE_EMITTER)
+            {
+                particle_size *= emission_transform.GetScale();
+            }
+
+            const float hx = 0.5f * particle_size.getX();
+            const float hy = 0.5f * particle_size.getY();
+            const float extent_sq = hx * hx + hy * hy;
+            if (extent_sq > max_extent)
+            {
+                max_extent = extent_sq;
+            }
+        }
+
+        center = dmVMath::Point3((aabb_min + aabb_max) * 0.5f);
+        const dmVMath::Vector3 extent = (aabb_max - aabb_min) * 0.5f;
+        radius_sq = dmVMath::Dot(extent, extent) + max_extent;
+    }
+
     // Update render data for the emitter at the specified index
     void UpdateEmitterRenderData(HInstance instance, uint32_t emitter_index, Instance* inst, Emitter* emitter, dmParticleDDF::Emitter* ddf)
     {
@@ -2078,6 +2166,8 @@ namespace dmParticle
         render_data.m_EmitterIndex = emitter_index;
         render_data.m_Attributes = ddf->m_Attributes.m_Data;
         render_data.m_AttributeCount = ddf->m_Attributes.m_Count;
+
+        CalculateEmitterCullingSphere(inst, emitter, ddf, render_data.m_FrustumCullingCenter, render_data.m_FrustumCullingRadiusSq);
     }
 
     // Update render data for all emitters on an instance
