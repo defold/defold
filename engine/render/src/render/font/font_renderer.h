@@ -35,6 +35,7 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches);
     void FinalizeTextContext(HRenderContext render_context);
+    void ClearTextEntries(HRenderContext render_context);
 
     const int MAX_FONT_RENDER_CONSTANTS = 16;
     /**
@@ -52,16 +53,18 @@ namespace dmRender
         dmVMath::Vector4 m_OutlineColor;
         /// Color of the shadow
         dmVMath::Vector4 m_ShadowColor;
-        /// Text to draw in utf8-format
+        /// Text to draw in utf8-format. Optional when m_TextLayout is set.
         const char* m_Text;
+        /// Optional prepared text layout. The render queue retains it until queued text entries are cleared.
+        HTextLayout m_TextLayout;
         /// Render constants
         dmRender::HConstant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
         /// The source blend factor
         dmGraphics::BlendFactor m_SourceBlendFactor;
         /// The destination blend factor
         dmGraphics::BlendFactor m_DestinationBlendFactor;
-        /// Render order value. Passed to the render-key
-        uint16_t    m_RenderOrder;
+        /// Render order value. Passed to the render-key (24-bit value for sorting)
+        uint32_t    m_RenderOrder;
         /// Number render constants
         uint8_t     m_NumRenderConstants;
         /// Text render box width. Used for alignment and when m_LineBreak is true
@@ -104,7 +107,7 @@ namespace dmRender
      * @param render_order Render order to write for the rendering
      * @param render_context Context to use when rendering
      */
-    void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final);
+    void FlushTexts(HRenderContext render_context, uint32_t major_order, bool final);
 }
 
 #endif // DM_FONT_RENDERER_H

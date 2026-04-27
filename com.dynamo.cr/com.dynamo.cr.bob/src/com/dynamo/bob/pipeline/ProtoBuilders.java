@@ -42,7 +42,6 @@ import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
@@ -58,6 +57,7 @@ import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
+import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
@@ -209,10 +209,6 @@ public class ProtoBuilders {
             return messageBuilder.setPrototype(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
         }
     }
-
-    @ProtoParams(srcClass = LightDesc.class, messageClass = LightDesc.class)
-    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
-    public static class LightBuilder extends ProtoBuilder<LightDesc.Builder> {}
 
     @ProtoParams(srcClass = RenderPrototypeDesc.class, messageClass = RenderPrototypeDesc.class)
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
@@ -446,5 +442,14 @@ public class ProtoBuilders {
     @BuilderParams(name="DisplayProfiles", inExts=".display_profiles", outExt=".display_profilesc")
     public static class DisplayProfilesBuilder extends ProtoBuilder<DisplayProfiles.Builder> {}
 
+    @ProtoParams(srcClass = Data.class, messageClass = Data.class)
+    @BuilderParams(name="Data", inExts=".data", outExt=".datac")
+    public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 
+    // .light is the same backing data type as the data resource.
+    // Using an alias approach has mostly semantic value for users,
+    // as the intent is more clear.
+    @ProtoParams(srcClass = Data.class, messageClass = Data.class)
+    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
+    public static class LightBuilder extends ProtoBuilder<Data.Builder> {}
 }

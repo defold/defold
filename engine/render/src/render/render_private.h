@@ -18,11 +18,13 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
-#include <dlib/opaque_handle_container.h>
+#include <dmsdk/font/text_layout.h>
 
+#include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
 #include <dlib/message.h>
 #include <dlib/hashtable.h>
+#include <dlib/index_pool.h>
 
 #include "render.h"
 
@@ -100,9 +102,13 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
+        uint16_t                                    m_LightBufferSet;
+        uint16_t                                    m_LightBufferBinding;
+        uint8_t                                     m_HasLightBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
+        uint8_t                                     m_HasMorphTargetsSampler : 1;
     };
 
     struct ComputeProgram
@@ -112,6 +118,9 @@ namespace dmRender
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        uint16_t                                    m_LightBufferSet;
+        uint16_t                                    m_LightBufferBinding;
+        uint8_t                                     m_HasLightBuffer : 1;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -151,6 +160,7 @@ namespace dmRender
         HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
         HFontMap            m_FontMap;
         HMaterial           m_Material;
+        HTextLayout         m_TextLayout;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
@@ -158,7 +168,7 @@ namespace dmRender
         uint32_t            m_StringOffset;
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
-        uint16_t            m_RenderOrder;
+        uint32_t            m_RenderOrder;
         uint8_t             m_NumRenderConstants;
         bool                m_LineBreak;
         float               m_Width;
@@ -268,6 +278,34 @@ namespace dmRender
         uint8_t          m_Enabled    : 1;
     };
 
+    struct LightPrototype
+    {
+        dmVMath::Vector4 m_Color;
+        dmVMath::Vector3 m_Direction;
+        LightType        m_Type;
+        float            m_Intensity;
+        float            m_Range;
+        float            m_InnerConeAngle;
+        float            m_OuterConeAngle;
+    };
+
+    struct LightInstance
+    {
+        dmVMath::Point3       m_Position;
+        dmVMath::Vector3      m_Direction;
+        const LightPrototype* m_LightPrototype;
+        uint16_t              m_LightBufferIndex;
+    };
+
+    // CPU-mapped representation of a light in STD140 layout
+    struct LightSTD140
+    {
+        dmVMath::Vector4 m_Position;
+        dmVMath::Vector4 m_Color;
+        dmVMath::Vector4 m_DirectionRange;
+        dmVMath::Vector4 m_Params;
+    };
+
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -285,12 +323,19 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        dmhash_t                    m_FrustumHash;
+        //dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
+
+        dmOpaqueHandleContainer<LightInstance> m_RenderLights;
+        dmIndexPool16                          m_RenderLightsIndices;
+
+        dmArray<LightSTD140>                   m_LightBufferScratch;
+        dmGraphics::UniformBufferLayout        m_LightBufferLayout;
+        dmGraphics::HUniformBuffer             m_LightUniformBuffer;
 
         HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;
@@ -302,11 +347,18 @@ namespace dmRender
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
-        uint32_t                    m_OutOfResources                : 1;
-        uint32_t                    m_StencilBufferCleared          : 1;
-        uint32_t                    m_MultiBufferingRequired        : 1;
-        uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
-        uint32_t                    m_IsRenderPaused                : 1;
+
+        uint32_t                    m_LightBufferDirtyStart;
+        uint32_t                    m_LightBufferDirtyEnd;
+        uint32_t                    m_LightBufferDataWriteStart;
+        uint32_t                    m_LightBufferLastWrittenCount;
+        uint16_t                    m_MaxLightCount;
+        uint16_t                    m_LightBufferDirtyCount         : 1;
+        uint16_t                    m_OutOfResources                : 1;
+        uint16_t                    m_StencilBufferCleared          : 1;
+        uint16_t                    m_MultiBufferingRequired        : 1;
+        uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
+        uint16_t                    m_IsRenderPaused                : 1;
     };
 
     struct BufferedRenderBuffer
@@ -357,6 +409,12 @@ namespace dmRender
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
+
+    // Lights
+    void FinalizeLightData(HRenderContext render_context);
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding);
+    void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
+    void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter
@@ -456,4 +514,3 @@ namespace dmRender
 }
 
 #endif
-

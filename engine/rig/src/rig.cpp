@@ -23,6 +23,7 @@
 #include <graphics/graphics.h>
 
 #include <stdio.h>
+#include <string.h>
 
 namespace dmRig
 {
@@ -413,6 +414,177 @@ namespace dmRig
         return t;
     }
 
+    static MorphWeightSlot* GetMorphWeightSlot(RigInstance* instance, uint64_t model_id)
+    {
+        for (uint32_t i = 0; i < instance->m_MorphSlots.Size(); ++i)
+        {
+            if (instance->m_MorphSlots[i].m_ModelId == model_id)
+            {
+                return &instance->m_MorphSlots[i];
+            }
+        }
+        return 0x0;
+    }
+
+    static void ResetMorphWeights(RigInstance* instance)
+    {
+        if (instance->m_MorphSlots.Empty())
+        {
+            return;
+        }
+
+        for (uint32_t si = 0; si < instance->m_MorphSlots.Size(); ++si)
+        {
+            MorphWeightSlot& slot = instance->m_MorphSlots[si];
+            float* dest = instance->m_MorphWeightsBuffer.Begin() + slot.m_BufferOffset;
+            memset(dest, 0, slot.m_MorphCount * sizeof(float));
+        }
+    }
+
+    static uint32_t GetModelMaxMorphTargetCount(const dmRigDDF::Model* model)
+    {
+        uint32_t mcount = 0;
+        for (uint32_t m = 0; m < model->m_Meshes.m_Count; ++m)
+        {
+            mcount = dmMath::Max(mcount, model->m_Meshes[m].m_MorphTargets.m_Count);
+        }
+        return mcount;
+    }
+
+    static void InitMorphSlots(RigInstance* instance)
+    {
+        const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
+        if (!mesh_set)
+        {
+            return;
+        }
+
+        uint32_t slot_count = 0;
+        uint32_t total_floats = 0;
+        uint32_t max_morph = 0;
+
+        // Pass 1: count the number of morph slots and total number of floats
+        for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
+        {
+            const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
+            uint32_t mcount = GetModelMaxMorphTargetCount(model);
+            if (mcount == 0)
+            {
+                continue;
+            }
+            slot_count++;
+            total_floats += mcount;
+            max_morph = dmMath::Max(max_morph, mcount);
+        }
+
+        if (slot_count == 0 || total_floats == 0)
+        {
+            return;
+        }
+
+        // Pass 2: create the morph weight slots
+        instance->m_MorphSlots.SetCapacity(slot_count);
+        uint32_t buffer_offset = 0;
+        for (uint32_t mi = 0; mi < mesh_set->m_Models.m_Count; ++mi)
+        {
+            const dmRigDDF::Model* model = &mesh_set->m_Models[mi];
+            uint32_t mcount = GetModelMaxMorphTargetCount(model);
+            if (mcount == 0)
+            {
+                continue;
+            }
+
+            MorphWeightSlot slot;
+            slot.m_ModelId = model->m_Id;
+            slot.m_MorphCount = mcount;
+            slot.m_BufferOffset = buffer_offset;
+            instance->m_MorphSlots.Push(slot);
+            buffer_offset += mcount;
+        }
+
+        instance->m_MorphWeightsBuffer.SetCapacity(total_floats);
+        instance->m_MorphWeightsBuffer.SetSize(total_floats);
+        instance->m_MorphScratch.SetCapacity(max_morph);
+        instance->m_MorphScratch.SetSize(max_morph);
+        ResetMorphWeights(instance);
+    }
+
+    static void SampleMorphWeightTrack(const dmRigDDF::MorphWeightTrack* track, float t, float sample_rate, float* out_weights)
+    {
+        uint32_t dim = track->m_MorphCount;
+        uint32_t total_floats = track->m_Weights.m_Count;
+        if (dim == 0 || total_floats == 0)
+            return;
+        uint32_t num_poses = total_floats / dim;
+        if (num_poses == 0)
+            return;
+
+        float fraction = t * sample_rate;
+        uint32_t sample = (uint32_t)fraction;
+        fraction -= sample;
+        if (sample >= num_poses - 1)
+        {
+            sample = num_poses - 1;
+            fraction = 0.0f;
+        }
+
+        const float* data = track->m_Weights.m_Data;
+        for (uint32_t d = 0; d < dim; ++d)
+        {
+            uint32_t i0 = sample * dim + d;
+            if (sample + 1 < num_poses)
+            {
+                uint32_t i1 = i0 + dim;
+                out_weights[d] = data[i0] + fraction * (data[i1] - data[i0]);
+            }
+            else
+            {
+                out_weights[d] = data[i0];
+            }
+        }
+    }
+
+    static void ApplyMorphAnimation(RigInstance* instance, RigPlayer* player, float blend_weight)
+    {
+        const dmRigDDF::RigAnimation* animation = player->m_Animation;
+        // No m_Playing check: UpdatePlayer may clear it when a ONCE clip ends in the same DoAnimate pass;
+        // morph weights must still be sampled for that final frame (same as bone tracks).
+        if (!animation || instance->m_MorphSlots.Empty())
+        {
+            return;
+        }
+
+        uint32_t mw_count = animation->m_MorphWeightTracks.m_Count;
+        const dmRigDDF::MorphWeightTrack* mw_tracks = animation->m_MorphWeightTracks.m_Data;
+
+        float duration    = GetCursorDuration(player, animation);
+        float t           = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
+        float sample_rate = animation->m_SampleRate;
+
+        for (uint32_t ti = 0; ti < mw_count; ++ti)
+        {
+            const dmRigDDF::MorphWeightTrack* track = &mw_tracks[ti];
+            MorphWeightSlot* slot = GetMorphWeightSlot(instance, track->m_ModelId);
+            if (!slot)
+            {
+                continue;
+            }
+
+            if (track->m_MorphCount != slot->m_MorphCount)
+            {
+                continue;
+            }
+
+            SampleMorphWeightTrack(track, t, sample_rate, instance->m_MorphScratch.Begin());
+            float* dest = instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+            const float* sampled = instance->m_MorphScratch.Begin();
+            for (uint32_t d = 0; d < slot->m_MorphCount; ++d)
+            {
+                dest[d] = dest[d] + blend_weight * (sampled[d] - dest[d]);
+            }
+        }
+    }
+
     static void ApplyAnimation(RigInstance* instance, RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
@@ -424,48 +596,51 @@ namespace dmRig
         float fraction = t * animation->m_SampleRate;
         uint32_t sample = (uint32_t)fraction;
         fraction -= sample;
-        // Sample animation tracks
+        // Sample skeletal tracks (skip when there is no skeleton / bone map, e.g. morph-only rigs)
         const dmHashTable64<uint32_t>* bone_indices = instance->m_BoneIndices;
         uint32_t track_count = animation->m_Tracks.m_Count;
-        for (uint32_t ti = 0; ti < track_count; ++ti)
+        if (bone_indices)
         {
-            const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
-
-            const uint32_t* bone_index = bone_indices->Get(track->m_BoneId);
-            if (!bone_index || *bone_index >= pose.Size()) {
-                continue;
-            }
-            dmTransform::Transform& transform = pose[*bone_index].m_Local;
-
-            if (track->m_Positions.m_Count > 0)
+            for (uint32_t ti = 0; ti < track_count; ++ti)
             {
-                Vector3 v;
-                if (track->m_Positions.m_Count == 3)
-                    v = Vector3(track->m_Positions.m_Data[0], track->m_Positions.m_Data[1], track->m_Positions.m_Data[2]);
-                else
-                    v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
+                const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
 
-                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
-            }
-            if (track->m_Rotations.m_Count > 0)
-            {
-                Quat q;
-                if (track->m_Rotations.m_Count == 4)
-                    q = Quat(track->m_Rotations.m_Data[0], track->m_Rotations.m_Data[1], track->m_Rotations.m_Data[2], track->m_Rotations.m_Data[3]);
-                else
-                    q = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
+                const uint32_t* bone_index = bone_indices->Get(track->m_BoneId);
+                if (!bone_index || *bone_index >= pose.Size()) {
+                    continue;
+                }
+                dmTransform::Transform& transform = pose[*bone_index].m_Local;
 
-                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), q));
-            }
-            if (track->m_Scale.m_Count > 0)
-            {
-                Vector3 s;
-                if (track->m_Scale.m_Count == 3)
-                    s = Vector3(track->m_Scale.m_Data[0], track->m_Scale.m_Data[1], track->m_Scale.m_Data[2]);
-                else
-                    s = SampleVec3(sample, fraction, track->m_Scale.m_Data);
+                if (track->m_Positions.m_Count > 0)
+                {
+                    Vector3 v;
+                    if (track->m_Positions.m_Count == 3)
+                        v = Vector3(track->m_Positions.m_Data[0], track->m_Positions.m_Data[1], track->m_Positions.m_Data[2]);
+                    else
+                        v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
 
-                transform.SetScale(lerp(blend_weight, transform.GetScale(), s));
+                    transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
+                }
+                if (track->m_Rotations.m_Count > 0)
+                {
+                    Quat q;
+                    if (track->m_Rotations.m_Count == 4)
+                        q = Quat(track->m_Rotations.m_Data[0], track->m_Rotations.m_Data[1], track->m_Rotations.m_Data[2], track->m_Rotations.m_Data[3]);
+                    else
+                        q = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
+
+                    transform.SetRotation(slerp(blend_weight, transform.GetRotation(), q));
+                }
+                if (track->m_Scale.m_Count > 0)
+                {
+                    Vector3 s;
+                    if (track->m_Scale.m_Count == 3)
+                        s = Vector3(track->m_Scale.m_Data[0], track->m_Scale.m_Data[1], track->m_Scale.m_Data[2]);
+                    else
+                        s = SampleVec3(sample, fraction, track->m_Scale.m_Data);
+
+                    transform.SetScale(lerp(blend_weight, transform.GetScale(), s));
+                }
             }
         }
     }
@@ -507,7 +682,7 @@ namespace dmRig
         }
     }
 
-    static void UpdatePoseTransforms(dmArray<BonePose>& pose)
+    static void UpdatePoseTransforms(const dmRigDDF::Skeleton* skeleton, dmArray<BonePose>& pose)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -515,9 +690,19 @@ namespace dmRig
             BonePose& bp = pose[bi];
 
             if (bp.m_ParentIndex != INVALID_BONE_INDEX)
+            {
                 bp.m_World = dmTransform::Mul(pose[bp.m_ParentIndex].m_World, bp.m_Local);
+            }
             else
-                bp.m_World = bp.m_Local;
+            {
+                // Apply the skeleton bone transform when the there is no parent.
+                const dmRigDDF::Bone* sk_bone = &skeleton->m_Bones[bi];
+                // Separate the anscestor (everything "above" this joint hierarchy-wise) from the local transform of this joint.
+                const Matrix4 world_bind = dmTransform::ToMatrix4(sk_bone->m_World);
+                const Matrix4 local_bind = dmTransform::ToMatrix4(sk_bone->m_Local);
+                const Matrix4 ancestor = world_bind * dmVMath::Inverse(local_bind);
+                bp.m_World = dmTransform::ToTransform(ancestor * dmTransform::ToMatrix4(bp.m_Local));
+            }
         }
     }
 
@@ -565,8 +750,24 @@ namespace dmRig
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
+        if (!instance->m_MorphSlots.Empty())
+        {
+            ResetMorphWeights(instance);
+        }
+
         if (!IsAnimating(instance))
         {
+            // Skinned meshes sample the pose matrix cache every frame. If we skip the cache write while
+            // idle, the vertex shader falls back to non-skinned positions which can cause a disparity
+            // between authoring tools and animated result. Instead, we write the non-animated
+            // skeleton bind pose whenever this instance owns cache space.
+            if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
+            {
+                dmArray<BonePose>& pose = instance->m_Pose;
+                const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+                UpdatePoseTransforms(skeleton, pose);
+                CommitPoseMatrixToCache(context, instance);
+            }
             return;
         }
 
@@ -604,6 +805,7 @@ namespace dmRig
 
                 UpdatePlayer(instance, p, dt, blend_weight);
                 ApplyAnimation(instance, p, pose, ik_animation, alpha);
+                ApplyMorphAnimation(instance, p, alpha);
                 if (player == p)
                 {
                     alpha = 1.0f - fade_rate;
@@ -618,6 +820,7 @@ namespace dmRig
         {
             UpdatePlayer(instance, player, dt, 1.0f);
             ApplyAnimation(instance, player, pose, ik_animation, 1.0f);
+            ApplyMorphAnimation(instance, player, 1.0f);
         }
 
         // Normalize quaternions while we blend
@@ -636,7 +839,7 @@ namespace dmRig
             }
         }
 
-        UpdatePoseTransforms(pose);
+        UpdatePoseTransforms(skeleton, pose);
 
         CommitPoseMatrixToCache(context, instance);
     }
@@ -1440,6 +1643,35 @@ namespace dmRig
         return instance->m_MaxBoneCount;
     }
 
+    const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count)
+    {
+        if (instance == 0x0)
+        {
+            return 0x0;
+        }
+        MorphWeightSlot* slot = GetMorphWeightSlot(instance, model_id);
+        if (!slot)
+        {
+            return 0x0;
+        }
+        *out_count = slot->m_MorphCount;
+        return instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+    }
+
+    void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
+    {
+        MorphWeightSlot* slot = GetMorphWeightSlot(instance, model_id);
+        if (!slot)
+        {
+            return;
+        }
+        float* dest = instance->m_MorphWeightsBuffer.Begin() + slot->m_BufferOffset;
+        uint32_t n = dmMath::Min(count, slot->m_MorphCount);
+        memcpy(dest, weights, n * sizeof(float));
+        if (n < slot->m_MorphCount)
+            memset(dest + n, 0, (slot->m_MorphCount - n) * sizeof(float));
+    }
+
     void SetEventCallback(HRigInstance instance, RigEventCallback event_callback, void* user_data1, void* user_data2)
     {
         if (!instance) {
@@ -1495,6 +1727,9 @@ namespace dmRig
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
+        instance->m_MorphSlots.SetCapacity(0);
+        instance->m_MorphWeightsBuffer.SetCapacity(0);
+        instance->m_MorphScratch.SetCapacity(0);
         delete instance;
         context->m_Instances.Free(index, true);
     }
@@ -1527,6 +1762,8 @@ namespace dmRig
         instance->m_Skeleton           = params.m_Skeleton;
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;
+
+        InitMorphSlots(instance);
 
         instance->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
 

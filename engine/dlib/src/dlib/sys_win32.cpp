@@ -23,8 +23,10 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <limits.h> // UINT_MAX
 
 #include "sys.h"
+#include "sys_internal.h"
 #include "log.h"
 #include "dstrings.h"
 #include "hash.h"
@@ -49,8 +51,6 @@
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #warning "S_ISREG WAS ADDED AS A DEFINE! /MAWE"
 #endif
-
-
 
 namespace dmSys
 {
@@ -93,92 +93,59 @@ namespace dmSys
         return RESULT_NOENT;
     }
 
-
 #if !defined(DM_PLATFORM_VENDOR)
 
-    static const wchar_t* SkipSlashesW(const wchar_t* path)
+    static bool WideToACP(const wchar_t* path, char* out, uint32_t out_len)
     {
-        while (*path && (*path == L'/' || *path == L'\\'))
-        {
-            ++path;
-        }
-        return path;
+        BOOL used_default = FALSE;
+        int written = WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, path, -1, out, out_len, NULL, &used_default);
+        return written > 0 && !used_default;
     }
 
-    // Is a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
-    static bool MakePath_8_3(const wchar_t* wpath, wchar_t* out)
+    static bool WidePathToHostPath(const wchar_t* path, char* out, uint32_t out_len)
     {
-        wchar_t tmp[MAX_PATH] = { 0 };
-        dmPath::NormalizeW(wpath, tmp, MAX_PATH);
-        out[0] = L'\0';
+        if (WideToACP(path, out, out_len))
+            return true;
 
-        int has_drive = 0;
-        wchar_t* cursor = tmp;
-        while (*cursor != L'\0')
-        {
-            if (!has_drive)
-            {
-                cursor = wcschr(cursor, L':');
-                if (!cursor)
-                {
-                    dmLogError("Failed to find drive in path: '%ls'\n", wpath);
-                    return false;
-                }
-                has_drive = 1;
-                cursor++; // Skip past the ':'"
+        wchar_t short_path[MAX_PATH];
+        DWORD short_path_len = GetShortPathNameW(path, short_path, MAX_PATH);
+        if (short_path_len == 0 || short_path_len >= MAX_PATH)
+            return false;
 
-                // Copy the drive "C:"
-                wchar_t c = *cursor;
-                *cursor = L'\0';
-                wcscpy(out, tmp);
-
-                *cursor = c;
-                cursor = (wchar_t*)SkipSlashesW(cursor+1);
-                continue;
-            }
-
-            wchar_t* sep = wcschr(cursor, L'\\');
-            if (!sep)
-                sep = wcschr(cursor, L'/');
-
-            // Temporarily null terminate the string
-            if (sep)
-                *sep = L'\0';
-
-            // Create a version of the previously parsed path, and the latest (untransformed) directory name
-            wchar_t testpath[MAX_PATH] = { 0 };
-            wcscpy(testpath, out); // The previously path with 8.3 names
-            wcscat(testpath, L"/");
-            wcscat(testpath, cursor); // The last folder to test
-
-            WIN32_FIND_DATAW fd{0};
-            HANDLE h = FindFirstFileW( tmp, &fd );
-            if (h == INVALID_HANDLE_VALUE)
-            {
-                dmLogError("FindFirstFileW failed\n");
-                return false;
-            }
-
-            wcscat(out, L"/");
-            if (fd.cAlternateFileName[0] == L'\0')
-                wcscat(out, fd.cFileName);
-            else
-                wcscat(out, fd.cAlternateFileName);
-
-            if (sep)
-                *sep = L'/';
-            else
-                break;
-
-            cursor = sep + 1;
-        }
-
-        return true;
+        return WideToACP(short_path, out, out_len);
     }
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
     {
         return GetApplicationSupportPath(application_name, path, path_len);
+    }
+
+    Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len)
+    {
+        char tmp_path[MAX_PATH];
+        if (!WidePathToHostPath(application_support_path, tmp_path, sizeof(tmp_path)))
+        {
+            dmLogError("Failed converting wchar_t path to host path\n");
+            return RESULT_UNKNOWN;
+        }
+
+        return GetApplicationSupportPath(tmp_path, application_name, path, path_len);
+    }
+
+    Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len)
+    {
+        if (dmStrlCpy(path, application_support_path, path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, "/", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        Result r =  Mkdir(path, 0755);
+        if (r == RESULT_EXIST)
+            return RESULT_OK;
+        else
+            return r;
     }
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
@@ -191,34 +158,7 @@ namespace dmSys
                                      0,
                                      tmp_wpath)))
         {
-            // Make any unicode directories into 8.3 format if necessary
-            wchar_t short_path[MAX_PATH];
-            MakePath_8_3(tmp_wpath, short_path);
-
-            int wlength = (int)wcslen(short_path);
-            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, NULL, 0, NULL, NULL);
-            if (size_needed == 0)
-            {
-                dmLogError("Failed converting wchar_t -> char\n");
-                return RESULT_UNKNOWN;
-            }
-
-            char* tmp_path = (char*)_alloca(size_needed + 1);
-            WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, tmp_path, size_needed, NULL, NULL);
-            tmp_path[size_needed] = 0;
-
-            if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, "/", path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, application_name, path_len) >= path_len)
-                return RESULT_INVAL;
-
-            Result r =  Mkdir(path, 0755);
-            if (r == RESULT_EXIST)
-                return RESULT_OK;
-            else
-                return r;
+            return GetApplicationSupportPath(tmp_wpath, application_name, path, path_len);
         }
         else
         {
@@ -346,17 +286,23 @@ namespace dmSys
 
     bool ResourceExists(const char* path)
     {
-        struct stat file_stat;
-        return stat(path, &file_stat) == 0;
+        struct __stat64 file_stat;
+        return _stat64(path, &file_stat) == 0;
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
     {
-        struct stat file_stat;
-        if (stat(path, &file_stat) == 0) {
+        struct __stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
+
+            if (file_stat.st_size > UINT_MAX)
+            {
+                return RESULT_FBIG;
+            }
+
             *resource_size = (uint32_t) file_stat.st_size;
             return RESULT_OK;
         } else {
@@ -367,23 +313,35 @@ namespace dmSys
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
-        struct stat file_stat;
-        if (stat(path, &file_stat) == 0) {
+        struct __stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
-            if ((uint32_t) file_stat.st_size > buffer_size) {
+
+            if (file_stat.st_size > UINT_MAX)
+            {
+                return RESULT_FBIG;
+            }
+
+            uint32_t size_as_32b = (uint32_t) file_stat.st_size;
+            if (size_as_32b > buffer_size) {
                 return RESULT_INVAL;
             }
+
             FILE* f = fopen(path, "rb");
-            size_t nread = fread(buffer, 1, file_stat.st_size, f);
+            size_t nread = fread(buffer, 1, size_as_32b, f);
             fclose(f);
-            if (nread != (size_t) file_stat.st_size) {
+
+            if (nread != size_as_32b)
+            {
                 return RESULT_IO;
             }
-            *resource_size = file_stat.st_size;
+            *resource_size = size_as_32b;
             return RESULT_OK;
-        } else {
+        }
+        else
+        {
             return ErrnoToResult(errno);
         }
     }
@@ -393,8 +351,8 @@ namespace dmSys
         if (buffer == 0 || size == 0)
             return RESULT_INVAL;
 
-        struct stat file_stat;
-        if (stat(path, &file_stat) == 0) {
+        struct __stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -447,8 +405,8 @@ namespace dmSys
 
     Result IsDir(const char* path)
     {
-        struct stat path_stat;
-        int ret = stat(path, &path_stat);
+        struct __stat64 path_stat;
+        int ret = _stat64(path, &path_stat);
         if (ret != 0)
             return ErrnoToResult(errno);
         return path_stat.st_mode & S_IFDIR ? RESULT_OK : RESULT_UNKNOWN;
@@ -456,8 +414,8 @@ namespace dmSys
 
     bool Exists(const char* path)
     {
-        struct stat path_stat;
-        int ret = stat(path, &path_stat);
+        struct __stat64 path_stat;
+        int ret = _stat64(path, &path_stat);
         return ret == 0;
     }
 
@@ -530,14 +488,14 @@ namespace dmSys
 
     Result Stat(const char* path, StatInfo* stat_info)
     {
-        struct stat info;
-        int ret = stat(path, &info);
+        struct __stat64 info;
+        int ret = _stat64(path, &info);
         if (ret != 0)
             return RESULT_NOENT;
-        stat_info->m_Size = (uint64_t)info.st_size;
+        stat_info->m_Size = info.st_size;
         stat_info->m_Mode = info.st_mode;
-        stat_info->m_AccessTime = info.st_atime;
-        stat_info->m_ModifiedTime = info.st_mtime;
+        stat_info->m_AccessTime = (uint32_t)info.st_atime;
+        stat_info->m_ModifiedTime = (uint32_t)info.st_mtime;
         return RESULT_OK;
     }
 

@@ -360,7 +360,8 @@
 
 (defn load-label [_project self resource label]
   {:pre [(map? label)]} ; Label$LabelDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Label$LabelDesc label
       text :text
       size (protobuf/vector4->vector3 :size)

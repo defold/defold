@@ -171,6 +171,12 @@
   (let [sorted-set (to-sorted-set coll)]
     (digest-sequence! "#{" sorted-set "}" writer opts)))
 
+(defn- digest-array! [^Class component-class coll writer opts]
+  (digest-raw! "#dg/" writer)
+  (digest-raw! (.getName component-class) writer)
+  (digest-raw! "_ARRAY " writer)
+  (digest-sequence! "[" coll "]" writer opts))
+
 (let [simple-digestable-impl {:digest! (fn digest-simple-value! [value writer _opts]
                                          (print-method value writer))}
       simple-digestable-classes [nil
@@ -234,9 +240,13 @@
     (.digest value writer))
 
   Object
-  (digest! [value _writer _opts]
-    (throw (ex-info (str "Encountered undigestable value: " value)
-                    {:value value}))))
+  (digest! [value writer opts]
+    (let [value-class (class value)]
+      (if (.isArray value-class)
+        (digest-array! (.getComponentType value-class) value writer opts)
+        (throw (ex-info (str "Encountered undigestable value: " value)
+                        {:value value
+                         :class value-class}))))))
 
 (defn sha1-hash
   (^String [object]

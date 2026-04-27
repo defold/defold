@@ -61,10 +61,14 @@ namespace dmGameSystem
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
     bool                    CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out);
-
     uint32_t                CompModelGetMeshCount(ModelComponent* component);
     void                    CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max);
     void                    CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t* out_mesh_id, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max);
+
+    // Script-driven morph weight functionality
+    void                    CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count);
+    void                    CompModelResetBlendWeights(ModelComponent* component);
+    bool                    CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count);
 
     // these aren't used yet??
     bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);

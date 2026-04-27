@@ -233,6 +233,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
         dmRender::HRenderContext    m_RenderContext;
+        dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxSpriteCount;
         uint32_t                    m_Subpixels : 1;
     };
@@ -248,6 +249,9 @@ namespace dmGameSystem
         uint32_t                    m_MaxModelCount;
         uint16_t                    m_MaxBoneMatrixTextureWidth;
         uint16_t                    m_MaxBoneMatrixTextureHeight;
+        /// Max width/height in pixels for each mesh morph-target delta texture (see `model.max_morph_target_texture_*` in game.project).
+        uint16_t                    m_MaxMorphTargetTextureWidth;
+        uint16_t                    m_MaxMorphTargetTextureHeight;
     };
 
     struct ScriptLibContext
@@ -305,7 +309,8 @@ namespace dmGameSystem
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
         dmInput::HContext input_context,
-        PhysicsContext* physics_context);
+        PhysicsContext* physics_context,
+        ModelContext* model_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,

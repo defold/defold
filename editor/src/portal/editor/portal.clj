@@ -59,7 +59,7 @@
   0)
 
 (defn- project [basis]
-  (some-> (ig/explicit-arcs-by-source basis (workspace) :resource-map)
+  (some-> (ig/explicit-arcs-by-source basis (workspace) :resource-list)
           (first)
           (gt/target-id)))
 

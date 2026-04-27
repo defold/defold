@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/atomic.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -22,17 +23,14 @@ namespace dmGraphics
 {
     void InitializeVulkanTexture(VulkanTexture* t)
     {
-        t->m_Type                = TEXTURE_TYPE_2D;
-        t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = 0;
-        t->m_Format              = VK_FORMAT_UNDEFINED;
-        t->m_Width               = 0;
-        t->m_Height              = 0;
-        t->m_OriginalWidth       = 0;
-        t->m_OriginalHeight      = 0;
-        t->m_MipMapCount         = 0;
-        t->m_TextureSamplerIndex = 0;
-        t->m_Destroyed           = 0;
+        memset(&t->m_Base, 0, sizeof(t->m_Base));
+        t->m_Base.m_Type                = TEXTURE_TYPE_2D;
+        t->m_Base.m_Format              = TEXTURE_FORMAT_RGBA;
+        dmAtomicStore32(&t->m_Base.m_DataState, 0);
+        t->m_DeviceBuffer               = 0;
+        t->m_Format                     = VK_FORMAT_UNDEFINED;
+        t->m_TextureSamplerIndex        = 0;
+        t->m_Destroyed                  = 0;
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
@@ -41,6 +39,7 @@ namespace dmGraphics
         , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_HasPendingClearColor(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
@@ -456,6 +455,12 @@ namespace dmGraphics
                 return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
 
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                // Presentation happens outside the graphics pipeline, so there is no matching
+                // access mask to wait on. BOTTOM_OF_PIPE is a conservative stage for transitions
+                // to and from the present engine.
+                return { 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+
             default:
                 assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
                 // Fallback: allow everything, conservative but safe
@@ -520,7 +525,7 @@ namespace dmGraphics
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        VkResult res = SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -820,7 +825,7 @@ bail:
         VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
-        TextureType tex_type = textureOut->m_Type;
+        TextureType tex_type = textureOut->m_Base.m_Type;
 
         VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
@@ -923,9 +928,9 @@ bail:
 
         if (imageMips == 0)
         {
-            textureOut->m_Width  = imageWidth;
-            textureOut->m_Height = imageHeight;
-            textureOut->m_Depth  = imageDepth;
+            textureOut->m_Base.m_Width  = imageWidth;
+            textureOut->m_Base.m_Height = imageHeight;
+            textureOut->m_Base.m_Depth  = imageDepth;
         }
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
@@ -1166,6 +1171,14 @@ bail:
         VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
     };
 
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX
+    };
+
     static const VkStencilOp g_vk_stencil_ops[] = {
         VK_STENCIL_OP_KEEP,
         VK_STENCIL_OP_ZERO,
@@ -1319,10 +1332,10 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationColor];
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactorAlpha];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
@@ -1408,6 +1421,7 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -1462,7 +1476,7 @@ bail:
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
         assert(allocator);
-        delete[] allocator->m_DescriptorSets;
+        free(allocator->m_DescriptorSets);
         allocator->m_DescriptorSets = 0x0;
 
         for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
@@ -1501,8 +1515,15 @@ bail:
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
-        handle->m_Framebuffer = VK_NULL_HANDLE;
-        handle->m_RenderPass = VK_NULL_HANDLE;
+        // Only destroy the CLEAR variant if it's a distinct object. For the main RT it aliases
+        // context->m_MainRenderPass, which is destroyed by the context teardown instead.
+        if (handle->m_RenderPassClear != VK_NULL_HANDLE && handle->m_RenderPassClear != handle->m_RenderPass)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClear);
+        }
+        handle->m_Framebuffer     = VK_NULL_HANDLE;
+        handle->m_RenderPass      = VK_NULL_HANDLE;
+        handle->m_RenderPassClear = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)

@@ -1,12 +1,4 @@
 platforms:
-  armv7-ios:
-    context:
-      excludeLibs: []
-      excludeSymbols: []
-      symbols: []
-      libs: []
-      frameworks: []
-      linkFlags: []
   arm64-ios:
     context:
       excludeLibs: []
@@ -81,14 +73,6 @@ platforms:
   x86_64-win32:
     context:
       excludeLibs: []
-      excludeSymbols: []
-      symbols: []
-      libs: []
-      linkFlags: []
-  js-web:
-    context:
-      excludeLibs: []
-      excludeJsLibs: []
       excludeSymbols: []
       symbols: []
       libs: []

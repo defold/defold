@@ -33,23 +33,12 @@ namespace dmGraphics
         float         m_Anisotropy;
     };
 
-    struct Texture
+    struct NullTexture
     {
-        void*             m_Data;
-        TextureFormat     m_Format;
-        TextureType       m_Type;
-        TextureSampler    m_Sampler;
-        uint32_t          m_Width;
-        uint32_t          m_Height;
-        uint32_t          m_Depth;
-        uint32_t          m_OriginalWidth;
-        uint32_t          m_OriginalHeight;
-        uint16_t          m_NumTextureIds;
-        int32_t*          m_LastBoundUnit; // testing
-        volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        uint8_t           m_MipMapCount;
-        uint8_t           m_UsageHintFlags;
-        uint8_t           m_PageCount; // page count of texture array
+        Texture      m_Base;
+        void*            m_Data;
+        TextureSampler   m_Sampler;
+        int32_t*         m_LastBoundUnit; // testing
     };
 
     struct VertexStreamBuffer
@@ -134,12 +123,10 @@ namespace dmGraphics
     {
         NullContext(const ContextParams& params);
 
+        GraphicsContext                    m_BaseContext;
         HJobContext                        m_JobContext;
-        dmMutex::HMutex                    m_AssetContainerMutex;
 
-        HWindow                            m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBufferList             m_VertexStreams[MAX_VERTEX_BUFFERS];
 
         HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];
@@ -151,21 +138,15 @@ namespace dmGraphics
         FrameBuffer*                       m_CurrentFrameBuffer;
         NullProgram*                       m_Program;
         PipelineState                      m_PipelineState;
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
         dmArray<uint8_t>                   m_PerDrawUniformData;
 
-        uint32_t                           m_Width;
-        uint32_t                           m_Height;
         int32_t                            m_ScissorRect[4];
-        uint32_t                           m_TextureFormatSupport;
         uint32_t                           m_TextureUnit;
         // Only use for testing
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
-        uint32_t                           m_PrintDeviceInfo        : 1;
-        uint32_t                           m_ContextFeatures        : 8;
+        uint32_t                           m_ContextFeatures        : 9;
     };
 }
 

@@ -41,7 +41,7 @@ namespace
 {
     // NOTE: we don't generate actual bytecode for this test-data, so
     // just pass in regular lua source instead.
-    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    dmLuaDDF::LuaSource *LuaSourceFromStringAndFilename(const char *source, const char* filename)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
@@ -51,8 +51,13 @@ namespace
         tmp.m_Bytecode.m_Count = strlen(source);
         tmp.m_Bytecode64.m_Data = (uint8_t*)source;
         tmp.m_Bytecode64.m_Count = strlen(source);
-        tmp.m_Filename = "render-dummy";
+        tmp.m_Filename = filename;
         return &tmp;
+    }
+
+    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    {
+        return LuaSourceFromStringAndFilename(source, "render-dummy");
     }
 }
 
@@ -235,6 +240,40 @@ TEST_F(dmRenderScriptTest, TestReload)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// https://github.com/defold/defold/issues/12218
+TEST_F(dmRenderScriptTest, TestReloadPreservesInstanceReferenceAndUpdatesSourceFileName)
+{
+    const char* script_a =
+        "function init(self)\n"
+        "end\n";
+    const char* script_b =
+        "function update(self, dt)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromStringAndFilename(script_a, "render-a"));
+    ASSERT_NE((void*)0, render_script);
+
+    int instance_reference = render_script->m_InstanceReference;
+    const char* initial_source_file_name = render_script->m_SourceFileName;
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+
+    ASSERT_NE(LUA_NOREF, instance_reference);
+    ASSERT_STREQ("render-a", initial_source_file_name);
+
+    ASSERT_TRUE(dmRender::ReloadRenderScript(m_Context, render_script, LuaSourceFromStringAndFilename(script_b, "render-b")));
+
+    ASSERT_EQ(instance_reference, render_script->m_InstanceReference);
+    ASSERT_NE((const char*)0, render_script->m_SourceFileName);
+    ASSERT_STREQ("render-b", render_script->m_SourceFileName);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+    ASSERT_TRUE(lua_isuserdata(L, -1));
+    ASSERT_EQ((void*)render_script, lua_touserdata(L, -1));
+    lua_pop(L, 1);
+
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
@@ -458,6 +497,102 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestSetBlendFuncSeparate)
+{
+    const char* script =
+    "function update(self)\n"
+    "    render.set_blend_func_separate(graphics.BLEND_FACTOR_SRC_ALPHA,\n"
+    "                                   graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ZERO)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_ALPHA,              (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,    (int32_t)command->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,                    (int32_t)command->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO,                   (int32_t)command->m_Operands[3]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestSetBlendEquationSeparate)
+{
+    const char* script =
+    "function update(self)\n"
+    "    render.set_blend_equation_separate(graphics.BLEND_EQUATION_ADD,\n"
+    "                                       graphics.BLEND_EQUATION_REVERSE_SUBTRACT)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,              (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT, (int32_t)command->m_Operands[1]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestSetBlendFuncAndEquationSeparate)
+{
+    const char* script =
+    "function update(self)\n"
+    "    render.set_blend_func_separate(graphics.BLEND_FACTOR_ZERO,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ONE,\n"
+    "                                   graphics.BLEND_FACTOR_ONE)\n"
+    "    render.set_blend_equation_separate(graphics.BLEND_EQUATION_SUBTRACT,\n"
+    "                                       graphics.BLEND_EQUATION_ADD)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+
+    dmRender::Command* cmd_func = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, cmd_func->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO, (int32_t)cmd_func->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,  (int32_t)cmd_func->m_Operands[3]);
+
+    dmRender::Command* cmd_eq = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, cmd_eq->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_SUBTRACT, (int32_t)cmd_eq->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,      (int32_t)cmd_eq->m_Operands[1]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
 {
     const char* script =
@@ -479,6 +614,72 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetNonPositiveSize)
+{
+    const char* script_template =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
+    "        width = %s,\n"
+    "        height = 2,\n"
+    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
+    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
+    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
+    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
+    "end\n";
+
+    const char* invalid_widths[] = { "0", "-1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid_widths); ++i)
+    {
+        char script[1024];
+        dmSnPrintf(script, sizeof(script), script_template, invalid_widths[i]);
+
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+        dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+        dmRender::DeleteRenderScriptInstance(render_script_instance);
+        dmRender::DeleteRenderScript(m_Context, render_script);
+    }
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetSetSizeInvalid)
+{
+    const char* script_template =
+    "function update(self)\n"
+    "    local params_color = {\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
+    "        mag_filter = graphics.TEXTURE_FILTER_LINEAR,\n"
+    "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
+    "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
+    "    local ok, err = pcall(render.set_render_target_size, self.rt, %s, 4)\n"
+    "    render.delete_render_target(self.rt)\n"
+    "    self.rt = nil\n"
+    "    assert(not ok, \"expected render.set_render_target_size to fail\")\n"
+    "    error(err, 0)\n"
+    "end\n";
+
+    const char* invalid_widths[] = { "0", "-1", "1000000000" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid_widths); ++i)
+    {
+        char script[1024];
+        dmSnPrintf(script, sizeof(script), script_template, invalid_widths[i]);
+
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+        dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::DeleteRenderScriptInstance(render_script_instance);
+        dmRender::DeleteRenderScript(m_Context, render_script);
+    }
 }
 
 TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
@@ -991,19 +1192,19 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     // First update: A "draw_text" message is sent
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     // Second update: "draw_text" is processed, but no glyphs are in font cache,
     //                they are marked as missing and uploaded. A new "draw_text" also is sent.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     // Third update: The second "draw_text" is processed, this time the glyphs are uploaded
     //               and the text is drawn.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    dmRender::FlushTexts(m_Context, 0, 0, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     ASSERT_NE(0u, m_Context->m_TextContext.m_TextEntries.Size());
 
@@ -1326,7 +1527,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
     ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
-    dmGraphics::DeleteTexture(m_Context, texture);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1610,7 +1811,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
         dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
-        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_AssetHandleContainer, rt);
+        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_BaseContext.m_AssetHandleContainer, rt);
         ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
         ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
 

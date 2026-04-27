@@ -3265,6 +3265,9 @@ namespace dmGameObject
             Unlink(collection, child);
         }
 
+        // Root instances may carry a stale sibling link from a deleted parent.
+        child->m_SiblingIndex = INVALID_INSTANCE_INDEX;
+
         EraseSwapLevelIndex(collection, child);
 
         // Add child to parent

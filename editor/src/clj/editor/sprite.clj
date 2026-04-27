@@ -282,7 +282,7 @@
   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
       (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)))
 
-(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
+(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
     (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
@@ -304,7 +304,7 @@
                                                (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture message))]
               (if unassigned-texture-error
                 [unassigned-texture-error]
-                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count message)
+                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 message)
                  (when (and anim-data (nil? unassigned-default-animation-error))
                    (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data message))])))
           material-samplers)
@@ -390,7 +390,7 @@
 (defn- set-texture-binding-id [sampler-name _ node-id _ new]
   (create-texture-binding-tx node-id sampler-name new))
 
-(g/defnk produce-properties [^:unsafe _evaluation-context _declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader resource texture-binding-infos vertex-attribute-overrides]
+(g/defnk produce-properties [^:unsafe _evaluation-context _declared-properties _node-id default-animation material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader resource texture-binding-infos vertex-attribute-overrides]
   (let [workspace (resource/workspace resource)
         extension (workspace/resource-kind-extensions workspace :atlas _evaluation-context)
         is-paged-material (and (shader/shader-lifecycle? material-shader)
@@ -430,7 +430,7 @@
                                     (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label)
                                     (when (nil? texture-page-count)  ; nil from :try producing error-value
                                       (g/->error _node-id :textures :fatal texture (localization/message "error.assigned-image-has-internal-errors")))
-                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
+                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 label)
                                     (when-not (coll/empty? default-animation)
                                       (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label)))
 
@@ -508,6 +508,21 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str ; Required protobuf field.
+            ;; NOTE: There's an edge case where if the user sets :sprite-mode-manual before having selected the default animation,
+            ;; manual-size won't get set because it can't know the size of the sprite, so add a check to set it here
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [size-mode (g/node-value self :size-mode evaluation-context)
+                         manual-size (g/node-value self :manual-size evaluation-context)]
+                     (when (and (= :size-mode-manual size-mode)
+                                (= [0.0 0.0 0.0] manual-size))
+                       (let [texture-binding-infos (g/node-value self :texture-binding-infos evaluation-context)]
+                         (when-some [animation (some (fn [info]
+                                                       (get (:anim-data info) new-value))
+                                                     texture-binding-infos)]
+                           (g/set-property self :manual-size
+                                           [(double (:width animation))
+                                            (double (:height animation))
+                                            0.0])))))))
             (dynamic label (properties/label-dynamic :sprite :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
@@ -611,6 +626,7 @@
   (input material-max-page-count g/Int)
   (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
+  (input exclude-gles-sm100 g/Any)
 
   (input copied-nodes g/Any :array :cascade-delete)
 
@@ -664,9 +680,11 @@
 
 (defn- load-sprite [project self resource sprite-desc]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (gu/set-properties-from-pb-map self Sprite$SpriteDesc sprite-desc
         default-animation :default-animation
         material (resolve-resource (:material :or default-material-proj-path))

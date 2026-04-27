@@ -24,6 +24,8 @@
 #include <dlib/opaque_handle_container.h>
 #include <platform/window.h>
 
+#include "../graphics_private.h"
+
 namespace dmGraphics
 {
     typedef uint32_t HOpenglID;
@@ -53,22 +55,12 @@ namespace dmGraphics
 
     struct OpenGLTexture
     {
+        Texture       m_Base;
         TextureParams     m_Params;
-        TextureType       m_Type;
         HOpenglID*        m_TextureIds;
         OpenGLSampler     m_Sampler;
         OpenGLSampler     m_SamplerDirty;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
-        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        uint16_t          m_NumTextureIds;
-        uint16_t          m_Width;
-        uint16_t          m_Height;
-        uint16_t          m_Depth;
-        uint16_t          m_OriginalWidth;
-        uint16_t          m_OriginalHeight;
-        uint16_t          m_MipMapCount;
-        uint8_t           m_UsageHintFlags;
-        uint8_t           m_PageCount; // page count of texture array
     };
 
     struct OpenGLTextureBinding
@@ -171,8 +163,8 @@ namespace dmGraphics
     {
         OpenGLContext(const ContextParams& params);
 
+        GraphicsContext         m_BaseContext;
         SetTextureAsyncState    m_SetTextureAsyncState;
-        HWindow                 m_Window;
         HJobContext             m_JobContext;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
@@ -184,32 +176,24 @@ namespace dmGraphics
         OpenGLUniformBuffer*    m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         OpenGLTextureBinding    m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
 
-        dmMutex::HMutex                    m_AssetHandleContainerMutex;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         OpenGLHandlesData                  m_GLHandlesData;
 
         PipelineState           m_PipelineState;      // Last applied pipeline state
         PipelineState           m_PipelineStateDirty; // Current dirty state
+        int32_t                 m_ViewportRect[4];
         int32_t                 m_ScissorRect[4];
         int32_t                 m_ScissorRectDirty[4];
         HOpenglID               m_GlobalVAO;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
         uint32_t                m_MaxTextureSize;
-        TextureFilter           m_DefaultTextureMinFilter;
-        TextureFilter           m_DefaultTextureMagFilter;
         uint32_t                m_MaxElementVertices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
         uint32_t                m_IndexBufferFormatSupport;
-        uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
-        uint32_t                m_VerifyGraphicsCalls              : 1;
-        uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
 
@@ -228,6 +212,7 @@ namespace dmGraphics
         // ASTC entirely.
         uint32_t                m_ASTCArrayTextureSupport          : 1;
         uint32_t                m_3DTextureSupport                 : 1;
+        uint32_t                m_BlendEquationMinMaxSupport       : 1;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

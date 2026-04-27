@@ -28,6 +28,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.os :as os]
+            [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -38,7 +39,9 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
+            [util.coll :as coll]
             [util.diff :as diff]
+            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [java.nio.file.attribute PosixFilePermission]
@@ -309,16 +312,32 @@
     (g/with-auto-evaluation-context evaluation-context
       (handler/eval-contexts [command-context] false evaluation-context))))
 
+(defn- decorated-outline [resource-node outline-path]
+  (let [node-outline (g/node-value resource-node :node-outline)
+        decorated-outline (:outline (outline-view/decorate-outline node-outline #{} #{} @test-util/localization #{}))]
+    (reduce (fn [outline-selection index]
+              (nth (:children outline-selection) index))
+            decorated-outline
+            outline-path)))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
-    (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
+    (let [resource-node (test-util/resource-node project "/main/main.collection")
+          sprite-outline (decorated-outline resource-node [0 0])
+          sprite-node-id (:node-id sprite-outline)]
       (reload-editor-scripts! project)
+      ;; This test project defines two commands with the same label:
+      ;; - an outline command available from Outline and Edit that changes
+      ;;   position and playback rate
+      ;; - a scene command available from Scene that changes scale
+
+      ;; Run the outline command from the Outline context menu:
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (eval-handler-contexts :outline [sprite-outline])
                               {})]
-        (is (= [0.0 0.0 0.0] (test-util/prop sprite-outline :position)))
-        (is (= 1.0 (test-util/prop sprite-outline :playback-rate)))
+        (is (= [0.0 0.0 0.0] (test-util/prop sprite-node-id :position)))
+        (is (= 1.0 (test-util/prop sprite-node-id :playback-rate)))
         (is (some? handler+context))
         (is (handler/enabled? handler+context))
         (is (nil?
@@ -326,13 +345,31 @@
                 @(handler/run handler+context)
                 nil
                 (catch Throwable e e))))
-        (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
-        (is (= 2.5 (test-util/prop sprite-outline :playback-rate))))
+        (is (= [1.5 1.5 1.5] (test-util/prop sprite-node-id :position)))
+        (is (= 2.5 (test-util/prop sprite-node-id :playback-rate))))
+      
+      ;; Reuse the same outline command from the Edit menu to verify that an
+      ;; outline selection query still works outside the Outline view:
+      (let [handler+context (handler/active
+                              (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                              (eval-handler-contexts :global [sprite-node-id])
+                              {})]
+        (is (some? handler+context))
+        (is (handler/enabled? handler+context))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
+        (is (= [3 3 3] (test-util/prop sprite-node-id :position)))
+        (is (= 4 (test-util/prop sprite-node-id :playback-rate))))
+      
+      ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                              (eval-handler-contexts :global [sprite-outline])
+                              (eval-handler-contexts :global [sprite-node-id])
                               {})]
-        (is (= [1.0 1.0 1.0] (test-util/prop sprite-outline :scale)))
+        (is (= [1.0 1.0 1.0] (test-util/prop sprite-node-id :scale)))
         (is (some? handler+context))
         (is (handler/enabled? handler+context))
         (is (nil?
@@ -340,7 +377,7 @@
                 @(handler/run handler+context)
                 nil
                 (catch Throwable e e))))
-        (is (= [2 2 2] (test-util/prop sprite-outline :scale)))))))
+        (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
@@ -388,10 +425,12 @@
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_test"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-          node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
+          resource-node (test-util/resource-node project "/main/main.collection")
+          outline (decorated-outline resource-node [0 0])
+          node (:node-id outline)
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
-                            (eval-handler-contexts :outline [node])
+                            (eval-handler-contexts :outline [outline])
                             {})
           test-initial-state! (fn test-initial-state! []
                                 (is (= "properties" (test-util/prop node :id)))
@@ -662,6 +701,44 @@
   (let [actual (normalize-pprint-output (str actual))]
     (let [output-matches-expectation (= expected actual)]
       (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
+
+(def ^:private expected-outline-selection-parent-chain-test-output
+  "outline.child.can_get_parent=true
+outline.child.has_parent_property=true
+outline.parent.is_nil=false
+outline.parent.can_get_id=true
+outline.parent.id=go
+outline.parent.has_parent_property=true
+outline.parent.can_get_parent=true
+outline.grandparent.is_nil=false
+outline.grandparent.can_get_parent=false
+scene.node.can_get_parent=false
+scene.node.has_parent_property=false
+scene.node.get_parent_succeeds=false
+")
+
+(deftest outline-selection-parent-chain-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/outline_parent_project"
+    (let [out (StringBuilder.)
+          _ (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+          resource-node (test-util/resource-node project "/main/main.collection")
+          sprite-outline (decorated-outline resource-node [0 0])
+          sprite-node-id (:node-id sprite-outline)
+          run-command! (fn run-command! [location context-name selection label]
+                         (let [command-contexts (eval-handler-contexts context-name selection)
+                               menu-items (handler/realize-menu location)
+                               handler+context (coll/some
+                                                 (fn [{:keys [command]}]
+                                                   (let [handler+context (handler/active command command-contexts {})]
+                                                     (when (and handler+context (= label (handler/label handler+context)))
+                                                       handler+context)))
+                                                 menu-items)]
+                           (assert handler+context "Test bug: undefined test command")
+                           (is (handler/enabled? handler+context))
+                           @(handler/run handler+context)))]
+      (run-command! :editor.outline-view/context-menu-end :outline [sprite-outline] "Outline Parent Chain Test")
+      (run-command! :editor.scene-selection/context-menu-end :global [sprite-node-id] "Scene Parent Chain Test")
+      (expect-script-output expected-outline-selection-parent-chain-test-output out))))
 
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
@@ -1253,15 +1330,15 @@ openapi route has 200 => true
     (reload-editor-scripts! project)
     (g/with-auto-evaluation-context ec
       (let [{:keys [rt]} (extensions/ext-state project ec)]
-        (->> (g/node-value project :nodes ec)
-             (map #(g/node-value % :node-outline ec))
-             (mapcat #(tree-seq :children :children %))
-             (mapcat (fn [outline]
-                       (->> [(g/node-value (:node-id outline) :_properties ec)]
-                            properties/coalesce
-                            :properties
-                            vals
-                            (map #(assoc % :outline outline)))))
+        (->> (g/node-value project :node-id+resources ec)
+             (e/map #(g/node-value (% 0) :node-outline ec))
+             (e/mapcat #(tree-seq :children :children %))
+             (e/mapcat (fn [outline]
+                         (->> [(g/node-value (:node-id outline) :_properties ec)]
+                              properties/coalesce
+                              :properties
+                              vals
+                              (e/map #(assoc % :outline outline)))))
              (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]

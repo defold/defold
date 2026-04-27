@@ -713,8 +713,8 @@ namespace dmGameObject
      * Set gameobject instance x and y scale
      * @name SetScaleXY
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param scale_x New x scale
-     * @param scale_y New y scale
+     * @param scale_x [type: float] New x scale
+     * @param scale_y [type: float] New y scale
      */
     void SetScaleXY(HInstance instance, float scale_x, float scale_y);
 
@@ -994,7 +994,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a hash property on a component.
      * @name SetPropertyFromHash
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmhash_t] Value of the property
@@ -1005,7 +1005,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a float property on a component.
      * @name SetPropertyFromHash
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:float] Value of the property
@@ -1016,7 +1016,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a vector3 property on a component.
      * @name SetPropertyFromVector3
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::vector3] Value of the property
@@ -1027,7 +1027,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a vector4 property on a component.
      * @name SetPropertyFromVector4
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Vector4] Value of the property
@@ -1038,7 +1038,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a quaternion property on a component.
      * @name SetPropertyFromQuat
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Quat] Value of the property
@@ -1049,7 +1049,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a boolean property on a component.
      * @name SetPropertyFromBool
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:bool] Value of the property
@@ -1060,7 +1060,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a URL property on a component.
      * @name SetPropertyFromURL
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmMessage::URL] Value of the property
@@ -1071,7 +1071,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a matrix4 property on a component.
      * @name SetPropertyFromMatrix4
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Matrix4] Value of the property

@@ -122,7 +122,8 @@
 
 (defn load-compute [_project self resource compute-desc]
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Compute$ComputeDesc compute-desc
       compute-program (resolve-resource :compute-program)
       constants (render-program-utils/constants->editable-constants :constants)

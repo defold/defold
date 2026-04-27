@@ -17,6 +17,7 @@ package com.dynamo.bob.fs.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -29,6 +30,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.test.TestLibrariesRule;
+import com.dynamo.bob.util.Library;
 
 public class ZipMountPointTest {
 
@@ -39,7 +41,7 @@ public class ZipMountPointTest {
 
     @Before
     public void setUp() throws Exception {
-        this.mp = new ZipMountPoint(null, "server_root/test_lib1.zip");
+        this.mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib1.zip")));
         this.mp.mount();
     }
 
@@ -57,7 +59,7 @@ public class ZipMountPointTest {
 
     @Test
     public void testMount() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib2.zip");
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib2.zip")));
         assertTrue(mp.get("test_lib2/file2.in") == null);
         mp.mount();
         assertTrue(mp.get("test_lib2/file2.in") != null);
@@ -78,7 +80,7 @@ public class ZipMountPointTest {
     public void testWalkerWithSubdir() throws Exception {
     	
     	// Mount a library zip that "incorrectly" has a subdir before its game.project
-    	ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib3.zip");
+    	ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib3.zip")));
     	mp.mount();
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();
@@ -93,7 +95,7 @@ public class ZipMountPointTest {
 
     @Test
     public void testWalkerWithSubdir2() throws Exception {
-    	ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib4.zip");
+    	ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib4.zip")));
     	mp.mount();
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();

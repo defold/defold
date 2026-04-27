@@ -54,7 +54,7 @@
                     ]
                 },
                 "KHR_materials_ior" : {
-                    "ior" : 0.17000000178813934
+                    "ior" : 1.17000000178813934
                 },
                 "KHR_materials_volume": {
                     "thicknessFactor": 0.2,
@@ -74,7 +74,7 @@
                 },
                 "KHR_materials_iridescence": {
                   "iridescenceFactor": 0.250,
-                  "iridescenceIor": 0.255,
+                  "iridescenceIor": 1.255,
                   "iridescenceThicknessMinimum": 0.260,
                   "iridescenceThicknessMaximum": 0.265
                 },

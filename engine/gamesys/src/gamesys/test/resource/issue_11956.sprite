@@ -1,0 +1,3 @@
+tile_set: "/resource/issue_11956.atlas"
+default_animation: "issue_11956"
+material: "/sprite/sprite.material"

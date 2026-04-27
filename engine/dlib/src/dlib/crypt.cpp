@@ -12,9 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <assert.h>
 #include "shared_library.h"
 #include "crypt.h"
@@ -22,18 +20,9 @@
 #include <dlib/endian.h>
 #include <mbedtls/md5.h>
 #include <mbedtls/base64.h>
-#include <mbedtls/error.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/sha512.h>
-#include <mbedtls/pk.h>
-#include <mbedtls/pk_internal.h>
-#include <mbedtls/rsa.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
-
-
-#include <dlib/log.h> // For debugging the manifest verification issue
 
 namespace dmCrypt
 {
@@ -92,83 +81,6 @@ namespace dmCrypt
         return RESULT_OK;
     }
 
-    // Same as rsa_alt_decrypt_wrap() except with a MBEDTLS_RSA_PUBLIC
-    static int rsa_alt_decrypt_public_wrap( void *ctx,
-                        const unsigned char *input, size_t ilen,
-                        unsigned char *output, size_t *olen, size_t osize,
-                        int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
-    {
-        mbedtls_rsa_context * rsa = (mbedtls_rsa_context *) ctx;
-
-        if( ilen != mbedtls_rsa_get_len( rsa ) )
-            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
-
-        return( mbedtls_rsa_pkcs1_decrypt( rsa, f_rng, p_rng,
-                    MBEDTLS_RSA_PUBLIC, olen, input, output, osize ) );
-    }
-
-    static void LogMbedTlsError(int result)
-    {
-        char buffer[512] = "";
-        mbedtls_strerror(result, buffer, sizeof(buffer));
-        dmLogError("mbedtls: %s0x%04x - %s", result < 0 ? "-":"", result < 0 ? -result:result, buffer);
-    }
-
-    Result Decrypt(const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t datalen, uint8_t** output, uint32_t* outputlen)
-    {
-        // https://tls.mbed.org/discussions/generic/parsing-public-key-from-memory
-        Result result = RESULT_OK;
-
-        const char* pers = "defold_pk_decrypt";
-        mbedtls_pk_context pk;
-        mbedtls_entropy_context entropy;
-        mbedtls_ctr_drbg_context ctr_drbg;
-        mbedtls_pk_init(&pk);
-        mbedtls_ctr_drbg_init( &ctr_drbg );
-        mbedtls_entropy_init( &entropy );
-
-        uint32_t signature_hash_len = MBEDTLS_MD_MAX_SIZE;
-
-        int ret;
-        if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen(pers) ) ) != 0 )
-        {
-            LogMbedTlsError(ret);
-            dmLogError("Decrypt: mbedtls_ctr_drbg_seed failed: %d", ret);
-            result = RESULT_ERROR;
-            goto exit;
-        }
-
-        if ((ret = mbedtls_pk_parse_public_key(&pk, key, keylen) != 0))
-        {
-            LogMbedTlsError(ret);
-            dmLogError("Decrypt: mbedtls_pk_parse_public_key failed: %d", ret);
-            result = RESULT_ERROR;
-            goto exit;
-        }
-
-        *output = (uint8_t*)malloc(signature_hash_len);
-        size_t _outputlen;
-        if ((ret = rsa_alt_decrypt_public_wrap(pk.pk_ctx,
-                    data, datalen,
-                    (uint8_t*)*output, &_outputlen, signature_hash_len,
-                    mbedtls_ctr_drbg_random, &ctr_drbg )) != 0)
-        {
-            LogMbedTlsError(ret);
-            dmLogError("Decrypt: rsa_alt_decrypt_public_wrap failed: %d", ret);
-            free(*output);
-            result = RESULT_ERROR;
-            goto exit;
-        }
-
-        *outputlen = (uint32_t)_outputlen;
-
-    exit:
-        mbedtls_ctr_drbg_free( &ctr_drbg );
-        mbedtls_entropy_free( &entropy );
-        mbedtls_pk_free(&pk);
-        return result;
-    }
-
     void HashSha1(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
         mbedtls_sha1_context ctx;
@@ -186,7 +98,7 @@ namespace dmCrypt
     {
         int ret = mbedtls_sha256_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
         if (ret != 0) {
-            memset(digest, 0, 20);
+            memset(digest, 0, 32);
         }
     }
 
@@ -194,7 +106,7 @@ namespace dmCrypt
     {
         int ret = mbedtls_sha512_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
         if (ret != 0) {
-            memset(digest, 0, 20);
+            memset(digest, 0, 64);
         }
     }
 
@@ -202,7 +114,7 @@ namespace dmCrypt
     {
         int ret = mbedtls_md5_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest);
         if (ret != 0) {
-            memset(digest, 0, 20);
+            memset(digest, 0, 16);
         }
     }
 

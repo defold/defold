@@ -118,6 +118,7 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
+        dmGraphics::HTexture        m_MorphTargetTexture;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
@@ -146,13 +147,16 @@ namespace dmGameSystem
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
         dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
+        /// Script morph weights - applied in ApplyMorphToRenderObject.
+        dmArray<float>                   m_BlendWeightsOverride;
         uint16_t                         m_ComponentIndex;
         uint8_t                          m_Enabled : 1;
         uint8_t                          m_DoRender : 1;
         uint8_t                          m_AddedToUpdate : 1;
         uint8_t                          m_ReHash : 1;
         uint8_t                          m_RequiresBindPoseCaching : 1;
-        uint8_t                          : 3;
+        uint8_t                          m_BlendWeightsOverrideActive : 1;
+        uint8_t                          : 2;
     };
 
     struct ModelSkinnedAnimationData
@@ -186,6 +190,7 @@ namespace dmGameSystem
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
+        dmArray<dmVMath::Vector4>        m_ScratchMorphWeightsConstants;
         dmRig::HRigContext               m_RigContext;
         ModelSkinnedAnimationData        m_SkinnedAnimationData;
 
@@ -196,6 +201,10 @@ namespace dmGameSystem
         uint32_t                         m_StatisticsVertexCount;
         uint32_t                         m_StatisticsVertexDataSize;
         uint8_t                          m_CurrentFrameTick;
+        // Test data:
+        uint8_t                          m_RenderBatchLocalVSInstancedCount;
+        uint8_t                          m_RenderBatchLocalVSUninstancedCount;
+        uint8_t                          m_RenderBatchWorldVSCount;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -367,23 +376,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static bool GetSender(ModelComponent* component, dmMessage::URL* out_sender)
-    {
-        dmMessage::URL sender;
-        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
-        if (dmMessage::IsSocketValid(sender.m_Socket))
-        {
-            dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
-            if (go_result == dmGameObject::RESULT_OK)
-            {
-                sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
-                *out_sender = sender;
-                return true;
-            }
-        }
-        return false;
-    }
-
     static void CompModelEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
         ModelComponent* component = (ModelComponent*)user_data1;
@@ -418,6 +410,13 @@ namespace dmGameSystem
     static inline bool IsRenderItemSkinned(ModelComponent* component, const MeshRenderItem* render_item)
     {
         return component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
+    }
+
+    // True for a static mesh hung under a bone: world = bone_pose × node local. Skinned meshes omit the bone here since GPU skinning handles it.
+    // Otherwise static meshes parented under a bone would be transformed twice.
+    static inline bool IsRigidBoneParentedRenderItem(const MeshRenderItem& item)
+    {
+        return item.m_BoneIndex != dmRig::INVALID_BONE_INDEX && item.m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC;
     }
 
     static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
@@ -550,6 +549,32 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
     }
 
+    static void GetRenderItemMorphWeights(const ModelComponent* component, const MeshRenderItem* render_item, const float** weights_out, uint32_t* weights_count_out)
+    {
+        uint32_t wcount = 0;
+        const float* w = 0;
+        if (component->m_BlendWeightsOverrideActive && component->m_BlendWeightsOverride.Size() > 0)
+        {
+            w = component->m_BlendWeightsOverride.Begin();
+            wcount = component->m_BlendWeightsOverride.Size();
+        }
+        else if (component->m_RigInstance)
+        {
+            w = dmRig::GetMorphWeights(component->m_RigInstance, render_item->m_Model->m_Id, &wcount);
+        }
+
+        // Fallback to base weights (written DDF data)
+        if (!w || wcount == 0)
+        {
+            const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
+            w = mesh->m_MorphBaseWeights.m_Data;
+            wcount = mesh->m_MorphBaseWeights.m_Count;
+        }
+
+        *weights_out = w;
+        *weights_count_out = wcount;
+    }
+
     static void HashRenderItem(HashState32* state, ModelWorld* world, ModelComponent* component, const MeshRenderItem& item)
     {
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
@@ -595,6 +620,18 @@ namespace dmGameSystem
                 }
                 uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr.m_DataType);
                 dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
+            }
+
+            // Morph weights need to be included into the instancing hash
+            // otherwise two instanced objects with different morph weights
+            // will be rendered in the same draw call. At this moment,
+            // morpth targets + instancing is not supported (MVP2 for this feature).
+            if (item.m_MorphTargetTexture)
+            {
+                const float* weights;
+                uint32_t weights_count;
+                GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
+                dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
             }
         }
         else
@@ -1034,6 +1071,7 @@ namespace dmGameSystem
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
+            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1090,17 +1128,14 @@ namespace dmGameSystem
         create_params.m_Skeleton = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         if (create_params.m_Skeleton)
         {
-            create_params.m_BoneIndices  = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : &rig_resource->m_SkeletonRes->m_BoneIndices;
-            create_params.m_AnimationSet = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+            create_params.m_BoneIndices = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : &rig_resource->m_SkeletonRes->m_BoneIndices;
         }
-        else
+        else if (rig_resource->m_AnimationSetRes)
         {
-            if (rig_resource->m_AnimationSetRes)
-            {
-                dmLogWarning("Model has animations but no skeleton set");
-            }
+            dmLogWarning("Model has animations but no skeleton set. Only morph target animations will be used.");
         }
-        create_params.m_MeshSet = rig_resource->m_MeshSetRes->m_MeshSet;
+        create_params.m_AnimationSet = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_MeshSet      = rig_resource->m_MeshSetRes->m_MeshSet;
 
         // Let's choose the first model for the animation
         create_params.m_ModelId          = 0; // Let's use all models
@@ -1536,6 +1571,100 @@ namespace dmGameSystem
         }
     }
 
+    static int32_t FindNextFreeTextureSlot(dmRender::RenderObject* ro)
+    {
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (ro->m_Textures[i] == 0)
+            {
+                return (int32_t)i;
+            }
+        }
+        return -1;
+    }
+
+    static void FillMorphWeightsVector4Slots(const float* weights, uint32_t weight_count, dmVMath::Vector4* out, uint32_t num_vec4_slots)
+    {
+        for (uint32_t s = 0; s < num_vec4_slots; ++s)
+        {
+            const uint32_t base = s * 4;
+            out[s].setX(base + 0 < weight_count ? weights[base + 0] : 0.0f);
+            out[s].setY(base + 1 < weight_count ? weights[base + 1] : 0.0f);
+            out[s].setZ(base + 2 < weight_count ? weights[base + 2] : 0.0f);
+            out[s].setW(base + 3 < weight_count ? weights[base + 3] : 0.0f);
+        }
+    }
+
+    static inline bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
+    {
+        return render_item->m_Mesh->m_MorphTargets.m_Count > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
+    }
+
+    static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
+        ModelComponent* component, const MeshRenderItem* render_item, dmGameObject::HInstance log_instance)
+    {
+        if (!MorphTargetsNeedShaderConstants(render_item, material))
+        {
+            return;
+        }
+
+        dmRender::HConstant mw_constant = 0;
+        uint32_t shader_vec4_slots = 1;
+        if (dmRender::GetMaterialProgramConstant(material, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, mw_constant))
+        {
+            dmRender::GetConstantValues(mw_constant, &shader_vec4_slots);
+            if (shader_vec4_slots == 0)
+            {
+                shader_vec4_slots = 1;
+            }
+        }
+
+        const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargets.m_Count;
+        const uint32_t max_weights_in_shader = shader_vec4_slots * 4;
+        if (mesh_morph_count > max_weights_in_shader)
+        {
+            dmLogOnceError("Model mesh has %u morph targets; material uniform `morph_targets_weights` has %u vec4 slot(s) (%u weights). Increase the array size in the vertex shader. Extra weights are ignored.",
+                mesh_morph_count, shader_vec4_slots, max_weights_in_shader);
+        }
+
+        int32_t unit = FindNextFreeTextureSlot(ro);
+        if (unit < 0)
+        {
+            dmLogOnceError("Unable to bind morph_targets texture for component '%s', no free texture slot available.",
+                dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
+            return;
+        }
+
+        if (!dmRender::SetMaterialSampler(material, dmRender::SAMPLER_MORPH_TARGETS, (uint32_t) unit,
+            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
+        {
+            dmLogOnceError("Unable to bind morph_targets texture for component '%s', does the material declare sampler 'morph_targets'?",
+                dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
+            return;
+        }
+        ro->m_Textures[unit] = render_item->m_MorphTargetTexture;
+
+        if (!ro->m_ConstantBuffer)
+        {
+            return;
+        }
+
+        uint32_t weights_count = 0;
+        const float* weights = 0;
+        GetRenderItemMorphWeights(component, render_item, &weights, &weights_count);
+
+        dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
+        if (scratch.Capacity() < shader_vec4_slots)
+        {
+            scratch.SetCapacity(shader_vec4_slots);
+        }
+        scratch.SetSize(shader_vec4_slots);
+        FillMorphWeightsVector4Slots(weights, weights_count, scratch.Begin(), shader_vec4_slots);
+
+        dmRender::SetNamedConstant(ro->m_ConstantBuffer, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, scratch.Begin(), shader_vec4_slots);
+    }
+
     static inline void EnsureBindPoseCacheBufferSize(ModelWorld* world, uint32_t max_width, uint32_t max_height)
     {
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth < max_width ||
@@ -1555,6 +1684,27 @@ namespace dmGameSystem
     static inline dmGraphics::HVertexDeclaration GetBaseInstanceDeclaration(ModelWorld* world, dmRender::HMaterial material, bool has_skin_data)
     {
         return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_InstanceVertexDeclarationSkinned : world->m_InstanceVertexDeclaration;
+    }
+
+    static HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world)
+    {
+        if (world->m_ScratchConstantBuffers.Size() == world->m_ScratchConstantBuffersCount)
+        {
+            world->m_ScratchConstantBuffers.OffsetCapacity(8);
+            uint32_t size_now = world->m_ScratchConstantBuffers.Size();
+            world->m_ScratchConstantBuffers.SetSize(world->m_ScratchConstantBuffers.Capacity());
+            memset(&world->m_ScratchConstantBuffers[size_now], 0, sizeof(HComponentRenderConstants) * 8);
+        }
+
+        HComponentRenderConstants constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
+        if (constants == 0)
+        {
+            world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount] = dmGameSystem::CreateRenderConstants();
+            constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
+        }
+
+        world->m_ScratchConstantBuffersCount++;
+        return constants;
     }
 
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
@@ -1669,7 +1819,7 @@ namespace dmGameSystem
                             &material_infos,
                             attribute_infos,
                             GetRenderMaterialCoordinateSpace(render_material));
-                
+
                 if (instance_render_item->m_DynamicVertexAttributesDirty)
                 {
                     SetMeshAttributeRenderData(world, component,
@@ -1705,7 +1855,9 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                if (dmRig::IsAnimating(instance_component->m_RigInstance))
+                // Skinning must run whenever the mesh is skinned: bind pose matrices are written every frame
+                // (see dmRig::DoAnimate when not playing an animation) so idle pose matches animated pose.
+                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
@@ -1744,10 +1896,17 @@ namespace dmGameSystem
             constants = render_item->m_RenderConstants;
         }
 
-        if (component->m_RenderConstants)
+        if (!constants && MorphTargetsNeedShaderConstants(render_item, render_material))
         {
-            dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
+            constants = GetScratchConstantBuffer(world);
         }
+
+        if (constants)
+        {
+            dmGameSystem::EnableRenderObjectConstants(&ro, constants);
+        }
+
+        ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
 
         dmRender::AddToRender(render_context, &ro);
 
@@ -1760,28 +1919,6 @@ namespace dmGameSystem
             render_item->m_Buffers->m_LastUsedFrame = world->m_CurrentFrameTick;
         }
         world->m_StatisticsVertexCount += ro.m_VertexCount;
-    }
-
-
-    static inline HComponentRenderConstants GetScratchConstantBuffer(ModelWorld* world)
-    {
-        if (world->m_ScratchConstantBuffers.Size() == world->m_ScratchConstantBuffersCount)
-        {
-            world->m_ScratchConstantBuffers.OffsetCapacity(8);
-            uint32_t size_now = world->m_ScratchConstantBuffers.Size();
-            world->m_ScratchConstantBuffers.SetSize(world->m_ScratchConstantBuffers.Capacity());
-            memset(&world->m_ScratchConstantBuffers[size_now], 0, sizeof(HComponentRenderConstants) * 8);
-        }
-
-        HComponentRenderConstants constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
-        if (constants == 0)
-        {
-            world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount] = dmGameSystem::CreateRenderConstants();
-            constants = world->m_ScratchConstantBuffers[world->m_ScratchConstantBuffersCount];
-        }
-
-        world->m_ScratchConstantBuffersCount++;
-        return constants;
     }
 
     static void RenderBatchLocalVSUninstanced(ModelWorld* world, dmRender::HRenderContext render_context,
@@ -1846,7 +1983,7 @@ namespace dmGameSystem
                         component->m_Resource->m_Materials[material_index].m_Attributes,
                         component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
-                
+
                 if (render_item->m_DynamicVertexAttributesDirty)
                 {
                     SetMeshAttributeRenderData(world, component,
@@ -1885,10 +2022,9 @@ namespace dmGameSystem
                     constants = GetScratchConstantBuffer(world);
                 }
 
-                // Initialize to no animation
                 dmVMath::Vector4 animation_data(0.0f, 0.0f, 0.0f, 0.0f);
 
-                if (dmRig::IsAnimating(component->m_RigInstance))
+                if (dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
                 {
                     // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
@@ -1910,10 +2046,17 @@ namespace dmGameSystem
                 constants = render_item->m_RenderConstants;
             }
 
+            if (!constants && MorphTargetsNeedShaderConstants(render_item, render_material))
+            {
+                constants = GetScratchConstantBuffer(world);
+            }
+
             if (constants)
             {
                 dmGameSystem::EnableRenderObjectConstants(&ro, constants);
             }
+
+            ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
 
             dmRender::AddToRender(render_context, &ro);
 
@@ -1940,10 +2083,12 @@ namespace dmGameSystem
         if (inst_decl)
         {
             RenderBatchLocalVSInstanced(world, render_context, render_context_material, material_index, component, buf, begin, end, inst_decl);
+            world->m_RenderBatchLocalVSInstancedCount++;
         }
         else
         {
             RenderBatchLocalVSUninstanced(world, render_context, render_context_material, material_index, component, buf, begin, end);
+            world->m_RenderBatchLocalVSUninstancedCount++;
         }
     }
 
@@ -2119,7 +2264,7 @@ namespace dmGameSystem
                 dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(c->m_RigInstance);
 
                 dmVMath::Matrix4 model_matrix;
-                if (render_item->m_BoneIndex != dmRig::INVALID_BONE_INDEX)
+                if (IsRigidBoneParentedRenderItem(*render_item))
                 {
                     dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
                     model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
@@ -2166,6 +2311,9 @@ namespace dmGameSystem
         // Update statistics
         world->m_StatisticsVertexCount    += ro.m_VertexCount;
         world->m_StatisticsVertexDataSize += ro.m_VertexCount * vertex_stride;
+
+        // Update test data
+        world->m_RenderBatchWorldVSCount++;
     }
 
     static inline dmRenderDDF::MaterialDesc::VertexSpace GetRenderMaterialVertexSpace(dmRender::HMaterial material)
@@ -2199,7 +2347,7 @@ namespace dmGameSystem
         const ModelComponent* component = render_item->m_Component;
 
         dmRender::HMaterial render_context_material = dmRender::GetContextMaterial(render_context);
-        dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, 0);
+        dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, render_item->m_MaterialIndex);
 
         switch(GetRenderMaterialVertexSpace(material))
         {
@@ -2247,7 +2395,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pose_matrix_count; ++i)
         {
             const dmVMath::Matrix4& matrix = pose_matrix_read_ptr[i];
-            
+
             // Store the first 3 columns as Vector4 (RGBA format)
             // Each matrix takes 3 pixels: [col0, col1, col2]
             // The translation is in column 3, and we reconstruct the 4th column as (0,0,0,1)
@@ -2278,10 +2426,11 @@ namespace dmGameSystem
             if (!item.m_Enabled)
                 continue;
             dmRigDDF::Model* model = item.m_Model;
-            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set
-            // For skinned models: m_Local contains node.local, hierarchy applied via bone_pose.m_World
-            // For non-skinned models: m_Local contains node.world, hierarchy already flattened
-            if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
+            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set.
+            // For skinned models: bone hierarchy is applied in the vertex shader, not via bone_pose here.
+            // For rigid meshes parented to a bone: apply bone_pose.m_World * node.local.
+            // For non-skinned models without bone parent: m_Local contains node.world (flattened hierarchy).
+            if (IsRigidBoneParentedRenderItem(item))
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
                 item.m_World = world * (dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(model->m_Local));
@@ -2330,6 +2479,65 @@ namespace dmGameSystem
         ModelComponent* component = world->m_Components.Get(index);
         component->m_AddedToUpdate = true;
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    void CompModelSetBlendWeights(ModelComponent* component, const float* weights, uint32_t count)
+    {
+        if (component->m_BlendWeightsOverride.Capacity() < count)
+        {
+            component->m_BlendWeightsOverride.SetCapacity(count);
+        }
+        component->m_BlendWeightsOverride.SetSize(count);
+        memcpy(component->m_BlendWeightsOverride.Begin(), weights, count * sizeof(float));
+        component->m_BlendWeightsOverrideActive = 1;
+    }
+
+    void CompModelResetBlendWeights(ModelComponent* component)
+    {
+        if (!component)
+            return;
+        component->m_BlendWeightsOverrideActive = 0;
+        component->m_BlendWeightsOverride.SetSize(0);
+    }
+
+    // If true, out_weights and out_count are written
+    bool CompModelGetBlendWeights(ModelComponent* component, const float** out_weights, uint32_t* out_count)
+    {
+        // 1. Check overrides first
+        if (component->m_BlendWeightsOverrideActive)
+        {
+            *out_weights = component->m_BlendWeightsOverride.Begin();
+            *out_count = component->m_BlendWeightsOverride.Size();
+            return true;
+        }
+
+        // 2. Check rig
+        if (!component->m_RigInstance)
+        {
+            return false;
+        }
+
+        uint32_t n = component->m_RenderItems.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            MeshRenderItem& render_item = component->m_RenderItems[i];
+
+            // Not all render items might have morph targets
+            if (render_item.m_Mesh->m_MorphTargets.m_Count == 0)
+            {
+                continue;
+            }
+
+            uint32_t wc = 0;
+            const float* w = dmRig::GetMorphWeights(component->m_RigInstance, render_item.m_Model->m_Id, &wc);
+            if (w && wc > 0)
+            {
+                *out_weights = w;
+                *out_count = wc;
+                return true;
+            }
+        }
+        return false;
     }
 
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
@@ -2569,6 +2777,12 @@ namespace dmGameSystem
         }
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+
+        // Update test data
+        world->m_RenderBatchLocalVSInstancedCount   = 0;
+        world->m_RenderBatchLocalVSUninstancedCount = 0;
+        world->m_RenderBatchWorldVSCount            = 0;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -3007,7 +3221,7 @@ namespace dmGameSystem
         {
             const MeshRenderItem& item = component->m_RenderItems[idx];
             dmVMath::Vector3 mesh_position = component->m_RenderItems[idx].m_Model->m_Local.GetTranslation();
-            
+
             dmVMath::Vector3 transformed_min = mesh_position + item.m_AabbMin;
             dmVMath::Vector3 transformed_max = mesh_position + item.m_AabbMax;
 
@@ -3063,7 +3277,9 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompModelIterPropertiesGetNext;
     }
 
-    // For tests
+    //////////////////////////////////////
+    // TEST FUNCTIONS
+    //////////////////////////////////////
     void GetModelWorldRenderBuffers(void* model_world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count)
     {
         ModelWorld* world = (ModelWorld*) model_world;
@@ -3071,7 +3287,14 @@ namespace dmGameSystem
         *vx_buffers_count = VERTEX_BUFFER_MAX_BATCHES;
     }
 
-    // For tests
+    void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count)
+    {
+        ModelWorld* world            = (ModelWorld*) model_world;
+        *world_batch_count           = world->m_RenderBatchWorldVSCount;
+        *local_batch_count           = world->m_RenderBatchLocalVSUninstancedCount;
+        *local_instanced_batch_count = world->m_RenderBatchLocalVSInstancedCount;
+    }
+
     void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants)
     {
         ModelComponent* component = (ModelComponent*) model_component;
@@ -3084,7 +3307,6 @@ namespace dmGameSystem
         *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
     }
 
-    // For tests
     void GetModelComponentAttributeRenderData(void* model_component, int render_item_ix, dmGraphics::HVertexBuffer* vx_buffer, dmGraphics::HVertexDeclaration* vx_decl, dmGraphics::HVertexDeclaration* inst_decl)
     {
         ModelComponent* component = (ModelComponent*) model_component;

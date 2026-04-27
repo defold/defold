@@ -639,6 +639,25 @@ namespace dmRender
         return buffer_type;
     }
 
+    static void CheckRenderTargetSize(lua_State* L, RenderScriptInstance* i, lua_Integer width, lua_Integer height)
+    {
+        int32_t width_i = (int32_t) width;
+        int32_t height_i = (int32_t) height;
+
+        if (width <= 0 || height <= 0)
+        {
+            luaL_error(L, "Invalid render target size: width %d and height %d. Width and height must be greater than 0.",
+                width_i, height_i);
+        }
+
+        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
+        if ((uint32_t) width > max_tex_size || (uint32_t) height > max_tex_size)
+        {
+            luaL_error(L, "Render target size %d x %d exceeds max supported texture size %u for this platform.",
+                width_i, height_i, max_tex_size);
+        }
+    }
+
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
         if (i->m_CommandBuffer.Full())
@@ -895,7 +914,6 @@ namespace dmRender
         const char* required_keys[] = { "format", "width", "height" };
         const int required_keys_count = sizeof(required_keys) / sizeof(required_keys[0]);
         uint32_t buffer_type_flags = 0;
-        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, table_index, LUA_TTABLE);
 
         dmGraphics::RenderTargetCreationParams params = {};
@@ -907,6 +925,8 @@ namespace dmRender
             buffer_type_flags                    |= (uint32_t) buffer_type;
             dmGraphics::TextureParams* p          = 0;
             dmGraphics::TextureCreationParams* cp = 0;
+            lua_Integer width                     = 0;
+            lua_Integer height                    = 0;
 
             if (dmGraphics::IsColorBufferType(buffer_type))
             {
@@ -981,13 +1001,11 @@ namespace dmRender
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
-                    p->m_Width = luaL_checkinteger(L, -1);
-                    cp->m_Width = p->m_Width;
+                    width = luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
                 {
-                    p->m_Height = luaL_checkinteger(L, -1);
-                    cp->m_Height = p->m_Height;
+                    height = luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
@@ -1035,12 +1053,12 @@ namespace dmRender
             }
             lua_pop(L, 1);      // [-1,+0 = 1] pop value, keep key for next iteration
 
-            if (cp->m_Width > max_tex_size || cp->m_Height > max_tex_size)
-            {
-                lua_pop(L, 1);  // [-1,+0 = 0] pop key
-                return DM_LUA_ERROR("Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
-                    dmGraphics::GetBufferTypeLiteral(buffer_type), cp->m_Width, cp->m_Height, max_tex_size);
-            }
+            CheckRenderTargetSize(L, i, width, height);
+
+            p->m_Width = (uint32_t) width;
+            p->m_Height = (uint32_t) height;
+            cp->m_Width = p->m_Width;
+            cp->m_Height = p->m_Height;
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
@@ -1348,9 +1366,11 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
-        uint32_t width = luaL_checkinteger(L, 2);
-        uint32_t height = luaL_checkinteger(L, 3);
-        dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, width, height);
+        lua_Integer width = luaL_checkinteger(L, 2);
+        lua_Integer height = luaL_checkinteger(L, 3);
+
+        CheckRenderTargetSize(L, i, width, height);
+        dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, (uint32_t) width, (uint32_t) height);
         return 0;
     }
 
@@ -2109,6 +2129,120 @@ namespace dmRender
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC, factors[0], factors[1])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    static bool CheckBlendFactor(uint32_t factor)
+    {
+        return factor == dmGraphics::BLEND_FACTOR_ZERO ||
+               factor == dmGraphics::BLEND_FACTOR_ONE ||
+               factor == dmGraphics::BLEND_FACTOR_SRC_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_DST_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_SRC_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_DST_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_SRC_ALPHA_SATURATE ||
+               factor == dmGraphics::BLEND_FACTOR_CONSTANT_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR ||
+               factor == dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA ||
+               factor == dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    }
+
+    static bool CheckBlendEquation(uint32_t equation)
+    {
+        return equation == dmGraphics::BLEND_EQUATION_ADD ||
+               equation == dmGraphics::BLEND_EQUATION_SUBTRACT ||
+               equation == dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT ||
+               equation == dmGraphics::BLEND_EQUATION_MIN ||
+               equation == dmGraphics::BLEND_EQUATION_MAX;
+    }
+
+    /*# sets the blend function with separate factors for color and alpha
+     *
+     * Sets the blend function with separate blend factors for the color and alpha channels.
+     *
+     * @name render.set_blend_func_separate
+     * @param source_factor_color [type:number] source color blend factor
+     * @param destination_factor_color [type:number] destination color blend factor
+     * @param source_factor_alpha [type:number] source alpha blend factor
+     * @param destination_factor_alpha [type:number] destination alpha blend factor
+     * @examples
+     *
+     * Set standard alpha blending with separate alpha:
+     *
+     * ```lua
+     * render.set_blend_func_separate(graphics.BLEND_FACTOR_SRC_ALPHA,
+     *                                graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+     *                                graphics.BLEND_FACTOR_ONE,
+     *                                graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+     * ```
+     */
+    int RenderScript_SetBlendFuncSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[4];
+        for (uint32_t f = 0; f < 4; ++f)
+        {
+            factors[f] = luaL_checknumber(L, 1 + f);
+        }
+        for (uint32_t f = 0; f < 4; ++f)
+        {
+            if (!CheckBlendFactor(factors[f]))
+            {
+                return luaL_error(L, "Invalid blend factor in %s.set_blend_func_separate", RENDER_SCRIPT_LIB_NAME);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, factors[0], factors[1], factors[2], factors[3])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*# sets the blend equation with separate equations for color and alpha
+     *
+     * Sets the blend equation with separate equations for the color and alpha channels.
+     *
+     * @name render.set_blend_equation_separate
+     * @param equation_color [type:number] color blend equation
+     * @param equation_alpha [type:number] alpha blend equation
+     * @examples
+     *
+     * Set add for color and reverse subtract for alpha:
+     *
+     * ```lua
+     * render.set_blend_equation_separate(graphics.BLEND_EQUATION_ADD,
+     *                                    graphics.BLEND_EQUATION_REVERSE_SUBTRACT)
+     * ```
+     */
+    int RenderScript_SetBlendEquationSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t equations[2];
+        for (uint32_t e = 0; e < 2; ++e)
+        {
+            equations[e] = luaL_checknumber(L, 1 + e);
+        }
+        for (uint32_t e = 0; e < 2; ++e)
+        {
+            if (!CheckBlendEquation(equations[e]))
+            {
+                return luaL_error(L, "Invalid blend equation in %s.set_blend_equation_separate", RENDER_SCRIPT_LIB_NAME);
+            }
+        }
+        for (uint32_t e = 0; e < 2; ++e)
+        {
+            if ((equations[e] == dmGraphics::BLEND_EQUATION_MIN || equations[e] == dmGraphics::BLEND_EQUATION_MAX) &&
+                !dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX))
+            {
+                return luaL_error(L, "Blend equation MIN/MAX is not supported on this device in %s.set_blend_equation_separate", RENDER_SCRIPT_LIB_NAME);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, equations[0], equations[1])))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -3013,6 +3147,8 @@ namespace dmRender
         {"set_view",                        RenderScript_SetView},
         {"set_projection",                  RenderScript_SetProjection},
         {"set_blend_func",                  RenderScript_SetBlendFunc},
+        {"set_blend_func_separate",         RenderScript_SetBlendFuncSeparate},
+        {"set_blend_equation_separate",     RenderScript_SetBlendEquationSeparate},
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_depth_func",                  RenderScript_SetDepthFunc},
@@ -3152,6 +3288,18 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
 
 #undef REGISTER_BLEND_CONSTANT
+
+#define REGISTER_BLEND_EQUATION_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_EQUATION_##name); \
+        lua_setfield(L, -2, "BLEND_EQUATION_"#name);
+
+        REGISTER_BLEND_EQUATION_CONSTANT(ADD);
+        REGISTER_BLEND_EQUATION_CONSTANT(SUBTRACT);
+        REGISTER_BLEND_EQUATION_CONSTANT(REVERSE_SUBTRACT);
+        REGISTER_BLEND_EQUATION_CONSTANT(MIN);
+        REGISTER_BLEND_EQUATION_CONSTANT(MAX);
+
+#undef REGISTER_BLEND_EQUATION_CONSTANT
 
 #define REGISTER_COMPARE_FUNC_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \
@@ -3318,21 +3466,29 @@ bail:
         }
     }
 
-    static void ReleaseRenderScript(HRenderContext render_context, HRenderScript render_script)
+    static void ClearRenderScript(HRenderContext render_context, HRenderScript render_script, bool release_instance_reference)
     {
         lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
-            if (render_script->m_FunctionReferences[i])
+            if (render_script->m_FunctionReferences[i] != LUA_NOREF)
+            {
                 dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
+                render_script->m_FunctionReferences[i] = LUA_NOREF;
+            }
         }
-        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        if (release_instance_reference)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+            render_script->m_InstanceReference = LUA_NOREF;
+        }
         free((void*)render_script->m_SourceFileName);
+        render_script->m_SourceFileName = 0;
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
     {
-        ReleaseRenderScript(render_context, render_script);
+        ClearRenderScript(render_context, render_script, true);
         render_script->~RenderScript();
         ResetRenderScript(render_script);
     }
@@ -3366,7 +3522,7 @@ bail:
 
     bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
-        ReleaseRenderScript(render_context, render_script);
+        ClearRenderScript(render_context, render_script, false);
         return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
     }
 

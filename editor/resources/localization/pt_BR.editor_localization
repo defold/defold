@@ -67,7 +67,6 @@ welcome.new-project.rive-project.description = Este modelo usa a extensão rive 
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = Tutorial de Rolagem Lateral
 welcome.new-project.side-scroller-tutorial.description = Neste tutorial para iniciantes, você experimenta como é criar um jogo em Defold modificando um jogo de rolagem lateral muito simples.
-welcome.new-project.walking-astronaut-tutorial.title = Tutorial do Astronauta
 welcome.new-project.walking-astronaut-tutorial.description = Neste tutorial para iniciantes, você aprende como capturar os comandos do jogador e fazer um personagem se mover e animar. Você também aprenderá sobre os blocos de construção centrais em Defold\: objetos de jogo, componentes e coleções.
 welcome.new-project.movement-tutorial.title = Tutorial de Movimento
 welcome.new-project.movement-tutorial.description = Neste tutorial para iniciantes, você aprende como fazer um movimento realista usando vetores e álgebra de vetores simples.
@@ -339,12 +338,9 @@ dialog.fetch-libraries.host-unreachable.content = Servidor inacessível\: {host}
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = Dependências do projeto mudaram. Você deseja obter as bibliotecas agora?
-notification.fetch-libraries.dependencies-changed.action.fetch = Buscar Bibliotecas
-notification.fetch-libraries.dependencies-missing.warning = Estão faltando as seguintes dependências\:\n{dependencies}\nO projeto pode não funcionar sem elas.\nPara baixar, conecte-se à internet e busque as bibliotecas.
-notification.fetch-libraries.dependencies-error.error = Não foi possível instalar as seguintes dependências\:\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = Abrir game.project
-notification.fetch-libraries.min-version.error = Biblioteca {uri} requer Defold {required} ou mais recente (a versão atual do Defold é {current}). Atualize o Defold ou verifique versões de extensão mais antigas para compatibilidade.
+notification.fetch-libraries.changed = Dependências do projeto mudaram. Você deseja obter as bibliotecas agora?
+notification.fetch-libraries.action.fetch = Buscar Bibliotecas
+notification.fetch-libraries.action.open-game-project = Abrir game.project
 
 # Settings notifications
 
@@ -510,7 +506,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
@@ -736,7 +731,6 @@ progress.cleaning = Limpando…
 progress.generating-report = Gerando relatório…
 progress.working = Trabalhando…
 progress.reading-classes = Lendo classes…
-progress.downloading-archives = Baixando arquivos…
 progress.launching-engine = Lançando motor…
 progress.launched-engine = Lançado {engine}
 progress.engine-launch-failed = Lançamento falhou
@@ -1047,6 +1041,9 @@ operation.drop = Descartar
 operation.paste = Colar
 operation.select = Selecionar
 operation.tile-map.add-layer = Adicionar Camada
+
+# Scene View Popups
+
 
 # Properties
 
@@ -2035,10 +2032,8 @@ form.label.liveupdate.liveupdate.output-folder-name = Pasta de destino
 form.help.liveupdate.liveupdate.output-folder-name = Nome da pasta de destino
 form.label.liveupdate.manifest = Manifesto
 form.label.liveupdate.liveupdate.publickey = Chave Pública
-form.help.liveupdate.liveupdate.publickey = Chave pública para assinatura de manifesto
 form.title.liveupdate.liveupdate.publickey = Selecione a Chave Pública do Manifesto
 form.label.liveupdate.liveupdate.privatekey = Chave Privada
-form.help.liveupdate.liveupdate.privatekey = Chave privada para assinatura de manifesto
 form.title.liveupdate.liveupdate.privatekey = Selecione a Chave Privada do Manifesto
 form.label.liveupdate.liveupdate.supported-versions = Versões do motor suportadas
 form.help.liveupdate.liveupdate.supported-versions = Lista de versões do motor suportado
@@ -2099,7 +2094,6 @@ error.property-must-be-between = "{property}" deve estar entre {min} e {max}.
 error.attribute-components-must-be-between = Componentes no atributo de vértices "{attribute}" deve estar entre {min} e {max}.
 error.vertex-attribute = Atributo de vértice "{attribute}"\: {error}
 error.vertex-attribute-normalize-float-data-type = Atributo de vértice "{attribute}" usa Normalizar com tipo de dados Float.
-error.atlas-page-count-cannot-exceed = Contagem de páginas do Atlas ({count}) não pode exceder {max} páginas por atlas.
 error.lua-preprocessing-failed = Pré-processamento Lua falhou.\n{error}
 error.transpiler-compilation-failed = Compilação falhou\: {error}
 error.animation-set-build-failed = Falha ao construir {resource}\: {error}

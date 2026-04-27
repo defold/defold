@@ -18,14 +18,15 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.localization :as localization]
+            [editor.library :as library]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.eduction :as e]))
+            [util.eduction :as e])
+  (:import [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Result]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -46,10 +47,11 @@
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
 
-(defn- resolve-resource-settings-from-raw [raw-settings meta-settings owner-resource evaluation-context]
+(defn- resolve-resource-settings-from-raw [basis raw-settings meta-settings owner-resource]
   ;; evaluation context is an `^:unsafe` part of the output: can be used only
   ;; for resource resolution (that are then only needed for paths)
-  (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
+  (let [resolve-resource #(workspace/resolve-resource basis owner-resource %)
+        meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
     (->> raw-settings
          (settings-core/settings-with-value)
          (settings-core/sanitize-settings meta-settings)
@@ -60,13 +62,14 @@
                  ;; ResourceSettingNode in the graph.
                  (cond-> setting
                          (and (string? value) (= :resource (:type (meta-settings-map path))))
-                         (assoc :value (workspace/resolve-resource owner-resource value evaluation-context))))))))
+                         (assoc :value (resolve-resource value))))))))
 
 (g/defnk produce-settings-map [^:unsafe _evaluation-context owner-resource meta-info raw-settings resource-settings]
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
-  (let [meta-settings (:settings meta-info)
-        sanitized-settings (resolve-resource-settings-from-raw raw-settings meta-settings owner-resource _evaluation-context)
+  (let [basis (:basis _evaluation-context)
+        meta-settings (:settings meta-info)
+        sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
         all-settings (concat (settings-core/make-default-settings meta-settings) sanitized-settings resource-settings)
         settings-map (settings-core/make-settings-map all-settings)]
     settings-map))
@@ -197,21 +200,19 @@
   library.defold_min_version)."
   [dependencies]
   (into []
-        (comp
-          (filter #(and (= :error (:status %))
-                        (= :defold-min-version (:reason %))))
-          (map (fn [{:keys [uri required current]}]
-                 (g/map->error
-                   {:severity :fatal
-                    :message (localization/message "notification.fetch-libraries.min-version.error"
-                                                   {"uri" uri "required" required "current" current})}))))
+        (keep
+          (fn [^Library$Result result]
+            (when-let [problem (.problem result)]
+              (when (instance? Library$Problem$DefoldMinVersion problem)
+                (g/map->error {:severity :fatal :message (library/result-message result)})))))
         dependencies))
 
 (g/defnk produce-form-data [^:unsafe _evaluation-context _node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   ;; we use evaluation context to resolve a resource; we only need the resource
   ;; for its path, so it's safe to use it here
-  (let [meta-settings (:settings meta-info)
-        sanitized-settings (resolve-resource-settings-from-raw raw-settings meta-settings owner-resource _evaluation-context)
+  (let [basis (:basis _evaluation-context)
+        meta-settings (:settings meta-info)
+        sanitized-settings (resolve-resource-settings-from-raw basis raw-settings meta-settings owner-resource)
         non-defaulted-setting-paths (into #{}
                                           (comp
                                             (filter :value)
@@ -292,10 +293,10 @@
                       project-meta-info (settings-core/merge-meta-infos project-meta-info)
                       (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
 
-(defn- resolve-resource-settings [settings base-resource value-field]
+(defn- resolve-resource-settings [settings value-field resolve-resource-fn]
   (mapv (fn [setting]
           (if (= :resource (:type setting))
-            (update setting value-field #(workspace/resolve-resource base-resource %))
+            (update setting value-field resolve-resource-fn)
             setting))
         settings))
 
@@ -304,12 +305,14 @@
     (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
 
 (defn load-settings-node [project owner-resource-node self resource raw-settings initial-meta-info resource-setting-connections]
-  (let [meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
-                      (update :settings resolve-resource-settings resource :default))
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
+                      (update :settings resolve-resource-settings :default resolve-resource))
         meta-settings (:settings meta-info)
         settings (-> (settings-core/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
                      (type-annotate-settings meta-settings)
-                     (resolve-resource-settings resource :value))
+                     (resolve-resource-settings :value resolve-resource))
         resource-setting-paths (set (map :path (filter #(= :resource (:type %)) meta-settings)))]
     (concat
       ;; We retain the actual raw string settings and update these when/if the user changes a setting,

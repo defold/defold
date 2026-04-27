@@ -48,4 +48,3 @@ def build(bld):
                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 includes = ['../../src', '../../proto'],
                 target = 'test_render_buffer')
-

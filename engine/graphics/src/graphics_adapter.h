@@ -19,6 +19,8 @@
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/dlib/vmath.h>
 
+#include "graphics_private.h"
+
 namespace dmGraphics
 {
     struct GraphicsAdapterFunctionTable;
@@ -101,6 +103,8 @@ namespace dmGraphics
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);
     typedef void (*SetBlendFuncFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+    typedef void (*SetBlendFuncSeparateFn)(HContext context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha);
+    typedef void (*SetBlendEquationSeparateFn)(HContext context, BlendEquation equation_color, BlendEquation equation_alpha);
     typedef void (*SetColorMaskFn)(HContext context, bool red, bool green, bool blue, bool alpha);
     typedef void (*SetDepthMaskFn)(HContext context, bool enable_mask);
     typedef void (*SetDepthFuncFn)(HContext context, CompareFunc func);
@@ -126,25 +130,15 @@ namespace dmGraphics
     typedef void (*SetTextureAsyncFn)(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
     typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     typedef uint32_t (*GetTextureResourceSizeFn)(HContext context, HTexture texture);
-    typedef uint16_t (*GetTextureWidthFn)(HContext context, HTexture texture);
-    typedef uint16_t (*GetTextureHeightFn)(HContext context, HTexture texture);
-    typedef uint16_t (*GetOriginalTextureWidthFn)(HContext context, HTexture texture);
-    typedef uint16_t (*GetOriginalTextureHeightFn)(HContext context, HTexture texture);
-    typedef uint16_t (*GetTextureDepthFn)(HContext context, HTexture texture);
-    typedef uint8_t (*GetTextureMipmapCountFn)(HContext context, HTexture texture);
-    typedef TextureType (*GetTextureTypeFn)(HContext context, HTexture texture);
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
     typedef uint32_t (*GetMaxTextureSizeFn)(HContext context);
-    typedef uint32_t (*GetTextureStatusFlagsFn)(HContext context, HTexture texture);
     typedef void (*ReadPixelsFn)(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
     typedef void (*RunApplicationLoopFn)(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
     typedef HandleResult (*GetTextureHandleFn)(HTexture texture, void** out_handle);
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
-    typedef uint8_t (*GetNumTextureHandlesFn)(HContext context, HTexture texture);
-    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HContext context, HTexture texture);
     typedef uint8_t (*GetTexturePageCountFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
@@ -210,6 +204,8 @@ namespace dmGraphics
         EnableStateFn m_EnableState;
         DisableStateFn m_DisableState;
         SetBlendFuncFn m_SetBlendFunc;
+        SetBlendFuncSeparateFn m_SetBlendFuncSeparate;
+        SetBlendEquationSeparateFn m_SetBlendEquationSeparate;
         SetColorMaskFn m_SetColorMask;
         SetDepthMaskFn m_SetDepthMask;
         SetDepthFuncFn m_SetDepthFunc;
@@ -235,25 +231,15 @@ namespace dmGraphics
         SetTextureAsyncFn m_SetTextureAsync;
         SetTextureParamsFn m_SetTextureParams;
         GetTextureResourceSizeFn m_GetTextureResourceSize;
-        GetTextureWidthFn m_GetTextureWidth;
-        GetTextureHeightFn m_GetTextureHeight;
-        GetTextureTypeFn m_GetTextureType;
-        GetOriginalTextureWidthFn m_GetOriginalTextureWidth;
-        GetOriginalTextureHeightFn m_GetOriginalTextureHeight;
-        GetTextureDepthFn m_GetTextureDepth;
-        GetTextureMipmapCountFn m_GetTextureMipmapCount;
         EnableTextureFn m_EnableTexture;
         DisableTextureFn m_DisableTexture;
         GetMaxTextureSizeFn m_GetMaxTextureSize;
-        GetTextureStatusFlagsFn m_GetTextureStatusFlags;
         ReadPixelsFn m_ReadPixels;
         RunApplicationLoopFn m_RunApplicationLoop;
         GetTextureHandleFn m_GetTextureHandle;
         IsExtensionSupportedFn m_IsExtensionSupported;
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
-        GetNumTextureHandlesFn m_GetNumTextureHandles;
-        GetTextureUsageHintFlagsFn m_GetTextureUsageHintFlags;
         GetTexturePageCountFn m_GetTexturePageCount;
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
@@ -321,6 +307,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendFunc); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendFuncSeparate); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendEquationSeparate); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetColorMask); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetDepthMask); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetDepthFunc); \
@@ -346,17 +334,9 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureAsync); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureParams); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureResourceSize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureWidth); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetOriginalTextureWidth); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetOriginalTextureHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureDepth); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureMipmapCount); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureType); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetMaxTextureSize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureStatusFlags); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReadPixels); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, RunApplicationLoop); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureHandle); \
@@ -364,8 +344,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsExtensionSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumSupportedExtensions); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureUsageHintFlags); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTexturePageCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \

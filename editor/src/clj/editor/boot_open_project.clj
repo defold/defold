@@ -58,6 +58,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [service.smoke-log :as slog]
+            [util.debug-util :as du]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -95,7 +96,6 @@
 
     (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)
-    (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
 
@@ -372,8 +372,9 @@
           (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :pane-desc app-view :outline-pane-desc)
-          (g/connect properties-view :pane-desc app-view :properties-pane-desc)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+          (g/connect properties-view :_node-id app-view :properties-view)
+          (g/connect properties-view :pane-desc app-view :properties-pane-desc)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
@@ -401,7 +402,7 @@
 
           ;; If the project was just created, we automatically open the readme.
           (if newly-created?
-            (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+            (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
 
@@ -430,15 +431,16 @@
 
 (defn open-project!
   [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
-  (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
-        build-settings (workspace/make-build-settings prefs)
-        workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-        workspace (setup-workspace! project-path build-settings workspace-config localization)
-        game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        extensions (extensions/make *project-graph*)
-        project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
-    (ui/run-now
-      (icons/initialize! workspace)
-      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
-    (g/reset-undo! *project-graph*)
-    (log/info :message "project loaded")))
+  (du/log-time "Project loading"
+    (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
+          build-settings (workspace/make-build-settings prefs)
+          workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+          workspace (setup-workspace! project-path build-settings workspace-config localization)
+          game-project-res (workspace/file-resource workspace "/game.project")
+          extensions (extensions/make *project-graph*)
+          project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
+      (ui/run-now
+        (icons/initialize! workspace)
+        (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
+      (g/reset-undo! *project-graph*)
+      (log/info :message "project loaded"))))

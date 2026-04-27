@@ -34,7 +34,7 @@ static int32_t PORT = 6123; // can be configured
 // data = b"\x00\x01\x02\x03\x04\x05\x06\x07"
 // with open('./src/test/files/src/test/files/somedata', 'wb') as f:
 //     f.write(data)
-const uint8_t SOMEDATA[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+const uint8_t SOMEDATA[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
@@ -74,19 +74,6 @@ TEST(HttpProviderBasic, CanMount)
 
 class HttpProviderArchive : public jc_test_base_class
 {
-public:
-    static void SetUpTestCase()
-    {
-        char path[1024];
-        dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/somedata");
-        FILE* f = fopen(path, "wb");
-        ASSERT_NE((FILE*)0, f);
-        fwrite(SOMEDATA, sizeof(SOMEDATA), 1, f);
-        fclose(f);
-
-        dmLogInfo("Wrote test data: '%s'", path);
-    }
-
 protected:
     void SetUp() override
     {

@@ -107,6 +107,8 @@ namespace dmGraphics
         // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
         // fail array texture ASTC uploads while 2D ASTC works.
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -234,7 +236,48 @@ namespace dmGraphics
         uint32_t m_Hash;
     };
 
+    struct ShaderResourceType
+    {
+        union
+        {
+            ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                   m_TypeIndex;
+        };
+        uint8_t m_UseTypeIndex : 1;
+    };
 
+    struct ShaderResourceMember
+    {
+        const char*        m_Name;
+        dmhash_t           m_NameHash;
+        ShaderResourceType m_Type;
+        uint32_t           m_ElementCount;
+        uint32_t           m_Offset;
+    };
+
+    struct ShaderResourceTypeInfo
+    {
+        char*                 m_Name;
+        dmhash_t              m_NameHash;
+        ShaderResourceMember* m_Members;
+        uint32_t              m_MemberCount;
+    };
+
+    // Binding family for shader resources in a program.
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
+    };
+
+    // Callback invoked for each resource binding in a program that matches the specified family.
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
+
+    // Iterate over all resource bindings for the given program that belong to the specified
+    // binding family and invoke the supplied callback for each binding.
+    void IterateProgramResourceBindings(HProgram program, ShaderResourceBindingFamily family, IterateProgramResourceBindingsCallback callback, void* user_data);
 
     /**
      * Starts the app that needs to control the update loop (iOS only)
@@ -361,6 +404,8 @@ namespace dmGraphics
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
 
     // Uniform buffers
+    void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
+    void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
     HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);

@@ -272,19 +272,19 @@ namespace dmPhysics
 
     static dmArray<b2ShapeId>& GetSensorOverlapBuffer(HWorld2D world, b2ShapeId shapeId)
     {
-        int num_overlaps = b2Shape_GetSensorCapacity(shapeId);
+        int capacity = b2Shape_GetSensorCapacity(shapeId);
 
-        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < num_overlaps)
+        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < capacity)
         {
-            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(num_overlaps);
+            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(capacity);
         }
 
+        int num_overlaps = 0;
+        if (capacity > 0)
+        {
+            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), capacity);
+        }
         world->m_GetSensorOverlapsScratchBuffer.SetSize(num_overlaps);
-
-        if (num_overlaps > 0)
-        {
-            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), num_overlaps);
-        }
         return world->m_GetSensorOverlapsScratchBuffer;
     }
 
@@ -707,8 +707,6 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
 
-        b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
-
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
@@ -756,6 +754,8 @@ namespace dmPhysics
         {
             DM_PROFILE("TriggerCallbacks");
 
+            b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
+
             OverlapCacheAddData add_data;
             add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
             add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
@@ -788,8 +788,11 @@ namespace dmPhysics
                 {
                     continue;
                 }
-                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdA)));
-                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdB)));
+
+                uint64_t body_a = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+                uint64_t body_b = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, body_a, body_b);
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, body_b, body_a);
             }
 
             OverlapCachePruneData prune_data;

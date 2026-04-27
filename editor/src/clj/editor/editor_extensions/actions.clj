@@ -44,7 +44,7 @@
     f))
 
 (defmethod action->batched-executor+input :set [action rt project evaluation-context]
-  (let [node-id (graph/node-id-or-path->node-id (:node_id action) project evaluation-context)
+  (let [node-id (graph/unresolved-editor-lookup->node-id (:node_id action) project evaluation-context)
         property (:property action)
         setter (graph/ext-lua-value-setter node-id property rt project evaluation-context)]
     (if setter
@@ -112,7 +112,7 @@
   (coerce/vector-of
     (coerce/by-key
       :action
-      {:set (coerce/hash-map :req {:node_id graph/node-id-or-path-coercer
+      {:set (coerce/hash-map :req {:node_id graph/unresolved-editor-lookup-coercer
                                    :property coerce/string
                                    :value coerce/untouched})
        :shell (coerce/hash-map :req {:command (coerce/vector-of coerce/string :min-count 1)})})))

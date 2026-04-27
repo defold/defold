@@ -14,6 +14,7 @@
 
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
             [clojure.test.check.clojure-test]
@@ -31,6 +32,8 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as input]
+            [editor.library :as library]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.material :as material]
@@ -63,6 +66,7 @@
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.path :as path]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
@@ -96,6 +100,19 @@
 ;; Disable defspec logs:
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
 (alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
+
+;; Use shared lib dir to skip re-downloading deps
+(def ^:dynamic *shared-lib-dir* (path/of "tmp/lib"))
+
+(alter-var-root
+  #'library/directory
+  (fn [f]
+    (fn overridden-library-directory [& args]
+      (or *shared-lib-dir* (apply f args)))))
+
+(defmacro with-project-default-library-directory [& body]
+  `(binding [*shared-lib-dir* nil]
+     ~@body))
 
 (def project-path "test/resources/test_project")
 
@@ -374,9 +391,13 @@
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
+(defn set-cached-project-dependencies! [workspace library-uris]
+  (->> (library/cached (workspace/project-directory workspace) library-uris)
+       (workspace/set-project-dependencies! workspace)))
 
 (defn set-libraries! [workspace library-uris]
   (let [library-uris
@@ -388,8 +409,8 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn distinct-resource-types-by-editability
@@ -528,6 +549,7 @@
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
+            (g/connect app-view :selected-node-properties view :selected-node-properties)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -570,9 +592,6 @@
         [@g/*the-system* workspace project]))))
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
-
-(defn clear-cached-libraries! []
-  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
 
 (defn clear-cached-projects! []
   (fn/clear-memoized! load-system-and-project))
@@ -753,7 +772,8 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
@@ -794,19 +814,31 @@
   {:pre [(vector? offset-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath offset-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-move scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+      (let [delta (math/euler->quat euler-xyz)]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-rotate scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath scale-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-scale scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]
@@ -1735,7 +1767,7 @@
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "rivemodel" [resource-node-id]
-  (g/update-property resource-node-id :create-go-bones not))
+  (g/update-property resource-node-id :auto-bind not))
 
 (defmethod edit-resource-node "rivescene" [resource-node-id]
   (g/set-property resource-node-id :rive-file nil))
