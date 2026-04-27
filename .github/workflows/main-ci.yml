@@ -487,6 +487,7 @@ jobs:
         }
       },
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Cache lein installation', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: 'editor/build/lein', key: "${{ runner.os }}-${{ matrix.platform }}-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       {
