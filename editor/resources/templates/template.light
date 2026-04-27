@@ -1,5 +1,5 @@
 tags: "light"
-tags: "directional_light"
+tags: "point_light"
 data {
   struct {
     fields {
@@ -7,15 +7,19 @@ data {
       value {
         list {
           values { number: 1.0 }
-          values { number: 0.0 }
-          values { number: 0.0 }
+          values { number: 1.0 }
+          values { number: 1.0 }
           values { number: 1.0 }
         }
       }
     }
     fields {
       key: "intensity"
-      value { number: 3.0 }
+      value { number: 1.0 }
+    }
+    fields {
+      key: "range"
+      value { number: 10.0 }
     }
   }
 }

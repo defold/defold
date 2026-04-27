@@ -213,7 +213,8 @@
     (:shader-type+source-pairs combined-shader-info)
     (:location+attribute-name-pairs combined-shader-info)
     (:array-sampler-name->slice-sampler-names combined-shader-info)
-    (:strip-resource-binding-namespace-regex-str combined-shader-info)))
+    (:strip-resource-binding-namespace-regex-str combined-shader-info)
+    (:uses-preview-light-buffer combined-shader-info)))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info

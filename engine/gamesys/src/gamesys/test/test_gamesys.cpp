@@ -479,7 +479,8 @@ TEST_F(ResourceTest, LightResourcePrototype)
     ASSERT_EQ(dmRender::LIGHT_TYPE_DIRECTIONAL, proto->m_Type);
     ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), proto->m_Color);
     ASSERT_NEAR(3.0f, proto->m_Intensity, EPSILON);
-    ASSERT_VEC3(dmVMath::Vector3(1.0f, 2.0f, 3.0f), proto->m_Direction);
+    // Local forward in component space; world direction comes from game object rotation.
+    ASSERT_VEC3(dmVMath::Vector3(0.0f, 0.0f, -1.0f), proto->m_Direction);
 
     dmResource::Release(m_Factory, (void*)res);
 
@@ -496,8 +497,8 @@ TEST_F(ResourceTest, LightResourcePrototype)
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto->m_Color);
     ASSERT_NEAR(4.0f, proto->m_Intensity, EPSILON);
     ASSERT_NEAR(20.0f, proto->m_Range, EPSILON);
-    ASSERT_NEAR(15.0f, proto->m_InnerConeAngle, EPSILON);
-    ASSERT_NEAR(30.0f, proto->m_OuterConeAngle, EPSILON);
+    ASSERT_NEAR(15.0f * 3.14159265f / 180.0f, proto->m_InnerConeAngle, EPSILON);
+    ASSERT_NEAR(30.0f * 3.14159265f / 180.0f, proto->m_OuterConeAngle, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 }
@@ -539,14 +540,14 @@ TEST_F(ResourceTest, LightComponentUpdatesLightBuffer)
     const dmRender::LightSTD140& L_dir = render_ctx->m_LightBufferScratch[1];
     ASSERT_VEC3(pos_dir, L_dir.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), L_dir.m_Color);
-    ASSERT_VEC4(dmVMath::Vector4(1.0f, 2.0f, 3.0f, 0.0f), L_dir.m_DirectionRange);
+    ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 0.0f), L_dir.m_DirectionRange);
     ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_DIRECTIONAL, 3.0f, 0.0f, 0.0f), L_dir.m_Params);
 
     const dmRender::LightSTD140& L_spot = render_ctx->m_LightBufferScratch[2];
     ASSERT_VEC3(pos_spot, L_spot.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
-    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, 15.0f, 30.0f), L_spot.m_Params);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, 15.0f * 3.14159265f / 180.0f, 30.0f * 3.14159265f / 180.0f), L_spot.m_Params);
 
     const Point3 pos_point_moved(7.0f, 8.0f, 9.0f);
     dmGameObject::SetPosition(go_point, pos_point_moved);
@@ -596,7 +597,7 @@ TEST_F(ResourceTest, ReloadLightResourceTest)
 
     ASSERT_VEC4(dmVMath::Vector4(1.0, 0.0, 0.0, 1.0), valid_light_prototype_b->m_Color);
     ASSERT_NEAR(3.0, valid_light_prototype_b->m_Intensity, EPSILON);
-    ASSERT_VEC3(Vector3(1.0, 2.0, 3.0), valid_light_prototype_b->m_Direction);
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, -1.0f), valid_light_prototype_b->m_Direction);
 
     dmResource::Release(m_Factory, (void**) resource);
 
@@ -5902,7 +5903,7 @@ INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resou
 ResourceFailParams invalid_light_resources[] =
 {
     {"/light/valid_point.lightc", "/light/invalid_point_missing_range.lightc"},
-    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_direction.lightc"},
+    {"/light/valid_directional_light.lightc", "/light/invalid_directional_missing_intensity.lightc"},
     {"/light/valid_spot_light.lightc", "/light/invalid_spot_missing_outer_cone_angle.lightc"}
 };
 INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));

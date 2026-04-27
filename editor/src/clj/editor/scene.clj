@@ -26,7 +26,9 @@
             [editor.fxui :as fxui]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.grid :as grid]
             [editor.handler :as handler]
@@ -667,10 +669,24 @@
               additional-renderables-by-pass)]
     {:renderables filtered-additional-renderables-by-pass}))
 
-(g/defnk produce-pass->render-args [^Region viewport camera]
-  (into {}
-        (map (juxt identity (partial pass-render-args viewport camera)))
-        pass/all-passes))
+(g/defnk produce-pass->render-args [^Region viewport camera scene preview-overrides hidden-renderable-tags hidden-node-outline-key-paths local-camera]
+  (let [preview-lights
+        (if-let [error (:error scene)]
+          []
+          (let [preview-light-hidden-renderable-tags (disj (or hidden-renderable-tags #{}) :light)
+                view-matrix (c/camera-view-matrix local-camera)
+                preview-light-renderables (:renderables (flatten-scene scene
+                                                                      preview-overrides
+                                                                      #{}
+                                                                      preview-light-hidden-renderable-tags
+                                                                      hidden-node-outline-key-paths
+                                                                      view-matrix))]
+            (light/packed-lights-from-scene preview-light-renderables)))]
+    (into {}
+          (map (fn [pass]
+                 [pass (assoc (pass-render-args viewport camera pass)
+                              :editor/preview-lights preview-lights)]))
+          pass/all-passes)))
 
 (g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]
   (let [renderables-by-pass (:renderables scene-render-data)]

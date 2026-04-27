@@ -1275,6 +1275,19 @@ property.label.size = Size
 property.label.text = Text
 property.label.tracking = Tracking
 
+# Properties: light
+
+property.light.type = Type
+property.light.type.point = Point
+property.light.type.directional = Directional
+property.light.type.spot = Spot
+property.light.color = Color
+property.light.intensity = Intensity
+property.light.range = Range
+property.light.direction = Direction
+property.light.inner-cone-angle = Inner Cone Angle
+property.light.outer-cone-angle = Outer Cone Angle
+
 # Properties: mesh
 
 property.mesh.normal-stream = Normal Stream
@@ -2162,6 +2175,15 @@ form.label.sound.gain = Gain
 form.label.sound.pan = Pan
 form.label.sound.speed = Speed
 
+form.label.light = Light
+form.label.light.type = Type
+form.label.light.color = Color
+form.label.light.intensity = Intensity
+form.label.light.range = Range
+form.label.light.direction = Direction
+form.label.light.inner-cone-angle = Inner Cone Angle
+form.label.light.outer-cone-angle = Outer Cone Angle
+
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Mode
 form.help.liveupdate.liveupdate.mode = Target
@@ -2256,6 +2278,7 @@ quick-help.start-or-attach-debugger = Start or Attach Debugger
 # Error Messages
 error.assigned-image-has-internal-errors = The assigned image has internal errors.
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
+error.light.invalid-source = The light file could not be parsed. Fix the text format or revert your changes.
 error.sound.invalid-ogg-file = Invalid Ogg file.
 error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
 error.sound.could-not-read-audio-file = Couldn't read audio file {resource}.

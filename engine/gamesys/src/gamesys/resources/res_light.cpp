@@ -15,6 +15,7 @@
 #include <dmsdk/gamesys/resources/res_light.h>
 
 #include <ddf/ddf.h>
+#include <dlib/math.h>
 #include <render/render.h>
 
 namespace dmGameSystem
@@ -101,18 +102,6 @@ namespace dmGameSystem
         return LIGHT_PARSE_RESULT_OK;
     }
 
-    static LightParseResult GetVector3(const dmStructDDF::Struct* s, const char* key, dmVMath::Vector3* out)
-    {
-        dmVMath::Vector4 v4;
-        LightParseResult res = GetVector4(s, key, &v4);
-        if (res != LIGHT_PARSE_RESULT_OK)
-        {
-            return res;
-        }
-        *out = v4.getXYZ();
-        return LIGHT_PARSE_RESULT_OK;
-    }
-
     static LightParseResult DDFToLightParams(const dmGameSystemDDF::Data* ddf, dmRender::LightPrototypeParams& params)
     {
         // Parse tags to determine the light type
@@ -155,28 +144,40 @@ namespace dmGameSystem
 
         res = GetNumber(&light_data, "intensity", &params.m_Intensity);
         HANDLE_LIGHT_PARSE_RES("intensity", res);
+        params.m_Intensity = dmMath::Max(0.0f, params.m_Intensity);
 
         // Light type specific properties
         if (type == dmRender::LIGHT_TYPE_DIRECTIONAL)
         {
-            res = GetVector3(&light_data, "direction", &params.m_Direction);
-            HANDLE_LIGHT_PARSE_RES("directional.direction", res);
+            // Direction is derived from game object rotation applied to (0, 0, -1).
         }
         else if (type == dmRender::LIGHT_TYPE_POINT)
         {
             res = GetNumber(&light_data, "range", &params.m_Range);
             HANDLE_LIGHT_PARSE_RES("point.range", res);
+            params.m_Range = dmMath::Max(0.0f, params.m_Range);
         }
         else if (type == dmRender::LIGHT_TYPE_SPOT)
         {
             res = GetNumber(&light_data, "range", &params.m_Range);
             HANDLE_LIGHT_PARSE_RES("spot.range", res);
+            params.m_Range = dmMath::Max(0.0f, params.m_Range);
             res = GetNumber(&light_data, "inner_cone_angle", &params.m_InnerConeAngle);
             HANDLE_LIGHT_PARSE_RES("spot.inner_cone_angle", res);
             res = GetNumber(&light_data, "outer_cone_angle", &params.m_OuterConeAngle);
             HANDLE_LIGHT_PARSE_RES("spot.outer_cone_angle", res);
+            params.m_OuterConeAngle = dmMath::Clamp(params.m_OuterConeAngle, 0.0f, 180.0f);
+            params.m_InnerConeAngle = dmMath::Clamp(params.m_InnerConeAngle, 0.0f, params.m_OuterConeAngle);
+            params.m_InnerConeAngle = params.m_InnerConeAngle * ((float) M_PI / 180.0f);
+            params.m_OuterConeAngle = params.m_OuterConeAngle * ((float) M_PI / 180.0f);
         }
     #undef HANDLE_LIGHT_PARSE_RES
+
+        // Local light forward axis in component space; world direction comes from GO rotation.
+        if (type == dmRender::LIGHT_TYPE_DIRECTIONAL || type == dmRender::LIGHT_TYPE_SPOT)
+        {
+            params.m_Direction = dmVMath::Vector3(0.0f, 0.0f, -1.0f);
+        }
 
         return LIGHT_PARSE_RESULT_OK;
     }

@@ -44,6 +44,7 @@
             [editor.html :as html]
             [editor.image :as image]
             [editor.label :as label]
+            [editor.light :as light]
             [editor.live-update-settings :as live-update-settings]
             [editor.markdown :as markdown]
             [editor.material :as material]
@@ -108,6 +109,7 @@
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
       (data/register-resource-types workspace)
+      (light/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace)

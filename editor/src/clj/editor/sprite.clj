@@ -18,6 +18,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -203,6 +204,7 @@
           (doseq [{:keys [gpu-texture sampler]} scene-infos]
             (gl/bind gl gpu-texture render-args)
             (shader/set-samplers-by-name shader gl sampler (:texture-units gpu-texture)))
+          (light/bind-preview-lights-for-shader! gl shader render-args)
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)

@@ -18,6 +18,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.attribute :as attribute]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -239,6 +240,7 @@
         (shader/set-samplers-by-name shader gl name (:texture-units t)))
       (doseq [[name v] material-data]
         (shader/set-uniform shader gl name v))
+      (light/bind-preview-lights-for-shader! gl shader render-args)
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)

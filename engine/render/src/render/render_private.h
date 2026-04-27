@@ -294,6 +294,7 @@ namespace dmRender
         dmVMath::Point3       m_Position;
         dmVMath::Vector3      m_Direction;
         const LightPrototype* m_LightPrototype;
+        float                 m_Scale;
         uint16_t              m_LightBufferIndex;
     };
 
