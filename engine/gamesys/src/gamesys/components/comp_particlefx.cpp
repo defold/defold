@@ -582,13 +582,18 @@ namespace dmGameSystem
     {
         ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
 
-        uint32_t num_entries = params.m_NumEntries;
-        for (uint32_t i = 0; i < num_entries; ++i)
+        for (uint32_t i = 0; i < params.m_NumEntries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry->m_UserData;
-            const bool intersect = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq);
-            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+            if (dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq))
+            {
+                entry->m_Visibility = dmRender::VISIBILITY_FULL;
+            }
+            else
+            {
+                entry->m_Visibility = dmRender::VISIBILITY_NONE;
+            }
         }
     }
 
@@ -629,10 +634,6 @@ namespace dmGameSystem
                 {
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
-                    if (!render_data || dmParticle::GetParticleCount(particle_context, c.m_ParticleInstance, j) == 0)
-                    {
-                        continue;
-                    }
 
                     dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_data->m_Material;
 

@@ -1345,7 +1345,6 @@ namespace dmParticle
             Vector3 scale = particle_transform.GetScale();
             float hx = width_factor * scale.getX();
             float hy = height_factor * scale.getY();
-
             position_local_flat[0] = Point3(-hx, -hy, 0.0f);
             position_local_flat[1] = Point3(-hx,  hy, 0.0f);
             position_local_flat[2] = Point3( hx,  hy, 0.0f);
@@ -2108,6 +2107,10 @@ namespace dmParticle
             }
         }
 
+        // Conservative emitter sphere for frustum culling: particle centers lie inside the AABB;
+        // each particle quad extends at most ~max_particle_diag from its center (half diagonal of
+        // the largest particle in XY). Bounding sphere = AABB half-diagonal + that extent so we
+        // never cull visible particles (may include false positives).
         center = dmVMath::Point3((aabb_min + aabb_max) * 0.5f);
         const dmVMath::Vector3 extent = (aabb_max - aabb_min) * 0.5f;
         const float half_diag = sqrtf(dmVMath::Dot(extent, extent));
