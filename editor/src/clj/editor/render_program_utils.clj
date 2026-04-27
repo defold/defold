@@ -104,9 +104,9 @@
 
 (defn sanitize-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
-  (cond-> constant
-          (not (editable-constant-type? (:type constant)))
-          (dissoc :value)))
+  (if (editable-constant-type? (:type constant))
+    (update constant :value #(or % [protobuf/vector4-zero]))
+    (dissoc constant :value)))
 
 (defn- constant->editable-constant [constant]
   {:pre [(map? constant)]} ; Material$MaterialDesc$Constant in map format.
