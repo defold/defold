@@ -103,15 +103,22 @@ TEST_F(dmCrashTest, TestLoad)
     {
         const char *name = dmCrash::GetModuleName(d, i);
         void *addr = dmCrash::GetModuleAddr(d, i);
+        uint32_t size = dmCrash::GetModuleSize(d, i);
+        const char *buildid = dmCrash::GetModuleBuildID(d, i);
         if (!name)
         {
             break;
         }
 
         ASSERT_NE((void*) 0, addr);
+        ASSERT_NE((uint32_t) 0, size);
 
         // do this just to catch any misbehaving
         strcpy(buf, name);
+        if (buildid)
+        {
+            strcpy(buf, buildid);
+        }
         count++;
     }
 
