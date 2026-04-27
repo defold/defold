@@ -372,13 +372,23 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
+
             (dynamic error (g/fnk [_node-id diameter]
-                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
+                             (validation/prop-error
+                               :fatal _node-id
+                               :diameter validation/prop-zero-or-below? diameter diameter-message))))
 
   (display-order [Shape :diameter])
 
   (output scene g/Any produce-sphere-shape-scene)
 
+  (output shape-errors g/Any (g/fnk [_node-id id id-counts diameter]
+                               (g/package-errors _node-id
+                                 (validate-image-id _node-id id id-counts)
+                                 (validation/prop-error
+                                   :fatal _node-id
+                                   :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ (double diameter) 2.0)])))
 
@@ -397,6 +407,14 @@
 (defmethod scene-tools/manip-scale-manips ::SphereShape [_node-id]
   [:scale-uniform])
 
+(defn- prop-error-box-dimensions [node-id dimensions]
+  (validation/prop-error :fatal node-id :dimensions
+                         (fn [dimensions _]
+                           (when (some #(<= ^double % 0.0) dimensions)
+                             (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-zero")))
+                         dimensions
+                         dimensions-message))
+
 (g/defnode BoxShape
   (inherits Shape)
 
@@ -405,20 +423,18 @@
             (dynamic label (properties/label-dynamic :collision-object.shape :dimensions))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :dimensions))
             (dynamic error (g/fnk [_node-id dimensions]
-                             (validation/prop-error :fatal _node-id :dimensions
-                                                    (fn [dimensions _]
-                                                      (when (some (fn [^double n]
-                                                                    (<= n 0.0))
-                                                                  dimensions)
-                                                        (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-zero")))
-                                                    dimensions
-                                                    dimensions-message)))
-            (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["W" "H" "D"]})))
+                             (prop-error-box-dimensions _node-id dimensions)))
+            (dynamic edit-type (g/constantly {:type types/Vec3
+                                              :labels ["W" "H" "D"]
+                                              :min 0.0})))
 
   (display-order [Shape :dimensions])
 
   (output scene g/Any produce-box-shape-scene)
-
+  (output shape-errors g/Any (g/fnk [_node-id id id-counts dimensions]
+                               (g/package-errors _node-id
+                                 (validate-image-id _node-id id id-counts)
+                                 (prop-error-box-dimensions _node-id dimensions))))
   (output shape-data g/Any (g/fnk [dimensions]
                              (let [[^double w ^double h ^double d] dimensions]
                                [(/ w 2.0) (/ h 2.0) (/ d 2.0)]))))
@@ -442,19 +458,33 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
             (dynamic error (g/fnk [_node-id diameter]
-                             (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
+                             (validation/prop-error
+                               :fatal _node-id
+                               :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :height))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
             (dynamic error (g/fnk [_node-id height]
-                             (validation/prop-error :fatal _node-id :height validation/prop-zero-or-below? height height-message))))
+                             (validation/prop-error
+                               :fatal _node-id
+                               :height validation/prop-zero-or-below? height height-message))))
 
   (display-order [Shape :diameter :height])
 
   (output scene g/Any produce-capsule-shape-scene)
-
+  (output shape-errors g/Any (g/fnk [_node-id id id-counts diameter height]
+                               (g/package-errors _node-id
+                                 (validate-image-id _node-id id id-counts)
+                                 (validation/prop-error
+                                   :fatal _node-id
+                                   :diameter validation/prop-zero-or-below? diameter diameter-message)
+                                 (validation/prop-error
+                                   :fatal _node-id
+                                   :height validation/prop-zero-or-below? height height-message))))
   (output shape-data g/Any (g/fnk [diameter height]
                              [(/ (double diameter) 2) (double height)])))
 
@@ -493,6 +523,7 @@
      (g/connect shape-node :node-outline          parent     :child-outlines)
      (g/connect shape-node :scene                 parent     :child-scenes)
      (g/connect shape-node :shape                 parent     :shapes)
+     (g/connect shape-node :shape-errors          parent     :shape-errors)
      (g/connect parent     :id-counts             shape-node :id-counts)
      (g/connect parent     :collision-group-color shape-node :color)
      (g/connect parent     :project-physics-type  shape-node :project-physics-type))))
@@ -703,7 +734,7 @@
         shapes))
 
 (g/defnk produce-build-targets
-  [_node-id resource save-value collision-shape dep-build-targets mass type project-physics-type shapes id-counts]
+  [_node-id resource save-value collision-shape dep-build-targets shape-errors mass type project-physics-type shapes id-counts]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (resource/type-ext collision-shape)))
                        (get-in (first dep-build-targets) [:user-data :pb]))
@@ -721,7 +752,8 @@
                    (update :embedded-collision-shape merge-convex-shape convex-shape)
                    (update-in [:embedded-collision-shape :shapes] insert-id-hashes))]
     (g/precluding-errors
-      [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape collision-shape-message)
+      [shape-errors
+       (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape collision-shape-message)
        (when (= :collision-object-type-dynamic type)
          (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass mass-message))
        (when (and (empty? (:collision-shape pb-msg))
@@ -762,6 +794,7 @@
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
   (input convex-shape-data g/Any)
+  (input shape-errors g/Any :array)
 
   (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))

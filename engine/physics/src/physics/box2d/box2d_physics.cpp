@@ -1414,6 +1414,33 @@ namespace dmPhysics
         return ret;
     }
 
+    static bool IsPolygonAreaValid(const ShapeData* shape, const b2Transform& transform, float scale)
+    {
+        if (shape->m_Type != SHAPE_TYPE_POLYGON)
+            return true;
+
+        const PolygonShapeData* poly_shape = (const PolygonShapeData*) shape;
+        int32_t count = poly_shape->m_Polygon.count;
+        if (count < 3)
+            return false;
+
+        b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+        for (int32_t i = 0; i < count; ++i)
+        {
+            vertices[i] = TransformScaleB2(transform, scale, poly_shape->m_Polygon.vertices[i]);
+        }
+
+        b2Vec2 origin = vertices[0];
+        float area = 0.0f;
+        for (int i = 1; i < count - 1; ++i)
+        {
+            b2Vec2 e1 = b2Sub(vertices[i], origin);
+            b2Vec2 e2 = b2Sub(vertices[i + 1], origin);
+            area += 0.5f * b2Cross(e1, e2);
+        }
+        return area > FLT_EPSILON;
+    }
+
     /*
      * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
      * This is required as the transform is part of the shape and due to absence of a compound shape, aka list shape
@@ -1475,6 +1502,34 @@ namespace dmPhysics
             else
             {
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
+            }
+        }
+
+        for (uint32_t i = 0; i < shape_count; ++i)
+        {
+            ShapeData* s = (ShapeData*) shapes[i];
+            if (s->m_Type != SHAPE_TYPE_POLYGON)
+                continue;
+
+            b2Vec2 t;
+            b2Rot r;
+            if (translations && rotations)
+            {
+                ToB2(translations[i], t, context->m_Scale * scale);
+                r = b2MakeRot(atan2(2.0f * (rotations[i].getZ() * rotations[i].getW()),
+                                    1.0f - 2.0f * rotations[i].getZ() * rotations[i].getZ()));
+            }
+            else
+            {
+                t = b2Vec2_zero;
+                r = b2Rot_identity;
+            }
+
+            b2Transform transform = {t, r};
+            if (!IsPolygonAreaValid(s, transform, scale))
+            {
+                dmLogError("Collision object has a polygon shape with invalid (near-zero) area.");
+                return 0x0;
             }
         }
 
