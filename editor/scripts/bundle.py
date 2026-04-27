@@ -358,7 +358,7 @@ def get_exe_suffix(platform):
 def remove_platform_files_from_archive(platform, jar):
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
-    files_to_remove = []
+    files_to_remove = set()
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
@@ -378,7 +378,7 @@ def remove_platform_files_from_archive(platform, jar):
             if "bundletool-all.jar" in file:
                 continue
             # anything else should be removed
-            files_to_remove.append(file)
+            files_to_remove.add(file)
         # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
         if file.startswith("_unpack"):
             # don't touch '_unpack/'
@@ -394,20 +394,25 @@ def remove_platform_files_from_archive(platform, jar):
             if file.startswith("_unpack/_defold"):
                 continue
             # anything else should be removed
-            files_to_remove.append(file)
+            files_to_remove.add(file)
 
 
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
             if platform in ["x86_64-macos", "arm64-macos"] and (file.endswith(".so") or file.endswith(".dll")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
             elif platform in ["x86_64-win32"] and (file.endswith(".so") or file.endswith(".dylib")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
             elif platform in ["x86_64-linux", "arm64-linux"]  and (file.endswith(".dll") or file.endswith(".dylib")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
 
     # write new jar without the files that should be removed
+    if not files_to_remove:
+        zin.close()
+        return
+
+    log("Warning: removing %d platform-specific files from %s" % (len(files_to_remove), jar))
     newjar = jar + "_new"
     zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
     for file in zin.infolist():
@@ -460,7 +465,7 @@ def create_bundle(jdk, platform, options):
     config = configparser.ConfigParser()
     config.read('bundle-resources/config')
     config.set('build', 'editor_sha1', options.editor_sha1)
-    config.set('build', 'engine_sha1', options.engine_sha1)
+    config.set('build', 'engine_sha1', options.engine_sha1 or '')
     config.set('build', 'version', options.version)
     config.set('build', 'time', datetime.datetime.now().isoformat())
     config.set('build', 'archive_domain', options.archive_domain)
@@ -667,13 +672,13 @@ def notarize_dmg(app, options):
                 log("Retrying notarization...")
 
 def build(options):
-    init_command = ['with-profile', '+release', 'init']
-    if options.engine_sha1:
-        init_command += [options.engine_sha1]
-
     for platform in options.target_platform:
         log("Building editor for %s..." % platform)
         jdk = get_jdk(platform)
+        init_command = ['with-profile', '+release', 'init',
+                        options.engine_sha1 or 'dynamo-home',
+                        options.archive_domain,
+                        platform]
         invoke_lein(init_command, jdk_path=jdk)
         invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         if options.skip_tests:
