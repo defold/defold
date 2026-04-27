@@ -47,6 +47,7 @@ namespace dmGameSystem
     const b2Shape* CheckShapeDef(struct lua_State* L, int index, FixtureShapeDef* out_shape);
     void       CheckFixtureDef(struct lua_State* L, int index, FixtureShapeDef* out_shape, b2FixtureDef* out_fixture_def);
     void       ScriptBox2DInitializeBody(struct lua_State* L);
+    void       ScriptBox2DFinalizeBody();
     void       ScriptBox2DInitializeFixture(struct lua_State* L);
     void       ScriptBox2DInitializeShape(struct lua_State* L);
 }

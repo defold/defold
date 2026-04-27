@@ -139,6 +139,7 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptBox2DFinalize(dmExtension::Params* params)
     {
+        dmGameSystem::ScriptBox2DFinalizeBody();
         return dmExtension::RESULT_OK;
     }
 

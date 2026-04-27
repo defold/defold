@@ -65,6 +65,7 @@ namespace dmGameSystem
     void        CheckShapeCreateDef(struct lua_State* L, int index, B2DShapeDef* out_shape_def, b2ShapeDef* out_shape_create_def);
     void        PushShape(struct lua_State* L, b2ShapeId shape_id);
     void        ScriptBox2DInitializeBody(struct lua_State* L);
+    void        ScriptBox2DFinalizeBody();
     void        ScriptBox2DInitializeShape(struct lua_State* L);
 }
 

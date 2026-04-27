@@ -78,7 +78,7 @@ namespace dmGameSystem
     {
         if (g_BodyHandles.Full())
         {
-            assert(g_BodyHandles.Allocate(32));
+            g_BodyHandles.Allocate(32);
             g_BodyToHandle.OffsetCapacity(32);
             g_BodyMeta.OffsetCapacity(32);
         }
@@ -94,6 +94,33 @@ namespace dmGameSystem
         {
             g_FixtureShapes.SetCapacity(32);
         }
+    }
+
+    static void ClearBodyHandles()
+    {
+        for (uint32_t i = 0; i < g_BodyHandles.Capacity(); ++i)
+        {
+            if (g_BodyHandles.GetByIndex(i))
+            {
+                g_BodyHandles.Release(g_BodyHandles.IndexToHandle(i));
+            }
+        }
+    }
+
+    static void ClearFixtureShapes()
+    {
+        if (g_FixtureShapes.Capacity() == 0)
+        {
+            return;
+        }
+
+        dmHashTable64<FixtureShapeDef*>::Iterator iter = g_FixtureShapes.GetIterator();
+        while (iter.Next())
+        {
+            FixtureShapeDef* shape_def = iter.GetValue();
+            delete shape_def;
+        }
+        g_FixtureShapes.Clear();
     }
 
     static void InvalidateBodyHandle(HOpaqueHandle handle)
@@ -157,10 +184,6 @@ namespace dmGameSystem
                     new_body_meta.m_Collection = collection;
                     new_body_meta.m_InstanceId = instance_id;
                     new_body_meta.m_InstanceGeneration = instance_generation;
-                    if (g_BodyMeta.Full())
-                    {
-                        g_BodyMeta.OffsetCapacity(32);
-                    }
                     g_BodyMeta.Put(*existing_handle, new_body_meta);
                 }
 
@@ -173,20 +196,12 @@ namespace dmGameSystem
         }
 
         HOpaqueHandle handle = g_BodyHandles.Put((uintptr_t*) body);
-        if (g_BodyToHandle.Full())
-        {
-            g_BodyToHandle.OffsetCapacity(32);
-        }
         g_BodyToHandle.Put(key, handle);
 
         B2DBodyMeta body_meta = {};
         body_meta.m_Collection = collection;
         body_meta.m_InstanceId = instance_id;
         body_meta.m_InstanceGeneration = instance_generation;
-        if (g_BodyMeta.Full())
-        {
-            g_BodyMeta.OffsetCapacity(32);
-        }
         g_BodyMeta.Put(handle, body_meta);
 
         *out_handle = handle;
@@ -1081,6 +1096,16 @@ namespace dmGameSystem
 
         ScriptBox2DInitializeFixture(L);
         ScriptBox2DInitializeShape(L);
+    }
+
+    void ScriptBox2DFinalizeBody()
+    {
+        TYPE_HASH_BODY = 0;
+
+        ClearBodyHandles();
+        ClearFixtureShapes();
+        g_BodyToHandle.Clear();
+        g_BodyMeta.Clear();
     }
 }
 

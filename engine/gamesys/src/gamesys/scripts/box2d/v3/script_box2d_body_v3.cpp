@@ -905,6 +905,11 @@ namespace dmGameSystem
 
         ScriptBox2DInitializeShape(L);
     }
+
+    void ScriptBox2DFinalizeBody()
+    {
+        TYPE_HASH_BODY = 0;
+    }
 }
 
 /*# Box2D b2Body documentation
