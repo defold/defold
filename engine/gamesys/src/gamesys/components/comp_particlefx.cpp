@@ -45,8 +45,6 @@ DM_PROPERTY_U32(rmtp_ParticleFx, 0, PROFILE_PROPERTY_FRAME_RESET, "# components"
 DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_ParticleFx);
 DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of CPU vertex buffer (in bytes)", &rmtp_ParticleFx);
 DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, PROFILE_PROPERTY_FRAME_RESET, "size of GPU vertex buffer (in bytes)", &rmtp_ParticleFx);
-DM_PROPERTY_U32(rmtp_ParticleEmittersCulled, 0, PROFILE_PROPERTY_FRAME_RESET, "# emitters culled by frustum", &rmtp_ParticleFx);
-DM_PROPERTY_U32(rmtp_ParticleEmittersSkippedEmpty, 0, PROFILE_PROPERTY_FRAME_RESET, "# emitters skipped (empty)", &rmtp_ParticleFx);
 
 namespace dmGameSystem
 {
@@ -108,7 +106,6 @@ namespace dmGameSystem
         uint32_t                                m_DispatchCount;
         uint32_t                                m_VertexBufferSize;
         uint32_t                                m_VertexBufferOffset; // Current write position
-        uint32_t                                m_RenderFrameId;
         float                                   m_DT;
         uint32_t                                m_WarnOutOfROs : 1;
         uint32_t                                m_WarnParticlesExceeded : 1;
@@ -125,7 +122,6 @@ namespace dmGameSystem
         world->m_Context = ctx;
         uint32_t particle_fx_count = dmMath::Min(params.m_MaxComponentInstances, ctx->m_MaxParticleFXCount);
         world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxParticleFXCount, ctx->m_MaxParticleCount);
-        dmParticle::SetFrustumCullingMode(world->m_ParticleContext, (dmParticle::FrustumCullingMode)ctx->m_FrustumCullingMode);
         world->m_Components.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
@@ -151,7 +147,6 @@ namespace dmGameSystem
 
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
-        world->m_RenderFrameId = 1;
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -587,36 +582,13 @@ namespace dmGameSystem
     {
         ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
 
-        const dmParticle::FrustumCullingMode frustum_culling_mode = (dmParticle::FrustumCullingMode)pfx_world->m_Context->m_FrustumCullingMode;
-        if (frustum_culling_mode == dmParticle::FRUSTUM_CULLING_MODE_PER_PARTICLE)
-        {
-            dmParticle::SetRenderFrustum(pfx_world->m_ParticleContext, params.m_Frustum);
-        }
-
         uint32_t num_entries = params.m_NumEntries;
         for (uint32_t i = 0; i < num_entries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry->m_UserData;
-
-            if (frustum_culling_mode == dmParticle::FRUSTUM_CULLING_MODE_PER_EMITTER)
-            {
-                const bool intersect = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq);
-                entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-                if (!intersect)
-                {
-                    if (render_data->m_LastFrustumCulledFrame != pfx_world->m_RenderFrameId)
-                    {
-                        render_data->m_LastFrustumCulledFrame = pfx_world->m_RenderFrameId;
-                        DM_PROPERTY_ADD_U32(rmtp_ParticleEmittersCulled, 1);
-                    }
-                }
-            }
-            else
-            {
-                (void)render_data;
-                entry->m_Visibility = dmRender::VISIBILITY_FULL;
-            }
+            const bool intersect = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
 
@@ -626,13 +598,6 @@ namespace dmGameSystem
         ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_World;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
         dmArray<ParticleFXComponent>& components = pfx_world->m_Components;
-
-        dmParticle::SetRenderFrustum(particle_context, 0x0);
-        ++pfx_world->m_RenderFrameId;
-        if (pfx_world->m_RenderFrameId == 0)
-        {
-            pfx_world->m_RenderFrameId = 1;
-        }
 
         uint32_t count = components.Size();
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
@@ -666,7 +631,6 @@ namespace dmGameSystem
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
                     if (!render_data || dmParticle::GetParticleCount(particle_context, c.m_ParticleInstance, j) == 0)
                     {
-                        DM_PROPERTY_ADD_U32(rmtp_ParticleEmittersSkippedEmpty, 1);
                         continue;
                     }
 

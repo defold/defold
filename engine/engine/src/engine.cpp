@@ -1358,13 +1358,6 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_MaxParticleBufferCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
-        int frustum_culling_mode = dmConfigFile::GetInt(engine->m_Config, dmParticle::FRUSTUM_CULLING_MODE_KEY, (int)dmParticle::FRUSTUM_CULLING_MODE_PER_EMITTER);
-        if (frustum_culling_mode < (int)dmParticle::FRUSTUM_CULLING_MODE_DISABLED || frustum_culling_mode > (int)dmParticle::FRUSTUM_CULLING_MODE_PER_PARTICLE)
-        {
-            dmLogWarning("Invalid value '%d' for '%s'. Falling back to per-emitter mode (%d).", frustum_culling_mode, dmParticle::FRUSTUM_CULLING_MODE_KEY, (int)dmParticle::FRUSTUM_CULLING_MODE_PER_EMITTER);
-            frustum_culling_mode = (int)dmParticle::FRUSTUM_CULLING_MODE_PER_EMITTER;
-        }
-        engine->m_ParticleFXContext.m_FrustumCullingMode = (uint32_t)frustum_culling_mode;
         engine->m_ParticleFXContext.m_Debug = false;
 
         dmInput::NewContextParams input_params;

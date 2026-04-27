@@ -30,7 +30,6 @@
 
 DM_PROPERTY_GROUP(rmtp_Particles, "Particles", 0);
 DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, PROFILE_PROPERTY_FRAME_RESET, "# particles alive", &rmtp_Particles);
-DM_PROPERTY_U32(rmtp_ParticlesCulledByFrustum, 0, PROFILE_PROPERTY_FRAME_RESET, "# particles culled by frustum", &rmtp_Particles);
 
 namespace dmParticle
 {
@@ -53,8 +52,6 @@ namespace dmParticle
     const char* MAX_PARTICLE_GPU_COUNT_KEY = "particle_fx.max_particle_count";
     /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
     const char* MAX_PARTICLE_CPU_COUNT_KEY = "particle_fx.max_particle_buffer_count";
-    /// Config key to select frustum culling mode for particle fx.
-    const char* FRUSTUM_CULLING_MODE_KEY = "particle_fx.frustum_culling_mode";
 
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
@@ -105,24 +102,6 @@ namespace dmParticle
             free(context->m_AttributeDataPtrs[i]);
         }
         delete context;
-    }
-
-    void SetRenderFrustum(HParticleContext context, const dmIntersection::Frustum* frustum)
-    {
-        if (frustum)
-        {
-            context->m_RenderFrustum = *frustum;
-            context->m_HasRenderFrustum = 1;
-        }
-        else
-        {
-            context->m_HasRenderFrustum = 0;
-        }
-    }
-
-    void SetFrustumCullingMode(HParticleContext context, FrustumCullingMode mode)
-    {
-        context->m_FrustumCullingMode = (uint8_t)mode;
     }
 
     uint32_t GetContextMaxParticleCount(HParticleContext context)
@@ -1305,7 +1284,6 @@ namespace dmParticle
 
         uint32_t particle_full_count = emitter->m_Particles.Size();
         uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
-        const bool use_per_particle_culling = context->m_FrustumCullingMode == FRUSTUM_CULLING_MODE_PER_PARTICLE && context->m_HasRenderFrustum;
         for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
@@ -1367,17 +1345,6 @@ namespace dmParticle
             Vector3 scale = particle_transform.GetScale();
             float hx = width_factor * scale.getX();
             float hy = height_factor * scale.getY();
-
-            if (use_per_particle_culling)
-            {
-                const dmVMath::Point3 culling_center = dmVMath::Point3(particle_transform.GetTranslation());
-                const float culling_radius_sq = hx * hx + hy * hy;
-                if (!dmIntersection::TestFrustumSphereSq(context->m_RenderFrustum, culling_center, culling_radius_sq))
-                {
-                    DM_PROPERTY_ADD_U32(rmtp_ParticlesCulledByFrustum, 1);
-                    continue;
-                }
-            }
 
             position_local_flat[0] = Point3(-hx, -hy, 0.0f);
             position_local_flat[1] = Point3(-hx,  hy, 0.0f);

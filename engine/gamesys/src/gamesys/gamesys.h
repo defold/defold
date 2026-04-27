@@ -215,7 +215,6 @@ namespace dmGameSystem
         uint32_t m_MaxParticleBufferCount;
         uint32_t m_MaxParticleCount;
         uint32_t m_MaxEmitterCount;
-        uint32_t m_FrustumCullingMode;
         bool m_Debug;
     };
 
