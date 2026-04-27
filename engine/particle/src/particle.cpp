@@ -2143,7 +2143,10 @@ namespace dmParticle
 
         center = dmVMath::Point3((aabb_min + aabb_max) * 0.5f);
         const dmVMath::Vector3 extent = (aabb_max - aabb_min) * 0.5f;
-        radius_sq = dmVMath::Dot(extent, extent) + max_extent;
+        const float half_diag = sqrtf(dmVMath::Dot(extent, extent));
+        const float max_particle_diag = sqrtf(max_extent);
+        const float total = half_diag + max_particle_diag;
+        radius_sq = total * total;
     }
 
     // Update render data for the emitter at the specified index
