@@ -26,6 +26,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dmsdk/dlib/intersection.h>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -577,6 +578,20 @@ namespace dmGameSystem
         }
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
+
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry->m_UserData;
+            const bool intersect = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, render_data->m_FrustumCullingCenter, render_data->m_FrustumCullingRadiusSq);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        }
+    }
+
     dmGameObject::UpdateResult CompParticleFXRender(const dmGameObject::ComponentsRenderParams& params)
     {
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
@@ -599,7 +614,7 @@ namespace dmGameSystem
         }
 
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, world_emitter_count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, pfx_world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, &RenderListFrustumCulling, pfx_world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < count; ++i)
@@ -614,6 +629,10 @@ namespace dmGameSystem
                 {
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
+                    if (!render_data || dmParticle::GetParticleCount(particle_context, c.m_ParticleInstance, j) == 0)
+                    {
+                        continue;
+                    }
 
                     dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_data->m_Material;
 

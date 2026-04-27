@@ -30,6 +30,11 @@
 /**
  * System to handle particle systems
  */
+namespace dmIntersection
+{
+    struct Frustum;
+}
+
 namespace dmParticle
 {
     /**
@@ -179,6 +184,8 @@ namespace dmParticle
         uint32_t                     m_EmitterIndex;
         uint32_t                     m_MixedHash;
         uint32_t                     m_MixedHashNoMaterial;
+        dmVMath::Point3              m_FrustumCullingCenter;
+        float                        m_FrustumCullingRadiusSq;
     };
 
     /**
@@ -417,6 +424,7 @@ namespace dmParticle
      * @return Result enum value
      */
     DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+
 
     /**
      * Debug render the status of the instances within the specified context.

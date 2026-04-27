@@ -2344,6 +2344,84 @@ TEST_F(ParticleFxTest, GetSetProperties)
     dmResource::Release(m_Factory, material);
 }
 
+TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go_inside = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go_inside"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_outside = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go_outside"), 0, Point3(1000, 1000, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_inside);
+    ASSERT_NE((void*)0, go_outside);
+
+    dmMessage::URL receiver_inside;
+    receiver_inside.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver_inside.m_Path = dmGameObject::GetIdentifier(go_inside);
+    receiver_inside.m_Fragment = dmHashString64("particlefx");
+    dmMessage::Post(0, &receiver_inside, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)go_inside, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 0, 0, 0);
+
+    dmMessage::URL receiver_outside;
+    receiver_outside.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver_outside.m_Path = dmGameObject::GetIdentifier(go_outside);
+    receiver_outside.m_Fragment = dmHashString64("particlefx");
+    dmMessage::Post(0, &receiver_outside, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)go_outside, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, 0, 0, 0);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
+    void* particlefx_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc")));
+    ASSERT_NE((void*)0, particlefx_world);
+
+    uint32_t particle_dispatch = UINT32_MAX;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    {
+        if (render_context_ptr->m_RenderListDispatch[i].m_UserData == particlefx_world)
+        {
+            particle_dispatch = i;
+            break;
+        }
+    }
+    ASSERT_NE(UINT32_MAX, particle_dispatch);
+
+    dmRender::FrustumOptions frustum_options;
+    frustum_options.m_Matrix = Matrix4::orthographic(-100.0f, 100.0f, -100.0f, 100.0f, -1.0f, 1.0f);
+    frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t inside_count = 0;
+    uint32_t outside_count = 0;
+    for (uint32_t i = 0; i < render_context_ptr->m_RenderList.Size(); ++i)
+    {
+        dmRender::RenderListEntry& entry = render_context_ptr->m_RenderList[i];
+        if (entry.m_Dispatch != particle_dispatch)
+            continue;
+
+        dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry.m_UserData;
+        const bool inside_frustum = dmMath::Abs(render_data->m_FrustumCullingCenter.getX()) < 500.0f;
+        if (inside_frustum)
+        {
+            ASSERT_EQ(dmRender::VISIBILITY_FULL, entry.m_Visibility);
+            inside_count++;
+        }
+        else
+        {
+            ASSERT_EQ(dmRender::VISIBILITY_NONE, entry.m_Visibility);
+            outside_count++;
+        }
+    }
+
+    ASSERT_GT(inside_count, 0u);
+    ASSERT_GT(outside_count, 0u);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
 {
     dmGameObject::PropertyDesc property_desc;
