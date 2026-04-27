@@ -336,7 +336,7 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
 
-def archive_editor2(channel, engine_artifacts = None, platform = None):
+def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
@@ -350,7 +350,10 @@ def archive_editor2(channel, engine_artifacts = None, platform = None):
 
     opts_string = ' '.join(opts)
     for platform in platforms:
-        call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
+        if skip_install_ext:
+            call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
+        else:
+            call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 def distclean():
     call("python scripts/build.py distclean")
@@ -363,13 +366,19 @@ def install_ext(platform = None):
 
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
-def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
+def build_bob(channel, branch = None, skip_tests = False):
+    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
+    if skip_tests:
+        opts.append("--skip-tests")
 
     cmd = ' '.join(args + opts)
     call(cmd)
+
+def test_bob(channel):
+    call("python scripts/build.py install_ext --channel=%s" % channel)
+    call("python scripts/build.py test_bob --channel=%s" % channel)
 
 
 def release(channel):
@@ -399,6 +408,11 @@ def smoke_test():
 
 
 def get_branch():
+    # Repository dispatch runs use this payload-derived ref for checkout.
+    branch = os.environ.get('BUILD_BRANCH', '')
+    if branch:
+        return branch
+
     # The name of the head branch. Only set for pull request events.
     branch = os.environ.get('GITHUB_HEAD_REF', '')
     if branch == '':
@@ -407,11 +421,23 @@ def get_branch():
 
     if branch == '':
         # https://stackoverflow.com/a/55276236/1266551
-        branch = call("git rev-parse --abbrev-ref HEAD").strip()
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
         if branch == "HEAD":
-            branch = call("git rev-parse HEAD")
+            branch = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
     return branch
+
+def release_settings_for_branch(branch, engine_artifacts):
+    if branch == "master":
+        return "stable", True, engine_artifacts or "archived"
+    if branch == "beta":
+        return "beta", True, engine_artifacts or "archived"
+    if branch == "dev":
+        return "alpha", True, engine_artifacts or "archived"
+    return "dev", False, engine_artifacts or "archived"
+
+def should_release_branch(branch):
+    return release_settings_for_branch(branch, None)[1]
 
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
@@ -419,7 +445,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -432,6 +458,7 @@ def main(argv):
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -445,6 +472,10 @@ def main(argv):
     args = parser.parse_args()
 
     platform = args.platform
+
+    if args.commands == ["should-build-platform"]:
+        print("true" if platform and is_platform_supported(platform) else "false")
+        return
 
     if platform and not is_platform_supported(platform):
         print("Platform {} is private and the repo '{}' cannot build for this platform. Skipping".format(platform, os.environ.get('GITHUB_REPOSITORY', '')))
@@ -465,24 +496,11 @@ def main(argv):
 
     branch = get_branch()
 
-    # configure build flags based on the branch
-    channel = None
-    make_release = False
-    if branch == "master":
-        channel = "stable"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "beta":
-        channel = "beta"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "dev":
-        channel = "alpha"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    else: # engine dev branch
-        channel = "dev"
-        engine_artifacts = args.engine_artifacts or "archived"
+    if args.commands == ["should-release"]:
+        print("true" if should_release_branch(branch) else "false")
+        return
+
+    channel, make_release, engine_artifacts = release_settings_for_branch(branch, args.engine_artifacts)
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={engine_artifacts}")
 
@@ -524,9 +542,11 @@ def main(argv):
                 gcloud_keyfile = gcloud_keyfile, 
                 gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
-            archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform)
+            archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
         elif command == "bob":
-            build_bob(channel, branch = branch)
+            build_bob(channel, branch = branch, skip_tests = args.skip_tests)
+        elif command == "test-bob":
+            test_bob(channel)
         elif command == "sdk":
             build_sdk(channel)
         elif command == "smoke":

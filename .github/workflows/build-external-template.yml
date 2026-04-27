@@ -64,26 +64,26 @@ jobs:
     runs-on: ${{ matrix.platforms.runner }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
 
       - name: Setup NDK (r25b)
         if: "${{ matrix.platforms.target == 'android' }}"
-        uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410 # v1.5.0
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
         id: setup-ndk
         with:
           ndk-version: r25b
           add-to-path: false
 
       - name: Install Python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: 3.13
 
       - name: Setup emsdk
         if: "${{ matrix.platforms.target == 'web' }}"
-        uses: mymindstorm/setup-emsdk@667eb33f24e84e7f362c16d8d7fff0629a73e15e # v14
+        uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
         with:
           version: "4.0.6"
 
@@ -147,7 +147,7 @@ jobs:
       - name: Archive results (common)
         # archive common package once
         if: "${{ matrix.platforms.name == 'x86_64-linux' }}"
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-${{ inputs.package_version }}-common.tar.gz
           path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-common.tar.gz
@@ -155,7 +155,7 @@ jobs:
           retention-days: 1
 
       - name: Archive results (platform-specific)
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 #v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
           path: external/${{ inputs.package_name }}/build/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
@@ -168,13 +168,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
           fetch-depth: 0
 
       - name: Download artifacts to packages
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v5.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: ${{ inputs.package_name }}-${{ inputs.package_version }}*.tar.gz
           path: packages
