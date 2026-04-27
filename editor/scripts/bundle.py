@@ -689,29 +689,44 @@ def build(options):
     for platform in options.target_platform:
         log("Building editor for %s..." % platform)
         jdk = get_jdk(platform)
-        init_command = ['with-profile', '+release', 'init',
-                        options.engine_sha1 or 'dynamo-home',
-                        options.archive_domain,
-                        platform]
-        invoke_lein(init_command, jdk_path=jdk)
+        init_editor(options, platform, jdk)
         invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         if options.skip_tests:
             log("Skipping tests.")
         else:
             invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-            invoke_lein(['test'], jdk_path=jdk)
+            test_command = ['test']
+            if options.skip_external_dependency_tests:
+                test_command.append(':no-external-dependency')
+            invoke_lein(test_command, jdk_path=jdk)
             # test that docs can be successfully produced
             write_docs('target/docs', jdk_path=jdk)
         invoke_lein(['prerelease'], jdk_path=jdk)
         create_bundle(jdk, platform, options)
 
+def init_editor(options, platform, jdk):
+    init_command = ['with-profile', '+release', 'init',
+                    options.engine_sha1 or 'dynamo-home',
+                    options.archive_domain,
+                    platform]
+    invoke_lein(init_command, jdk_path=jdk)
+
+def test_external_dependencies(options):
+    for platform in options.target_platform:
+        log("Testing editor external dependencies for %s..." % platform)
+        jdk = get_jdk(platform)
+        init_editor(options, platform, jdk)
+        invoke_lein(['test', ':external-dependency'], jdk_path=jdk)
+
 if __name__ == '__main__':
-    allowed_commands = {'build', 'docs'}
+    allowed_commands = {'build', 'docs', 'test-external-dependencies'}
     usage = '''%prog [options] command(s)
 
 Commands:
   build                 Build editor
-  docs                  Produce docs (editor.apidoc)'''
+  docs                  Produce docs (editor.apidoc)
+  test-external-dependencies
+                        Run editor tests that depend on external services or extension packages'''
 
     parser = optparse.OptionParser(usage)
 
@@ -745,6 +760,11 @@ Commands:
                       action = 'store_true',
                       default = False,
                       help = 'Skip tests when building')
+
+    parser.add_option('--skip-external-dependency-tests', dest='skip_external_dependency_tests',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Skip tests that depend on external services or extension packages when building')
 
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
@@ -805,16 +825,18 @@ Commands:
     if invalid_commands:
         parser.error('Unknown command(s): %s' % ', '.join(invalid_commands))
 
-    if "build" in commands:
+    if "build" in commands or "test-external-dependencies" in commands:
         if not options.target_platform:
             parser.error('No platform specified')
-        if not options.version:
-            parser.error('No version specified')
         supported = supported_platforms()
         unsupported = [platform for platform in options.target_platform if platform not in supported]
         if unsupported:
             log("Unsupported target(s): %s. Supported on this machine: %s." % (", ".join(unsupported), ", ".join(sorted(supported))))
             sys.exit(1)
+
+    if "build" in commands:
+        if not options.version:
+            parser.error('No version specified')
 
     options.editor_sha1 = git_sha1('HEAD')
 
@@ -840,5 +862,7 @@ Commands:
 
     if "docs" in commands:
         write_docs(options.docs_dir)
+    if "test-external-dependencies" in commands:
+        test_external_dependencies(options)
     if "build" in commands:
         build(options)

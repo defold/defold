@@ -291,7 +291,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     call(cmd)
 
 
-def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False, notarization_username = None, notarization_password = None, notarization_itc_provider = None, gcloud_keyfile = None, gcloud_certfile = None):
+def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False, skip_external_dependency_tests = False, notarization_username = None, notarization_password = None, notarization_itc_provider = None, gcloud_keyfile = None, gcloud_certfile = None):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
@@ -331,10 +331,25 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     if skip_tests:
         opts.append('--skip-tests')
+    if skip_external_dependency_tests:
+        opts.append('--skip-external-dependency-tests')
 
     opts_string = ' '.join(opts)
 
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
+
+def test_editor_external_dependencies(platform, engine_artifacts = None):
+    if not platform in PLATFORMS_DESKTOP:
+        raise Exception("Unsupported platform for editor external dependency tests: %s" % platform)
+
+    opts = []
+
+    if engine_artifacts:
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
+
+    opts_string = ' '.join(opts)
+
+    call('python scripts/build.py distclean install_ext test_editor_external_dependencies --platform=%s %s' % (platform, opts_string))
 
 def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
     if platform is None:
@@ -445,7 +460,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor-external-dependencies, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -454,6 +469,7 @@ def main(argv):
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
+    parser.add_argument("--skip-external-dependency-tests", dest="skip_external_dependency_tests", action='store_true', help="Skip editor tests that depend on external services or extension packages")
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
@@ -536,11 +552,18 @@ def main(argv):
                 platform,
                 engine_artifacts = engine_artifacts, 
                 skip_tests = args.skip_tests,
+                skip_external_dependency_tests = args.skip_external_dependency_tests,
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
                 notarization_itc_provider = args.notarization_itc_provider,
                 gcloud_keyfile = gcloud_keyfile, 
                 gcloud_certfile = gcloud_certfile)
+        elif command == "test-editor-external-dependencies":
+            if not platform:
+                raise Exception("No --platform specified.")
+            test_editor_external_dependencies(
+                platform,
+                engine_artifacts = engine_artifacts)
         elif command == "archive-editor":
             archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
         elif command == "bob":

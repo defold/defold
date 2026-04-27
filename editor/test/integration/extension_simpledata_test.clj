@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns integration.extension-simpledata-test
+(ns ^:external-dependency integration.extension-simpledata-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
