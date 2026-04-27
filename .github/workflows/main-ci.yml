@@ -624,14 +624,6 @@ jobs:
       { name: 'Cache Defold downloads', if: *should_release, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_release, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Setup git user', if: *should_release, run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
-      { name: 'Install dependencies', if: *should_release, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
-      {
-        # only needed for some python dependencies (should have a separate python setup function?)
-        name: 'Install ext dependencies',
-        if: *should_release,
-        shell: bash,
-        run: 'ci/ci.sh install_ext'
-      },
       {
         name: 'Release',
         if: *should_release,

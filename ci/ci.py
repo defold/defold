@@ -397,7 +397,7 @@ def test_bob(channel):
 
 
 def release(channel):
-    args = "python scripts/build.py install_ext release".split()
+    args = "python scripts/build.py install_release_dependencies release".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
