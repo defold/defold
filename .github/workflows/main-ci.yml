@@ -448,6 +448,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      { name: 'Prepare tmpfs for editor tests', if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)), run: 'sudo mkdir -p /mnt/defold-editor-test-tmp && sudo mount -t tmpfs -o size=5G,mode=1777,exec tmpfs /mnt/defold-editor-test-tmp && mkdir -p /mnt/defold-editor-test-tmp/tmp && echo "TMPDIR=/mnt/defold-editor-test-tmp/tmp" >> "$GITHUB_ENV" && echo "JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Djava.io.tmpdir=/mnt/defold-editor-test-tmp/tmp" >> "$GITHUB_ENV" && df -h /mnt/defold-editor-test-tmp' },
       {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
