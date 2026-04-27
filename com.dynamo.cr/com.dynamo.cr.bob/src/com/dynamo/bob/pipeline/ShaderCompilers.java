@@ -88,6 +88,8 @@ public class ShaderCompilers {
             else
             if (platform == Platform.Armv7Android ||
                 platform == Platform.Arm64Android) {
+                    // Vulkan is now default on Android, so include SPIR-V by default.
+                    outputSpirv = true;
                     if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         if (!compileOptions.excludeGlesSm100) {

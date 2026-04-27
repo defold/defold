@@ -80,7 +80,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux']
+        return platform in ['arm64-linux'] or (platform in ['armv7-android', 'arm64-android'] and Options.options.with_opengl)
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -154,6 +154,17 @@ def platform_graphics_libs_and_symbols(platform):
     if platform in ('arm64-nx64'):
         graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
         graphics_lib_symbols = ['GraphicsAdapterVulkan']
+
+    if platform in ('armv7-android', 'arm64-android'):
+        if Options.options.with_opengl:
+            graphics_libs = ['GRAPHICS_OPENGLES', 'DMGLFW', 'OPENGLES']
+            graphics_lib_symbols = ['GraphicsAdapterOpenGLES']
+            if Options.options.with_vulkan:
+                graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+                graphics_lib_symbols.append('GraphicsAdapterVulkan')
+        else:
+            graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+            graphics_lib_symbols = ['GraphicsAdapterVulkan']
 
     if platform in ('x86_64-ps4'):
         graphics_libs = ['GRAPHICS']

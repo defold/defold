@@ -194,6 +194,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_physics_2d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_2d.appmanifest")]
@@ -208,6 +209,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_physics_3d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics_3d.appmanifest")]
@@ -222,6 +224,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_physics.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_physics.appmanifest")]
@@ -236,6 +239,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/physics_2d_box2dv3.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/physics_2d_box2dv3.appmanifest")]
@@ -250,6 +254,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/physics_box2dv3_3d.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/physics_box2dv3_3d.appmanifest")]
@@ -264,6 +269,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/exclude_many.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/exclude_many.appmanifest")]
@@ -278,6 +284,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/vulkan.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/vulkan.appmanifest")]
@@ -292,6 +299,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :vulkan (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/vulkan_and_opengl.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/vulkan_and_opengl.appmanifest")]
@@ -306,6 +314,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :both (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/opengl_osx.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/opengl_osx.appmanifest")]
@@ -320,6 +329,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :open-gl (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/vulkan_and_opengl_osx.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/vulkan_and_opengl_osx.appmanifest")]
@@ -334,6 +344,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :both (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/webgpu.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/webgpu.appmanifest")]
@@ -348,6 +359,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gpu (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/webgpu_and_webgl.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/webgpu_and_webgl.appmanifest")]
@@ -362,6 +374,7 @@
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :both (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/android_support.appmanifest"
       (let [manifest (test-util/resource-node project "/app_manifest/android_support.appmanifest")]
@@ -376,6 +389,7 @@
         (is (= true (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
         (is (= :vulkan (g/node-value manifest :graphics-osx)))
+        (is (= :vulkan (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))))
 
 (deftest modification-test

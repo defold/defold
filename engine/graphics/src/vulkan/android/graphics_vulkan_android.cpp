@@ -169,11 +169,6 @@ namespace dmGraphics
 
     void LoadVulkanFunctions(VkInstance vk_instance)
     {
-        if (g_functions_loaded)
-        {
-            return;
-        }
-
         vkCreateDevice = (PFN_vkCreateDevice) vkGetInstanceProcAddr(vk_instance, "vkCreateDevice");
         vkEnumeratePhysicalDevices = (PFN_vkEnumeratePhysicalDevices) vkGetInstanceProcAddr(vk_instance, "vkEnumeratePhysicalDevices");
         vkGetPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceProperties");
