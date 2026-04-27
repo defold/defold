@@ -1063,9 +1063,27 @@ scene-popup.grid.plane = Plane
 scene-popup.grid.color = Color
 scene-popup.grid.opacity = Opacity
 scene-popup.camera.move-speed = Move Speed
-scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.look-sensitivity = Look Speed
+scene-popup.camera.fov = Field of View
 scene-popup.camera.invert-y = Invert Y
 scene-popup.camera.walking-mode = Walking Mode
+scene-popup.scene-visibility.visibility-filters = Visibility Filters
+scene-popup.scene-visibility.collision-shapes = Collision Shapes
+scene-popup.scene-visibility.camera = Camera
+scene-popup.scene-visibility.gui-bounds = GUI Bounds
+scene-popup.scene-visibility.gui-shapes = GUI Shapes
+scene-popup.scene-visibility.gui-particle-effects = GUI Particle Effects
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spine Scenes
+scene-popup.scene-visibility.gui-text = GUI Text
+scene-popup.scene-visibility.models = Models
+scene-popup.scene-visibility.particle-effects = Particle Effects
+scene-popup.scene-visibility.skeletons = Skeletons
+scene-popup.scene-visibility.spine-scenes = Spine Scenes
+scene-popup.scene-visibility.sprites = Sprites
+scene-popup.scene-visibility.text = Text
+scene-popup.scene-visibility.tile-maps = Tile Maps
+scene-popup.scene-visibility.component-guides = Component Guides
+scene-popup.scene-visibility.scene-visibility-bounds = Scene Visibility Bounds
 
 # Properties
 

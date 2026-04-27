@@ -22,7 +22,7 @@
             [editor.math :as math]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup]
+            [editor.ui.settings-popup :as settings-popup]
             [editor.prefs :as prefs])
   (:import [editor.types AABB Camera Frustum Rect Region]
            [javafx.css PseudoClass]
@@ -834,14 +834,18 @@
           (assoc new-camera :focus-point (Vector4d. (.x new-focus) (.y new-focus) (.z new-focus) 1.0)))
         camera))))
 
-(defn set-camera-type! [camera-controller projection-type]
-  (let [old-camera (g/node-value camera-controller :local-camera)
+(defn perspective-fov-y [camera-node]
+  ;; NOTE: Abstracting away because soon we will read from prefs
+  fov-y-35mm-full-frame)
+
+(defn set-camera-type! [camera-node projection-type]
+  (let [old-camera (g/node-value camera-node :local-camera)
         current-type (:type old-camera)]
     (when (not= current-type projection-type)
       (let [new-camera (case projection-type
                          :orthographic (camera-perspective->orthographic old-camera)
-                         :perspective (camera-orthographic->perspective old-camera fov-y-35mm-full-frame))]
-        (set-camera! camera-controller old-camera new-camera false)))))
+                         :perspective (camera-orthographic->perspective old-camera (perspective-fov-y camera-node)))]
+        (set-camera! camera-node old-camera new-camera false)))))
 
 (defn mode-2d? [camera]
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
@@ -852,7 +856,7 @@
   (mode-2d? (g/node-value camera-node :local-camera evaluation-context)))
 
 (defn- sync-camera-position
-  [^Camera camera-a ^Camera camera-b viewport]
+  [camera-node ^Camera camera-a ^Camera camera-b viewport]
   (let [focus ^Vector4d (:focus-point camera-b)
         point (camera-project camera-b viewport (Point3d. (.x focus) (.y focus) (.z focus)))
         world (camera-unproject camera-a viewport point)
@@ -866,7 +870,7 @@
                  :fov-y (:fov-y camera-b)))
 
       (= (:type camera-a) :perspective)
-      (camera-orthographic->perspective fov-y-35mm-full-frame))))
+      (camera-orthographic->perspective (perspective-fov-y camera-node)))))
 
 (defn realign-camera
   ([camera-node animate]
@@ -876,19 +880,19 @@
    (let [local-cam (g/node-value camera-node :local-camera evaluation-context)]
      (if (mode-2d? local-cam)
        (let [viewport (g/node-value camera-node :viewport evaluation-context)
-             camera-3d (-> (or (g/node-value camera-node :cached-3d-camera evaluation-context)
-                               (tumble local-cam 200.0 -100.0))
-                           (sync-camera-position local-cam viewport))
+             camera-3d (or (g/node-value camera-node :cached-3d-camera evaluation-context)
+                           (tumble local-cam 200.0 -100.0))
+             camera-3d (sync-camera-position camera-node camera-3d local-cam viewport)
              local-cam (cond-> local-cam
                          (= (:type camera-3d) :perspective)
-                         (camera-orthographic->perspective fov-y-35mm-full-frame))]
+                         (camera-orthographic->perspective (perspective-fov-y camera-node)))]
          (set-camera! camera-node local-cam camera-3d animate))
        (let [is-perspective (= (:type local-cam) :perspective)]
          (g/set-property! camera-node :cached-3d-camera local-cam)
          (let [end-camera (cond-> local-cam
                             is-perspective camera-perspective->orthographic
                             :always camera-orthographic-realign
-                            is-perspective (camera-orthographic->perspective fov-y-35mm-full-frame))]
+                            is-perspective (camera-orthographic->perspective (perspective-fov-y camera-node)))]
            (set-camera! camera-node local-cam end-camera animate #(set-camera-type! camera-node :orthographic))))))))
 
 (defn- contains-key-code? [pressed-keys key-codes] (some #(contains? pressed-keys %) key-codes))
@@ -905,7 +909,7 @@
     (let [local-camera (g/node-value camera-node :local-camera)
           current-camera (cond-> local-camera
                            (= :orthographic (:type local-camera))
-                           (camera-orthographic->perspective fov-y-35mm-full-frame))
+                           (camera-orthographic->perspective (perspective-fov-y camera-node)))
           [pitch yaw _] (math/quat->euler (:rotation current-camera))
           focus-distance (.distance ^Point3d (:position current-camera) (camera-focus-point current-camera))
           bounds (.localToScreen image-view (.getBoundsInLocal image-view))
@@ -1204,9 +1208,17 @@
           current-value (prefs/get prefs prefs-key)]
       (prefs/set! prefs prefs-key (not current-value)))))
 
-(defn show-settings! [^Parent owner prefs localization]
-  (popup/show-settings! owner prefs localization 260 [:scene :perspective-camera]
-                        [{:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.75 :max 2.0}
-                         {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4}
-                         {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y"}
-                         {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode"}]))
+(defn show-settings! [^Parent owner camera-node prefs keymap localization]
+  (let [settings-descriptor
+        [{:type :reset-all}
+         {:key :speed :type :slider :label "scene-popup.camera.move-speed" :min 0.5 :max 2.0
+          :snap-to 0.25
+          :slider-value->string (fn [^double v] (str (math/round-with-precision v 0.01) "x"))}
+         {:key :look-sensitivity :type :slider :label "scene-popup.camera.look-sensitivity" :min 0.02 :max 0.4
+          :slider-value->string (fn [^double v]
+                                  (let [scaled (+ 1.0 (* 9.0 (/ (- v 0.02) (- 0.4 0.02))))]
+                                    (str (math/round-with-precision scaled 0.1))))}
+         {:key :invert-y :type :toggle :label "scene-popup.camera.invert-y" :command :scene.free-camera.invert-y}
+         {:key :walking-mode :type :toggle :label "scene-popup.camera.walking-mode" :command :scene.free-camera.walking-mode}]
+        prefs-store (settings-popup/->PrefsStore prefs [:scene :perspective-camera] settings-descriptor #{} nil)]
+    (settings-popup/show! owner keymap localization (atom {}) identity 240 0.0 settings-descriptor)))

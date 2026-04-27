@@ -608,3 +608,168 @@
            (vec)
            (run! deref))
       (is (= (* thread-count inc-count-per-thread) (prefs/get p [:counter]))))))
+
+(deftest reset-path-test
+  (with-schemas {::reset-path
+                 {:type :object
+                  :scope :project
+                  :properties {:size {:type :object
+                                      :scope :project
+                                      :properties
+                                      {:x {:type :number :default 1.0}
+                                       :y {:type :number :default 1.0}
+                                       :z {:type :number :default 1.0}}}
+                               :active-plane {:type :enum :values [:x :y :z] :default :z}
+                               :opacity {:type :number :default 0.25}
+                               :color {:type :tuple
+                                       :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                       :default [0.5 0.5 0.5 1.0]}}}}
+    (let [file (fs/create-temp-file! "project" "test.editor_settings")
+          p (prefs/make :scopes {:project file}
+                        :schemas [::reset-path])]
+
+      (testing "reset leaf restores default"
+        (prefs/set! p [:opacity] 0.75)
+        (is (= 0.75 (prefs/get p [:opacity])))
+        (is (prefs/set? p [:opacity]))
+        (prefs/reset-path! p [:opacity])
+        (is (= 0.25 (prefs/get p [:opacity])))
+        (is (not (prefs/set? p [:opacity]))))
+
+      (testing "reset object restores all children to defaults"
+        (prefs/set! p [:size] {:x 5.0 :y 10.0 :z 15.0})
+        (is (= {:x 5.0 :y 10.0 :z 15.0} (prefs/get p [:size])))
+        (prefs/reset-path! p [:size])
+        (is (= {:x 1.0 :y 1.0 :z 1.0} (prefs/get p [:size])))
+        (is (not (prefs/set? p [:size :x])))
+        (is (not (prefs/set? p [:size :y])))
+        (is (not (prefs/set? p [:size :z])))
+        (is (not (prefs/set? p [:size]))))
+
+      (testing "reset does not affect sibling paths"
+        (prefs/set! p [:size :x] 5.0)
+        (prefs/set! p [:opacity] 0.75)
+        (prefs/set! p [:active-plane] :x)
+        (prefs/reset-path! p [:size])
+        (is (= {:x 1.0 :y 1.0 :z 1.0} (prefs/get p [:size])))
+        (is (= 0.75 (prefs/get p [:opacity])))
+        (is (= :x (prefs/get p [:active-plane])))
+        (is (not (prefs/set? p [:size])))
+        (is (prefs/set? p [:opacity]))
+        (is (prefs/set? p [:active-plane])))
+
+      (testing "reset removes path from file"
+        ;; opacity and active-plane still set from previous test
+        (prefs/set! p [:size :x] 5.0)
+        (prefs/sync!)
+        (is (= {:size {:x 5.0} :opacity 0.75 :active-plane :x}
+               (edn/read-string (slurp file))))
+        (prefs/reset-path! p [:size :x])
+        (prefs/sync!)
+        (is (= {:opacity 0.75 :active-plane :x}
+               (edn/read-string (slurp file)))))
+
+      (testing "reset object removes entire subtree from file"
+        (prefs/set! p [:size] {:x 5.0 :y 10.0 :z 15.0})
+        (prefs/set! p [:color] [1.0 0.0 0.0 1.0])
+        (prefs/sync!)
+        (prefs/reset-path! p [:size])
+        (prefs/sync!)
+        (is (= {:opacity 0.75 :active-plane :x :color [1.0 0.0 0.0 1.0]}
+               (edn/read-string (slurp file)))))
+
+      (testing "sync clears :removals"
+        (prefs/set! p [:opacity] 0.75)
+        (prefs/reset-path! p [:size])
+        (is (= 1 (count (:removals @prefs/global-state))))
+        (prefs/sync!)
+        (is (nil? (:removals @prefs/global-state))))
+
+      (testing "reset clears pending events so sync doesn't re-write"
+        (prefs/set! p [:size :x] 99.0)
+        (prefs/set! p [:size :y] 99.0)
+        (prefs/set! p [:size :z] 99.0)
+        (prefs/reset-path! p [:size])
+        (is (not (prefs/set? p [:size])))
+        (prefs/sync!)
+        (let [stored (edn/read-string (slurp file))]
+          (is (nil? (get stored :size)))))
+
+      (testing "reset doesn't clobber pending events that were added post reset"
+        (prefs/set! p [:size :x] 99.0)
+        (prefs/set! p [:size :y] 99.0)
+        (prefs/set! p [:size :z] 99.0)
+        (prefs/reset-path! p [:size])
+        (prefs/set! p [:size :x] 99.0)
+        (is (prefs/set? p [:size]))
+        (prefs/sync!)
+        (let [stored (edn/read-string (slurp file))]
+          (is (= {:x 99.0} (get stored :size)))))
+
+      (testing "reset on already-default path is a no-op"
+        (prefs/reset-path! p [:opacity])
+        (is (= 0.25 (prefs/get p [:opacity])))
+        (is (not (prefs/set? p [:opacity]))))
+
+      (testing "reset [] resets everything to defaults"
+        (prefs/set! p [:size] {:x 5.0 :y 10.0 :z 15.0})
+        (prefs/set! p [:opacity] 0.99)
+        (prefs/set! p [:active-plane] :y)
+        (prefs/set! p [:color] [1.0 0.0 0.0 1.0])
+        (prefs/sync!)
+        (is (prefs/set? p [:size]))
+        (is (prefs/set? p [:opacity]))
+        (is (prefs/set? p [:active-plane]))
+        (is (prefs/set? p [:color]))
+        (prefs/reset-path! p [])
+        (is (= {:size {:x 1.0 :y 1.0 :z 1.0}
+                :active-plane :z
+                :opacity 0.25
+                :color [0.5 0.5 0.5 1.0]}
+               (prefs/get p [])))
+        (is (not (prefs/set? p [:size])))
+        (is (not (prefs/set? p [:opacity])))
+        (is (not (prefs/set? p [:active-plane])))
+        (is (not (prefs/set? p [:color])))
+        (is (not (prefs/set? p [])))
+        (prefs/sync!)
+        (is (= {} (edn/read-string (slurp file)))))
+
+      (testing "reset on unregistered path throws"
+        (test-util/check-thrown-with-data!
+            (path-error-data? [:nonexistent])
+          (prefs/reset-path! p [:nonexistent]))))))
+
+(deftest reset-with-multiple-scopes-test
+  (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+        project-file (fs/create-temp-file! "project" "test.editor_settings")]
+    (with-schemas {::multi-scope
+                   {:type :object
+                    :properties {:theme {:type :string :default "dark"}
+                                 :font-size {:type :integer :default 12}
+                                 :indent {:type :integer :default 2 :scope :project}
+                                 :lint {:type :boolean :default false :scope :project}}}}
+      (testing "reset [] with multiple scopes resets both files"
+        (let [p (prefs/make :scopes {:global global-file :project project-file}
+                            :schemas [::multi-scope])]
+          (prefs/set! p [:theme] "light")
+          (prefs/set! p [:font-size] 16)
+          (prefs/set! p [:indent] 4)
+          (prefs/set! p [:lint] true)
+          (prefs/sync!)
+          (is (= {:theme "light" :font-size 16} (edn/read-string (slurp global-file))))
+          (is (= {:indent 4 :lint true} (edn/read-string (slurp project-file))))
+
+          (prefs/reset-path! p [])
+
+          (is (= "dark" (prefs/get p [:theme])))
+          (is (= 12 (prefs/get p [:font-size])))
+          (is (= 2 (prefs/get p [:indent])))
+          (is (false? (prefs/get p [:lint])))
+
+          (is (not (prefs/set? p [:theme])))
+          (is (not (prefs/set? p [:indent])))
+
+          (prefs/sync!)
+          (is (= {} (edn/read-string (slurp global-file))))
+          (is (= {} (edn/read-string (slurp project-file)))))))))

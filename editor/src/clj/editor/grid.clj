@@ -23,7 +23,7 @@
             [editor.prefs :as prefs]
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
-            [editor.ui.popup :as popup])
+            [editor.ui.settings-popup :as settings-popup])
   (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
            [java.util List]
@@ -272,14 +272,17 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defn show-settings! [^Parent owner app-view prefs localization]
+(defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
-        ignore-options (g/node-value grid :options)]
-    (popup/show-settings! owner prefs localization 220 [:scene :grid]
-                          [{:key :size :type :vec3-floats}
-                           {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
-                           {:key :color :type :color :label "scene-popup.grid.color"}
-                           {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0}]
-                          ignore-options
-                          #(invalidate-grids! app-view))))
+        ignore-options (g/node-value grid :options)
+        settings-descriptor
+        [{:type :reset-all}
+         {:key :size :type :vec3-floats}
+         {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
+         {:key :color :type :color :label "scene-popup.grid.color"}
+         {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
+          :slider-value->string (fn [^double v]
+                                  (str (Math/round (* v 100)) "%"))}]
+        prefs-store (settings-popup/->PrefsStore prefs [:scene :grid] settings-descriptor ignore-options (fn [_k _v] (invalidate-grids! app-view)))]
+    (settings-popup/show! owner keymap localization (atom {}) identity 220 0.0 settings-descriptor)))

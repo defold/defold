@@ -16,62 +16,20 @@
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.handler :as handler]
-            [editor.keymap :as keymap]
-            [editor.os :as os]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.ui.popup :as popup]
+            [editor.ui.settings-popup :as settings-popup]
             [internal.util :as iutil]
-            [schema.core :as s])
-  (:import [javafx.geometry Point2D Pos]
+            [schema.core :as s]
+            [util.coll :as coll]
+            [util.defonce :as defonce])
+  (:import [javafx.css PseudoClass]
            [javafx.scene Parent]
-           [javafx.scene.control CheckBox Label PopupControl Separator]
-           [javafx.scene.layout HBox Priority Region StackPane VBox]))
+           [javafx.scene.control Tab ToggleButton]
+           [javafx.scene.layout HBox]))
 
 (set! *warn-on-reflection* true)
-
-(def ^:private renderable-tag-toggles-info
-  (cond-> [{:label "Collision Shapes" :tag :collision-shape}
-           {:label "Camera" :tag :camera}
-           #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
-           {:label "GUI Bounds" :tag :gui-bounds}
-           {:label "GUI Shapes" :tag :gui-shape}
-           {:label "GUI Particle Effects" :tag :gui-particlefx}
-           {:label "GUI Spine Scenes" :tag :gui-spine}
-           {:label "GUI Text" :tag :gui-text}
-           {:label "Models" :tag :model}
-           {:label "Particle Effects" :tag :particlefx}
-           {:label "Skeletons" :tag :skeleton}
-           {:label "Spine Scenes" :tag :spine}
-           {:label "Sprites" :tag :sprite}
-           {:label "Text" :tag :text}
-           {:label "Tile Maps" :tag :tilemap}
-           {:label :separator}
-           {:label "Component Guides" :tag :outline :command :scene.visibility.toggle-component-guides :always-enabled true}]
-
-          (system/defold-dev?)
-          (into [{:label :separator}
-                 {:label "Scene Visibility Bounds" :tag :dev-visibility-bounds :appear-filtered false}])))
-
-(def ^:private appear-filtered-renderable-tags
-  (into #{}
-        (keep (fn [{:keys [appear-filtered tag]
-                    :or {appear-filtered true}}]
-                (when appear-filtered
-                  tag)))
-        renderable-tag-toggles-info))
-
-(defn filters-appear-active?
-  "Returns true if some parts of the scene are hidden due to visibility filters."
-  ([scene-visibility]
-   (g/with-auto-evaluation-context evaluation-context
-     (filters-appear-active? scene-visibility evaluation-context)))
-  ([scene-visibility evaluation-context]
-   (boolean
-     (and (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
-          (some appear-filtered-renderable-tags
-                (g/node-value scene-visibility :filtered-renderable-tags evaluation-context))))))
 
 ;; -----------------------------------------------------------------------------
 ;; SceneVisibilityNode
@@ -115,8 +73,11 @@
 (def ^:private outline-selection-entry->outline-name-path (comp not-empty vec next :node-outline-key-path))
 
 (g/defnode SceneVisibilityNode
+  (property app-view g/NodeID)
   (property visibility-filters-enabled? g/Bool (default true))
   (property filtered-renderable-tags types/RenderableTags (default #{:dev-visibility-bounds}))
+  (property popup-state-atom g/Any (default nil))
+  (property popup-advance-fn g/Any (default nil))
 
   (input active-resource-node+type g/Any)
   (input active-scene g/Any :substitute nil)
@@ -174,8 +135,8 @@
                                                                                     hide-history))
                                                                                 scene-hide-history-datas)))))
 
-(defn make-scene-visibility-node! [view-graph]
-  (g/make-node! view-graph SceneVisibilityNode))
+(defn make-scene-visibility-node! [view-graph app-view]
+  (g/make-node! view-graph SceneVisibilityNode :app-view app-view))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility
@@ -228,181 +189,207 @@
 
 (handler/defhandler :scene.visibility.hide-unselected :workbench
   (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (enabled? [scene-visibility evaluation-context]
-            (g/node-value scene-visibility :unselected-hideable-outline-name-paths evaluation-context))
+    (g/node-value scene-visibility :unselected-hideable-outline-name-paths evaluation-context))
   (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :unselected-hideable-outline-name-paths))))
 
 (handler/defhandler :scene.visibility.toggle-selection :workbench
   (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (enabled? [scene-visibility evaluation-context]
-            (or (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)
-                (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context)))
+    (or (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)
+        (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context)))
   (run [scene-visibility]
-       (g/with-auto-evaluation-context evaluation-context
-         (let [should-hide (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)]
-           (if should-hide
-             (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))
-             (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths)))))))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [should-hide (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)]
+        (if should-hide
+          (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))
+          (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths)))))))
 
 (handler/defhandler :private/hide-toggle :workbench
   (active? [scene-visibility evaluation-context user-data]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility user-data]
-       (let [{:keys [node-outline-key-path]} user-data
-             name-paths-to-toggle #{(subvec node-outline-key-path 1)}]
-         (if (contains? (g/node-value scene-visibility :hidden-node-outline-key-paths) node-outline-key-path)
-           (show-outline-name-paths! scene-visibility name-paths-to-toggle)
-           (hide-outline-name-paths! scene-visibility name-paths-to-toggle)))))
+    (let [{:keys [node-outline-key-path]} user-data
+          name-paths-to-toggle #{(subvec node-outline-key-path 1)}]
+      (if (contains? (g/node-value scene-visibility :hidden-node-outline-key-paths) node-outline-key-path)
+        (show-outline-name-paths! scene-visibility name-paths-to-toggle)
+        (hide-outline-name-paths! scene-visibility name-paths-to-toggle)))))
 
 (handler/defhandler :scene.visibility.show-last-hidden :workbench
   (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (enabled? [scene-visibility evaluation-context]
-            (g/node-value scene-visibility :last-hidden-outline-name-paths evaluation-context))
+    (g/node-value scene-visibility :last-hidden-outline-name-paths evaluation-context))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :last-hidden-outline-name-paths))))
 
 (handler/defhandler :scene.visibility.show-all :workbench
   (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (enabled? [scene-visibility evaluation-context]
-            (g/node-value scene-visibility :hidden-outline-name-paths evaluation-context))
+    (g/node-value scene-visibility :hidden-outline-name-paths evaluation-context))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :hidden-outline-name-paths))))
 
 ;; -----------------------------------------------------------------------------
 ;; Visibility Filters
 ;; -----------------------------------------------------------------------------
+(declare sync-filter-button-style!)
 
-(defn- make-toggle [{:keys [label acc on-change]}]
-  (let [check-box (CheckBox.)
-        label (Label. label)
-        acc (Label. acc)]
-    (ui/on-action! check-box (fn [_] (on-change (ui/value check-box))))
-    (ui/remove-style! check-box "check-box")
-    (ui/add-style! check-box "slide-switch")
-    (HBox/setHgrow label Priority/ALWAYS)
-    (ui/add-style! label "slide-switch-label")
-    (when (os/is-mac-os?)
-      (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
-    (ui/add-style! acc "accelerator-label")
-    (let [hbox (doto (HBox.)
-                 (.setAlignment Pos/CENTER_LEFT)
-                 (ui/on-click! (fn [_]
-                                 (ui/value! check-box (not (ui/value check-box)))
-                                 (on-change (ui/value check-box))))
-                 (ui/children! [check-box label acc]))
-          update (fn [checked enabled]
-                   (ui/enable! hbox enabled)
-                   (ui/value! check-box checked))]
-      [hbox update])))
+(defn- sync-popup-state! [scene-visibility]
+  (g/with-auto-evaluation-context evaluation-context
+    (sync-filter-button-style! (g/node-value scene-visibility :app-view) scene-visibility evaluation-context)
+    (when-let [advance! (g/node-value scene-visibility :popup-advance-fn)]
+      (advance!))))
 
-(defn set-tag-visibility! [scene-visibility tag visible]
-  (g/update-property! scene-visibility :filtered-renderable-tags (if visible disj conj) tag))
+(defn- toggle-tag-visibility-fn [scene-visibility tag]
+  (fn [v]
+    (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) tag)
+    (sync-popup-state! scene-visibility)))
+
+(defn renderable-tag-descriptors [scene-visibility]
+  (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
+        filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
+    (cond-> [{:type :toggle
+              :label "scene-popup.scene-visibility.visibility-filters"
+              :value filters-enabled?
+              :on-value-changed (fn [v]
+                                  (g/set-property! scene-visibility :visibility-filters-enabled? v)
+                                  (sync-popup-state! scene-visibility))
+              :command :scene.visibility.toggle-filters
+              :always-enabled true}
+             {:type :space}
+             {:type :toggle :label "scene-popup.scene-visibility.collision-shapes" :value (not (contains? filtered-tags :collision-shape))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :collision-shape) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.camera" :value (not (contains? filtered-tags :camera))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :camera) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.gui-bounds" :value (not (contains? filtered-tags :gui-bounds))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-bounds) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.gui-shapes" :value (not (contains? filtered-tags :gui-shape))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-shape) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.gui-particle-effects" :value (not (contains? filtered-tags :gui-particlefx))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-particlefx) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.gui-spine-scenes" :value (not (contains? filtered-tags :gui-spine))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-spine) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.gui-text" :value (not (contains? filtered-tags :gui-text))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :gui-text) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.models" :value (not (contains? filtered-tags :model))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :model) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.particle-effects" :value (not (contains? filtered-tags :particlefx))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :particlefx) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.skeletons" :value (not (contains? filtered-tags :skeleton))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :skeleton) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.spine-scenes" :value (not (contains? filtered-tags :spine))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :spine) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.sprites" :value (not (contains? filtered-tags :sprite))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :sprite) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.text" :value (not (contains? filtered-tags :text))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :text) :style-class "compact-toggle"}
+             {:type :toggle :label "scene-popup.scene-visibility.tile-maps" :value (not (contains? filtered-tags :tilemap))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :tilemap) :style-class "compact-toggle"}
+             {:type :separator}
+             {:type :toggle :label "scene-popup.scene-visibility.component-guides" :value (not (contains? filtered-tags :outline))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :outline)
+              :command :scene.visibility.toggle-component-guides
+              :always-enabled true}]
+            (system/defold-dev?)
+            (into [{:type :separator}
+                   {:type :toggle
+                    :label "scene-popup.scene-visibility.scene-visibility-bounds"
+                    :value (not (contains? filtered-tags :dev-visibility-bounds))
+
+                    :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
+                    :appear-filtered false}]))))
+
+;; TODO JOE: We might not need this anymore?
+;; (def ^:private toggleable-filters
+;;   (coll/into-> renderable-tag-toggles-info #{}
+;;     (filter #(and (not (:always-enabled %)) (= (:type %) :toggle)))
+;;     (map :tag)))
+
+(defn- appear-filtered-renderable-tags [scene-visibility]
+  (into #{}
+        (keep (fn [{:keys [appear-filtered tag]
+                    :or {appear-filtered true}}]
+                (when appear-filtered
+                  tag)))
+        (renderable-tag-descriptors scene-visibility)))
+
+(defn toggle-button [app-view]
+  (some-> ^Tab (g/node-value app-view :active-tab)
+          .getContent
+          (.lookup "#visibility-settings-graphic")
+          .getParent))
+
+(defn sync-filter-button-style! [app-view scene-visibility evaluation-context]
+  (when-let [btn ^ToggleButton (toggle-button app-view)]
+    (if (and (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
+             (some (appear-filtered-renderable-tags scene-visibility)
+                   (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))
+      (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") true)
+      (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active") false))))
+
+(defn show-settings! [keymap localization ^Parent owner scene-visibility]
+  (let [setting-descriptors (mapv #(-> %
+                                       (assoc :key (:tag %))
+                                       (dissoc :tag :always-enabled :appear-filtered))
+                                  (renderable-tag-descriptors scene-visibility))
+        keys (keep :key setting-descriptors)
+        state (into {} (map (fn [key]
+                              [key (if (= :visibility-filters-enabled? key)
+                                     (g/node-value scene-visibility :visibility-filters-enabled?)
+                                     (not (contains? (g/node-value scene-visibility :filtered-renderable-tags) key)))]))
+                    keys)
+        on-change (fn [key v]
+                    (if (= :visibility-filters-enabled? key)
+                      (g/set-property! scene-visibility :visibility-filters-enabled? v)
+                      (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) key))
+                    (sync-popup-state! scene-visibility))
+        advance! (settings-popup/show! owner keymap localization state on-change 230 -13.0 setting-descriptors nil
+                                       (fn [_]
+                                         (g/set-property! scene-visibility :popup-advance-fn nil)
+                                         (sync-popup-state! scene-visibility)))
+        advance-with-state! (fn []
+                              (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
+                                    filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
+                                    new-state (into {} (map (fn [key]
+                                                              [key (if (= :visibility-filters-enabled? key)
+                                                                     filters-enabled?
+                                                                     (not (contains? filtered-tags key)))]))
+                                                    keys)]
+                                (advance! new-state)))]
+    (when advance!
+      (g/set-property! scene-visibility :popup-advance-fn advance-with-state!))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
-  (g/update-property! scene-visibility :filtered-renderable-tags (fn [tags]
-                                                                   (if (contains? tags tag)
-                                                                     (disj tags tag)
-                                                                     (conj tags tag)))))
-
-(defn set-filters-enabled! [scene-visibility enabled]
-  (g/set-property! scene-visibility :visibility-filters-enabled? enabled))
-
-(defn toggle-filters-enabled! [scene-visibility]
-  (g/update-property! scene-visibility :visibility-filters-enabled? not))
-
-(defn- make-visibility-toggles-list
-  ^Region [app-view scene-visibility]
-  (let [keymap (g/node-value app-view :keymap)
-        make-control
-        (fn [{:keys [label tag command always-enabled]}]
-          (if (= :separator label)
-            [(Separator.) nil]
-            (let [[control update-fn]
-                  (make-toggle {:label label
-                                :acc (if command (keymap/display-text keymap command "") "")
-                                :on-change (fn [checked]
-                                             (set-tag-visibility! scene-visibility tag checked))})
-                  update-from-hidden-tags
-                  (fn [hidden-tags enabled]
-                    (let [checked (not (contains? hidden-tags tag))]
-                      (update-fn checked (or always-enabled enabled))))]
-              [control update-from-hidden-tags])))
-
-        tag-toggles (mapv make-control renderable-tag-toggles-info)
-        tag-toggle-update-fns (into [] (keep second) tag-toggles)
-
-        update-tag-toggles
-        (fn [hidden-tags enabled]
-          (doseq [update-fn tag-toggle-update-fns]
-            (update-fn hidden-tags enabled)))
-
-        [filters-enabled-control filters-enabled-update-fn]
-        (make-toggle {:label "Visibility Filters"
-                      :acc (keymap/display-text keymap :scene.visibility.toggle-filters "")
-                      :on-change (fn [checked]
-                                   (set-filters-enabled! scene-visibility checked))})
-
-        container (doto (StackPane.)
-                    (.setMinWidth 230)
-                    (ui/children! [(doto (Region.)
-                                     (ui/add-style! "popup-shadow"))
-                                   (doto (VBox.)
-                                     (ui/add-style! "visibility-toggles-list")
-                                     (ui/children! (into [filters-enabled-control]
-                                                         (map first)
-                                                         tag-toggles)))]))
-
-        update-fn (fn []
-                    (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
-                          visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
-                      (filters-enabled-update-fn visibility-filters-enabled? true)
-                      (update-tag-toggles filtered-tags visibility-filters-enabled?)))]
-    (ui/add-style! filters-enabled-control "first-entry")
-    [container update-fn]))
-
-(defn- pref-popup-position
-  ^Point2D [^Parent container width y-gap]
-  (let [container-screen-bounds (.localToScreen container (.getBoundsInLocal container))]
-    (Point2D. (- (.getMaxX container-screen-bounds) width)
-              (+ (.getMaxY container-screen-bounds) y-gap))))
-
-(defn show-visibility-settings! [app-view ^Parent owner scene-visibility]
-  (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
-    (.hide popup)
-    (let [[^Region toggles update-fn] (make-visibility-toggles-list app-view scene-visibility)
-          popup (popup/make-popup owner toggles)
-          anchor (pref-popup-position owner (.getMinWidth toggles) 10)
-          refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
-      (update-fn)
-      (ui/user-data! owner ::popup popup)
-      (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
-      (ui/timer-stop-on-closed! popup refresh-timer)
-      (ui/timer-start! refresh-timer)
-      (.show popup owner (.getX anchor) (.getY anchor)))))
-  
-(defn settings-visible? [^Parent owner]
-  (some? (ui/user-data owner ::popup)))
+  (g/update-property! scene-visibility :filtered-renderable-tags
+                      (fn [tags]
+                        (if (contains? tags tag)
+                          (disj tags tag)
+                          (conj tags tag)))))
 
 (handler/defhandler :scene.visibility.toggle-filters :workbench
   (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (run [scene-visibility] (toggle-filters-enabled! scene-visibility)))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (run [scene-visibility]
+    (g/update-property! scene-visibility :visibility-filters-enabled? not)
+    (sync-popup-state! scene-visibility)))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (run [scene-visibility] (toggle-tag-visibility! scene-visibility :outline)))
+    (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (run [scene-visibility]
+    (toggle-tag-visibility! scene-visibility :outline)
+    (sync-popup-state! scene-visibility)))
 
 (handler/defhandler :scene.visibility.toggle-grid :workbench
   (active? [app-view scene-visibility evaluation-context]
-           (and (g/node-value scene-visibility :active-scene-resource-node evaluation-context)
-                (when-let [active-view (g/node-value app-view :active-view evaluation-context)]
-                  (some? (g/maybe-node-value active-view :grid evaluation-context)))))
+    (and (g/node-value scene-visibility :active-scene-resource-node evaluation-context)
+         (when-let [active-view (g/node-value app-view :active-view evaluation-context)]
+           (some? (g/maybe-node-value active-view :grid evaluation-context)))))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :grid))
   (state [scene-visibility evaluation-context]
-         (not (:grid (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))))
+    (not (:grid (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)))))
 
 (defn hidden-outline-key-path?
   [hidden-node-outline-key-paths node-outline-key-path]

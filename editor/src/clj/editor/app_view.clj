@@ -83,6 +83,7 @@
             [editor.targets :as targets]
             [editor.types :as types]
             [editor.ui :as ui]
+            [editor.ui.settings-popup :as settings-popup]
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -519,24 +520,13 @@
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
-  (run [app-view scene-visibility]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
+  (run [app-view localization scene-visibility]
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      ;; TODO: We have no mechanism for updating the style nor icon on
-      ;; on the toolbar button. For now we piggyback on the state
-      ;; update polling to set a style when the filters are active.
-      (if (scene-visibility/filters-appear-active? scene-visibility evaluation-context)
-        (ui/add-style! btn "filters-active")
-        (ui/remove-style! btn "filters-active"))
-      (scene-visibility/settings-visible? btn))))
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
+      (settings-popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
   (some-> tab
@@ -546,21 +536,24 @@
 (defn- show-settings-state [app-view button-id evaluation-context]
   (some-> (g/node-value app-view :active-tab evaluation-context)
           (get-settings-button button-id)
-          (scene-visibility/settings-visible?)))
+          (settings-popup/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
                             (get-settings-button "#show-grid-settings"))]
-      (grid/show-settings! btn app-view prefs localization)))
+      (grid/show-settings! btn app-view prefs (g/node-value app-view :keymap) localization)))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-grid-settings" evaluation-context)))
 
 (handler/defhandler :scene.perspective-camera.show-settings :workbench
   (run [app-view scene-visibility prefs localization]
-    (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-settings-button "#show-perspective-camera-settings"))]
-      (camera/show-settings! btn prefs localization)))
+    (g/with-auto-evaluation-context evaluation-context
+      (when-some [btn (some-> (g/node-value app-view :active-tab evaluation-context)
+                              (get-settings-button "#show-perspective-camera-settings"))]
+        (let [scene (scene/active-scene-view app-view evaluation-context)
+              camera (scene/view->camera (:basis evaluation-context) scene)]
+          (camera/show-settings! btn camera prefs (g/node-value app-view :keymap) localization)))))
   (state [app-view scene-visibility evaluation-context]
     (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
