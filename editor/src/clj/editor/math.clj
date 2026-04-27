@@ -509,7 +509,11 @@
      (.setElement 3 3 1.0))))
 
 (defn split-mat4 [^Matrix4d matrix ^Tuple3d out-translation ^Quat4d out-rotation ^Vector3d out-scale]
-  (VecmathUtils/extractTranslationRotationScaleOrthogonal matrix out-translation out-rotation out-scale))
+  (let [rotation-matrix (Matrix3d.)]
+    (VecmathUtils/extractTranslation matrix out-translation)
+    (VecmathUtils/extractRotationScaleOrthogonal matrix rotation-matrix out-scale)
+    (VecmathUtils/correctHandedness rotation-matrix out-scale)
+    (VecmathUtils/assignFromOrthonormal out-rotation rotation-matrix)))
 
 (defn inverse
   "Calculate the inverse of a matrix."

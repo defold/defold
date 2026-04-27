@@ -242,112 +242,71 @@
            :out-quat out-quat})]
     (is (= [] non-equivalent))))
 
-(deftest split-mat4-round-trip
-  (let [scale-values (vector-of :double -10.0 1.0 10.0)
-
-        scales
-        (vec (for [^double scale-x scale-values
-                   ^double scale-y scale-values
-                   ^double scale-z scale-values]
-               (Vector3d. scale-x scale-y scale-z)))
-
-        split-translation (Vector3d.)
+(defn- non-equivalent-split-mat4-round-trips [translations eulers scales]
+  (let [split-translation (Vector3d.)
         split-rotation (Quat4d.)
-        split-scale (Vector3d.)
+        split-scale (Vector3d.)]
+    (for [translation translations
+          euler eulers
+          scale scales
+          :let [rotation (math/euler->quat euler)
+                input-matrix (math/->mat4-non-uniform translation rotation scale)
+                _ (math/split-mat4 input-matrix split-translation split-rotation split-scale)
+                reconstructed-matrix (math/->mat4-non-uniform split-translation split-rotation split-scale)]
+          :when (not (mat4-eq? input-matrix reconstructed-matrix))]
+      {:input {:translation translation
+               :euler euler
+               :rotation rotation
+               :scale scale
+               :matrix input-matrix}
+       :reconstructed {:translation split-translation
+                       :euler (math/quat->euler split-rotation)
+                       :rotation split-rotation
+                       :scale split-scale
+                       :matrix reconstructed-matrix}})))
 
-        non-equivalent
-        (for [scale scales
-              euler checked-xyz-euler-angles
-              :let [rotation (math/euler->quat euler)
-                    translation (Vector3d. 1.0 2.0 3.0)
-                    input-matrix (math/->mat4-non-uniform translation rotation scale)
-                    _ (math/split-mat4 input-matrix split-translation split-rotation split-scale)
-                    reconstructed-matrix (math/->mat4-non-uniform split-translation split-rotation split-scale)]
-              :when (not (mat4-eq? input-matrix reconstructed-matrix))]
-          {:translation (math/vecmath->clj translation)
-           :euler euler
-           :scale (math/vecmath->clj scale)
-           :split-translation (math/vecmath->clj split-translation)
-           :split-rotation (math/vecmath->clj split-rotation)
-           :split-scale (math/vecmath->clj split-scale)})]
+(deftest split-mat4-round-trips-well-formed
+  (let [translations [(Vector3d. 1.0 2.0 3.0)]
+        eulers checked-xyz-euler-angles
+        scale-values (vector-of :double -10.0 1.0 10.0)
+        scales (into []
+                     (for [scale-x scale-values
+                           scale-y scale-values
+                           scale-z scale-values]
+                       (Vector3d. scale-x scale-y scale-z)))]
+    (is (= [] (non-equivalent-split-mat4-round-trips translations eulers scales)))))
 
-    (is (= [] non-equivalent))))
+(deftest split-mat4-round-trips-non-uniform-zero-scale
+  (let [translations [(Vector3d. 1.0 2.0 3.0)]
+        eulers checked-xyz-euler-angles
+        zero-scale-indices (range 3)
+        scale-values (vector-of :double -1.0 1.0)
+        scales (into []
+                     (distinct)
+                     (for [zero-scale-index-a zero-scale-indices
+                           zero-scale-index-b zero-scale-indices
+                           scale-a scale-values
+                           scale-b scale-values]
+                       (case (long zero-scale-index-a)
+                         0 (case (long zero-scale-index-b)
+                             0 (Vector3d. 0.0 scale-a scale-b)
+                             1 (Vector3d. 0.0 0.0 scale-a)
+                             2 (Vector3d. 0.0 scale-a 0.0))
+                         1 (case (long zero-scale-index-b)
+                             0 (Vector3d. 0.0 0.0 scale-a)
+                             1 (Vector3d. scale-a 0.0 scale-b)
+                             2 (Vector3d. scale-a 0.0 0.0))
+                         2 (case (long zero-scale-index-b)
+                             0 (Vector3d. 0.0 scale-a 0.0)
+                             1 (Vector3d. scale-a 0.0 0.0)
+                             2 (Vector3d. scale-a scale-b 0.0)))))]
+    (is (= [] (non-equivalent-split-mat4-round-trips translations eulers scales)))))
 
-(deftest split-mat4-collapsed-axis-round-trip
-  (let [collapsed-scales
-        [(Vector3d. 1.0 1.0 0.0)
-         (Vector3d. 1.0 0.0 1.0)
-         (Vector3d. 0.0 1.0 1.0)
-         (Vector3d. 1.0 0.0 0.0)
-         (Vector3d. 0.0 1.0 0.0)
-         (Vector3d. 0.0 0.0 1.0)]
-
-        eulers
-        [(vector-of :double 0.0 0.0 90.0)
-         (vector-of :double 45.0 0.0 0.0)
-         (vector-of :double 0.0 45.0 0.0)
-         (vector-of :double 10.0 20.0 30.0)]
-
-        split-translation (Vector3d.)
-        split-rotation (Quat4d.)
-        split-scale (Vector3d.)
-
-        non-equivalent
-        (for [scale collapsed-scales
-              euler eulers
-              :let [rotation (math/euler->quat euler)
-                    translation (Vector3d. 1.0 2.0 3.0)
-                    input-matrix (math/->mat4-non-uniform translation rotation scale)
-                    _ (math/split-mat4 input-matrix split-translation split-rotation split-scale)
-                    reconstructed-matrix (math/->mat4-non-uniform split-translation split-rotation split-scale)
-                    rotation-length-squared (+ (* (.x split-rotation) (.x split-rotation))
-                                               (* (.y split-rotation) (.y split-rotation))
-                                               (* (.z split-rotation) (.z split-rotation))
-                                               (* (.w split-rotation) (.w split-rotation)))]
-              :when (or (not (near? 1.0 rotation-length-squared))
-                        (not (mat4-eq? input-matrix reconstructed-matrix)))]
-          {:euler euler
-           :scale (math/vecmath->clj scale)
-           :split-rotation (math/vecmath->clj split-rotation)
-           :rotation-length-squared rotation-length-squared
-           :split-scale (math/vecmath->clj split-scale)})]
-
-    (is (= [] non-equivalent))))
-
-(deftest split-mat4-uniform-zero-scale
-  (let [eulers
-        [(vector-of :double 0.0 0.0 0.0)
-         (vector-of :double 0.0 0.0 90.0)
-         (vector-of :double 45.0 0.0 0.0)
-         (vector-of :double 10.0 20.0 30.0)]
-
-        split-translation (Vector3d.)
-        split-rotation (Quat4d.)
-        split-scale (Vector3d.)
-
-        non-equivalent
-        (for [euler eulers
-              :let [rotation (math/euler->quat euler)
-                    translation (Vector3d. 1.0 2.0 3.0)
-                    scale (Vector3d. 0.0 0.0 0.0)
-                    input-matrix (math/->mat4-non-uniform translation rotation scale)
-                    _ (math/split-mat4 input-matrix split-translation split-rotation split-scale)
-                    reconstructed-matrix (math/->mat4-non-uniform split-translation split-rotation split-scale)
-                    rotation-length-squared (+ (* (.x split-rotation) (.x split-rotation))
-                                               (* (.y split-rotation) (.y split-rotation))
-                                               (* (.z split-rotation) (.z split-rotation))
-                                               (* (.w split-rotation) (.w split-rotation)))]
-              :when (or (not (vec3-eq? translation split-translation))
-                        (not (vec3-eq? scale split-scale))
-                        (not (near? 1.0 rotation-length-squared))
-                        (not (mat4-eq? input-matrix reconstructed-matrix)))]
-          {:euler euler
-           :split-translation (math/vecmath->clj split-translation)
-           :split-rotation (math/vecmath->clj split-rotation)
-           :rotation-length-squared rotation-length-squared
-           :split-scale (math/vecmath->clj split-scale)})]
-
-    (is (= [] non-equivalent))))
+(deftest split-mat4-round-trips-uniform-zero-scale
+  (let [translations [(Vector3d. 1.0 2.0 3.0)]
+        eulers checked-xyz-euler-angles
+        scales [(Vector3d. 0.0 0.0 0.0)]]
+    (is (= [] (non-equivalent-split-mat4-round-trips translations eulers scales)))))
 
 (deftest from-to->quat->vec
   (let [test-vals [[1 0 0]
