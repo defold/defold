@@ -1235,7 +1235,7 @@ public class ModelUtil {
         return new ModelImporterJni.FileDataResolver(cwd);
     }
 
-// $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
+// $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.gltf
     public static void main(String[] args) throws IOException, LoaderException {
         if (args.length < 1) {
             System.err.println("No model specified!");

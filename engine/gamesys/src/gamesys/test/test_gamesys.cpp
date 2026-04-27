@@ -5782,15 +5782,14 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resourc
 
 /* MeshSet */
 
-const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc",
-                                         "/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
+const char* valid_meshset_resources[] = {"/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
-    {"/meshset/valid.meshsetc", "/meshset/missing.meshsetc"},
-    {"/meshset/valid.skeletonc", "/meshset/missing.skeletonc"},
-    {"/meshset/valid.animationsetc", "/meshset/missing.animationsetc"},
+    {"/meshset/valid_gltf.meshsetc", "/meshset/missing.meshsetc"},
+    {"/meshset/valid_gltf.skeletonc", "/meshset/missing.skeletonc"},
+    {"/meshset/valid_gltf.animationsetc", "/meshset/missing.animationsetc"},
 };
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
 

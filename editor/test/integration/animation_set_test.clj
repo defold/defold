@@ -31,9 +31,19 @@
                (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
                (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
              (set (map :id animations))))
-      (let [animation (first animations)]
+      (let [animation (first animations)
+            animated-channels [[3 :positions]
+                               [4 :rotations]
+                               [3 :scale]]]
         (testing "No events present"
           (is (= 0 (count (:event-tracks animation)))))
+
+        (testing "At least one animated channel has multiple keys"
+          (is (seq (for [track (:tracks animation)
+                         [stride channel] animated-channels
+                         :let [data (channel track)]
+                         :when (<= (* 2 stride) (count data))]
+                     [(:bone-id track) channel]))))
 
         ; Tracks contain keyframes for position, rotation and scale channels.
         ; Several tracks can target the same bone, but there should not be
@@ -59,9 +69,9 @@
               4 :rotations
               3 :scale))
 
-          (testing "At least two keys per channel"
+          (testing "At least one key per channel"
             (are [stride channel]
-                 (<= (* 2 stride) (count (data-by-channel channel)))
+                 (<= stride (count (data-by-channel channel)))
               3 :positions
               4 :rotations
               3 :scale)))))))

@@ -68,10 +68,10 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testAnimationSet() throws Exception {
-        addTestFile("testanim.dae", "testanim.dae");
+        addTestFile("bend2bones.gltf", "testanim.gltf");
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
-        src.append("skeleton: \"/testanim.dae\"");
+        src.append("animations { animation : \"/testanim.gltf\" }");
+        src.append("skeleton: \"/testanim.gltf\"");
         List<Message> outputs = build("/test.animationset", src.toString());
 
         Map<Long, RigAnimation> anims = getAnims((AnimationSet)outputs.get(0));
@@ -81,25 +81,25 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testAnimationSetHierarchy() throws Exception {
-        addTestFile("testanim.dae", "testanim1.dae");
-        addTestFile("testanim.dae", "testanim2.dae");
-        addTestFile("testanim.dae", "testanim3.dae");
-        addTestFile("testanim.dae", "1/testanim3.dae");
+        addTestFile("bend2bones.gltf", "testanim1.gltf");
+        addTestFile("bend2bones.gltf", "testanim2.gltf");
+        addTestFile("bend2bones.gltf", "testanim3.gltf");
+        addTestFile("bend2bones.gltf", "1/testanim3.gltf");
 
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/1/testanim3.dae\" }");
-        src.append("skeleton: \"/testanim1.dae\"");
+        src.append("animations { animation : \"/1/testanim3.gltf\" }");
+        src.append("skeleton: \"/testanim1.gltf\"");
         addFile("testset2.animationset", src.toString());
         src = new StringBuilder();
-        src.append("animations { animation : \"/testanim3.dae\" }");
+        src.append("animations { animation : \"/testanim3.gltf\" }");
         src.append("animations { animation : \"/testset2.animationset\" }");
-        src.append("skeleton: \"/testanim1.dae\"");
+        src.append("skeleton: \"/testanim1.gltf\"");
         addFile("testset1.animationset", src.toString());
         src = new StringBuilder();
-        src.append("animations { animation : \"/testanim1.dae\" }");
-        src.append("animations { animation : \"/testanim2.dae\" }");
+        src.append("animations { animation : \"/testanim1.gltf\" }");
+        src.append("animations { animation : \"/testanim2.gltf\" }");
         src.append("animations { animation : \"/testset1.animationset\" }");
-        src.append("skeleton: \"/testanim1.dae\"");
+        src.append("skeleton: \"/testanim1.gltf\"");
         List<Message> outputs = build("/test.animationset", src.toString());
 
         Map<Long, RigAnimation> anims = getAnims((AnimationSet)outputs.get(0));
@@ -112,32 +112,41 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationReference() throws Exception {
-        addTestFile("testanim.dae", "testanim.dae");
+        addTestFile("bend2bones.gltf", "testanim.gltf");
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
-        src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("animations { animation : \"/testanim.gltf\" }");
+        src.append("animations { animation : \"/testanim.gltf\" }");
         build("/test.animationset", src.toString());
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationId() throws Exception {
-        addTestFile("testanim.dae", "1/testanim.dae");
-        addTestFile("testanim.dae", "2/testanim.dae");
+        addTestFile("bend2bones.gltf", "1/testanim.gltf");
+        addTestFile("bend2bones.gltf", "2/testanim.gltf");
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/1/testanim.dae\" }");
-        src.append("animations { animation : \"/2/testanim.dae\" }");
+        src.append("animations { animation : \"/1/testanim.gltf\" }");
+        src.append("animations { animation : \"/2/testanim.gltf\" }");
         build("/test.animationset", src.toString());
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationReferenceHierarchy() throws Exception {
-        addTestFile("testanim.dae", "testanim.dae");
+        addTestFile("bend2bones.gltf", "testanim.gltf");
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("animations { animation : \"/testanim.gltf\" }");
         addFile("testset.animationset", src.toString());
         src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("animations { animation : \"/testanim.gltf\" }");
         src.append("animations { animation : \"/testset.animationset\" }");
+        build("/test.animationset", src.toString());
+    }
+
+    @Test(expected=CompileExceptionError.class)
+    public void testAnimationSetDaeUnsupported() throws Exception {
+        addFile("testanim.dae", "unsupported");
+        StringBuilder src = new StringBuilder();
+        src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("skeleton: \"/testanim.dae\"");
         build("/test.animationset", src.toString());
     }
 
