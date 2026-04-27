@@ -225,10 +225,22 @@ namespace dmShaderc
         uint8_t     m_ShaderResourceBinding;
     };
 
+    struct MSLResourceMapping
+    {
+        const char* m_Name;
+        uint64_t    m_NameHash;
+
+        uint32_t    m_MetalResourceIndex;
+        uint8_t     m_ShaderResourceSet;
+        uint8_t     m_ShaderResourceBinding;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
         const char*      m_LastError;
+
+        dmArray<MSLResourceMapping> m_MSLResourceMappings;
 
         // In case of compiling HLSL, we generate a separate reflection structure
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
@@ -241,7 +253,12 @@ namespace dmShaderc
         // When compiling compute shaders for HLSL, we need to store a reference to the
         // manufactured gl_NumWorkGroups constant buffer that was generated.
         // The value will be set to 0xFF otherwise.
-        uint8_t m_HLSLNumWorkGroupsId;
+        uint8_t                    m_HLSLNumWorkGroupsId;
+
+        // Currently used for MSL/Metal only
+        uint32_t                   m_WorkGroupSizeX;
+        uint32_t                   m_WorkGroupSizeY;
+        uint32_t                   m_WorkGroupSizeZ;
     };
 
     struct HLSLRootSignature

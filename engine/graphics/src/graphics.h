@@ -86,6 +86,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
         ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
         ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
+        ADAPTER_FAMILY_PRIORITY_METAL    = 0,
     };
 
     enum AssetType

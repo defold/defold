@@ -144,6 +144,14 @@ def build(bld):
                         source          = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_dx12')
 
+    if platform_supports_feature(bld.env.PLATFORM, 'metal', {}):
+
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'metal'] + proto_cpp_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'metal/*.cpp', 'metal/*.mm']) + proto_cpp_source,
+                        target          = 'graphics_metal')
+
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')
 

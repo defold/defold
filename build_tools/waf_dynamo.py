@@ -83,6 +83,8 @@ def platform_supports_feature(platform, feature, data):
         return platform in ['arm64-linux']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
+    if feature == 'metal':
+        return platform in ['x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -150,6 +152,10 @@ def platform_graphics_libs_and_symbols(platform):
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
+
+    if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
+        graphics_libs += ['GRAPHICS_METAL']
+        graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):
         graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
@@ -336,7 +342,9 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    if not use_cl_exe:
+    if Options.options.with_metal:
+        self.env.append_value('CXXFLAGS', ['-std=c++17']) # Due to metal-cpp library
+    elif not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
@@ -2005,6 +2013,7 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_METAL']    = ['graphics_metal', 'graphics_transcoder_basisu', 'basis_transcoder']
     if 'wagyu' in Options.options.enable_features:
         conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
     else:
@@ -2018,6 +2027,15 @@ def detect(conf):
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
+
+    # ***********************************************************
+    # Metal
+    # ***********************************************************
+    # Vulkan
+    if TargetOS.MACOS == target_os:
+        #conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
+        conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
 
     # ***********************************************************
     # Vulkan
@@ -2144,6 +2162,7 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--with-metal', action='store_true', default=False, dest='with_metal', help='Enables Metal as graphics backend (on osx and ios)')
     opt.add_option('--size-analyze', action='store_true', default=False, dest='size_analyze', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics

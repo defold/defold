@@ -45,6 +45,10 @@ def build(bld):
             extra_libs += ['DX12', 'graphics_dx12']
             extra_symbols += ['GraphicsAdapterDX12']
 
+        if platform_supports_feature(bld.env.PLATFORM, 'metal', {}) and waflib.Options.options.with_metal:
+            extra_libs += ['METAL', 'graphics_metal']
+            extra_symbols += ['GraphicsAdapterMetal']
+
         if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
             graphics_lib += ['GRAPHICS_WEBGPU']
             extra_symbols += ['GraphicsAdapterWebGPU']

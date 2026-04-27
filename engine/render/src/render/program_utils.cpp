@@ -331,7 +331,8 @@ namespace dmRender
                 if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
                     program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
                     program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50 ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_MSL_22)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
@@ -367,7 +368,8 @@ namespace dmRender
                 if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
                     program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
                     program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50 ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_MSL_22)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
@@ -407,7 +409,8 @@ namespace dmRender
                 if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
                     program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
                     program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50 ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_MSL_22)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
