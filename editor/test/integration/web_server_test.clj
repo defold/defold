@@ -307,6 +307,8 @@
               (is (= "application/json" (get headers "content-type")))
               (let [json-body (json/read-str body)]
                 (is (= "3.0.3" (get json-body "openapi")))
+                (is (= "Read per-session token from `.internal/editor.token`, then send it as `Authorization: Bearer <token>`."
+                       (get-in json-body ["components" "securitySchemes" "token" "description"])))
                 (is (contains? (get json-body "paths") "/console"))
                 (is (contains? (get json-body "paths") "/console/stream"))
                 (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]

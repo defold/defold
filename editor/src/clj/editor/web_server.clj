@@ -20,9 +20,27 @@
             [reitit.core :as reitit]
             [util.coll :as coll]
             [util.http-server :as http-server])
-  (:import [org.apache.commons.io FilenameUtils]))
+  (:import [java.nio.charset StandardCharsets]
+           [java.security MessageDigest SecureRandom]
+           [java.util Base64]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
+
+(defn make-token []
+  (let [bytes (byte-array 32)]
+    (.nextBytes (SecureRandom.) bytes)
+    (-> (Base64/getUrlEncoder)
+        (.withoutPadding)
+        (.encodeToString bytes))))
+
+(defn require-authorized! [request token]
+  (let [^String authorization (get-in request [:headers "authorization"])]
+    (when-not (and authorization
+                   (MessageDigest/isEqual
+                     (.getBytes (str "Bearer " token) StandardCharsets/UTF_8)
+                     (.getBytes authorization StandardCharsets/UTF_8)))
+      (throw (http-server/error (http-server/response 401 {"www-authenticate" "Bearer"} "Unauthorized\n"))))))
 
 (defn- openapi-paths [router]
   (coll/into-> (reitit/routes router) {}
@@ -41,6 +59,10 @@
     {:openapi "3.0.3"
      :info {:title "Defold Editor HTTP API"
             :version "1.0"}
+     :components {:securitySchemes {"token" {:type "http"
+                                             :scheme "bearer"
+                                             :bearerFormat "opaque"
+                                             :description "Read per-session token from `.internal/editor.token`, then send it as `Authorization: Bearer <token>`."}}}
      :paths (openapi-paths (:router request))}))
 
 (defn- html-escape [s]

@@ -23,6 +23,7 @@
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.server :as ext.server]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -42,9 +43,11 @@
             [util.coll :as coll]
             [util.diff :as diff]
             [util.eduction :as e]
+            [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.nio.file.attribute PosixFilePermission]
+  (:import [java.io StringWriter]
+           [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -70,7 +73,7 @@
       (dotimes [i iterations]
         (let [results (->> (fn []
                              (future
-                               (->> #(rt/invoke-immediate-1 rt lua-inc-and-get ec)
+                               (->> #(rt/invoke-immediate-1 rt {:evaluation-context ec} lua-inc-and-get)
                                     (repeatedly per-thread-calls)
                                     (vec))))
                            (repeatedly threads)
@@ -227,6 +230,40 @@
               ;; updated value
               2]
              (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
+
+(deftest output-overrides-route-to-the-current-suspending-execution
+  (test-support/with-clean-system
+    (let [default-out (StringWriter.)
+          default-err (StringWriter.)
+          override-out (StringWriter.)
+          override-err (StringWriter.)
+            rt (rt/make
+                 :out default-out
+                 :err default-err
+                 :env {"suspend" (rt/suspendable-lua-fn [_]
+                                    (future/io (Thread/sleep 10)))
+                       "with_output_override" (rt/suspendable-lua-fn [{:keys [rt]} f]
+                                                (rt/invoke-suspending-1 rt {:override-out override-out
+                                                                            :override-err override-err}
+                                                                        f))})]
+        (->> (rt/read "print('default before')
+	                     io.stderr:write('default err before\\n')
+	                     with_output_override(function()
+	                       print('override')
+	                       io.stderr:write('override err\\n')
+	                       suspend()
+	                       print('override after')
+	                       io.stderr:write('override err after\\n')
+	                     end)
+	                     print('default after')
+	                     io.stderr:write('default err after\\n')")
+             (rt/bind rt)
+             (rt/invoke-suspending-1 rt)
+             (deref))
+        (is (= "default before\ndefault after\n" (.toString default-out)))
+        (is (= "default err before\ndefault err after\n" (.toString default-err)))
+        (is (= "override\noverride after\n" (.toString override-out)))
+        (is (= "override err\noverride err after\n" (.toString override-err))))))
 
 
 (deftest suspending-lua-failure-test
@@ -1324,6 +1361,65 @@ openapi route has 200 => true
                                 :web-server server)
         (run-edit-menu-test-command!)
         (expect-script-output expected-http-server-test-output out)))))
+
+(deftest eval-route-test
+  (test-util/with-loaded-project
+    (let [token "test-token"
+          handler (web-server/make-dynamic-handler (ext.server/routes project token))
+          displayed-output (atom [])]
+      (with-open [server (http-server/start! handler)]
+        (let [eval-lua! (fn eval-lua! [body]
+                          @(http/request (str (http-server/local-url server) "/eval")
+                                         :method "POST"
+                                         :headers {"authorization" (str "Bearer " token)}
+                                         :body body
+                                         :as :string))]
+          (reload-editor-scripts! project
+                                  :display-output! #(swap! displayed-output conj [%1 %2])
+                                  :web-server server)
+          (testing "Requires bearer token."
+            (let [{:keys [status headers body]} @(http/request (str (http-server/local-url server) "/eval") :method "POST" :body "return 1" :as :string)]
+              (is (= 401 status))
+              (is (= "Bearer" (get headers "www-authenticate")))
+              (is (= "Unauthorized\n" body)))
+            (let [{:keys [status]} @(http/request (str (http-server/local-url server) "/eval")
+                                                  :method "POST"
+                                                  :headers {"authorization" "Bearer wrong-token"}
+                                                  :body "return 1"
+                                                  :as :string)]
+              (is (= 401 status))))
+          (testing "Prints and returned values."
+            (let [{:keys [status headers body]} (eval-lua! "print('hello')\nio.stderr:write('err\\n')\nreturn 1, 'x', true")]
+              (is (= 200 status))
+              (is (= "text/plain; charset=utf-8" (get headers "content-type")))
+              (is (= "hello\nerr\n=> 1\n=> x\n=> true\n" body))))
+          (testing "Return with no values."
+            (let [{:keys [status body]} (eval-lua! "return")]
+              (is (= 200 status))
+              (is (= "" body))))
+          (testing "Return nil."
+            (let [{:keys [status body]} (eval-lua! "return nil")]
+              (is (= 200 status))
+              (is (= "=> nil\n" body))))
+          (testing "Compile errors."
+            (let [{:keys [status body]} (eval-lua! "return function(")]
+              (is (= 422 status))
+              (is (not (string/blank? body)))))
+          (testing "Runtime errors include previous output."
+            (let [{:keys [status body]} (eval-lua! "print('before')\nerror('boom')")]
+              (is (= 422 status))
+              (is (string/starts-with? body "before\n"))
+              (is (string/includes? body "boom"))))
+          (testing "Suspending editor functions retain output capture."
+            (let [{:keys [status body]} (eval-lua! "return editor.execute('git', 'status', {out = 'capture'})")]
+              (is (= 200 status))
+              (is (string/starts-with? body "=> "))))
+          (testing "Output is captured in the response only."
+            (reset! displayed-output [])
+            (let [{:keys [status body]} (eval-lua! "print('captured')")]
+              (is (= 200 status))
+              (is (= "captured\n" body))
+              (is (= [] @displayed-output)))))))))
 
 (deftest property-availability-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
