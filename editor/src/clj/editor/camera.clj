@@ -39,6 +39,8 @@
 
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
+(declare camera-frame-aabb set-camera!)
+
 (defn camera-forward-vector
   ^Vector3d [^Camera camera]
   (math/rotate (types/rotation camera)
@@ -52,6 +54,53 @@
   ^Vector3d [^Camera camera]
   (math/rotate (types/rotation camera)
                (Vector3d. 1.0 0.0 0.0)))
+
+(defn- normalized-vector3d
+  ^Vector3d [^Vector3d vector]
+  (doto (Vector3d. vector)
+    (.normalize)))
+
+(defn- camera-rotation-from-forward+up
+  ^Quat4d [^Vector3d forward ^Vector3d up]
+  (let [backward (doto (Vector3d. forward)
+                   (.negate)
+                   (.normalize))
+        up (normalized-vector3d up)
+        right (doto (Vector3d.)
+                (.cross up backward)
+                (.normalize))
+        up (doto (Vector3d.)
+             (.cross backward right)
+             (.normalize))]
+    (doto (Quat4d.)
+      (.set (doto (Matrix3d.)
+              (.setColumn 0 right)
+              (.setColumn 1 up)
+              (.setColumn 2 backward))))))
+
+(defn- view-axis->forward+up
+  [axis]
+  (case axis
+    :+x [(Vector3d. -1.0 0.0 0.0) vector3-up]
+    :-x [(Vector3d. 1.0 0.0 0.0) vector3-up]
+    :+y [(Vector3d. 0.0 -1.0 0.0) (Vector3d. 0.0 0.0 -1.0)]
+    :-y [(Vector3d. 0.0 1.0 0.0) (Vector3d. 0.0 0.0 1.0)]
+    :+z [(Vector3d. 0.0 0.0 -1.0) vector3-up]
+    :-z [(Vector3d. 0.0 0.0 1.0) vector3-up]))
+
+(defn frame-camera-to-axis
+  ^Camera [^Camera camera ^Region viewport ^AABB aabb axis]
+  (let [[forward up] (view-axis->forward+up axis)
+        rotation (camera-rotation-from-forward+up forward up)]
+    (camera-frame-aabb (assoc camera :rotation rotation) viewport aabb)))
+
+(defn frame-camera-to-axis!
+  [camera-node ^Region viewport ^AABB aabb axis animate]
+  (let [start-camera (g/node-value camera-node :local-camera)
+        end-camera (frame-camera-to-axis start-camera viewport aabb axis)]
+    (when (not= (:type end-camera) :orthographic)
+      (g/set-property! camera-node :cached-3d-camera end-camera))
+    (set-camera! camera-node start-camera end-camera animate)))
 
 (defn camera-focus-point
   ^Point3d [^Camera camera]
