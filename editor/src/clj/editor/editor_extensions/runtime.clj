@@ -47,16 +47,17 @@
   (:refer-clojure :exclude [read])
   (:require [cljfx.api :as fx]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.resource :as resource]
             editor.workspace)
-  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldUserdata DefoldLuaFn DefoldVarargsLuaFn SearchPath]
-           [editor.resource FileResource ZipResource MemoryResource]
+  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldLuaFn DefoldUserdata DefoldVarargsLuaFn DynamicWriter SearchPath]
+           [editor.resource FileResource MemoryResource ZipResource]
            [editor.workspace BuildResource]
-           [java.io File PrintStream Writer]
+           [java.io File PrintStream]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
            [org.luaj.vm2 LoadState LuaError LuaFunction LuaString LuaTable LuaValue OrphanedThread Varargs]
@@ -294,8 +295,8 @@
   ([x string-representation]
    (DefoldUserdata. x string-representation)))
 
-(defn- writer->print-stream [^Writer writer]
-  (-> writer
+(defn- writer->print-stream [override-key default-writer]
+  (-> (DynamicWriter. #(get *execution-context* override-key default-writer))
       (WriterOutputStream. StandardCharsets/UTF_8)
       (PrintStream. true StandardCharsets/UTF_8)))
 
@@ -365,8 +366,8 @@
                   (.load (JseOsLib.))
                   (LoadState/install)
                   (LuaC/install)
-                  (-> .-STDOUT (set! (writer->print-stream out)))
-                  (-> .-STDERR (set! (writer->print-stream err))))
+                  (-> .-STDOUT (set! (writer->print-stream :override-out out)))
+                  (-> .-STDERR (set! (writer->print-stream :override-err err))))
         package (.get globals "package")
         ;; Before splitting the coroutine module into 2 contexts (user and
         ;; system), we override the coroutine.create() function with a one that
@@ -427,9 +428,7 @@
                   (fn [result]
                     (if (refresh-context? result)
                       (let [update-cache! (bound-fn* g/update-cache-from-evaluation-context!)
-                            new-context {:evaluation-context (g/make-evaluation-context)
-                                         :rt runtime
-                                         :mode :suspendable}]
+                            new-context (assoc execution-context :evaluation-context (g/make-evaluation-context))]
                         (fx/on-fx-thread (update-cache! (:evaluation-context execution-context)))
                         (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))
                       (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
@@ -445,6 +444,23 @@
   ^PrintStream [^EditorExtensionsRuntime rt]
   (.-STDERR (vm/env (.-lua-vm rt))))
 
+(defn- parse-invoke-args [args]
+  (let [first-arg (first args)
+        has-opts (map? first-arg)
+        opts (if has-opts first-arg {})
+        args (if has-opts (next args) args)]
+    (when (empty? args)
+      (throw (IllegalArgumentException. "Lua function is required")))
+    {:opts opts
+     :lua-fn (first args)
+     :lua-args (next args)}))
+
+(defn- execution-context [runtime mode opts]
+  (-> opts
+      (assoc :rt runtime :mode mode)
+      (cond-> (not (contains? opts :evaluation-context))
+              (assoc :evaluation-context (g/make-evaluation-context)))))
+
 (defn invoke-suspending
   "Invoke a potentially long-running LuaFunction
 
@@ -454,11 +470,11 @@
   Runtime will start invoking the LuaFunction on the calling thread, then will
   move the execution to background threads if necessary. This means that
   invoke-suspending might return a completed CompletableFuture"
-  [^EditorExtensionsRuntime runtime lua-fn & lua-args]
-  (let [co (vm/invoke-1 (.-lua-vm runtime) (.-create runtime) lua-fn)
-        execution-context {:evaluation-context (g/make-evaluation-context)
-                           :rt runtime
-                           :mode :suspendable}]
+  {:arglists '([rt opts? lua-fn & lua-args])}
+  [^EditorExtensionsRuntime runtime & args]
+  (let [{:keys [opts lua-fn lua-args]} (parse-invoke-args args)
+        co (vm/invoke-1 (.-lua-vm runtime) (.-create runtime) lua-fn)
+        execution-context (execution-context runtime :suspendable opts)]
     (apply invoke-suspending-impl execution-context runtime co lua-args)))
 
 (defn invoke-suspending-1
@@ -470,20 +486,19 @@
   Runtime will start invoking the LuaFunction on the calling thread, then will
   move the execution to background threads if necessary. This means that
   invoke-suspending might return a completed CompletableFuture"
-  [^EditorExtensionsRuntime runtime lua-fn & lua-args]
+  {:arglists '([rt opts? lua-fn & lua-args])}
+  [^EditorExtensionsRuntime runtime & args]
   (future/then
-    (apply invoke-suspending runtime lua-fn lua-args)
+    (apply invoke-suspending runtime args)
     #(.arg1 ^Varargs %)))
 
-(defn- invoke-immediate-impl [^EditorExtensionsRuntime runtime vm-invoke-fn lua-fn lua-args evaluation-context]
-  (let [context-provided (some? evaluation-context)
-        evaluation-context (or evaluation-context (g/make-evaluation-context))
-        result (binding [*execution-context* {:evaluation-context evaluation-context
-                                              :rt runtime
-                                              :mode :immediate}]
+(defn- invoke-immediate-impl [^EditorExtensionsRuntime runtime opts vm-invoke-fn lua-fn lua-args]
+  (let [context-provided (contains? opts :evaluation-context)
+        execution-context (execution-context runtime :immediate opts)
+        result (binding [*execution-context* execution-context]
                  (apply vm-invoke-fn (.-lua-vm runtime) lua-fn lua-args))]
     (when-not context-provided
-      (g/update-cache-from-evaluation-context! evaluation-context))
+      (g/update-cache-from-evaluation-context! (:evaluation-context execution-context)))
     result))
 
 (defn invoke-immediate-1
@@ -494,16 +509,14 @@
 
   Args:
     runtime                the editor Lua runtime
+    opts                   optional map with :evaluation-context, :override-out
+                           and/or :override-err
     lua-fn                 LuaFunction to invoke
-    lua-args*              0 or more LuaValue arguments
-    evaluation-context?    optional evaluation context for the execution"
-  {:arglists '([runtime lua-fn lua-args* evaluation-context?])}
-  [runtime lua-fn & rest-args]
-  (let [last-arg (last rest-args)
-        context-provided (g/evaluation-context? last-arg)
-        evaluation-context (when context-provided last-arg)
-        lua-args (if context-provided (butlast rest-args) rest-args)]
-    (invoke-immediate-impl runtime vm/invoke-1 lua-fn lua-args evaluation-context)))
+    lua-args*              0 or more LuaValue arguments"
+  {:arglists '([rt opts? lua-fn & lua-args])}
+  [runtime & args]
+  (let [{:keys [opts lua-fn lua-args]} (parse-invoke-args args)]
+    (invoke-immediate-impl runtime opts vm/invoke-1 lua-fn lua-args)))
 
 (defn invoke-immediate
   "Invoke a short-running LuaFunction
@@ -513,16 +526,14 @@
 
   Args:
     runtime                the editor Lua runtime
+    opts                   optional map with :evaluation-context, :override-out
+                           and/or :override-err
     lua-fn                 LuaFunction to invoke
-    lua-args*              0 or more LuaValue arguments
-    evaluation-context?    optional evaluation context for the execution"
-  {:arglists '([runtime lua-fn lua-args* evaluation-context?])}
-  [^EditorExtensionsRuntime runtime lua-fn & rest-args]
-  (let [last-arg (last rest-args)
-        context-provided (g/evaluation-context? last-arg)
-        evaluation-context (when context-provided last-arg)
-        lua-args (if context-provided (butlast rest-args) rest-args)]
-    (invoke-immediate-impl runtime vm/invoke lua-fn lua-args evaluation-context)))
+    lua-args*              0 or more LuaValue arguments"
+  {:arglists '([rt opts? lua-fn & lua-args])}
+  [^EditorExtensionsRuntime runtime & args]
+  (let [{:keys [opts lua-fn lua-args]} (parse-invoke-args args)]
+    (invoke-immediate-impl runtime opts vm/invoke lua-fn lua-args)))
 
 (defn eq?
   "Checks 2 lua values for equality, with metadata processing"
