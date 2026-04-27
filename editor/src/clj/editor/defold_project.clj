@@ -1628,6 +1628,11 @@
                                  (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
                                   (double (or (get settings ["display" "height"]) 0))))
+  (output render-clear-color g/Any (g/fnk [settings]
+                                     [(double (or (get settings ["render" "clear_color_red"]) 0.0))
+                                      (double (or (get settings ["render" "clear_color_green"]) 0.0))
+                                      (double (or (get settings ["render" "clear_color_blue"]) 0.0))
+                                      (double (or (get settings ["render" "clear_color_alpha"]) 1.0))]))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
   (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))

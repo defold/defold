@@ -219,3 +219,13 @@
            (->> (get renderables-by-pass pass/transparent)
                 (scene/render-sort)
                 (mapv :node-id))))))
+
+(deftest invalid-fixed-orthographic-camera-inset-test
+  (let [renderable {:user-data {:is-orthographic true
+                                :orthographic-mode :ortho-mode-fixed
+                                :orthographic-zoom 0.0
+                                :display-width 1920.0
+                                :display-height 1080.0}}]
+    (is (false? (#'scene/valid-camera-inset-orthographic-zoom? renderable)))
+    (is (nil? (#'scene/camera-inset-dimensions renderable)))
+    (is (nil? (#'scene/make-camera-inset-camera renderable 480.0 270.0)))))
