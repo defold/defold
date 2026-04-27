@@ -17,11 +17,13 @@ def _get_native_source(target_os, feature):
 def build(bld):
 
     build_util = create_build_utility(bld.env)
+    graphics_ddf_proto = bld.path.parent.find_resource('proto/graphics/graphics_ddf.proto')
+    graphics_proto_cpp_source = [graphics_ddf_proto.change_ext('.cpp')]
 
     # this is a library that is built for all platforms, so we let this one generate the ddf bindings
     obj = bld.stlib(features        = 'ddf cxx',
                     includes        = ['.', '../proto'],
-                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + [graphics_ddf_proto],
                     proto_gen_py    = True,
                     protoc_includes = '../proto',
                     use             = 'DDF DLIB',
@@ -29,14 +31,13 @@ def build(bld):
 
     bld.add_group()
 
-    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+    obj = bld.stlib(features        = 'cxx skip_asan',
                     includes        = obj.includes,
-                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                    protoc_includes = obj.protoc_includes,
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + graphics_proto_cpp_source,
                     use             = obj.use,
                     target          = 'graphics_proto_noasan')
 
-    proto_cpp_source = bld.path.parent.ant_glob('build/proto/graphics/*.cpp')
+    proto_cpp_source = graphics_proto_cpp_source
     proto_cpp_includes = ['../proto']
 
     obj = bld.stlib(features        = 'cxx',
