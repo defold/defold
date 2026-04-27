@@ -230,9 +230,8 @@ namespace dmGameObject
         m_ComponentSocket = 0;
         m_FrameSocket = 0;
 
-        // Instances that cannot use an ID from the InstanceIdPool will
-        // generate indexes greater than the size of the pool.
-        m_GenInstanceCounter = max_instances;
+        // Generations start at 1 so 0 can remain the default/uninitialized value.
+        m_GenInstanceCounter = 1;
         m_GenCollectionInstanceCounter = 0;
         m_InstanceIdPool.SetCapacity(max_instances);
         m_InUpdate = 0;
@@ -803,6 +802,9 @@ namespace dmGameObject
         instance->m_Collection = collection;
         uint16_t instance_index = collection->m_InstanceIndices.Pop();
         instance->m_Index = instance_index;
+        dmMutex::Lock(collection->m_Mutex);
+        instance->m_Generation = dmMath::Max(1U, collection->m_GenInstanceCounter++);
+        dmMutex::Unlock(collection->m_Mutex);
         assert(collection->m_Instances[instance_index] == 0);
         collection->m_Instances[instance_index] = instance;
 
@@ -2095,9 +2097,31 @@ namespace dmGameObject
         return SetIdentifier(hcollection->m_Collection, instance, identifier);
     }
 
+    // TODO: For the future, we want a generational game object handle that can be more easily passed and stored
+    // (todo/wip, name collisions)
+    // E.g.
+    // struct SCollectionHandle {
+    //     uint16_t  m_CollectionIndex; // 65k collections
+    //     uint16_t  m_Generation;      // Loops every 65k collections
+    // };
+    // typedef SCollectionHandle* HCollection; // current name collision
+
+    // struct SGameObjectHandle {
+    //     uint32_t  m_GameObjectIndex; // 4bn game objects per collection
+    //     uint32_t  m_Generation;      // Loops every 4bn instances
+    // }
+    // typedef SCollectionHandle* HGameObject; // using new handle name
+    //
+    // HInstance inst = GetInstanceFromNamdle(HCollection coll, HGameObject hgo);
+
     dmhash_t GetIdentifier(HInstance instance)
     {
         return instance->m_Identifier;
+    }
+
+    uint32_t GetGeneration(HInstance instance)
+    {
+        return instance->m_Generation;
     }
 
     dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* identifier)
@@ -4130,6 +4154,7 @@ namespace dmGameObject
         // id-related
         new_instance->m_Identifier = instance->m_Identifier;
         new_instance->m_IdentifierIndex = instance->m_IdentifierIndex;
+        new_instance->m_Generation = instance->m_Generation;
         dmHashClone64(&new_instance->m_CollectionPathHashState, &instance->m_CollectionPathHashState, true);
         new_instance->m_Generated = instance->m_Generated;
         HCollection hcollection = collection->m_HCollection;

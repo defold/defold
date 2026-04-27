@@ -105,10 +105,18 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int B2D_GetVersion(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushBox2DVersion(L);
+        return 1;
+    }
+
     static const luaL_reg BOX2D_FUNCTIONS[] =
     {
         {"get_world", B2D_GetWorld},
         {"get_body", B2D_GetBody},
+        {"get_version", B2D_GetVersion},
 
         {0, 0}
     };
@@ -123,6 +131,7 @@ namespace dmGameSystem
         luaL_register(L, "b2d", dmGameSystem::BOX2D_FUNCTIONS);
 
         dmGameSystem::ScriptBox2DInitializeBody(L);
+        dmGameSystem::CompCollisionObjectSetBox2DInvalidateBodyCallback(dmGameSystem::ScriptBox2DInvalidateBody);
 
         lua_pop(L, 1); // pop the lua module
         return dmExtension::RESULT_OK;
@@ -131,6 +140,8 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptBox2DFinalize(dmExtension::Params* params)
     {
+        dmGameSystem::CompCollisionObjectSetBox2DInvalidateBodyCallback(0);
+        dmGameSystem::ScriptBox2DFinalizeBody();
         return dmExtension::RESULT_OK;
     }
 
@@ -173,3 +184,7 @@ namespace dmGameSystem
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
 
+/*# Get the Box2D version information for the active backend.
+ * @name b2d.get_version
+ * @return info [type: table] version info with fields `version`, `major`, `middle`, and `minor`
+ */

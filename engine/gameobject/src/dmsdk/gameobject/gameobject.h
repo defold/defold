@@ -598,6 +598,15 @@ namespace dmGameObject
      */
     dmhash_t GetIdentifier(HInstance instance);
 
+    /*# Get instance generation
+     * Get instance generation counter.
+     * The generation changes whenever a new game object instance is allocated, even if it later reuses the same identifier.
+     * @name GetGeneration
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:uint32_t] Generation counter for the instance.
+     */
+    uint32_t GetGeneration(HInstance instance);
+
     /*#
      * Set instance identifier. Must be unique within the collection.
      * @name SetIdentifier
