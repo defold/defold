@@ -356,6 +356,7 @@ def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
 def remove_platform_files_from_archive(platform, jar):
+    start_time = time.perf_counter()
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
     files_to_remove = set()
@@ -410,9 +411,14 @@ def remove_platform_files_from_archive(platform, jar):
     # write new jar without the files that should be removed
     if not files_to_remove:
         zin.close()
+        log("Checked %s for platform-specific files in %.3fs; no files to remove" %
+            (jar, time.perf_counter() - start_time))
         return
 
-    log("Warning: removing %d platform-specific files from %s" % (len(files_to_remove), jar))
+    scan_time = time.perf_counter() - start_time
+    log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
+        (len(files_to_remove), jar, scan_time))
+    rewrite_start_time = time.perf_counter()
     newjar = jar + "_new"
     zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
     for file in zin.infolist():
@@ -424,6 +430,9 @@ def remove_platform_files_from_archive(platform, jar):
     # switch to jar without removed files
     os.remove(jar)
     os.rename(newjar, jar)
+    rewrite_time = time.perf_counter() - rewrite_start_time
+    log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+        (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
 
 
 def create_bundle(jdk, platform, options):
