@@ -21,8 +21,13 @@
 #include <dlib/memory.h>
 #include <dlib/buffer.h>
 
+#include <graphics/graphics.h>
+#include <render/render.h>
+
 #include "gamesys.h"
 #include "gamesys_private.h"
+
+ #include <dmsdk/gamesys/resources/res_material.h>
 
 namespace dmGameSystem
 {
@@ -81,13 +86,30 @@ namespace dmGameSystem
         return (dmGraphics::PrimitiveType) -1;
     }
 
-    bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
+    static void BuildAttributeLookup(dmRender::HMaterial material, dmHashTable64<const dmGraphics::VertexAttribute*>& attrlookup)
+    {
+        const dmGraphics::VertexAttribute* attributes = 0;
+        uint32_t attribute_count = 0;
+        dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+
+        attrlookup.OffsetCapacity(attribute_count);
+
+        for (uint32_t i = 0; i < attribute_count; ++i)
+        {
+            attrlookup.Put(attributes[i].m_NameHash, &attributes[i]);
+        }
+    }
+
+    bool BuildVertexDeclaration(dmRender::HMaterial material, BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
     {
         #define CHECK_BUFFER_RESULT_OR_RETURN(res) \
             if (res != dmBuffer::RESULT_OK) \
                 return false;
 
         assert(buffer_resource);
+
+        dmHashTable64<const dmGraphics::VertexAttribute*> attrlookup;
+        BuildAttributeLookup(material, attrlookup);
 
         dmBuffer::HBuffer buffer = buffer_resource->m_Buffer;
 
@@ -113,7 +135,15 @@ namespace dmGameSystem
                 return false;
             }
 
-            dmGraphics::AddVertexStream(stream_declaration, stream_name, stream_value_count, BufferValueTypeToGraphicsType(stream_value_type), false);
+            bool normalize = false;
+
+            const dmGraphics::VertexAttribute** material_attribute = attrlookup.Get(stream_name);
+            if (material_attribute)
+            {
+                normalize = (*material_attribute)->m_Normalize;
+            }
+
+            dmGraphics::AddVertexStream(stream_declaration, stream_name, stream_value_count, BufferValueTypeToGraphicsType(stream_value_type), normalize);
         }
 
         // Get correct "struct stride/size", since dmBuffer might align the structs etc.
@@ -157,7 +187,7 @@ namespace dmGameSystem
 
         mesh_resource->m_PrimitiveType = ToGraphicsPrimitiveType(mesh_resource->m_MeshDDF->m_PrimitiveType);
 
-        bool vert_decl_res = BuildVertexDeclaration(br, &mesh_resource->m_VertexDeclaration);
+        bool vert_decl_res = BuildVertexDeclaration(mesh_resource->m_Material->m_Material, br, &mesh_resource->m_VertexDeclaration);
         if (!vert_decl_res) {
             dmLogError("Could not create vertex declaration from buffer resource.");
             return false;

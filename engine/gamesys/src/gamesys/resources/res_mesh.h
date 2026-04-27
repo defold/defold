@@ -30,7 +30,7 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams* params);
 
-    bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl);
+    bool BuildVertexDeclaration(dmRender::HMaterial material, BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl);
 }
 
 #endif // DM_GAMESYS_RES_MESH_H
