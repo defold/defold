@@ -154,6 +154,15 @@ namespace dmGraphics
         bool             m_DepthStencilAttachment;
     };
 
+    struct RenderPassAttachment
+    {
+        VkFormat            m_Format;
+        VkImageLayout       m_ImageLayout;
+        VkImageLayout       m_ImageLayoutInitial;
+        VkAttachmentLoadOp  m_LoadOp;
+        VkAttachmentStoreOp m_StoreOp;
+    };
+
     struct RenderTarget
     {
     	RenderTarget(const uint32_t rtId);
@@ -173,6 +182,8 @@ namespace dmGraphics
         };
 
         VulkanHandle   m_Handle;
+
+        dmArray<RenderPassAttachment> m_RenderPassAttachMents;
 
         AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -220,15 +231,6 @@ namespace dmGraphics
     {
         VkSemaphore m_ImageAvailable;
         VkFence     m_SubmitFence;
-    };
-
-    struct RenderPassAttachment
-    {
-        VkFormat            m_Format;
-        VkImageLayout       m_ImageLayout;
-        VkImageLayout       m_ImageLayoutInitial;
-        VkAttachmentLoadOp  m_LoadOp;
-        VkAttachmentStoreOp m_StoreOp;
     };
 
     struct QueueFamily
@@ -419,6 +421,7 @@ namespace dmGraphics
         uint16_t                           m_DynamicOffsetBufferSize;
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
+        VkPhysicalDeviceDynamicRenderingFeaturesKHR        m_DynamicRenderingFeatures;
 
         // Async process resources
         HJobContext                        m_JobContext;
@@ -476,6 +479,7 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_ASTCSupport          : 1;
+        uint32_t                        m_DynamicRenderingSupport : 1;
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                        m_ASTCArrayTextureSupport : 1;
         uint32_t                        m_AsyncProcessingSupport : 1;

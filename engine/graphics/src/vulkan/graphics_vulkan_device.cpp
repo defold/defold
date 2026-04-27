@@ -21,6 +21,30 @@
 
 namespace dmGraphics
 {
+    static uint32_t GetPipelineAttachmentDescCount(RenderTarget* render_target)
+    {
+        uint32_t attachment_count = render_target->m_RenderPassAttachMents.Size();
+        if (render_target->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && attachment_count > 0)
+        {
+            attachment_count /= 2;
+        }
+        return attachment_count;
+    }
+
+    static bool FormatHasStencilAttachment(VkFormat fmt)
+    {
+        switch (fmt)
+        {
+            case VK_FORMAT_S8_UINT:
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     void InitializeVulkanTexture(VulkanTexture* t)
     {
         memset(&t->m_Base, 0, sizeof(t->m_Base));
@@ -1421,11 +1445,40 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
-
-        vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
+
+        if (render_target->m_Handle.m_RenderPass == VK_NULL_HANDLE && !render_target->m_RenderPassAttachMents.Empty())
+        {
+            const uint32_t attachment_count = GetPipelineAttachmentDescCount(render_target);
+            VkFormat color_attachment_formats[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+            const uint32_t color_attachment_count = dmMath::Min((uint32_t) render_target->m_ColorAttachmentCount, attachment_count);
+
+            for (uint32_t i = 0; i < color_attachment_count; ++i)
+            {
+                color_attachment_formats[i] = render_target->m_RenderPassAttachMents[i].m_Format;
+            }
+
+            VkPipelineRenderingCreateInfoKHR vk_pipeline_rendering_info = {};
+            vk_pipeline_rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+            vk_pipeline_rendering_info.colorAttachmentCount = color_attachment_count;
+            vk_pipeline_rendering_info.pColorAttachmentFormats = color_attachment_formats;
+
+            if (attachment_count > color_attachment_count)
+            {
+                const VkFormat depth_attachment_format = render_target->m_RenderPassAttachMents[color_attachment_count].m_Format;
+                vk_pipeline_rendering_info.depthAttachmentFormat = depth_attachment_format;
+                vk_pipeline_rendering_info.stencilAttachmentFormat = FormatHasStencilAttachment(depth_attachment_format) ? depth_attachment_format : VK_FORMAT_UNDEFINED;
+            }
+
+            vk_pipeline_info.pNext = &vk_pipeline_rendering_info;
+            vk_pipeline_info.renderPass = VK_NULL_HANDLE;
+        }
+        else
+        {
+            vk_pipeline_info.renderPass = render_target->m_Handle.m_RenderPass;
+        }
 
         return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
     }
