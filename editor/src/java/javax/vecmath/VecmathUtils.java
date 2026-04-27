@@ -37,10 +37,9 @@ public final class VecmathUtils {
         return orthogonal;
     }
 
-    private static Vector3d scaledColumn(Matrix3d matrix, int column, double scale) {
+    private static Vector3d column(Matrix3d matrix, int columnIndex) {
         var result = new Vector3d();
-        matrix.getColumn(column, result);
-        result.scale(scale);
+        matrix.getColumn(columnIndex, result);
         return result;
     }
 
@@ -59,7 +58,7 @@ public final class VecmathUtils {
 
         if (nonZeroScaleAxisCount == 1) {
             if (hasXScale) {
-                var axisX = scaledColumn(inOutRotationMatrix, 0, 1.0 / scale.x);
+                var axisX = column(inOutRotationMatrix, 0);
                 var axisY = orthogonalUnitVector(axisX);
                 var axisZ = new Vector3d();
                 axisZ.cross(axisX, axisY);
@@ -69,7 +68,7 @@ public final class VecmathUtils {
                 inOutRotationMatrix.setColumn(1, axisY);
                 inOutRotationMatrix.setColumn(2, axisZ);
             } else if (hasYScale) {
-                var axisY = scaledColumn(inOutRotationMatrix, 1, 1.0 / scale.y);
+                var axisY = column(inOutRotationMatrix, 1);
                 var axisZ = orthogonalUnitVector(axisY);
                 var axisX = new Vector3d();
                 axisX.cross(axisY, axisZ);
@@ -79,7 +78,7 @@ public final class VecmathUtils {
                 inOutRotationMatrix.setColumn(1, axisY);
                 inOutRotationMatrix.setColumn(2, axisZ);
             } else {
-                var axisZ = scaledColumn(inOutRotationMatrix, 2, 1.0 / scale.z);
+                var axisZ = column(inOutRotationMatrix, 2);
                 var axisX = orthogonalUnitVector(axisZ);
                 var axisY = new Vector3d();
                 axisY.cross(axisZ, axisX);
@@ -94,8 +93,8 @@ public final class VecmathUtils {
         }
 
         if (!hasXScale) {
-            var axisY = scaledColumn(inOutRotationMatrix, 1, 1.0 / scale.y);
-            var axisZ = scaledColumn(inOutRotationMatrix, 2, 1.0 / scale.z);
+            var axisY = column(inOutRotationMatrix, 1);
+            var axisZ = column(inOutRotationMatrix, 2);
             var axisX = new Vector3d();
             axisX.cross(axisY, axisZ);
             axisX.normalize();
@@ -107,8 +106,8 @@ public final class VecmathUtils {
         }
 
         if (!hasYScale) {
-            var axisX = scaledColumn(inOutRotationMatrix, 0, 1.0 / scale.x);
-            var axisZ = scaledColumn(inOutRotationMatrix, 2, 1.0 / scale.z);
+            var axisX = column(inOutRotationMatrix, 0);
+            var axisZ = column(inOutRotationMatrix, 2);
             var axisY = new Vector3d();
             axisY.cross(axisZ, axisX);
             axisY.normalize();
@@ -120,8 +119,8 @@ public final class VecmathUtils {
         }
 
         if (!hasZScale) {
-            var axisX = scaledColumn(inOutRotationMatrix, 0, 1.0 / scale.x);
-            var axisY = scaledColumn(inOutRotationMatrix, 1, 1.0 / scale.y);
+            var axisX = column(inOutRotationMatrix, 0);
+            var axisY = column(inOutRotationMatrix, 1);
             var axisZ = new Vector3d();
             axisZ.cross(axisX, axisY);
             axisZ.normalize();

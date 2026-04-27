@@ -302,6 +302,12 @@
                              2 (Vector3d. scale-a scale-b 0.0)))))]
     (is (= [] (non-equivalent-split-mat4-round-trips translations eulers scales)))))
 
+(deftest split-mat4-round-trips-non-unit-zero-scale
+  (let [translations [(Vector3d. 1.0 2.0 3.0)]
+        eulers [(vector-of :double 0.0 0.0 45.0)]
+        scales [(Vector3d. 2.0 0.0 3.0)]]
+    (is (= [] (non-equivalent-split-mat4-round-trips translations eulers scales)))))
+
 (deftest split-mat4-round-trips-uniform-zero-scale
   (let [translations [(Vector3d. 1.0 2.0 3.0)]
         eulers checked-xyz-euler-angles
