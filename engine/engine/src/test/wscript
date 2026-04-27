@@ -29,9 +29,11 @@ def run_bob(task):
     shutil.copytree(builtins_src, builtins_dst, dirs_exist_ok=True)
 
     args = task.generator.run_args
-    output = run.env_command(env, args.split())
-    for out in task.outputs:
-        out.write('')
+    run.env_command(env, args.split())
+    # Bob writes a dynamic output tree outside Waf's task graph. The declared
+    # target is a stamp, so Waf can order and explicitly target this side-effect.
+    for stamp in task.outputs:
+        stamp.write('')
 
 def build(bld):
     java_runtime_flags = os.environ.get('DM_JAVA_RUNTIME_FLAGS', '')
