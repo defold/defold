@@ -17,7 +17,7 @@
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../dlib/crypt.h"
+#include "../dlib/crypt/crypt.h"
 
 
 TEST(dmCrypt, XTea)

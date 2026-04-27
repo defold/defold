@@ -1,0 +1,115 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: HOL-Light
+permissions:
+  contents: read
+on:
+  push:
+    branches: ["main"]
+    paths:
+     - '.github/workflows/hol_light.yml'
+     - 'proofs/hol_light/x86_64/Makefile'
+     - 'proofs/hol_light/x86_64/**/*.S'
+     - 'proofs/hol_light/x86_64/**/*.ml'
+     - 'nix/hol_light/*'
+     - 'nix/s2n_bignum/*'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - '.github/workflows/hol_light.yml'
+      - 'proofs/hol_light/x86_64/Makefile'
+      - 'proofs/hol_light/x86_64/**/*.S'
+      - 'proofs/hol_light/x86_64/**/*.ml'
+      - 'nix/hol_light/*'
+      - 'nix/s2n_bignum/*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The proofs also check that the byte code is up to date,
+  # but we use this as a fast path to not even start the proofs
+  # if the byte code needs updating.
+  hol_light_bytecode:
+    name: HOL-Light bytecode check
+    runs-on: pqcp-x64
+    if: github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-shell
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          nix-shell: 'hol_light'
+          script: |
+            autogen --update-hol-light-bytecode --dry-run
+  hol_light_interactive:
+    name: HOL-Light interactive shell test
+    runs-on: pqcp-x64
+    needs: [ hol_light_bytecode ]
+    if: github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-shell
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          nix-shell: 'hol_light'
+          script: |
+            # Load base infrastructure and specs to validate HOL-Light environment
+            # When we have smaller/faster proofs, we can run them here instead:
+            # make -C proofs/hol_light/x86_64 mldsa/mldsa_ntt.o
+            # echo 'needs "proofs/mldsa_ntt.ml";;' | hol.sh
+            echo 'needs "x86/proofs/base.ml";; needs "proofs/mldsa_specs.ml";; #quit;;' | hol.sh
+  hol_light_proofs:
+    needs: [ hol_light_bytecode ]
+    strategy:
+      fail-fast: false
+      matrix:
+        proof:
+          # Dependencies on {name}.{S,ml} are implicit
+          - name: mldsa_ntt
+            needs: ["mldsa_specs.ml", "mldsa_utils.ml", "mldsa_zetas.ml"]
+    name: HOL Light proof for ${{ matrix.proof.name }}.S
+    runs-on: pqcp-x64
+    if: github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@e0021407031f5be11a464abee9a0776171c79891 # v47.0.1
+      - name: Check if dependencies changed
+        id: check_run
+        shell: bash
+        run: |
+          run_needed=0
+          changed_files="${{ steps.changed-files.outputs.all_changed_files }}"
+          dependencies="${{ join(matrix.proof.needs, ' ') }} ${{ format('{0}.S {0}.ml', matrix.proof.name) }}"
+          for changed in $changed_files; do
+            for needs in $dependencies; do
+               if [[ "$changed" == *"$needs" ]]; then
+                 run_needed=1
+               fi
+            done
+          done
+
+          # Always re-run upon change to nix files for HOL-Light
+          if [[ "$changed_files" == *"nix/"* ]] || [[ "$changed_files" == *"hol_light.yml"* ]] || [[ "$changed_files" == *"flake"* ]] || [[ "$changed_files" == *"proofs/hol_light/x86_64/Makefile"* ]]; then
+            run_needed=1
+          fi
+
+          echo "run_needed=${run_needed}" >> $GITHUB_OUTPUT
+      - uses: ./.github/actions/setup-shell
+        if: |
+          steps.check_run.outputs.run_needed == '1'
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          nix-shell: 'hol_light'
+          script: |
+            tests hol_light -p ${{ matrix.proof.name }} --verbose

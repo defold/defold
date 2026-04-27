@@ -1,0 +1,181 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Bench
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    types: [ "labeled" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  bench:
+    permissions:
+      contents: write
+      pull-requests: write
+    name: ${{ matrix.target.name }}
+    strategy:
+      fail-fast: true
+      matrix:
+       target:
+        - system: rpi4
+          name: Arm Cortex-A72 (Raspberry Pi 4) benchmarks
+          bench_pmu: PMU
+          archflags: -mcpu=cortex-a72 -DMLD_SYS_AARCH64_SLOW_BARREL_SHIFTER
+          cflags: "-flto -DMLD_FORCE_AARCH64"
+          ldflags: "-flto"
+          bench_extra_args: ""
+          nix_shell: ci-bench
+          only_no_opt: false
+        - system: rpi5
+          name: Arm Cortex-A76 (Raspberry Pi 5) benchmarks
+          bench_pmu: PERF
+          archflags: "-mcpu=cortex-a76 -march=armv8.2-a"
+          cflags: "-flto -DMLD_FORCE_AARCH64"
+          ldflags: "-flto"
+          bench_extra_args: ""
+          nix_shell: ci-bench
+          only_no_opt: false
+        - system: a55
+          name: Arm Cortex-A55 (Snapdragon 888) benchmarks
+          bench_pmu: PERF
+          archflags: "-mcpu=cortex-a55 -march=armv8.2-a"
+          cflags: "-flto -DMLD_FORCE_AARCH64"
+          ldflags: "-flto -static"
+          bench_extra_args: -w exec-on-a55
+          nix_shell: ci-bench
+          only_no_opt: false
+        - system: bpi
+          name: SpacemiT K1 8 (Banana Pi F3) benchmarks
+          bench_pmu: PERF
+          archflags: "-march=rv64imafdcv_zicsr_zifencei"
+          cflags: ""
+          ldflags: "-static"
+          bench_extra_args: -w exec-on-bpi
+          cross_prefix: riscv64-unknown-linux-gnu-
+          nix_shell: ci-cross-riscv64
+          only_no_opt: true
+        - system: m1-mac-mini
+          name: Mac Mini (M1, 2020) benchmarks
+          bench_pmu: MAC
+          archflags: "-mcpu=apple-m1 -march=armv8.4-a+sha3"
+          cflags: "-flto"
+          ldflags: "-flto"
+          bench_extra_args: "-r"
+          nix_shell: ci-bench
+          only_no_opt: false
+    if: github.repository_owner == 'pq-code-package' && (github.event.label.name == 'benchmark' || github.ref == 'refs/heads/main')
+    runs-on: self-hosted-${{ matrix.target.system }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/bench
+        if: ${{ !matrix.target.only_no_opt }}
+        with:
+          name: ${{ matrix.target.name }} (opt)
+          cflags: ${{ matrix.target.cflags }}
+          archflags: ${{ matrix.target.archflags }}
+          ldflags: ${{ matrix.target.ldflags }}
+          perf: ${{ matrix.target.bench_pmu }}
+          store_results: ${{ github.repository_owner == 'pq-code-package' && github.ref == 'refs/heads/main' }}
+          bench_extra_args: ${{ matrix.target.bench_extra_args }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          nix-shell: ${{ matrix.target.nix_shell }}
+          cross_prefix: ${{ matrix.target.cross_prefix }}
+          opt: true
+      - uses: ./.github/actions/bench
+        with:
+          name: ${{ matrix.target.name }} (no-opt)
+          cflags: ${{ matrix.target.cflags }}
+          archflags: ${{ matrix.target.archflags }}
+          ldflags: ${{ matrix.target.ldflags }}
+          perf: ${{ matrix.target.bench_pmu }}
+          store_results: ${{ github.repository_owner == 'pq-code-package' && github.ref == 'refs/heads/main' }}
+          bench_extra_args: ${{ matrix.target.bench_extra_args }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          nix-shell: ${{ matrix.target.nix_shell }}
+          cross_prefix: ${{ matrix.target.cross_prefix }}
+          opt: false
+
+  ec2_all:
+    name: ${{ matrix.target.name }} ${{ matrix.opt.name }}
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: Graviton2
+            ec2_instance_type: t4g.small
+            ec2_ami: ubuntu-latest (aarch64)
+            archflags: -mcpu=cortex-a76 -march=armv8.2-a
+            cflags: "-flto -DMLD_FORCE_AARCH64"
+            ldflags: "-flto"
+            perf: PERF
+          - name: Graviton3
+            ec2_instance_type: c7g.medium
+            ec2_ami: ubuntu-latest (aarch64)
+            archflags: -march=armv8.4-a+sha3
+            cflags: "-flto -DMLD_FORCE_AARCH64"
+            ldflags: "-flto"
+            perf: PERF
+          - name: Graviton4
+            ec2_instance_type: c8g.medium
+            ec2_ami: ubuntu-latest (aarch64)
+            archflags: -march=armv9-a+sha3
+            cflags: "-flto -DMLD_FORCE_AARCH64"
+            ldflags: "-flto"
+            perf: PERF
+          - name: AMD EPYC 4th gen (c7a)
+            ec2_instance_type: c7a.medium
+            ec2_ami: ubuntu-latest (x86_64)
+            archflags: -mavx2 -mbmi2 -mpopcnt -maes -march=znver4
+            cflags: "-flto -DMLD_FORCE_X86_64"
+            ldflags: "-flto"
+            perf: PMU
+          - name: Intel Xeon 4th gen (c7i)
+            ec2_instance_type: c7i.metal-24xl
+            ec2_ami: ubuntu-latest (x86_64)
+            archflags: -mavx2 -mbmi2 -mpopcnt -maes -march=sapphirerapids
+            cflags: "-flto -DMLD_FORCE_X86_64"
+            ldflags: "-flto"
+            perf: PMU
+          - name: AMD EPYC 3rd gen (c6a)
+            ec2_instance_type: c6a.large
+            ec2_ami: ubuntu-latest (x86_64)
+            archflags: -mavx2 -mbmi2 -mpopcnt -maes -march=znver3
+            cflags: "-flto -DMLD_FORCE_X86_64"
+            ldflags: "-flto"
+            perf: PMU
+          - name: Intel Xeon 3rd gen (c6i)
+            ec2_instance_type: c6i.large
+            ec2_ami: ubuntu-latest (x86_64)
+            archflags: -mavx2 -mbmi2 -mpopcnt -maes -march=icelake-server
+            cflags: "-flto -DMLD_FORCE_X86_64"
+            ldflags: "-flto"
+            perf: PMU
+    uses: ./.github/workflows/bench_ec2_reusable.yml
+    if: github.repository_owner == 'pq-code-package' && (github.event.label.name == 'benchmark' || github.ref == 'refs/heads/main')
+    with:
+      ec2_instance_type: ${{ matrix.target.ec2_instance_type }}
+      ec2_ami: ${{ matrix.target.ec2_ami }}
+      archflags: ${{ matrix.target.archflags }}
+      cflags: ${{ matrix.target.cflags }}
+      ldflags: ${{ matrix.target.ldflags }}
+      opt: "all"
+      store_results: ${{ github.repository_owner == 'pq-code-package' && github.ref == 'refs/heads/main' }} # Only store optimized results
+      name: ${{ matrix.target.name }}
+      perf: ${{ matrix.target.perf }}
+    secrets: inherit

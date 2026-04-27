@@ -31,7 +31,7 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', 'src')
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip', 'mbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_PARTICLE'] = 'particle'
     conf.env['STLIB_RIG'] = 'rig'

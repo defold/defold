@@ -1,0 +1,304 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: 'Custom config tests'
+description: 'Build and test mldsa-native with various custom configs'
+inputs:
+  gh_token:
+    description: 'GitHub token'
+    required: true
+  tests:
+    description: 'List of tests to run (space-separated IDs) or "all" for all tests. Available IDs: pct-enabled, pct-enabled-broken, reduce-ram, reduce-ram-pct, custom-alloc-heap, custom-zeroize, native-cap-ON, native-cap-OFF, native-cap-ID_AA64PFR1_EL1, native-cap-CPUID_AVX2, no-asm, serial-fips202, custom-randombytes, custom-memcpy, custom-memset, custom-stdlib, nblocks-1, nblocks-4, nblocks-6'
+    required: false
+    default: 'all'
+  opt:
+    description: 'Optimization level to pass to multi-functest'
+    required: false
+    default: 'all'
+runs:
+  using: 'composite'
+  steps:
+    - name: "PCT enabled"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'pct-enabled') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-DMLD_CONFIG_KEYGEN_PCT -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: true
+        extra_args: "--exclude-example basic_deterministic"
+    - name: "REDUCE_RAM"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'reduce-ram') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-DMLD_CONFIG_REDUCE_RAM -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        alloc: true
+        opt: ${{ inputs.opt }}
+        examples: true
+    - name: "REDUCE_RAM + PCT"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'reduce-ram-pct') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-DMLD_CONFIG_REDUCE_RAM -DMLD_CONFIG_KEYGEN_PCT -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        alloc: true
+        opt: ${{ inputs.opt }}
+        examples: true
+        extra_args: "--exclude-example basic_deterministic"
+    - name: "PCT enabled + broken"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'pct-enabled-broken') }}
+      shell: bash
+      run: |
+        make clean
+        CFLAGS='-Itest -DMLD_CONFIG_FILE=\"configs/break_pct_config.h\"' make func -j4
+        # PCT breakage is done at runtime via MLD_BREAK_PCT
+        make run_func                 # Should be OK
+        MLD_BREAK_PCT=0 make run_func # Should be OK
+        if (MLD_BREAK_PCT=1 make run_func 2>&1 >/dev/null); then
+           echo "PCT failure expected"
+           exit 1
+        else
+           echo "PCT failed as expected"
+        fi
+    - name: "Custom allocation (heap based)"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'custom-alloc-heap') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_heap_alloc_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        extra_env: 'ASAN_OPTIONS=detect_leaks=1'
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom zeroization (explicit_bzero)"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'custom-zeroize') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_zeroize_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom native capability functions (static ON)"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'native-cap-ON') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_native_capability_config_1.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom native capability functions (static OFF)"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'native-cap-OFF') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_native_capability_config_0.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom native capability functions (ID_AA64PFR1_EL1 detection)"
+      if: ${{ (inputs.tests == 'all' || contains(inputs.tests, 'native-cap-ID_AA64PFR1_EL1')) && runner.os == 'Linux' && runner.arch == 'ARM64' }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -march=armv8.4-a+sha3 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_native_capability_config_ID_AA64PFR1_EL1.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom native capability functions (CPUID AVX2 detection)"
+      if: ${{ (inputs.tests == 'all' || contains(inputs.tests, 'native-cap-CPUID_AVX2')) && runner.os == 'Linux' && runner.arch == 'X64' }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -mavx2 -mbmi2 -mpopcnt -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_native_capability_config_CPUID_AVX2.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "No ASM"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'no-asm') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/no_asm_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Serial FIPS202 (no batched Keccak)"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'serial-fips202') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/serial_fips202_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom randombytes"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'custom-randombytes') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_randombytes_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom memcpy"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'custom-memcpy') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_memcpy_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom memset"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'custom-memset') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_memset_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "Custom stdlib (memcpy + memset)"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'custom-stdlib') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-std=c11 -D_GNU_SOURCE -Itest -DMLD_CONFIG_FILE=\\\\\\\"configs/custom_stdlib_config.h\\\\\\\" -fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "MLD_POLY_UNIFORM_NBLOCKS=1"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'nblocks-1') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -DMLD_POLY_UNIFORM_NBLOCKS=1"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "MLD_POLY_UNIFORM_NBLOCKS=4"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'nblocks-4') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -DMLD_POLY_UNIFORM_NBLOCKS=4"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config
+    - name: "MLD_POLY_UNIFORM_NBLOCKS=6"
+      if: ${{ inputs.tests == 'all' || contains(inputs.tests, 'nblocks-6') }}
+      uses: ./.github/actions/multi-functest
+      with:
+        gh_token: ${{ inputs.gh_token }}
+        compile_mode: native
+        cflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -DMLD_POLY_UNIFORM_NBLOCKS=6"
+        ldflags: "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all"
+        func: true
+        kat: true
+        acvp: true
+        opt: ${{ inputs.opt }}
+        examples: false # Some examples use a custom config themselves
+        alloc: false # Requires custom config
+        rng_fail: false # Requires custom config

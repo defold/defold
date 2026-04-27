@@ -1,0 +1,85 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: CI
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    types: [ "opened", "synchronize" ]
+
+jobs:
+  base:
+    name: Base
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    uses: ./.github/workflows/base.yml
+    secrets: inherit
+  lint-markdown:
+    name: Lint Markdown
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    uses: ./.github/workflows/lint_markdown.yml
+  nix:
+    name: Nix
+    permissions:
+      actions: 'write'
+      contents: 'read'
+      id-token: 'write'
+    uses: ./.github/workflows/nix.yml
+    secrets: inherit
+  ci:
+    name: Extended
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs: [ base, nix ]
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+  cbmc:
+    name: CBMC
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+      pull-requests: 'write'
+    needs: [ base, nix ]
+    uses: ./.github/workflows/cbmc.yml
+    secrets: inherit
+  oqs_integration:
+    name: libOQS
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs: [ base ]
+    uses: ./.github/workflows/integration-liboqs.yml
+    secrets: inherit
+  ct-test:
+    name: Constant-time
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs: [ base, nix ]
+    uses: ./.github/workflows/ct-tests.yml
+    secrets: inherit
+  slothy:
+    name: SLOTHY
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs: [ base, nix ]
+    uses: ./.github/workflows/slothy.yml
+    secrets: inherit
+  baremetal:
+    name: Baremetal
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    needs: [ base ]
+    uses: ./.github/workflows/baremetal.yml
+    secrets: inherit

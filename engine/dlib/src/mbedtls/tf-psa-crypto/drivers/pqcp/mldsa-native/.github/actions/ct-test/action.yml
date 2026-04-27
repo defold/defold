@@ -1,0 +1,50 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: CT Test
+description: Builds the library with given flags and runs Valgrind-based constant-time tests
+
+inputs:
+  cflags:
+    description: CFLAGS to pass to compilation
+    default: ""
+  valgrind_flags:
+    description: Extra flags to pass to valgrind
+    default: ""
+
+runs:
+  using: composite
+  steps:
+      - name: System info
+        shell: ${{ env.SHELL }}
+        run: |
+          ARCH=$(uname -m)
+          echo <<-EOF
+            ## Setup
+            Architecture: $ARCH
+            - $(uname -a)
+            - $(nix --version || echo 'nix not present')
+            - $(bash --version | grep -m1 "")
+            - $(python3 --version)
+            - $(${{ inputs.cross_prefix }}${CC} --version | grep -m1 "")
+          EOF
+          cat >> $GITHUB_STEP_SUMMARY <<-EOF
+            ## Setup
+            Architecture: $ARCH
+            - $(uname -a)
+            - $(nix --version || echo 'nix not present')
+            - $(bash --version | grep -m1 "")
+            - $(python3 --version)
+            - $(${{ inputs.cross_prefix }}${CC} --version | grep -m1 "")
+          EOF
+      - shell: ${{ env.SHELL }}
+        run: |
+          make clean
+          # --vex-guest-max-insns=55 (default is 60) is a workaround for 
+          # "VEX temporary storage exhausted" errors in the x86 backend (poly_chknorm)
+          # It may increase run-time of the valgrind tests.
+          # TODO: Check with future versions of valgrind if this is still needed (both 3.24 and 3.25 fail without)
+          # TODO: Check if this is still needed once the poly_chknorm intrinsics implementation is replaced by assembly
+          # Disable the AArch64 SHA3 extension as it's not yet supported by valgrind
+          MK_COMPILER_SUPPORTS_SHA3=0 tests func --exec-wrapper="valgrind --vex-guest-max-insns=55 --error-exitcode=1 ${{ inputs.valgrind_flags }}" --cflags="-DMLD_CONFIG_CT_TESTING_ENABLED -DNTESTS=5 ${{ inputs.cflags }}"

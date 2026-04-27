@@ -53,8 +53,10 @@ config = configparser.RawConfigParser()
 
 config.add_section("server")
 config.set("server", "socket", server_sockets.getint("server", "socket"))
-config.set("server", "socket_ssl", server_sockets.getint("server", "socket_ssl"))
-config.set("server", "socket_ssl_test", server_sockets.getint("server", "socket_ssl_test"))
+config.set("server", "socket_tls", server_sockets.getint("server", "socket_tls"))
+config.set("server", "socket_tls12", server_sockets.getint("server", "socket_tls12"))
+config.set("server", "socket_tls13", server_sockets.getint("server", "socket_tls13"))
+config.set("server", "socket_tls_test", server_sockets.getint("server", "socket_tls_test"))
 
 configfilepath = os.path.basename("unittest_data.cfg")
 with open(configfilepath, 'w') as f:

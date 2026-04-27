@@ -1,0 +1,127 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Functional tests
+description: Run functional tests
+
+inputs:
+  nix-shell:
+    description: Run in the specified Nix environment if exists
+    default: "ci"
+  nix-cache:
+    description: Determine whether to enable nix cache
+    default: 'false'
+  nix-verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  custom_shell:
+    description: The shell to use. Only relevant if no nix-shell specified
+    default: "bash"
+  gh_token:
+    description: Github access token to use
+    required: true
+  cflags:
+    description: CFLAGS to pass to compilation
+    default: ""
+  ldflags:
+    description: LDFLAGS to pass to linking
+    default: ""
+  cross_prefix:
+    description: Binary prefix for cross compilation
+    default: ""
+  exec_wrapper:
+    description: Binary wrapper for execution (e.g. QEMU)
+    default: ""
+  opt:
+    description: Whether to build opt/non-opt binaries or all (all | opt | no_opt)
+    default: "all"
+  func:
+    description: Determine whether to run functional test or not
+    default: "true"
+  kat:
+    description: Determine whether to run kat test or not
+    default: "true"
+  acvp:
+    description: Determine whether to run acvp test or not
+    default: "true"
+  examples:
+    description: Determine whether to run examples or not
+    default: "true"
+  unit:
+    description: Determine whether to run unit tests or not
+    default: "true"
+  check_namespace:
+    description: Determine whether to check namespacing or not
+    default: "true"
+  stack:
+    description: Determine whether to run stack analysis or not
+    default: "false"
+  alloc:
+    description: Determine whether to run alloc tests or not
+    default: "true"
+  rng_fail:
+    description: Determine whether to run rng fail tests or not
+    default: "true"
+  extra_args:
+    description: Additional arguments to pass to the tests script
+    default: ""
+  extra_env:
+    description: Additional environment variables to set when calling the tests script
+    default: ""
+runs:
+  using: composite
+  steps:
+      - name: Preprocess
+        shell: bash
+        run: |
+          arch=$(uname -m)
+          echo MODE="${{ inputs.cross_prefix == '' && 'native' || 'cross' }}" >> $GITHUB_ENV
+          echo FUNC="${{ inputs.func == 'true' && 'func' || 'no-func' }}" >> $GITHUB_ENV
+          echo KAT="${{ inputs.kat == 'true' && 'kat' || 'no-kat' }}" >> $GITHUB_ENV
+          echo UNIT="${{ inputs.unit == 'true' && 'unit' || 'no-unit' }}" >> $GITHUB_ENV
+          echo ACVP="${{ inputs.acvp == 'true' && 'acvp' || 'no-acvp' }}" >> $GITHUB_ENV
+          echo EXAMPLES="${{ inputs.examples == 'true' && 'examples' || 'no-examples' }}" >> $GITHUB_ENV
+          echo STACK="${{ inputs.stack == 'true' && 'stack' || 'no-stack' }}" >> $GITHUB_ENV
+          echo ALLOC="${{ inputs.alloc == 'true' && 'alloc' || 'no-alloc' }}" >> $GITHUB_ENV
+          echo RNGFAIL="${{ inputs.rng_fail == 'true' && 'rng-fail' || 'no-rng-fail' }}" >> $GITHUB_ENV
+      - name: Setup nix
+        uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+      - name: System info
+        shell: ${{ env.SHELL }}
+        run: |
+          ARCH=$(uname -m)
+          echo <<-EOF
+            ## Setup
+            Architecture: $ARCH
+            - $(uname -a)
+            - $(nix --version || echo 'nix not present')
+            - $(bash --version | grep -m1 "")
+            - $(python3 --version)
+            - $(${{ inputs.cross_prefix }}${CC} --version | grep -m1 "")
+          EOF
+          cat >> $GITHUB_STEP_SUMMARY <<-EOF
+            ## Setup
+            Architecture: $ARCH
+            - $(uname -a)
+            - $(nix --version || echo 'nix not present')
+            - $(bash --version | grep -m1 "")
+            - $(python3 --version)
+            - $(${{ inputs.cross_prefix }}${CC} --version | grep -m1 "")
+          EOF
+      - name: ${{ env.MODE }} ${{ inputs.opt }} tests (${{ env.FUNC }}, ${{ env.KAT }}, ${{ env.EXAMPLES }}, ${{ env.STACK }}, ${{ env.UNIT }}, ${{ env.ALLOC }}, ${{ env.RNGFAIL }})
+        shell: ${{ env.SHELL }}
+        run: |
+          make clean
+          ${{ inputs.extra_env }} ./scripts/tests all ${{ inputs.check_namespace == 'true' && '--check-namespace' || ''}} --exec-wrapper="${{ inputs.exec_wrapper }}" --cross-prefix="${{ inputs.cross_prefix }}" --cflags="${{ inputs.cflags }}" --ldflags="${{ inputs.ldflags }}" --opt=${{ inputs.opt }} --${{ env.FUNC }} --${{ env.KAT }} --${{ env.ACVP }} --${{ env.EXAMPLES }} --${{ env.STACK }} --${{ env.UNIT }} --${{ env.ALLOC }} --${{ env.RNGFAIL }} -v ${{ inputs.extra_args }}
+      - name: Post ${{ env.MODE }} Tests
+        shell: ${{ env.SHELL }}
+        if: success() || failure()
+        run: |
+          make clean

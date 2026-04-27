@@ -14,7 +14,7 @@
 
 import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
-from waflib import Utils, Build, Options, Task, Logs
+from waflib import Utils, Build, Options, Task, Logs, Errors
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
@@ -70,7 +70,12 @@ if 'waf_dynamo_vendor' not in sys.modules:
 def is_platform_private(platform):
     return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
 
+def feature_enabled(feature):
+    return feature in getattr(Options.options, 'enable_features', [])
+
 def platform_supports_feature(platform, feature, data):
+    if feature == 'mbedtls' and feature_enabled(feature):
+        return True
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
@@ -603,7 +608,7 @@ def default_flags(self):
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', "Bcrypt.lib", 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
         # Make sure we prefix with lib*.lib on windows, since this is not done
@@ -1349,11 +1354,19 @@ def embed_file(self):
     embed_out_nodes = []
 
     for name in Utils.to_list(self.embed_source):
+        if isinstance(name, str):
+            name = name.strip()
+            if not name:
+                continue
+
         Logs.info("Embedding '%s' ..." % name)
-        node = self.path.find_resource(name)
+        node = name if hasattr(name, 'parent') else self.path.find_resource(name)
+
+        if node == None and isinstance(name, str):
+            node = self.path.find_node(name)
 
         if node == None:
-            Logs.info("File %s was not found in %s" % (name, self.path.abspath()))
+            raise Errors.WafError("Embed source '%s' was not found for target '%s' in %s" % (name, self.target, self.path.abspath()))
 
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
@@ -1976,7 +1989,12 @@ def detect(conf):
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
+    if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['STLIB_DLIB'].append('mbedtls')
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
+
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
@@ -2001,15 +2019,15 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS']          = ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'image', 'graphics_transcoder_null']
 
     conf.env['STLIB_FONT']            = ['font']
     conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
@@ -2149,5 +2167,5 @@ def options(opt):
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5)
-    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')
+    # Currently supported features: physics, simd (html5), mbedtls
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --enable-feature=foo')
