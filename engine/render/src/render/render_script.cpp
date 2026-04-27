@@ -1830,7 +1830,20 @@ namespace dmRender
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "constants");
-            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            if (!lua_isnil(L, -1))
+            {
+                constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
+                // Take a Lua registry reference to prevent the constant buffer
+                // userdata from being garbage collected while the draw command
+                // is queued. The reference is released after ParseCommands.
+                lua_pushvalue(L, -1);
+                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+                if (i->m_ConstantBufferLuaRefs.Full())
+                {
+                    i->m_ConstantBufferLuaRefs.OffsetCapacity(16);
+                }
+                i->m_ConstantBufferLuaRefs.Push(ref);
+            }
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "sort_order");
@@ -1847,6 +1860,14 @@ namespace dmRender
             dmLogOnceWarning("This interface for render.draw() is deprecated. Please see documentation at https://defold.com/ref/stable/render/#render.draw:predicate-[constants]")
             HNamedConstantBuffer* tmp = RenderScriptConstantBuffer_Check(L, 2);
             constant_buffer = *tmp;
+            // Take a Lua registry reference (same reason as the options table path above).
+            lua_pushvalue(L, 2);
+            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+            if (i->m_ConstantBufferLuaRefs.Full())
+            {
+                i->m_ConstantBufferLuaRefs.OffsetCapacity(16);
+            }
+            i->m_ConstantBufferLuaRefs.Push(ref);
         }
 
         // we need to pass ownership to the command queue
@@ -3048,7 +3069,17 @@ namespace dmRender
             lua_pushvalue(L, 4);
 
             lua_getfield(L, -1, "constants");
-            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            if (!lua_isnil(L, -1))
+            {
+                constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
+                lua_pushvalue(L, -1);
+                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+                if (i->m_ConstantBufferLuaRefs.Full())
+                {
+                    i->m_ConstantBufferLuaRefs.OffsetCapacity(16);
+                }
+                i->m_ConstantBufferLuaRefs.Push(ref);
+            }
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -3572,6 +3603,19 @@ bail:
         return i;
     }
 
+    static void ReleaseConstantBufferLuaRefs(HRenderScriptInstance instance)
+    {
+        if (instance->m_ConstantBufferLuaRefs.Size() > 0)
+        {
+            lua_State* L = instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+            for (uint32_t i = 0; i < instance->m_ConstantBufferLuaRefs.Size(); ++i)
+            {
+                dmScript::Unref(L, LUA_REGISTRYINDEX, instance->m_ConstantBufferLuaRefs[i]);
+            }
+            instance->m_ConstantBufferLuaRefs.SetSize(0);
+        }
+    }
+
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
         lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
@@ -3588,6 +3632,8 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
+
+        ReleaseConstantBufferLuaRefs(render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3780,6 +3826,7 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
+        ReleaseConstantBufferLuaRefs(instance);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
