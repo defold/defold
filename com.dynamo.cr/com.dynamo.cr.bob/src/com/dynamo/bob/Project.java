@@ -51,32 +51,26 @@ import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BuildInputDataCollector;
-import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,8 +100,6 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
-import java.util.zip.ZipException;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
@@ -145,7 +137,7 @@ public class Project {
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
-    private List<URL> libUrls = new ArrayList<URL>();
+    private List<URI> libUrls = new ArrayList<URI>();
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
@@ -732,13 +724,14 @@ public class Project {
         }
     }
 
-    /**
-     * Mounts all the mount point associated with the project.
-     * @param resourceScanner scanner to use for finding resources in the java class path
-     * @throws IOException
-     * @throws CompileExceptionError
-     */
+    /// Mounts all the mount point associated with the project.
+    /// @param resourceScanner scanner to use for finding resources in the java class path
+    /// @throws CompileExceptionError when there are no cached dependencies
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
+        mount(resourceScanner, Library.cached(libUrls, Paths.get(getLibPath())));
+    }
+
+    public void mount(IResourceScanner resourceScanner, List<Library.Result> dependencies) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
 
@@ -761,24 +754,25 @@ public class Project {
             }
         }
 
-        Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(getLibPath(), this.libUrls);
-        if (libFiles == null) {
+        if (!libUrls.isEmpty() && !Files.isDirectory(Paths.get(getLibPath()))) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
         }
-        boolean missingFiles = false;
+        Map<String, File> libFiles = new HashMap<>();
 
-        for (String url : libFiles.keySet() ) {
-            File file = libFiles.get(url);
-
+        for (var dependency : dependencies) {
+            var archive = dependency.archive();
+            var file = archive == null ? null : archive.path().toFile();
+            libFiles.put(dependency.uri().toString(), file);
             if (file != null && file.exists()) {
-                this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
-            } else {
-                missingFiles = true;
+                this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
         BuildInputDataCollector.setDependencies(libFiles);
-        if (missingFiles) {
-            logWarning("Some libraries could not be found locally, use the resolve command to fetch them.");
+
+        var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
+        if (!problematicResults.isEmpty()) {
+            logWarning("There are some problems with the libraries, using the resolve command to fetch them might help.");
+            problematicResults.forEach(result -> logWarning("- %s", libraryResultMessage(result)));
         }
     }
 
@@ -1943,189 +1937,37 @@ public class Project {
         return true;
     }
 
-    /**
-     * Set URLs of libraries to use.
-     * @param libUrls list of library URLs
-     * @throws IOException
-     */
-    public void setLibUrls(List<URL> libUrls) throws IOException {
+    /// Set URIs of libraries to use.
+    /// @param libUrls list of library URIs
+    public void setLibUrls(List<URI> libUrls) {
         this.libUrls = libUrls;
     }
 
-    /**
-     * Resolve (i.e. download from server) the stored lib URLs.
-     *
-     * @throws IOException
-     */
-    public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
+    /// Resolve (i.e. download from server) the stored lib URLs.
+    public List<Library.Result> resolveLibUrls(IProgress progress) throws LibraryException {
         try (progress) {
-            String libPath = getLibPath();
-            File libDir = new File(libPath);
-            // Clean lib dir first
-            //FileUtils.deleteQuietly(libDir);
-            FileUtils.forceMkdir(libDir);
-            // Download libs
-            Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(libPath, libUrls);
-            int count = this.libUrls.size();
-            progress.message(new IProgress.Message.DownloadingArchives(count));
-            var split = progress.split(count);
-
-            // Use a fixed thread pool with 2 threads for parallel downloads
-            ExecutorService executor = Executors.newFixedThreadPool(2);
-            List<Future<Void>> futures = new ArrayList<>();
-
-            for (int i = 0; i < count; ++i) {
-                final int index = i;
-                final URL url = libUrls.get(i);
-                final File f = libFiles.get(url.toString());
-
-                Future<Void> future = executor.submit(() -> {
-                    try (var downloadProgress = split.subtask()) {
-                        TimeProfiler.start("Lib %2d", index);
-                        URI progressUri;
-                        String basicAuthData = null;
-                        try {
-                            URI uri = new URI(url.toString());
-                            progressUri = new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(), null, uri.getFragment());
-                            basicAuthData = uri.getUserInfo();
-                        } catch (URISyntaxException e1) {
-                            progressUri = URI.create(url.getProtocol() + "://" + url.getHost() + url.getPath());
-                        }
-                        downloadProgress.message(new IProgress.Message.DownloadingArchive(progressUri));
-                        BundleHelper.throwIfCanceled(progress);
-
-                        TimeProfiler.addData("url", url.toString());
-                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                        // GitLab will respond with a 406 Not Acceptable if the request
-                        // is made without an Accept header
-                        connection.setRequestProperty("Accept", "application/zip");
-
-                        String etag = null;
-                        if (f != null) {
-                            String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
-                            if (etagB64 != null) {
-                                etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
-                                etag = String.format("\"%s\"", etag); // fixing broken etag
-                                connection.addRequestProperty("If-None-Match", etag);
-                            }
-                        }
-
-                        // Check if basic auth password is a token that should be replaced with
-                        // an environment variable.
-                        // The token should start and end with __ and exist as an environment
-                        // variable.
-                        if (basicAuthData != null) {
-                            String[] parts = basicAuthData.split(":");
-                            String username = parts[0];
-                            String password = parts.length > 1 ? parts[1] : "";
-                            if (password.startsWith("__") && password.endsWith("__")) {
-                                String envKey = password.substring(2, password.length() - 2);
-                                String envValue = getSystemEnv(envKey);
-                                if (envValue != null) {
-                                    basicAuthData = username + ":" + envValue;
-                                }
-                            }
-                        }
-                        // Pass correct headers along to server depending on auth alternative.
-                        final String email = this.options.get("email");
-                        final String auth = this.options.get("auth");
-                        if (basicAuthData != null) {
-                            String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
-                            connection.setRequestProperty("Authorization", basicAuth);
-                        } else if (email != null && auth != null) {
-                            connection.addRequestProperty("X-Email", email);
-                            connection.addRequestProperty("X-Auth", auth);
-                        }
-                        InputStream input = null;
-                        try {
-                            connection.connect();
-                            int code = connection.getResponseCode();
-
-                            TimeProfiler.addData("status code", code);
-                            if (code == 304) {
-                                logInfo("%2d: Status %d: Already cached", index, code);
-                            } else if (code >= 400) {
-                                logWarning("%2d: Status %d: Failed to download %s", index, code, url);
-                                throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
-                            } else {
-
-                                String serverETag = connection.getHeaderField("ETag");
-                                if (serverETag == null) {
-                                    serverETag = connection.getHeaderField("Etag");
-                                }
-
-                                if (serverETag == null) {
-                                    logWarning(String.format("The URL %s didn't provide an ETag", url));
-                                    serverETag = "";
-                                }
-
-                                if (etag != null && !etag.equals(serverETag)) {
-                                    logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", index, code, etag != null ? etag : "", serverETag != null ? serverETag : "", f);
-                                    f.delete();
-                                    // Note: f becomes null in the original scope, but we need to handle this differently in parallel context
-                                }
-
-                                input = new BufferedInputStream(connection.getInputStream());
-
-                                File targetFile = f;
-                                if (targetFile == null) {
-                                    targetFile = new File(libPath, LibraryUtil.getFileName(url, serverETag));
-                                }
-                                FileUtils.copyInputStreamToFile(input, targetFile);
-
-                                try {
-                                    ZipFile zip = new ZipFile(targetFile);
-                                    zip.close();
-                                } catch (ZipException e) {
-                                    targetFile.delete();
-                                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
-                                }
-                                logInfo("%2d: Status %d: Stored %s", index, code, targetFile);
-                            }
-                            connection.disconnect();
-                        } catch (ConnectException e) {
-                            throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
-                        } catch (FileNotFoundException e) {
-                            throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
-                        } finally {
-                            if (input != null) {
-                                IOUtils.closeQuietly(input);
-                            }
-                        }
-
-                        BundleHelper.throwIfCanceled(progress);
-                        TimeProfiler.stop();
-                        return null;
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-                futures.add(future);
-            }
-            // Wait for all downloads to complete
-            for (Future<Void> future : futures) {
-                try {
-                    future.get();
-                } catch (ExecutionException e) {
-                    Throwable cause = e.getCause();
-                    if (cause instanceof LibraryException) {
-                        throw (LibraryException) cause;
-                    } else if (cause instanceof IOException) {
-                        throw (IOException) cause;
-                    } else {
-                        throw new LibraryException(cause.getMessage(), cause);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new LibraryException("Download interrupted", e);
+            List<Library.Result> resolvedLibs = Library.fetch(libUrls, Paths.get(getLibPath()), this.options.get("email"), this.options.get("auth"), progress);
+            for (var dependency : resolvedLibs) {
+                if (dependency.problem() != null) {
+                    throw new LibraryException(libraryResultMessage(dependency));
                 }
             }
-            executor.shutdown();
-        } catch (IOException | LibraryException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new LibraryException(e.getMessage(), e);
+            return resolvedLibs;
         }
+    }
+
+    private static String libraryResultMessage(Library.Result dependency) {
+        return switch (dependency.problem()) {
+            case Library.Problem.Missing _ -> "Missing library " + dependency.uri();
+            case Library.Problem.FetchFailed _ -> "Failed to fetch library " + dependency.uri();
+            case Library.Problem.InvalidArchive _ -> "The library " + dependency.uri() + " is not a valid Defold archive";
+            case Library.Problem.DefoldMinVersion(var required) -> "The library " + dependency.uri() + " requires Defold " + required + " or newer";
+            case Library.Problem.InstallFailed _ -> "Failed to install library " + dependency.uri();
+        };
+    }
+
+    List<URI> getLibUris() {
+        return libUrls;
     }
 
     /**

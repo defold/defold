@@ -937,7 +937,7 @@ public class ExtenderUtil {
         pluginZips.sort(Comparator.comparingInt(zip -> getPluginZipSpecificity(zip.getPath())));
         for (IResource zipResource : pluginZips) {
             File outputFile = storeResource(targetDirectory, zipResource);
-            ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
+            ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString());
             try {
                 zip.mount();
                 ArrayList<String> results = new ArrayList<>();

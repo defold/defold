@@ -93,6 +93,14 @@ static const WGPUBlendFactor g_webgpu_blend_factors[] = {
     WGPUBlendFactor_SrcAlphaSaturated
 };
 
+static const WGPUBlendOperation g_webgpu_blend_equations[] = {
+    WGPUBlendOperation_Add,
+    WGPUBlendOperation_Subtract,
+    WGPUBlendOperation_ReverseSubtract,
+    WGPUBlendOperation_Min,
+    WGPUBlendOperation_Max
+};
+
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU)
 static WGPUTextureUsage g_rendertarget_usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_WagyuInputAttachment;
 #else
@@ -933,12 +941,12 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
 #else
         WGPUBlendState blend_state  = {};
 #endif
-        blend_state.color.operation = WGPUBlendOperation_Add;
+        blend_state.color.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationColor];
         blend_state.color.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactor];
         blend_state.color.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactor];
-        blend_state.alpha.operation = WGPUBlendOperation_Add;
-        blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactor];
-        blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactor];
+        blend_state.alpha.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationAlpha];
+        blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactorAlpha];
+        blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactorAlpha];
         WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
         for (int a = 0; a < context->m_CurrentRenderPass.m_Target->m_ColorBufferCount; ++a)
         {
@@ -1187,6 +1195,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
+    context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
 
 #if defined (DM_GRAPHICS_WEBGPU2)
     const uint32_t webgpu_version = 2;
@@ -3386,9 +3395,33 @@ static void WebGPUSetBlendFunc(HContext _context, BlendFactor source_factor, Ble
 {
     TRACE_CALL;
     assert(_context);
-    WebGPUContext* context                           = (WebGPUContext*)_context;
-    context->m_CurrentPipelineState.m_BlendSrcFactor = source_factor;
-    context->m_CurrentPipelineState.m_BlendDstFactor = destinaton_factor;
+    WebGPUContext* context                                = (WebGPUContext*)_context;
+    context->m_CurrentPipelineState.m_BlendSrcFactor      = source_factor;
+    context->m_CurrentPipelineState.m_BlendDstFactor      = destinaton_factor;
+    context->m_CurrentPipelineState.m_BlendSrcFactorAlpha = source_factor;
+    context->m_CurrentPipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+    context->m_CurrentPipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+    context->m_CurrentPipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+}
+
+static void WebGPUSetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context                                = (WebGPUContext*)_context;
+    context->m_CurrentPipelineState.m_BlendSrcFactor      = src_factor_color;
+    context->m_CurrentPipelineState.m_BlendDstFactor      = dst_factor_color;
+    context->m_CurrentPipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+    context->m_CurrentPipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+}
+
+static void WebGPUSetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+{
+    TRACE_CALL;
+    assert(_context);
+    WebGPUContext* context                                = (WebGPUContext*)_context;
+    context->m_CurrentPipelineState.m_BlendEquationColor  = equation_color;
+    context->m_CurrentPipelineState.m_BlendEquationAlpha  = equation_alpha;
 }
 
 static void WebGPUSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)

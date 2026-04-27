@@ -17,7 +17,6 @@ from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs, Errors
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
-from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 from waf_tests import get_test_harness
 from build_constants import TargetOS
@@ -409,7 +408,7 @@ def default_flags(self):
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden', '-fvisibility-inlines-hidden'])
             self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
             self.env.append_value(f, ['-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
@@ -422,8 +421,10 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
+        # dead strip
+        self.env.append_value('LINKFLAGS', ['-flto','-dead_strip', '-Wl,-dead_strip_dylibs'])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -473,7 +474,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-fstack-protector',
+                                      '-fpic', '-ffunction-sections', '-fdata-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/sources/android/native_app_glue' % (self.sdkinfo['ndk']),
                                       '-I%s/sources/android/cpufeatures' % (self.sdkinfo['ndk']),
@@ -490,6 +491,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++',
+                '-Wl,--gc-sections',
                 '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
@@ -950,7 +952,11 @@ task = Task.task_factory('create_export_symbols',
                          color = 'PINK',
                          before  = 'c cxx')
 
-task.runnable_status = lambda self: RUN_ME
+create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
+def sig_export_symbols(self):
+    create_export_symbols_sig_explicit_deps(self)
+    self.m.update(Utils.h_list(Utils.to_list(getattr(self, 'exported_symbols', []))))
+task.sig_explicit_deps = sig_export_symbols
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -991,21 +997,7 @@ def _strip_executable(bld, platform, target_arch, path):
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
-    strip = "strip"
-    if 'android' in platform:
-        host_names = {
-            'win32': 'windows',
-            'darwin': 'darwin',
-            'linux': 'linux',
-        }
-        home_names = {
-            'win32': 'USERPROFILE',
-            'darwin': 'HOME',
-            'linux': 'HOME',
-        }
-        HOME = os.environ[home_names.get(sys.platform)]
-        ANDROID_HOST = host_names.get(sys.platform)
-        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
+    strip = sdk.get_strip_executable(platform, sdkinfo)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1093,9 +1085,15 @@ def create_app_bundle(self):
         codesign.signed_exe = signed_exe
 
 
+# Keep this as close as possible to the stub in build_input.yml
 ANDROID_STUB = """
-struct android_app;
+#include <dmsdk/dlib/android.h>
 
+#if __cplusplus
+extern "C" {
+#endif
+
+struct android_app;
 extern void _glfwPreMain(struct android_app* state);
 extern void app_dummy();
 
@@ -1103,8 +1101,13 @@ void android_main(struct android_app* state)
 {
     // Make sure glue isn't stripped.
     app_dummy();
-    _glfwPreMain(state);
+    dmAndroid::SetAndroidApp(state);
+    _glfwPreMain(state); // calls engine_main()
 }
+
+#if __cplusplus
+}
+#endif
 """
 
 def android_package(task):
@@ -1256,7 +1259,11 @@ task = Task.task_factory('copy_stub',
                                 color = 'PINK',
                                 before  = 'c cxx')
 
-task.runnable_status = lambda self: RUN_ME
+copy_stub_sig_explicit_deps = task.sig_explicit_deps
+def sig_copy_stub(self):
+    copy_stub_sig_explicit_deps(self)
+    self.m.update(ANDROID_STUB.encode('utf-8'))
+task.sig_explicit_deps = sig_copy_stub
 
 @task_gen
 @before('process_source')
@@ -1265,7 +1272,7 @@ def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
 
-    stub = self.path.get_bld().find_or_declare('android_stub.c')
+    stub = self.path.get_bld().find_or_declare('android_stub.cpp')
     self.source.append(stub)
     task = self.create_task('copy_stub')
     task.set_outputs([stub])

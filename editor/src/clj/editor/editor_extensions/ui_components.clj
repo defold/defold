@@ -37,7 +37,6 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
