@@ -47,31 +47,28 @@
       (vec4-eq? a (doto (Quat4d. b) (.negate)))))
 
 (defn- quat-key [^Quat4d quat]
-  (let [[x y z w]
-        (let [components [(.getX quat)
-                          (.getY quat)
-                          (.getZ quat)
-                          (.getW quat)]
-              sign (double
-                     (or (some (fn [^double component]
-                                 (when-not (near? 0.0 component)
-                                   (if (neg? component) -1.0 1.0)))
-                               components)
-                         1.0))]
-          (into []
-                (map (fn [^double component]
-                       (math/round-with-precision (* (double sign) component) math/precision-general)))
-                components))]
-    [x y z w]))
+  (let [components [(.getX quat)
+                    (.getY quat)
+                    (.getZ quat)
+                    (.getW quat)]
+        sign (double
+               (or (some (fn [^double component]
+                           (when-not (near? 0.0 component)
+                             (if (neg? component) -1.0 1.0)))
+                         components)
+                   1.0))]
+    (into (vector-of :double)
+          (map (fn [^double component]
+                 (math/round-with-precision (* sign component) math/precision-general)))
+          components)))
 
 (defn- mat4-eq? [^Matrix4d a ^Matrix4d b]
-  (boolean
-    (every?
-      true?
-      (for [row (range 4)
-            col (range 4)]
-        (near? (.getElement a row col)
-               (.getElement b row col))))))
+  (every?
+    true?
+    (for [row (range 4)
+          col (range 4)]
+      (near? (.getElement a row col)
+             (.getElement b row col)))))
 
 (defn- ->vec3
   ^Vector3d [v]
@@ -332,7 +329,7 @@
 
 (deftest line-circle
   (testing "Line circle projections"
-    ; Line orthogonal to circle axis
+    ;; Line orthogonal to circle axis.
     (let [x-vals [-1.5 -1 0 1 1.5]
           line-positions (map #(do [% 1 2]) x-vals)
           line-dir [0 0 -1]
