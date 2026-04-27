@@ -151,10 +151,11 @@ def transform_gameobject(task, msg):
 def compile_model(task):
 
     def _replace_model_ext(orig, newext):
-        if 'dae' in orig:
-            return orig.replace(".dae", newext)
-        else:
-            return orig.replace(".gltf", newext)
+        return (orig.replace(".prebuilt_meshsetc", newext)
+                    .replace(".prebuilt_skeletonc", newext)
+                    .replace(".prebuilt_animationsetc", newext)
+                    .replace(".gltf", newext)
+                    .replace(".glb", newext))
 
     try:
         import google.protobuf.text_format
@@ -645,19 +646,8 @@ waflib.Task.task_factory('model_file',
                          func    = compile_mesh,
                          color   = 'PINK')
 
-@extension('.dae')
-def dae_file(self, node):
-    mesh = self.create_task('model_file')
-    mesh.set_inputs(node)
-    ext_skeleton      = '.skeletonc'
-    ext_mesh_set      = '.meshsetc'
-    ext_animation_set = '.animationsetc'
-    out_skeleton      = node.change_ext(ext_skeleton)
-    out_mesh_set      = node.change_ext(ext_mesh_set)
-    out_animation_set = node.change_ext(ext_animation_set)
-    mesh.set_outputs([out_skeleton, out_mesh_set, out_animation_set])
-
 @extension('.gltf')
+@extension('.glb')
 def gltf_file(self, node):
     mesh = self.create_task('model_file')
     mesh.set_inputs(node)
