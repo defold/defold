@@ -35,11 +35,11 @@
         (.encodeToString bytes))))
 
 (defn require-authorized! [request token]
-  (let [^String authorization (get-in request [:headers "authorization"])]
-    (when-not (and authorization
+  (let [authorization (get-in request [:headers "authorization"])]
+    (when-not (and (string? authorization)
                    (MessageDigest/isEqual
                      (.getBytes (str "Bearer " token) StandardCharsets/UTF_8)
-                     (.getBytes authorization StandardCharsets/UTF_8)))
+                     (.getBytes ^String authorization StandardCharsets/UTF_8)))
       (throw (http-server/error (http-server/response 401 {"www-authenticate" "Bearer"} "Unauthorized\n"))))))
 
 (defn- openapi-paths [router]

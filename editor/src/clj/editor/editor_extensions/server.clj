@@ -36,6 +36,8 @@
         output (StringWriter.)
         rt (:rt (g/with-auto-evaluation-context evaluation-context
                   (extensions/ext-state project evaluation-context)))]
+    (when-not rt
+      (throw (http-server/error (http-server/response 503 "Editor extension runtime is not ready\n"))))
     (-> rt
         (rt/invoke-suspending {:override-out output :override-err output} (rt/bind rt prototype))
         (future/then

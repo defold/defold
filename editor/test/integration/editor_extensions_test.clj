@@ -1374,6 +1374,10 @@ openapi route has 200 => true
                                          :headers {"authorization" (str "Bearer " token)}
                                          :body body
                                          :as :string))]
+          (testing "Requires initialized editor extension runtime."
+            (let [{:keys [status body]} (eval-lua! "return 1")]
+              (is (= 503 status))
+              (is (= "Editor extension runtime is not ready\n" body))))
           (reload-editor-scripts! project
                                   :display-output! #(swap! displayed-output conj [%1 %2])
                                   :web-server server)
