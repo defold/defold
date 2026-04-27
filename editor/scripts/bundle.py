@@ -408,16 +408,17 @@ def remove_platform_files_from_archive(platform, jar):
             elif platform in ["x86_64-linux", "arm64-linux"]  and (file.endswith(".dll") or file.endswith(".dylib")):
                 files_to_remove.add(file)
 
-    # write new jar without the files that should be removed
-    if not files_to_remove:
-        zin.close()
-        log("Checked %s for platform-specific files in %.3fs; no files to remove" %
-            (jar, time.perf_counter() - start_time))
-        return
-
+    # Always rewrite the jar here, even when Leiningen already excluded all
+    # platform-specific files. The final editor package historically contained
+    # a Python-rewritten jar, and keeping that ZIP layout stable avoids changing
+    # macOS signing/notarization inputs while moving most filtering to uberjar.
     scan_time = time.perf_counter() - start_time
-    log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
-        (len(files_to_remove), jar, scan_time))
+    if files_to_remove:
+        log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
+            (len(files_to_remove), jar, scan_time))
+    else:
+        log("Rewriting %s after %.3fs scan; no platform-specific files to remove" %
+            (jar, scan_time))
     rewrite_start_time = time.perf_counter()
     newjar = jar + "_new"
     zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
@@ -431,8 +432,12 @@ def remove_platform_files_from_archive(platform, jar):
     os.remove(jar)
     os.rename(newjar, jar)
     rewrite_time = time.perf_counter() - rewrite_start_time
-    log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
-        (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+    if files_to_remove:
+        log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+            (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+    else:
+        log("Rewrote %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+            (jar, time.perf_counter() - start_time, scan_time, rewrite_time))
 
 
 def create_bundle(jdk, platform, options):
