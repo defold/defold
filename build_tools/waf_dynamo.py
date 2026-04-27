@@ -390,8 +390,13 @@ def default_flags(self):
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
 
+        debug_flags = ['-g']
+        if Options.options.with_valgrind:
+            # Valgrind versions shipped with supported Linux CI images may not understand newer DWARF forms.
+            debug_flags.append('-gdwarf-4')
+
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, [f'--target={clang_arch}'] + debug_flags + ['-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
