@@ -33,6 +33,7 @@ namespace dmGameSystem
     void  PushBox2DVersion(struct lua_State* L);
 
     void  ScriptBox2DInitializeBody(struct lua_State* L);
+    void  ScriptBox2DInvalidateBody(void* body);
     void  ScriptBox2DFinalizeBody();
     void  ScriptBox2DInitializeFixture(struct lua_State* L);
     void  ScriptBox2DInitializeShape(struct lua_State* L);

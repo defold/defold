@@ -131,6 +131,7 @@ namespace dmGameSystem
         luaL_register(L, "b2d", dmGameSystem::BOX2D_FUNCTIONS);
 
         dmGameSystem::ScriptBox2DInitializeBody(L);
+        dmGameSystem::CompCollisionObjectSetBox2DInvalidateBodyCallback(dmGameSystem::ScriptBox2DInvalidateBody);
 
         lua_pop(L, 1); // pop the lua module
         return dmExtension::RESULT_OK;
@@ -139,6 +140,7 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptBox2DFinalize(dmExtension::Params* params)
     {
+        dmGameSystem::CompCollisionObjectSetBox2DInvalidateBodyCallback(0);
         dmGameSystem::ScriptBox2DFinalizeBody();
         return dmExtension::RESULT_OK;
     }

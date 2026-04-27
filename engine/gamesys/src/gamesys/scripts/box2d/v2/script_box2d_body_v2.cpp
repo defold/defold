@@ -1098,6 +1098,33 @@ namespace dmGameSystem
         ScriptBox2DInitializeShape(L);
     }
 
+    void ScriptBox2DInvalidateBody(void* body)
+    {
+        b2Body* b2_body = (b2Body*) body;
+        if (!b2_body)
+        {
+            return;
+        }
+
+        b2Fixture* fixture = b2_body->GetFixtureList();
+        while (fixture)
+        {
+            b2Fixture* next_fixture = fixture->GetNext();
+            if (g_FixtureShapes.Get(FixturePtrToKey(fixture)))
+            {
+                b2_body->DestroyFixture(fixture);
+                ReleaseOwnedFixtureShape(fixture);
+            }
+            fixture = next_fixture;
+        }
+
+        HOpaqueHandle* handle = g_BodyToHandle.Get(BodyPtrToKey(b2_body));
+        if (handle)
+        {
+            InvalidateBodyHandle(*handle);
+        }
+    }
+
     void ScriptBox2DFinalizeBody()
     {
         TYPE_HASH_BODY = 0;
