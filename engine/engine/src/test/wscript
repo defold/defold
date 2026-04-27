@@ -31,7 +31,6 @@ def run_bob(task):
     args = task.generator.run_args
     output = run.env_command(env, args.split())
     for out in task.outputs:
-        out.parent.mkdir()
         out.write('')
 
 def build(bld):

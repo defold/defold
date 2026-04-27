@@ -34,8 +34,7 @@ def build(bld):
         'engine_main.cpp',
         'engine_loop.cpp',
         'extension.cpp',
-        './script/script_engine.cpp',
-        '../proto/engine/engine_ddf.proto']
+        './script/script_engine.cpp']
 
     if bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web'):
         source.append('engine_web.cpp')
@@ -51,9 +50,8 @@ def build(bld):
         engine_defines.append('DM_NO_HTTP_CACHE')
 
     engine_ddf_proto = bld.path.find_resource('../proto/engine/engine_ddf.proto')
-    engine_release_source = [
-        engine_ddf_proto.change_ext('.cpp') if src == '../proto/engine/engine_ddf.proto' else src
-        for src in source]
+    engine_source = source + [engine_ddf_proto]
+    engine_release_source = source + [engine_ddf_proto.change_ext('.cpp')]
 
     bld.stlib(features = 'cxx ddf embed',
                     includes = '../proto . ..',
@@ -62,7 +60,7 @@ def build(bld):
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                    source = source + ['physics_debug_render.cpp'],
+                    source = engine_source + ['physics_debug_render.cpp'],
                     install_path = platform_lib_install_path,
                     use = 'engine_service')
 
