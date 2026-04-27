@@ -186,7 +186,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation for docs', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: 'editor/build/lein', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies for docs', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\n~/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-\n${{ runner.os }}-lein-maven-\n${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@7bfc9baacbbdcb5e37957ad05c3546b3e222be3c }, # v4.3.2
@@ -444,7 +444,7 @@ jobs:
         }
       },
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: 'editor/build/lein', key: "${{ runner.os }}-x86_64-linux-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-x86_64-linux-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\n~/.m2/repository", key: "${{ runner.os }}-x86_64-linux-lein-maven-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-x86_64-linux-lein-maven-\n${{ runner.os }}-lein-maven-\n${{ runner.os }}-x86_64-linux-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
@@ -487,7 +487,7 @@ jobs:
         }
       },
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
-      { name: 'Cache lein installation', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: 'editor/build/lein', key: "${{ runner.os }}-${{ matrix.platform }}-lein-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\n~/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-\n${{ runner.os }}-lein-maven-\n${{ runner.os }}-${{ matrix.platform }}-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       {
@@ -530,6 +530,7 @@ jobs:
         }
       },
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
+      { name: 'Cache lein installation and Maven dependencies', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\n~/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform }}-lein-maven-\n${{ runner.os }}-lein-maven-\n${{ runner.os }}-${{ matrix.platform }}-lein-\n${{ runner.os }}-lein-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
