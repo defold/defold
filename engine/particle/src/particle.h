@@ -193,6 +193,7 @@ namespace dmParticle
         uint32_t                     m_EmitterIndex;
         uint32_t                     m_MixedHash;
         uint32_t                     m_MixedHashNoMaterial;
+        uint32_t                     m_LastFrustumCulledFrame;
         dmVMath::Point3              m_FrustumCullingCenter;
         float                        m_FrustumCullingRadiusSq;
     };

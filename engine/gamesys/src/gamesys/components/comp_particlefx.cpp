@@ -108,6 +108,7 @@ namespace dmGameSystem
         uint32_t                                m_DispatchCount;
         uint32_t                                m_VertexBufferSize;
         uint32_t                                m_VertexBufferOffset; // Current write position
+        uint32_t                                m_RenderFrameId;
         float                                   m_DT;
         uint32_t                                m_WarnOutOfROs : 1;
         uint32_t                                m_WarnParticlesExceeded : 1;
@@ -150,6 +151,7 @@ namespace dmGameSystem
 
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
+        world->m_RenderFrameId = 1;
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -603,7 +605,11 @@ namespace dmGameSystem
                 entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
                 if (!intersect)
                 {
-                    DM_PROPERTY_ADD_U32(rmtp_ParticleEmittersCulled, 1);
+                    if (render_data->m_LastFrustumCulledFrame != pfx_world->m_RenderFrameId)
+                    {
+                        render_data->m_LastFrustumCulledFrame = pfx_world->m_RenderFrameId;
+                        DM_PROPERTY_ADD_U32(rmtp_ParticleEmittersCulled, 1);
+                    }
                 }
             }
             else
@@ -622,6 +628,11 @@ namespace dmGameSystem
         dmArray<ParticleFXComponent>& components = pfx_world->m_Components;
 
         dmParticle::SetRenderFrustum(particle_context, 0x0);
+        ++pfx_world->m_RenderFrameId;
+        if (pfx_world->m_RenderFrameId == 0)
+        {
+            pfx_world->m_RenderFrameId = 1;
+        }
 
         uint32_t count = components.Size();
         uint32_t world_emitter_count = pfx_world->m_EmitterCount;
