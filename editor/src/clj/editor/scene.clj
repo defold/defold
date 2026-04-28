@@ -382,11 +382,14 @@
           pass-renderables
           passes))
 
-(defn- assign-transform-to-vecmath! [scene ^Tuple3d translation ^Quat4d rotation ^Tuple3d scale]
-  (if-some [pose (:pose scene)]
-    (pose/assign-to-vecmath! pose translation rotation scale)
-    (when-some [local-transform (:transform scene)]
-      (math/split-mat4 local-transform translation rotation scale))))
+(defn- reject-transform! [scene]
+  (when (contains? scene :transform)
+    (throw (ex-info "Scene maps must use :pose instead of :transform."
+                    {:node-id (:node-id scene)}))))
+
+(defn- assign-pose-to-vecmath! [scene ^Tuple3d translation ^Quat4d rotation ^Tuple3d scale]
+  (when-some [pose (:pose scene)]
+    (pose/assign-to-vecmath! pose translation rotation scale)))
 
 (defn- flatten-scene-renderables! [flattened-scene
                                    parent-shows-children
@@ -409,6 +412,7 @@
         local-translation (Vector3d. 0.0 0.0 0.0)
         local-rotation (Quat4d. 0.0 0.0 0.0 1.0)
         local-scale (Vector3d. 1.0 1.0 1.0)
+        _ (reject-transform! scene)
 
         prop-kw->override-value
         (let [prop-kw->override-value (get preview-overrides node-id)]
@@ -422,7 +426,7 @@
               ;; No need to extract non-overridden values from the local
               ;; transform if all the transform properties are overridden.
               (when-not (and position-override rotation-override scale-override)
-                (assign-transform-to-vecmath! scene local-translation local-rotation local-scale))
+                (assign-pose-to-vecmath! scene local-translation local-rotation local-scale))
 
               ;; Apply transform property overrides. The clj->vecmath function
               ;; writes directly to the supplied vecmath object.
@@ -435,7 +439,7 @@
 
             ;; We're not applying transform property preview overrides. Simply
             ;; use the local transform, if present.
-            (assign-transform-to-vecmath! scene local-translation local-rotation local-scale))
+            (assign-pose-to-vecmath! scene local-translation local-rotation local-scale))
 
           ;; Consume the transform properties to determine if there are
           ;; additional non-transform preview overrides, and we need to invoke
@@ -475,7 +479,7 @@
                      (geom/aabb-transform local-aabb world-transform)
                      geom/null-aabb)
         flat-renderable (-> scene
-                            (dissoc :children :renderable)
+                            (dissoc :children :pose :renderable :transform)
                             (assoc :node-id-path node-id-path
                                    :node-outline-key-path node-outline-key-path
                                    :picking-node-id picking-node-id
@@ -1986,7 +1990,7 @@
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
   (output pose Pose produce-pose)
-  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform})))
+  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Pose pose] {:node-id _node-id :pose pose})))
 
 (defmethod scene-tools/manip-movable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :position))

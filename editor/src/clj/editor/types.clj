@@ -14,9 +14,11 @@
 
 (ns editor.types
   (:require [dynamo.graph :as g]
+            [editor.pose]
             [schema.core :as s]
             [util.defonce :as defonce])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
+           [editor.pose Pose]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
@@ -28,10 +30,10 @@
 ;; ----------------------------------------
 
 (defprotocol R3Min
-  (min-p ^Point3d  [this]))
+  (min-p ^Point3d [this]))
 
 (defprotocol R3Max
-  (max-p ^Point3d  [this]))
+  (max-p ^Point3d [this]))
 
 (defprotocol Rotation
   (rotation ^Quat4d [this]))
@@ -67,9 +69,9 @@
 ;;; Functions to create basic value types
 ;;; ----------------------------------------
 
-;; note - Int32 is a schema, not a value type
-(def Int32   (s/both s/Int (s/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
-(def Float32 (s/pred #(instance? Float %) "float"))
+(def TInt32 (s/both s/Int (s/pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
+(def TFloat32 (s/pred #(instance? Float %) "float"))
+(def TNodeID (s/named s/Int "node-id"))
 
 (g/deftype Icon    s/Str)
 
@@ -208,10 +210,10 @@
 (s/defrecord Image
   [path     :- s/Any
    contents :- (s/maybe BufferedImage)
-   width    :- Int32
-   height   :- Int32
-   pivot-x  :- Float32
-   pivot-y  :- Float32
+   width    :- TInt32
+   height   :- TInt32
+   pivot-x  :- TFloat32
+   pivot-y  :- TFloat32
    sprite-trim-mode :- sprite-trim-modes]
   ImageHolder
   (contents [this] contents))
@@ -224,7 +226,7 @@
 (s/defrecord Animation
   [id              :- s/Str
    images          :- [Image]
-   fps             :- Int32
+   fps             :- TInt32
    flip-horizontal :- s/Bool
    flip-vertical   :- s/Bool
    playback        :- playback-modes])
@@ -237,19 +239,19 @@
    animations   :- [Animation]])
 
 (s/defrecord Vertices
-  [counts   :- [Int32]
-   starts   :- [Int32]
+  [counts   :- [TInt32]
+   starts   :- [TInt32]
    vertices :- [s/Num]])
 
 (s/defrecord EngineFormatTexture
-  [width           :- Int32
-   height          :- Int32
-   original-width  :- Int32
-   original-height :- Int32
+  [width           :- TInt32
+   height          :- TInt32
+   original-width  :- TInt32
+   original-height :- TInt32
    format          :- Graphics$TextureImage$TextureFormat
    data            :- ByteBuffer
-   mipmap-sizes    :- [Int32]
-   mipmap-offsets  :- [Int32]])
+   mipmap-sizes    :- [TInt32]
+   mipmap-offsets  :- [TInt32]])
 
 (s/defrecord TextureSetAnimationFrame
   [image                :- Image ; TODO: is this necessary?
@@ -262,9 +264,9 @@
 
 (s/defrecord TextureSetAnimation
   [id              :- s/Str
-   width           :- Int32
-   height          :- Int32
-   fps             :- Int32
+   width           :- TInt32
+   height          :- TInt32
+   fps             :- TInt32
    flip-horizontal :- s/Int
    flip-vertical   :- s/Int
    playback        :- playback-modes
@@ -338,3 +340,40 @@
 
 (g/deftype NodeOutlineKeyPaths #{(s/pred node-outline-key-path?)})
 (g/deftype RenderableTags #{s/Keyword})
+
+;; SDK api
+(def TSceneRenderable
+  {:passes [(s/protocol Pass)]
+   (s/optional-key :batch-key) s/Any
+   (s/optional-key :preview-fn) (s/pred fn?)
+   (s/optional-key :render-fn) (s/pred fn?)
+   (s/optional-key :select-batch-key) s/Any
+   (s/optional-key :tags) #{s/Keyword}
+   (s/optional-key :topmost?) s/Bool
+   (s/optional-key :user-data) s/Any
+   s/Keyword s/Any})
+
+;; SDK api
+(def TSceneUpdatable
+  {:initial-state s/Any
+   :update-fn (s/pred fn?)
+   (s/optional-key :name) s/Str
+   (s/optional-key :node-id) TNodeID
+   s/Keyword s/Any})
+
+;; SDK api
+(def TScene
+  {(s/optional-key :aabb) AABB
+   (s/optional-key :children) [(s/recursive #'TScene)]
+   (s/optional-key :info-text) s/Str
+   (s/optional-key :node-id) TNodeID
+   (s/optional-key :pose) Pose
+   (s/optional-key :renderable) TSceneRenderable
+   (s/optional-key :updatable) (s/maybe TSceneUpdatable)
+   s/Keyword s/Any})
+
+;; SDK api
+(g/deftype SceneRenderable TSceneRenderable)
+(g/deftype SceneUpdatable TSceneUpdatable)
+(g/deftype Scene TScene)
+(g/deftype SceneVec [TScene])

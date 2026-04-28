@@ -16,7 +16,7 @@
   (:require [clojure.spec.alpha :as s]
             [editor.math :as math]
             [util.defonce :as defonce])
-  (:import [javax.vecmath Matrix4d Quat4d Tuple3d]))
+  (:import [javax.vecmath Matrix4d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -263,6 +263,18 @@
     (apply scale-pose scale)
     default))
 
+(defn from-matrix
+  ^Pose [^Matrix4d matrix]
+  (if (nil? matrix)
+    default
+    (let [translation (Vector3d.)
+          rotation (Quat4d.)
+          scale (Vector3d.)]
+      (math/split-mat4 matrix translation rotation scale)
+      (make (math/vecmath->clj translation)
+            (math/vecmath->clj rotation)
+            (math/vecmath->clj scale)))))
+
 (defn pre-multiply
   ^Pose [^Pose child-pose ^Pose parent-pose]
   {:pre [(pose? child-pose)
@@ -302,7 +314,7 @@
   `(.-translation ~(with-meta pose-expr {:tag `Pose})))
 
 (defmacro translation-v4 [pose-expr w-expr]
-  `(conj (translation-v3 ~pose-expr) (float ~w-expr)))
+  `(conj (translation-v3 ~pose-expr) ~w-expr))
 
 (defmacro rotation-q4 [pose-expr]
   `(.-rotation ~(with-meta pose-expr {:tag `Pose})))
