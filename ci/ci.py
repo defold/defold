@@ -18,22 +18,42 @@ import subprocess
 import platform
 import os
 import base64
+import re
 from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
+SENSITIVE_OPTIONS = (
+    '--github-token',
+    '--gcloud-service-key',
+    '--notarization-password',
+)
+
+REDACTED = '[REDACTED]'
+
+def redact_sensitive_data(text):
+    for option in SENSITIVE_OPTIONS:
+        option_pattern = re.escape(option)
+        text = re.sub(r'(%s(?:=|\s+))(?:"[^"]*"|\'[^\']*\'|\S+)' % option_pattern, r'\1%s' % REDACTED, text)
+
+    if re.search(r'(^|\s)security\s', text):
+        text = re.sub(r'((?:^|\s)-[Pkp]\s+)(?:"[^"]*"|\'[^\']*\'|\S+)', r'\1%s' % REDACTED, text)
+
+    return text
+
 def call(args, failonerror = True):
-    print(args)
+    print(redact_sensitive_data(args))
     process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
 
     output = ''
     while True:
         line = process.stdout.readline().decode()
         if line != '':
+            redacted_line = redact_sensitive_data(line)
             output += line
-            print(line.rstrip())
+            print(redacted_line.rstrip())
         else:
             break
 
