@@ -12,30 +12,147 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+local function state(self)
+    return self.states[self.state]
+end
+
+local ROOT_ID = hash("/go")
+
+local function should_cleanup_recursive_instance()
+    return recursive_cleanup_in_script ~= false
+end
+
+local function next_state(self)
+    self.state = self.state + 1
+end
+
+local function delete_gameobjects(self)
+    if self.first_instance ~= nil then
+        go.delete(self.first_instance, true)
+        self.first_instance = nil
+        first_instance = nil
+    end
+
+    if self.second_instance ~= nil then
+        go.delete(self.second_instance, true)
+        self.second_instance = nil
+        second_instance = nil
+    end
+
+    global_created = nil
+end
+
+local function delete_recursive_instance(self)
+    if self.recursive_instance ~= nil then
+        go.delete(self.recursive_instance, true)
+        self.recursive_instance = nil
+    end
+
+    global_recursive_created = nil
+end
+
+local function handle_state(self)
+    local current_state = state(self)
+
+    if current_state == "load" then
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
+        self.loading = true
+        factory.load("/go#factory", load_complete)
+    elseif current_state == "unload" then
+        factory.unload("/go#factory")
+        next_state(self)
+    elseif current_state == "load_prototype" then
+        assert(prototype_path ~= nil)
+        factory.set_prototype("/go#factory", prototype_path)
+        self.loading = true
+        factory.load("/go#factory", load_complete)
+    elseif current_state == "unload_prototype" then
+        factory.unload("/go#factory")
+        factory.set_prototype("/go#factory", nil)
+        next_state(self)
+    elseif current_state == "delete" then
+        delete_gameobjects(self)
+        next_state(self)
+    elseif current_state == "recursive_prototype" then
+        assert(recursive_prototype_path ~= nil)
+        factory.set_prototype("/go#factory", recursive_prototype_path)
+        self.recursive_instance = factory.create("/go#factory")
+        assert(self.recursive_instance ~= nil)
+        recursive_instance = self.recursive_instance
+        global_recursive_created = true
+        next_state(self)
+    elseif current_state == "reset_recursive_prototype" then
+        factory.unload("/go#factory")
+        factory.set_prototype("/go#factory", nil)
+        next_state(self)
+    elseif current_state == "delete_recursive_instance" then
+        delete_recursive_instance(self)
+        next_state(self)
+    end
+end
 
 function init(self)
-    self.unload = false
-    --- step 2 ---
-    assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
-    factory.load("/go#factory", load_complete)
+    if recursive_prototype_path ~= nil and go.get_id() ~= ROOT_ID then
+        self.disabled = true
+        return
+    end
+
+    self.disabled = false
+    self.first_instance = nil
+    self.second_instance = nil
+    self.recursive_instance = nil
+    first_instance = nil
+    second_instance = nil
+    global_created = nil
+    self.loading = false
+    self.state = 1
+    self.states = { "load", "unload", "delete" }
+
+    if prototype_path ~= nil then
+        table.insert(self.states, "load_prototype")
+        table.insert(self.states, "unload_prototype")
+        table.insert(self.states, "delete")
+    end
+
+    if recursive_prototype_path ~= nil then
+        table.insert(self.states, "recursive_prototype")
+        table.insert(self.states, "reset_recursive_prototype")
+        if should_cleanup_recursive_instance() then
+            table.insert(self.states, "delete_recursive_instance")
+        end
+    end
 end
 
 function load_complete(self, url, result)
     assert(result == true)
     self.first_instance = factory.create(url)
     self.second_instance = factory.create(url)
-    self.unload = true
+    first_instance = self.first_instance
+    second_instance = self.second_instance
+    global_created = true
+    self.loading = false
+    next_state(self)
 end
 
 function update(self, dt)
-    --- step 2 ---
-    if self.unload == true then
-        factory.unload("/go#factory")
-        self.unload = false
+    if self.disabled then
+        return
     end
+
+    if self.loading then
+        return
+    end
+
+    handle_state(self)
 end
 
 function final(self)
-    go.delete(self.first_instance, true)
-    go.delete(self.second_instance, true)
+    if self.disabled then
+        return
+    end
+
+    if should_cleanup_recursive_instance() then
+        delete_gameobjects(self)
+        delete_recursive_instance(self)
+    end
 end

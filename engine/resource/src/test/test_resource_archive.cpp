@@ -376,14 +376,14 @@ TEST(dmResourceArchive, ManifestHeader)
     dmResource::DeleteManifest(manifest);
 }
 
-TEST(dmResourceArchive, HasLiveupdateContent_True)
+TEST(dmResourceArchive, HasLiveupdateContent_MatchesArchiveManifestFlag)
 {
     dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
 
-    ASSERT_TRUE(dmResource::HasManifestExcludedEntries(manifest));
+    ASSERT_EQ(manifest->m_DDFData->m_HasExcludedResources, dmResource::HasManifestExcludedEntries(manifest));
 
     dmResource::DeleteManifest(manifest);
 }
@@ -398,6 +398,30 @@ TEST(dmResourceArchive, HasLiveupdateContent_False)
     ASSERT_FALSE(dmResource::HasManifestExcludedEntries(manifest));
 
     dmResource::DeleteManifest(manifest);
+}
+
+TEST(dmResourceArchive, HasLiveupdateContent_TrueFromManifestFlag)
+{
+    dmResource::Manifest manifest;
+    dmLiveUpdateDDF::ManifestData manifest_data;
+    manifest.m_DDFData = &manifest_data;
+    manifest_data.m_HasExcludedResources = true;
+
+    ASSERT_TRUE(dmResource::HasManifestExcludedEntries(&manifest));
+}
+
+TEST(dmResourceArchive, HasLiveupdateContent_FalseWithoutManifestFlag)
+{
+    dmResource::Manifest manifest;
+    dmLiveUpdateDDF::ManifestData manifest_data;
+    dmLiveUpdateDDF::ResourceEntry entries[1];
+    manifest.m_DDFData = &manifest_data;
+    manifest_data.m_HasExcludedResources = false;
+    manifest_data.m_Resources.m_Count = 1;
+    manifest_data.m_Resources.m_Data = entries;
+    entries[0].m_Flags = dmLiveUpdateDDF::EXCLUDED;
+
+    ASSERT_FALSE(dmResource::HasManifestExcludedEntries(&manifest));
 }
 
 TEST(dmResourceArchive, ResourceEntries)

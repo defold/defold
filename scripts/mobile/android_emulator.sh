@@ -4,9 +4,9 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-usage: ci/rendertest/android/emulator_start.sh --avd NAME [options]
+usage: ci/rendertest/android/emulator_start.sh (--avd NAME [options] | --stop)
 
-Start an Android emulator and wait until adb can see it.
+Start an Android emulator and wait until adb can see it, or stop a running emulator.
 
 To list installed avd's:
 
@@ -18,6 +18,7 @@ Options:
   --gpu MODE            GPU emulation mode passed to the emulator. Default: auto
   --output DIR          Output directory for emulator logs. Default: build/render-tests/android
   --emulator-arg ARG    Extra argument passed to the emulator binary. Repeatable.
+  --stop                Stop the currently running emulator.
   -h, --help            Show this help
 EOF
 }
@@ -26,6 +27,7 @@ AVD_NAME=""
 GPU_MODE="auto"
 OUTPUT_DIR="build/render-tests/android"
 EMULATOR_ARGS=()
+STOP_EMULATOR="0"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,6 +47,10 @@ while [[ $# -gt 0 ]]; do
             EMULATOR_ARGS+=("${2:-}")
             shift 2
             ;;
+        --stop)
+            STOP_EMULATOR="1"
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -57,7 +63,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "${AVD_NAME}" ]]; then
+if [[ "${STOP_EMULATOR}" == "0" ]] && [[ -z "${AVD_NAME}" ]]; then
     echo "--avd is required" >&2
     exit 1
 fi
@@ -78,6 +84,10 @@ if ! [[ "${TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || [[ "${TIMEOUT_SECONDS}" -le 0 ]];
     echo "internal timeout must be a positive integer" >&2
     exit 1
 fi
+
+list_running_emulators() {
+    "${ADB_BIN}" devices | awk 'NR > 1 && $2 != "offline" && $1 ~ /^emulator-/ { print $1 }'
+}
 
 find_emulator_binary() {
     local candidate
@@ -109,6 +119,48 @@ find_emulator_binary() {
 
     return 1
 }
+
+stop_running_emulator() {
+    local running_serials
+    local running_count
+    local adb_serial
+    local deadline_epoch
+
+    running_serials="$(list_running_emulators)"
+    running_count="$(printf '%s\n' "${running_serials}" | awk 'NF { count++ } END { print count + 0 }')"
+
+    if [[ "${running_count}" -eq 0 ]]; then
+        echo "No running emulator found in adb devices." >&2
+        exit 1
+    fi
+
+    if [[ "${running_count}" -gt 1 ]]; then
+        echo "More than one running emulator found; refusing to guess which one to stop." >&2
+        printf 'Running emulators:\n%s\n' "${running_serials}" >&2
+        exit 1
+    fi
+
+    adb_serial="${running_serials}"
+    "${ADB_BIN}" -s "${adb_serial}" emu kill >/dev/null
+
+    deadline_epoch="$(( $(date +%s) + TIMEOUT_SECONDS ))"
+    while [[ "$(date +%s)" -le "${deadline_epoch}" ]]; do
+        if ! list_running_emulators | grep -qx -- "${adb_serial}"; then
+            echo "${adb_serial}"
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    echo "Timed out waiting for emulator ${adb_serial} to stop." >&2
+    exit 1
+}
+
+if [[ "${STOP_EMULATOR}" == "1" ]]; then
+    stop_running_emulator
+    exit 0
+fi
 
 list_avds() {
     "${EMULATOR_BIN}" -list-avds 2>/dev/null | awk 'NF { print }'
@@ -144,7 +196,7 @@ OUTPUT_DIR_ABS="${OUTPUT_DIR}"
 mkdir -p "${OUTPUT_DIR_ABS}"
 
 LOG_PATH="${OUTPUT_DIR_ABS}/emulator.log"
-START_SERIALS_TEXT="$("${ADB_BIN}" devices | awk 'NR > 1 && $2 != "offline" && $1 ~ /^emulator-/ { print $1 }')"
+START_SERIALS_TEXT="$(list_running_emulators)"
 
 EMULATOR_CMD=(
     "${EMULATOR_BIN}"
@@ -169,7 +221,7 @@ deadline_epoch="$(( $(date +%s) + TIMEOUT_SECONDS ))"
 ADB_SERIAL=""
 
 while [[ "$(date +%s)" -le "${deadline_epoch}" ]]; do
-    CURRENT_SERIALS_TEXT="$("${ADB_BIN}" devices | awk 'NR > 1 && $2 != "offline" && $1 ~ /^emulator-/ { print $1 }')"
+    CURRENT_SERIALS_TEXT="$(list_running_emulators)"
 
     while IFS= read -r serial; do
         [[ -n "${serial}" ]] || continue

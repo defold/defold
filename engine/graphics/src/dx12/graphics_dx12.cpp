@@ -2032,6 +2032,20 @@ namespace dmGraphics
         return D3D12_BLEND_ZERO;
     }
 
+    static inline D3D12_BLEND_OP GetBlendOp(BlendEquation equation)
+    {
+        switch(equation)
+        {
+            case BLEND_EQUATION_ADD:              return D3D12_BLEND_OP_ADD;
+            case BLEND_EQUATION_SUBTRACT:         return D3D12_BLEND_OP_SUBTRACT;
+            case BLEND_EQUATION_REVERSE_SUBTRACT: return D3D12_BLEND_OP_REV_SUBTRACT;
+            case BLEND_EQUATION_MIN:              return D3D12_BLEND_OP_MIN;
+            case BLEND_EQUATION_MAX:              return D3D12_BLEND_OP_MAX;
+            default: break;
+        }
+        return D3D12_BLEND_OP_ADD;
+    }
+
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
@@ -2161,10 +2175,10 @@ namespace dmGraphics
         blendDesc.RenderTarget[0].LogicOpEnable         = false;
         blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
         blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOp               = D3D12_BLEND_OP_ADD;
-        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
-        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].BlendOp               = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationColor);
+        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactorAlpha);
+        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactorAlpha);
+        blendDesc.RenderTarget[0].BlendOpAlpha          = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationAlpha);
         blendDesc.RenderTarget[0].LogicOp               = D3D12_LOGIC_OP_NOOP;
         blendDesc.RenderTarget[0].RenderTargetWriteMask = context->m_PipelineState.m_WriteColorMask;
 
@@ -3399,8 +3413,26 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12SetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
-        g_DX12Context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        g_DX12Context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor      = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor      = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = destinaton_factor;
+        g_DX12Context->m_PipelineState.m_BlendEquationColor  = BLEND_EQUATION_ADD;
+        g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = BLEND_EQUATION_ADD;
+    }
+
+    static void DX12SetBlendFuncSeparate(HContext _context, BlendFactor src_factor_color, BlendFactor dst_factor_color, BlendFactor src_factor_alpha, BlendFactor dst_factor_alpha)
+    {
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor      = src_factor_color;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor      = dst_factor_color;
+        g_DX12Context->m_PipelineState.m_BlendSrcFactorAlpha = src_factor_alpha;
+        g_DX12Context->m_PipelineState.m_BlendDstFactorAlpha = dst_factor_alpha;
+    }
+
+    static void DX12SetBlendEquationSeparate(HContext _context, BlendEquation equation_color, BlendEquation equation_alpha)
+    {
+        g_DX12Context->m_PipelineState.m_BlendEquationColor  = equation_color;
+        g_DX12Context->m_PipelineState.m_BlendEquationAlpha  = equation_alpha;
     }
 
     static void DX12SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)

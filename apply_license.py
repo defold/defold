@@ -114,7 +114,6 @@ excluded_paths = [
     "./engine/sound/src/stb_vorbis",
     "./engine/script/src/bitop",
     "./engine/script/src/luasocket",
-    "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
 ]
 
 dryrun = False

@@ -76,12 +76,6 @@ SUFFIX=""
 
 cp -r "${SOURCE}/" "${TARGET}/"
 
-if [ -d "${DYNAMO_HOME}/bin/js-web" ]; then
-    cp -v "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_asmjs.js"
-    if [ -e "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.wasm.map" ]; then
-        cp -v "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.js.symbols" "${TARGET}/${PROJECTNAME}_asmjs.symbols"
-    fi
-fi
 if [ -d "${DYNAMO_HOME}/bin/wasm-web" ]; then
     cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_wasm.js"
     cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm" "${TARGET}/${PROJECTNAME}.wasm"

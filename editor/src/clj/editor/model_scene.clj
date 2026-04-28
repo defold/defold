@@ -47,8 +47,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
-(def model-file-types ["dae" "gltf" "glb"])
-(def animation-file-types ["animationset" "dae" "gltf" "glb"])
+(def model-file-types ["gltf" "glb"])
+(def animation-file-types ["animationset" "gltf" "glb"])
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -295,8 +295,8 @@
 (g/defnk produce-bones [content]
   (:bones content))
 
-(g/defnk produce-content [_node-id resource]
-  (model-loader/load-scene _node-id resource))
+(g/defnk produce-content [_node-id resource project-settings]
+  (model-loader/load-scene _node-id resource project-settings))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
@@ -462,7 +462,6 @@
             aabb (geom/coords->aabb aabb-min aabb-max)
             material-name (mesh-material-index->material-name material-index)
             ;; TODO(instancing): These doesn't appear to actually be per-mesh? Replace model-loader :material-ids with list of Rig$Material in map format.
-            ;; TODO(instancing): Do we even have Rig$Materials in the :mesh-set for Collada scenes?
             mesh-material-data (nth (:materials mesh-set) material-index)
             material-data (make-renderable-material-data mesh-material-data)]
         {:aabb aabb
@@ -686,8 +685,17 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
+(defn load-model-scene-node [project self resource]
+  (let [workspace-node (resource/workspace resource)
+        disk-sha256 (resource/resource->sha256-hex resource)]
+    (concat
+      (g/connect project :settings self :project-settings)
+      (workspace/set-disk-sha256 workspace-node self disk-sha256))))
+
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
+
+  (input project-settings g/Any)
 
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
@@ -705,6 +713,7 @@
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
+    :load-fn load-model-scene-node
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

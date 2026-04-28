@@ -19,6 +19,10 @@ create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParti
 def build(bld):
     uselib = ['TESTMAIN', 'APP', 'SCRIPT', 'GRAPHICS_NULL', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PROFILE_NULL', 'PLATFORM_NULL', 'SOCKET', 'LUA', 'GRAPHICS_PROTO', 'GAMEOBJECT']
     gui_use = uselib + ['FONT', 'gui']
+    bug352_lua = bld.path.find_resource('bug352.lua')
+    bug352_lua_embed_cpp = bug352_lua.parent.find_or_declare([bug352_lua.name + '.embed.cpp'])
+    test_gui_ddf_proto = bld.path.find_resource('test_gui_ddf.proto')
+    test_gui_ddf_cpp = test_gui_ddf_proto.change_ext('.cpp')
 
     test_gui = bld.program(features = 'cxx cprogram embed test',
                            includes = '. ..',
@@ -47,10 +51,15 @@ def build(bld):
     # Note that these null tests won't actually work since the tests aren't written that way.
     # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
     # We do this by removing the 'test' feature which excludes it from the test run
-    for test in (test_gui, test_gui_script, test_gui_clipping):
-        bld.program(features = 'cxx cprogram embed test skip_test',
-                        source = test.source,
-                        embed_source = 'bug352.lua',
+    null_tests = [
+        (test_gui, ['test_gui.cpp', test_gui_ddf_cpp, bug352_lua_embed_cpp]),
+        (test_gui_script, ['test_gui_script.cpp']),
+        (test_gui_clipping, ['test_gui_clipping.cpp']),
+    ]
+
+    for test, source in null_tests:
+        bld.program(features = 'cxx cprogram test skip_test',
+                        source = source,
                         use = uselib + ['gui_null'],
                         web_libs = ['library_sys.js', 'library_script.js'],
                         includes = '. ..',

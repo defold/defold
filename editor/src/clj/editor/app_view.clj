@@ -55,6 +55,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
@@ -3201,30 +3202,21 @@
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
-  (let [library-uris (project/project-dependencies project)
-        hosts (into #{} (map url/strip-path) library-uris)]
-    (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-info-dialog
-        localization
-        {:title (localization/message "dialog.fetch-libraries.host-unreachable.title")
-         :icon :icon/triangle-error
-         :size :large
-         :header (localization/message "dialog.fetch-libraries.host-unreachable.header")
-         :content (localization/message "dialog.fetch-libraries.host-unreachable.content" {"host" first-unreachable-host})})
-      (future
-        (error-reporting/catch-all!
-          (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-            (when (workspace/dependencies-reachable? library-uris)
-              (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
-                    render-install-progress! (make-render-task-progress :resource-sync)]
-                (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-                (ui/run-later
-                  (workspace/install-validated-libraries! workspace lib-states)
-                  (disk/async-reload! render-install-progress! workspace [] changes-view
-                                      (fn [success]
-                                        (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                                          (project/update-fetch-libraries-notification! project)))))))))))))
+  (let [library-uris (project/project-dependencies project)]
+    (future
+      (error-reporting/catch-all!
+        (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
+          (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
+                render-install-progress! (make-render-task-progress :resource-sync)]
+            (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
+            (ui/run-later
+              (workspace/set-project-dependencies! workspace lib-results)
+              (disk/async-reload!
+                render-install-progress! workspace [] changes-view
+                (fn [success]
+                  (when success
+                    (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                    (project/update-fetch-libraries-notification! project)))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

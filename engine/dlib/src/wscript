@@ -118,7 +118,7 @@ def build(bld):
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
         source_files = remove_files(source_files, ['sys_win32.cpp'])
-        if bld.env.PLATFORM in ('wasm-web', 'js-web'):
+        if bld.env.PLATFORM == 'wasm-web':
             source_files = remove_files(source_files, ['mutex_posix.cpp'])
         else:
             source_files = remove_files(source_files, ['mutex_empty.cpp'])
@@ -257,7 +257,7 @@ def build(bld):
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
 
-    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'wasm-web', 'wasm_pthread-web'):
     libprofile_includes = '. ./dlib/profile'
     libprofile = bld.stlib(features     = libprofile_features,
                            includes     = libprofile_includes,

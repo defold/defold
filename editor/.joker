@@ -7,7 +7,6 @@
                              com.sun.javafx.css.StyleManager
                              editor.atlas
                              editor.code.data
-                             editor.collada-scene
                              editor.collision-object
                              editor.cubemap
                              editor.curve-view

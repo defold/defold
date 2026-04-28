@@ -210,7 +210,8 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {
     TextLayout* layout = new TextLayout;
-    layout->m_Free = TextLayoutLegacyFree;
+    layout->m_Destroy = TextLayoutLegacyFree;
+    layout->m_RefCount = 1;
 
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(num_codepoints);
@@ -223,7 +224,7 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     float scale = FontGetScaleFromSize(font, settings->m_Size);
 
     uint32_t ascent = (uint32_t)FontGetAscent(font, 1.0f);
-    uint32_t descent = (uint32_t)FontGetDescent(font, 1.0f); // positive value
+    uint32_t descent = (uint32_t)fabsf(FontGetDescent(font, 1.0f)); // positive value
     uint32_t line_height = ascent + descent;
     float line_height_scaled = line_height * scale;
     float tracking = line_height_scaled * settings->m_Tracking;
@@ -291,9 +292,8 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
     // metrics->m_MaxDescent = descent;
     uint32_t num_lines = layout->m_Lines.Size();
     layout->m_Width = max_line_width;
-    layout->m_Height = num_lines * (line_height * settings->m_Leading) - line_height * (settings->m_Leading - 1.0f);
+    layout->m_Height = num_lines * (line_height_scaled * settings->m_Leading) - line_height_scaled * (settings->m_Leading - 1.0f);
 
     *outlayout = layout;
     return TEXT_RESULT_OK;
 }
-

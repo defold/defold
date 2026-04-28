@@ -55,6 +55,8 @@ namespace dmRender
     const dmhash_t VERTEX_STREAM_ANIMATION_DATA       = dmHashString64("animation_data");
     const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D = dmHashString64("texture_transform_2d");
     const dmhash_t SAMPLER_POSE_MATRIX_CACHE          = dmHashString64("pose_matrix_cache");
+    const dmhash_t SAMPLER_MORPH_TARGETS              = dmHashString64("morph_targets");
+    const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS     = dmHashString64("morph_targets_weights");
     const dmhash_t FRUSTUM_HASH_UNINITIALIZED         = 0;
 
     StencilTestParams::StencilTestParams() {
@@ -389,7 +391,7 @@ namespace dmRender
         // Also see FontRenderListDispatch in font_renderer.cpp
         context->m_TextContext.m_Frame += 1;
         context->m_TextContext.m_TextBuffer.SetSize(0);
-        context->m_TextContext.m_TextEntries.SetSize(0);
+        ClearTextEntries(context);
 
         return RESULT_OK;
     }
@@ -400,9 +402,21 @@ namespace dmRender
     {
         #define HAS_CHANGED(name) (ps_now.name != ps_orig.name)
 
-        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor) ||
+            HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
-            dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
+            dmGraphics::SetBlendFuncSeparate(graphics_context,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactorAlpha,
+                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactorAlpha);
+        }
+
+        if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
+        {
+            dmGraphics::SetBlendEquationSeparate(graphics_context,
+                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationColor,
+                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationAlpha);
         }
 
         if (HAS_CHANGED(m_FaceWinding))
@@ -461,8 +475,10 @@ namespace dmRender
 
         if (ro->m_SetBlendFactors)
         {
-            ps_now.m_BlendSrcFactor = ro->m_SourceBlendFactor;
-            ps_now.m_BlendDstFactor = ro->m_DestinationBlendFactor;
+            ps_now.m_BlendSrcFactor      = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactor      = ro->m_DestinationBlendFactor;
+            ps_now.m_BlendSrcFactorAlpha = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactorAlpha = ro->m_DestinationBlendFactor;
         }
 
         if (ro->m_SetFaceWinding)

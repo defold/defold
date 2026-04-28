@@ -1921,7 +1921,7 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     ASSERT_EQ(raw_metrics.m_MaxDescent, prepared_metrics.m_MaxDescent);
     ASSERT_EQ(raw_metrics.m_LineCount, prepared_metrics.m_LineCount);
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
@@ -1986,7 +1986,7 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
     ASSERT_EQ(raw_count, prepared_count);
     ASSERT_EQ(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
-    TextLayoutFree(layout);
+    TextLayoutRelease(layout);
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
@@ -2039,7 +2039,7 @@ TEST_F(dmRenderTest, CreateFontVertexDataUsesPreparedTextLayout)
     ASSERT_EQ(raw_count, prepared_count);
     ASSERT_NE(0, memcmp(raw_vertices.Begin(), prepared_vertices.Begin(), raw_count * vertex_stride));
 
-    TextLayoutFree(wrapped_layout);
+    TextLayoutRelease(wrapped_layout);
     dmRender::DestroyFontRenderBackend(font_backend);
 }
 
@@ -2112,8 +2112,74 @@ TEST_F(dmRenderTest, DrawTextUsesPreparedTextLayoutThroughRenderQueue)
     ASSERT_NE(raw_radius_sq, prepared_radius_sq);
     ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
 
-    TextLayoutFree(wrapped_layout);
+    TextLayoutRelease(wrapped_layout);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::SetFontMapMaterial(m_SystemFontMap, old_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
+{
+    // Once DrawText queues a prepared layout, the render queue must keep it
+    // alive until ClearRenderObjects drops the queued text entries.
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial old_material = dmRender::GetFontMapMaterial(m_SystemFontMap);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmRender::SetFontMapMaterial(m_SystemFontMap, material);
+
+    TextLayoutSettings settings = {};
+    settings.m_Width = 16.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+    settings.m_LineBreak = true;
+
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, "Hello World Bonanza", settings);
+    ASSERT_NE((HTextLayout)0, layout);
+
+    TextLayoutAcquire(layout);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    dmRender::DrawTextParams params;
+    params.m_Text = 0;
+    params.m_TextLayout = layout;
+    params.m_Width = settings.m_Width;
+    params.m_Height = 0.0f;
+    params.m_Leading = settings.m_Leading;
+    params.m_Tracking = settings.m_Tracking;
+    params.m_LineBreak = settings.m_LineBreak;
+    params.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(layout, m_Context->m_TextContext.m_TextEntries[0].m_TextLayout);
+    ASSERT_EQ(3u, layout->m_RefCount);
+
+    TextLayoutRelease(layout);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    ASSERT_EQ(2u, layout->m_RefCount);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    ASSERT_EQ(1u, layout->m_RefCount);
+
+    TextLayoutRelease(layout);
     dmRender::SetFontMapMaterial(m_SystemFontMap, old_material);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);

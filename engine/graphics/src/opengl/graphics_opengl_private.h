@@ -212,6 +212,7 @@ namespace dmGraphics
         // ASTC entirely.
         uint32_t                m_ASTCArrayTextureSupport          : 1;
         uint32_t                m_3DTextureSupport                 : 1;
+        uint32_t                m_BlendEquationMinMaxSupport       : 1;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

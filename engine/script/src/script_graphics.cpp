@@ -189,6 +189,31 @@ namespace dmScript
      */
 
     /*#
+     * @name graphics.BLEND_EQUATION_ADD
+     * @constant
+     */
+
+    /*#
+     * @name graphics.BLEND_EQUATION_SUBTRACT
+     * @constant
+     */
+
+    /*#
+     * @name graphics.BLEND_EQUATION_REVERSE_SUBTRACT
+     * @constant
+     */
+
+    /*#
+     * @name graphics.BLEND_EQUATION_MIN
+     * @constant
+     */
+
+    /*#
+     * @name graphics.BLEND_EQUATION_MAX
+     * @constant
+     */
+
+    /*#
      * @name graphics.COMPARE_FUNC_NEVER
      * @constant
      */
@@ -680,6 +705,13 @@ namespace dmScript
         SET_GRAPHICS_ENUM(BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR);
         SET_GRAPHICS_ENUM(BLEND_FACTOR_CONSTANT_ALPHA);
         SET_GRAPHICS_ENUM(BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
+
+        // BlendEquation
+        SET_GRAPHICS_ENUM(BLEND_EQUATION_ADD);
+        SET_GRAPHICS_ENUM(BLEND_EQUATION_SUBTRACT);
+        SET_GRAPHICS_ENUM(BLEND_EQUATION_REVERSE_SUBTRACT);
+        SET_GRAPHICS_ENUM(BLEND_EQUATION_MIN);
+        SET_GRAPHICS_ENUM(BLEND_EQUATION_MAX);
 
         // CompareFunc
         SET_GRAPHICS_ENUM(COMPARE_FUNC_NEVER);

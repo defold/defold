@@ -21,33 +21,20 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [com.dynamo.bob.pipeline ColladaUtil]
-           [com.dynamo.bob.pipeline ModelUtil]
+  (:import [com.dynamo.bob.pipeline ModelUtil]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
-           [java.util ArrayList]
            [java.io InputStream]))
 
 (set! *warn-on-reflection* true)
 
-(defn- load-collada-scene [^InputStream stream]
-  (let [mesh-set-builder (Rig$MeshSet/newBuilder)
-        skeleton-builder (Rig$Skeleton/newBuilder)
-        scene (ColladaUtil/loadScene stream)
-        bones (ColladaUtil/loadSkeleton scene)
-        material-ids (ColladaUtil/loadMaterialNames scene)
-        animation-ids (ArrayList.)]
-    (ColladaUtil/loadSkeleton scene skeleton-builder)
-    (ColladaUtil/loadModels scene mesh-set-builder)
-    (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
-          skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
-      {:mesh-set mesh-set
-       :skeleton skeleton
-       :bones bones
-       :animation-ids animation-ids
-       :material-ids material-ids})))
+(defn- morph-target-texture-limits [project-settings]
+  (mapv #(int (get project-settings %))
+        [["model" "max_morph_target_texture_width"]
+         ["model" "max_morph_target_texture_height"]]))
 
-(defn- load-model-scene [resource ^InputStream stream]
+(defn- load-model-scene
+  [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
@@ -61,7 +48,7 @@
         animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder)
+    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
@@ -88,8 +75,9 @@
                       {:resource resource
                        :errors gltf-validation-errors})))))
 
-(defn- load-scene-internal [resource]
-  (let [ext (string/lower-case (resource/ext resource))
+(defn- load-scene-internal [resource project-settings]
+  (let [[morph-tex-w morph-tex-h] (morph-target-texture-limits project-settings)
+        ext (string/lower-case (resource/ext resource))
         is-zip-resource? (resource/zip-resource? resource)]
     ;; First, run glTF/glb files through the bob validator.
     ;; For zip resources we validate from a stream and avoid validating external
@@ -102,13 +90,11 @@
         (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
     ;; Then, open a new stream for actually loading the scene.
     (with-open [stream (io/input-stream resource)]
-      (if (= "dae" ext)
-        (load-collada-scene stream)
-        (load-model-scene resource stream)))))
+      (load-model-scene resource stream morph-tex-w morph-tex-h))))
 
-(defn load-scene [node-id resource]
+(defn load-scene [node-id resource project-settings]
   (try
-    (load-scene-internal resource)
+    (load-scene-internal resource project-settings)
     (catch Exception e
       (let [path (resource/proj-path resource)
             message (.getMessage e)]

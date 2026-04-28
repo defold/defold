@@ -29,7 +29,7 @@ function(defold_target_link_platform target platform)
     endif()
 
     # Web platforms map to platform
-    if(platform STREQUAL "js-web" OR platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
+    if(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
         set(_plat_lib platform)
     else()
         # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)

@@ -51,7 +51,7 @@ embedded_instances {
   "embedded_components {\n"
   "  id: \"model\"\n"
   "  type: \"model\"\n"
-  "  data: \"mesh: \\\"/builtins/assets/meshes/cube.dae\\\"\\n"
+  "  data: \"mesh: \\\"/builtins/assets/gltf/cube.gltf\\\"\\n"
   "name: \\\"{{NAME}}\\\"\\n"
   "materials {\\n"
   "  name: \\\"default\\\"\\n"
