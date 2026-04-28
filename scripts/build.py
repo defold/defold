@@ -2140,8 +2140,12 @@ class Configuration(object):
         cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
-               '--platform=%s' % self.target_platform,
-               'test-external-dependencies']
+               '--platform=%s' % self.target_platform]
+
+        if self.channel:
+            cmd.append('--channel=%s' % self.channel)
+
+        cmd.append('test-external-dependencies')
 
         self.run_editor_script(cmd)
 

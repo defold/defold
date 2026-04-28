@@ -338,11 +338,13 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
 
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
 
-def test_editor_external_dependencies(platform, engine_artifacts = None):
+def test_editor_external_dependencies(channel, platform, engine_artifacts = None):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor external dependency tests: %s" % platform)
 
     opts = []
+
+    opts.append('--channel=%s' % channel)
 
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
@@ -562,6 +564,7 @@ def main(argv):
             if not platform:
                 raise Exception("No --platform specified.")
             test_editor_external_dependencies(
+                channel,
                 platform,
                 engine_artifacts = engine_artifacts)
         elif command == "archive-editor":
