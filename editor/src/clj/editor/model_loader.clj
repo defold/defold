@@ -21,12 +21,10 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [com.dynamo.bob.pipeline ColladaUtil]
-           [com.dynamo.bob.pipeline ModelUtil]
+  (:import [com.dynamo.bob.pipeline ModelUtil]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
-           [java.io InputStream]
-           [java.util ArrayList]))
+           [java.io InputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -35,27 +33,7 @@
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
 
-(defn- load-collada-scene
-  "Collada has no morph-target support in the importer; do not read game.project morph atlas limits here."
-  [^InputStream stream]
-  (let [mesh-set-builder (Rig$MeshSet/newBuilder)
-        skeleton-builder (Rig$Skeleton/newBuilder)
-        scene (ColladaUtil/loadScene stream)
-        bones (ColladaUtil/loadSkeleton scene)
-        material-ids (ColladaUtil/loadMaterialNames scene)
-        animation-ids (ArrayList.)]
-    (ColladaUtil/loadSkeleton scene skeleton-builder)
-    (ColladaUtil/loadModels scene mesh-set-builder)
-    (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
-          skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
-      {:mesh-set mesh-set
-       :skeleton skeleton
-       :bones bones
-       :animation-ids animation-ids
-       :material-ids material-ids})))
-
 (defn- load-model-scene
-  "glTF/glb only: mesh build runs morph atlas size checks against game.project limits."
   [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
         project-directory (workspace/project-directory workspace)
@@ -112,9 +90,7 @@
         (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
     ;; Then, open a new stream for actually loading the scene.
     (with-open [stream (io/input-stream resource)]
-      (if (= "dae" ext)
-        (load-collada-scene stream)
-        (load-model-scene resource stream morph-tex-w morph-tex-h)))))
+      (load-model-scene resource stream morph-tex-w morph-tex-h))))
 
 (defn load-scene [node-id resource project-settings]
   (try

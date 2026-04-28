@@ -15,7 +15,6 @@
 (ns editor.particle-lib
   (:require [editor.buffers :as buffers]
             [editor.graphics.types :as graphics.types]
-            [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
   (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchResourcesCallback ParticleLibrary$FetchResourcesData ParticleLibrary$FetchResourcesParams ParticleLibrary$FetchResourcesResult ParticleLibrary$InstanceStats ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos]
@@ -25,7 +24,7 @@
            [com.sun.jna Pointer Structure]
            [com.sun.jna.ptr IntByReference]
            [java.nio ByteBuffer]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d VecmathUtils Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -58,13 +57,19 @@
   (let [position (Point3d.)
         rotation (Quat4d.)
         scale (Vector3d.)
-        _ (math/split-mat4 transform position rotation scale)
-        ; Corresponds to how uniform scale is computed in the engine
-        min-scale (min (.x scale) (.y scale) (.z scale))]
-    (ParticleLibrary/Particle_SetPosition context instance (point3d->plib position))
-    (ParticleLibrary/Particle_SetRotation context instance (quat4d->plib rotation))
-    (ParticleLibrary/Particle_SetScale context instance min-scale)
-    instance))
+        rotation-matrix (Matrix3d.)]
+    ;; This is similar to how we do it in math/split-mat4, but here we skip
+    ;; correcting the handedness of the resulting rotation matrix. This seems to
+    ;; be what is happening in the runtime. The effect can be seen when one or
+    ;; more axes of the parent transform have a negative scale.
+    (VecmathUtils/extractTranslation transform position)
+    (VecmathUtils/extractRotationScaleOrthogonal transform rotation-matrix scale)
+    (VecmathUtils/assignFromOrthonormal rotation rotation-matrix)
+    (let [min-scale (min (.x scale) (.y scale) (.z scale))]
+      (ParticleLibrary/Particle_SetPosition context instance (point3d->plib position))
+      (ParticleLibrary/Particle_SetRotation context instance (quat4d->plib rotation))
+      (ParticleLibrary/Particle_SetScale context instance min-scale)
+      instance)))
 
 (def ^:private playback-map
   {:playback-none ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_NONE

@@ -395,8 +395,13 @@ def default_flags(self):
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
 
+        debug_flags = ['-g']
+        if Options.options.with_valgrind:
+            # Valgrind versions shipped with supported Linux CI images may not understand newer DWARF forms.
+            debug_flags.append('-gdwarf-4')
+
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, [f'--target={clang_arch}'] + debug_flags + ['-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -949,8 +954,7 @@ def create_export_symbols(task):
 
 task = Task.task_factory('create_export_symbols',
                          func  = create_export_symbols,
-                         color = 'PINK',
-                         before  = 'c cxx')
+                         color = 'PINK')
 
 create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
 def sig_export_symbols(self):
@@ -1256,8 +1260,7 @@ def copy_stub(task):
 
 task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+                                color = 'PINK')
 
 copy_stub_sig_explicit_deps = task.sig_explicit_deps
 def sig_copy_stub(self):
@@ -1325,7 +1328,6 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_files',
                       shell=True)
 
 @task_gen
@@ -1344,14 +1346,14 @@ def apply_dex(self):
 Task.task_factory('embed_file',
                   func = embed_build,
                   vars = ['SRC', 'DST'],
-                  color = 'RED',
-                  before  = 'c cxx')
+                  color = 'RED')
 
 @feature('embed')
 @before('process_source')
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     embed_out_nodes = []
+    embed_tasks = []
 
     for name in Utils.to_list(self.embed_source):
         if isinstance(name, str):
@@ -1372,6 +1374,7 @@ def embed_file(self):
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
         task = self.create_task('embed_file', node, [cc_out, h_out])
+        embed_tasks.append(task)
         embed_out_nodes.append(cc_out)
 
     # some sources are added as nodes and some are not
@@ -1385,6 +1388,15 @@ def embed_file(self):
 
     # Add dependency on generated embed source files to the task gen
     self.source = source_nodes + embed_out_nodes
+    self.embed_tasks = embed_tasks
+
+@feature('embed')
+@after('process_source')
+def order_embed_file(self):
+    embed_tasks = getattr(self, 'embed_tasks', [])
+    for compiled_task in getattr(self, 'compiled_tasks', []):
+        for embed_task in embed_tasks:
+            compiled_task.set_run_after(embed_task)
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
