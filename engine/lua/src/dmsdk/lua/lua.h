@@ -14,6 +14,7 @@
 
 
 #include "luaconf.h"
+#include "lua_rename.h" // DEFOLD
 
 
 #define LUA_VERSION	"Lua 5.1"
