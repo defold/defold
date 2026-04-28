@@ -217,9 +217,7 @@ namespace dmParticle
     static void ResetEmitter(Emitter* emitter);
     void UpdateEmitterRenderData(HInstance instance, uint32_t emitter_index, Instance* inst, Emitter* emitter, dmParticleDDF::Emitter* ddf);
     void ReHashEmitter(Emitter* e);
-    static void CalculateParticleTileFactors(const AnimationData& anim_data, float& tile_width_factor, float& tile_height_factor);
-    static void MakeParticlePivotTransform(dmParticleDDF::Emitter* ddf, float tile_width_factor, float tile_height_factor, dmTransform::Transform& pivot_transform);
-    static void MakeParticleEmissionTransform(Instance* instance, dmParticleDDF::Emitter* ddf, dmTransform::TransformS1& emission_transform);
+    static void PrepareParticleTransformContext(Instance* instance, dmParticleDDF::Emitter* ddf, const AnimationData& anim_data, float& tile_width_factor, float& tile_height_factor, dmTransform::Transform& pivot_transform, dmTransform::TransformS1& emission_transform);
     static void CalculateParticleTransform(const Particle& p, const dmTransform::TransformS1& emission_transform, const dmTransform::Transform& pivot_transform, const Vector3& size, dmTransform::Transform& particle_transform);
 
     HInstance CreateInstance(HParticleContext context, HPrototype prototype, EmitterStateChangedData* emitter_state_changed_data)
@@ -1195,8 +1193,8 @@ namespace dmParticle
         dmTransform::Transform particle_transform;
 
         dmVMath::Matrix4 normal_matrix;
+        dmTransform::Transform pivot_transform;
         dmTransform::TransformS1 emission_transform;
-        MakeParticleEmissionTransform(instance, ddf, emission_transform);
 
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
         uint32_t j;
@@ -1206,7 +1204,7 @@ namespace dmParticle
 
         float tile_width_factor = width_factor;
         float tile_height_factor = height_factor;
-        CalculateParticleTileFactors(anim_data, tile_width_factor, tile_height_factor);
+        PrepareParticleTransformContext(instance, ddf, anim_data, tile_width_factor, tile_height_factor, pivot_transform, emission_transform);
 
         if(!anim_auto_size)
         {
@@ -1222,9 +1220,6 @@ namespace dmParticle
             width_factor *= 0.5f;
             height_factor *= 0.5f;
         }
-
-        dmTransform::Transform pivot_transform;
-        MakeParticlePivotTransform(ddf, tile_width_factor, tile_height_factor, pivot_transform);
 
         Point3 position_world_flat[6];
         Point3 position_local_flat[6];
@@ -2028,7 +2023,7 @@ namespace dmParticle
             emitter->m_RenderConstants.Size());
     }
 
-    static void CalculateParticleTileFactors(const AnimationData& anim_data, float& tile_width_factor, float& tile_height_factor)
+    static void PrepareParticleTransformContext(Instance* instance, dmParticleDDF::Emitter* ddf, const AnimationData& anim_data, float& tile_width_factor, float& tile_height_factor, dmTransform::Transform& pivot_transform, dmTransform::TransformS1& emission_transform)
     {
         tile_width_factor = 1.0f;
         tile_height_factor = 1.0f;
@@ -2040,10 +2035,6 @@ namespace dmParticle
         {
             tile_width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
         }
-    }
-
-    static void MakeParticlePivotTransform(dmParticleDDF::Emitter* ddf, float tile_width_factor, float tile_height_factor, dmTransform::Transform& pivot_transform)
-    {
         pivot_transform.SetIdentity();
         if (length(Vector3(ddf->m_Pivot)) > 0.0f)
         {
@@ -2052,10 +2043,6 @@ namespace dmParticle
                 ddf->m_Pivot.getY() * tile_height_factor,
                 ddf->m_Pivot.getZ()));
         }
-    }
-
-    static void MakeParticleEmissionTransform(Instance* instance, dmParticleDDF::Emitter* ddf, dmTransform::TransformS1& emission_transform)
-    {
         emission_transform.SetIdentity();
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
@@ -2084,11 +2071,9 @@ namespace dmParticle
 
         float tile_width_factor = 1.0f;
         float tile_height_factor = 1.0f;
-        CalculateParticleTileFactors(anim_data, tile_width_factor, tile_height_factor);
         dmTransform::Transform pivot_transform;
-        MakeParticlePivotTransform(ddf, tile_width_factor, tile_height_factor, pivot_transform);
         dmTransform::TransformS1 emission_transform;
-        MakeParticleEmissionTransform(inst, ddf, emission_transform);
+        PrepareParticleTransformContext(inst, ddf, anim_data, tile_width_factor, tile_height_factor, pivot_transform, emission_transform);
 
         float width_factor = 0.0f;
         float height_factor = 0.0f;
