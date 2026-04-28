@@ -911,7 +911,6 @@ namespace dmPhysics
         }
     }
 
-    // NOTE: b2ComputePolygonCentroid ASSERTS the area so here we extract what it's doing so we can do our own validation
     static bool IsPolygonAreaValid(const b2Shape* shape, const b2Transform& transform, float scale)
     {
         if (shape->m_type != b2Shape::e_polygon)
@@ -991,6 +990,9 @@ namespace dmPhysics
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
             }
         }
+        // NOTE: Box2D's ComputeCentroid contains an assert that fires when a polygon's area is too close to zero, which
+        // would crash the editor with an ugly callstack. To prevent this, we replicate the same area computation here
+        // so we can detect the issue early and fail gracefully instead of hitting the assert.
         for (uint32_t i = 0; i < shape_count; ++i)
         {
             b2Shape* s = (b2Shape*)shapes[i];

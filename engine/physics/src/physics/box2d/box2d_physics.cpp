@@ -1505,6 +1505,9 @@ namespace dmPhysics
             }
         }
 
+        // NOTE: Box2D's ComputeCentroid contains an assert that fires when a polygon's area is too close to zero, which
+        // would crash the editor with an ugly callstack. To prevent this, we replicate the same area computation here
+        // so we can detect the issue early and fail gracefully instead of hitting the assert.
         for (uint32_t i = 0; i < shape_count; ++i)
         {
             ShapeData* s = (ShapeData*) shapes[i];
