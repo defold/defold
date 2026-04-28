@@ -23,6 +23,12 @@ message MaterialDesc
         CONSTANT_TYPE_WORLDVIEWPROJ = 8;
         CONSTANT_TYPE_USER_MATRIX4 = 9;
         CONSTANT_TYPE_TIME = 10;
+        CONSTANT_TYPE_WORLD_INV = 11 [(displayName) = "World Inverse"];
+        CONSTANT_TYPE_VIEW_INV = 12 [(displayName) = "View Inverse"];
+        CONSTANT_TYPE_PROJECTION_INV = 13 [(displayName) = "Projection Inverse"];
+        CONSTANT_TYPE_VIEWPROJ_INV = 14 [(displayName) = "View Projection Inverse"];
+        CONSTANT_TYPE_WORLDVIEW_INV = 15 [(displayName) = "World View Inverse"];
+        CONSTANT_TYPE_WORLDVIEWPROJ_INV = 16 [(displayName) = "World View Projection Inverse"];
     }
 
     message Constant

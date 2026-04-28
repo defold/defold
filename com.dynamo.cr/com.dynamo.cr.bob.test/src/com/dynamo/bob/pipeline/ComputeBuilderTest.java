@@ -62,6 +62,11 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
         src.append("  type: CONSTANT_TYPE_VIEWPROJ\n");
         src.append("}\n");
 
+        src.append("constants {\n");
+        src.append("  name: \"constant_three\"\n");
+        src.append("  type: CONSTANT_TYPE_VIEWPROJ_INV\n");
+        src.append("}\n");
+
         src.append("samplers {\n");
         src.append("  name: \"texture_in\"\n");
         src.append("  wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
@@ -83,7 +88,7 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
         ComputeDesc compute = getMessage(build("/test.compute", src.toString()), ComputeDesc.class);
 
         assertEquals(2, compute.getSamplersCount());
-        assertEquals(2, compute.getConstantsCount());
+        assertEquals(3, compute.getConstantsCount());
 
         List<MaterialDesc.Sampler> samplers = compute.getSamplersList();
         List<MaterialDesc.Constant> constants = compute.getConstantsList();
@@ -111,5 +116,8 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals("constant_two", constants.get(1).getName());
         assertEquals(MaterialDesc.ConstantType.CONSTANT_TYPE_VIEWPROJ, constants.get(1).getType());
+
+        assertEquals("constant_three", constants.get(2).getName());
+        assertEquals(MaterialDesc.ConstantType.CONSTANT_TYPE_VIEWPROJ_INV, constants.get(2).getType());
     }
 }

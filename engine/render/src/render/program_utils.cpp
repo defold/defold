@@ -20,6 +20,40 @@
 
 namespace dmRender
 {
+    static inline bool ProgramUsesAdjustedNDC(dmGraphics::ShaderDesc::Language program_language)
+    {
+        return program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
+               program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
+               program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
+               program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50;
+    }
+
+    static inline Matrix4 MakeAdjustedNDCMatrix()
+    {
+        Matrix4 ndc_matrix = Matrix4::identity();
+        ndc_matrix.setElem(2, 2, 0.5f);
+        ndc_matrix.setElem(3, 2, 0.5f);
+        return ndc_matrix;
+    }
+
+    static inline Matrix4 GetProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
+    {
+        if (ProgramUsesAdjustedNDC(program_language))
+        {
+            return MakeAdjustedNDCMatrix() * render_context->m_Projection;
+        }
+        return render_context->m_Projection;
+    }
+
+    static inline Matrix4 GetViewProjectionMatrixForProgram(HRenderContext render_context, dmGraphics::ShaderDesc::Language program_language)
+    {
+        if (ProgramUsesAdjustedNDC(program_language))
+        {
+            return MakeAdjustedNDCMatrix() * render_context->m_ViewProj;
+        }
+        return render_context->m_ViewProj;
+    }
+
     static inline bool IsUniformTypeSupported(dmGraphics::Type type)
     {
         return type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4 || dmGraphics::IsTypeTextureType(type) || type == dmGraphics::TYPE_SAMPLER;
@@ -328,21 +362,8 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
-                {
-                    Matrix4 ndc_matrix = Matrix4::identity();
-                    ndc_matrix.setElem(2, 2, 0.5f );
-                    ndc_matrix.setElem(3, 2, 0.5f );
-                    const Matrix4 view_projection = ndc_matrix * render_context->m_ViewProj;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
-                }
-                else
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, 1, location);
-                }
+                const Matrix4 view_projection = GetViewProjectionMatrixForProgram(render_context, program_language);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
                 break;
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
@@ -362,23 +383,8 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
             {
-                // Vulkan NDC is [0..1] for z, so we must transform
-                // the projection before setting the constant.
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
-                {
-                    Matrix4 ndc_matrix = Matrix4::identity();
-                    ndc_matrix.setElem(2, 2, 0.5f );
-                    ndc_matrix.setElem(3, 2, 0.5f );
-                    const Matrix4 proj = ndc_matrix * render_context->m_Projection;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, 1, location);
-                }
-                else
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, 1, location);
-                }
+                const Matrix4 projection = GetProjectionMatrixForProgram(render_context, program_language);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection, 1, location);
                 break;
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
@@ -404,22 +410,44 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_51 ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL_50)
-                {
-                    Matrix4 ndc_matrix = Matrix4::identity();
-                    ndc_matrix.setElem(2, 2, 0.5f );
-                    ndc_matrix.setElem(3, 2, 0.5f );
-                    const Matrix4 world_view_projection = ndc_matrix * render_context->m_ViewProj * world_matrix;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
-                }
-                else
-                {
-                    const Matrix4 world_view_projection = render_context->m_ViewProj * world_matrix;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
-                }
+                const Matrix4 world_view_projection = GetViewProjectionMatrixForProgram(render_context, program_language) * world_matrix;
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INV:
+            {
+                const Matrix4 world_inverse = Inverse(world_matrix);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INV:
+            {
+                const Matrix4 view_inverse = Inverse(render_context->m_View);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INV:
+            {
+                const Matrix4 projection_inverse = Inverse(GetProjectionMatrixForProgram(render_context, program_language));
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INV:
+            {
+                const Matrix4 view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context, program_language));
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INV:
+            {
+                const Matrix4 world_view_inverse = Inverse(render_context->m_View * world_matrix);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INV:
+            {
+                const Matrix4 world_view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context, program_language) * world_matrix);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection_inverse, 1, location);
                 break;
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME:

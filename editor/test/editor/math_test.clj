@@ -125,6 +125,34 @@
   (is (= [0.0 180.0 0.0] (math/canonicalize-euler [0.0 -180.0 0.0])))
   (is (= [0.0 0.0 180.0] (math/canonicalize-euler [0.0 0.0 -180.0]))))
 
+(deftest derive-render-transforms-includes-inverse-variants
+  (let [world (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 2.0 -3.0 4.0)))
+        view (doto (Matrix4d.) (.setIdentity) (.rotY 0.5))
+        projection (doto (Matrix4d.) (.setIdentity) (.rotX 0.25))
+        texture (doto (Matrix4d.) (.setIdentity) (.setElement 0 0 2.0))
+        transforms (math/derive-render-transforms world view projection texture)]
+    (is (mat4-eq? (math/inverse world) (:world-inv transforms)))
+    (is (mat4-eq? (math/inverse view) (:view-inv transforms)))
+    (is (mat4-eq? (math/inverse projection) (:projection-inv transforms)))
+    (is (mat4-eq? (math/inverse (:view-proj transforms)) (:view-proj-inv transforms)))
+    (is (mat4-eq? (math/inverse (:world-view transforms)) (:world-view-inv transforms)))
+    (is (mat4-eq? (math/inverse (:world-view-proj transforms)) (:world-view-proj-inv transforms)))))
+
+(deftest rederive-render-transforms-keeps-inverse-variants-consistent
+  (let [world (doto (Matrix4d.) (.setIdentity) (.setTranslation (Vector3d. 2.0 -3.0 4.0)))
+        view (doto (Matrix4d.) (.setIdentity) (.rotY 0.5))
+        projection (doto (Matrix4d.) (.setIdentity) (.rotX 0.25))
+        texture (Matrix4d. math/identity-mat4)
+        derived (math/derive-render-transforms world view projection texture)
+        rederived (math/rederive-render-transforms derived {:coordinate-space-world #{:semantic-type-position}
+                                                            :coordinate-space-local #{}})]
+    (is (mat4-eq? math/identity-mat4 (:world rederived)))
+    (is (mat4-eq? math/identity-mat4 (:world-inv rederived)))
+    (is (mat4-eq? view (:world-view rederived)))
+    (is (mat4-eq? (math/inverse view) (:world-view-inv rederived)))
+    (is (mat4-eq? (:view-proj derived) (:world-view-proj rederived)))
+    (is (mat4-eq? (math/inverse (:view-proj derived)) (:world-view-proj-inv rederived)))))
+
 (def ^:private particular-xyz-euler-angles
   (mapv #(apply vector-of :double %)
         [[-35.0 120.0 -15.0]

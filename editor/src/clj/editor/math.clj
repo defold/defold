@@ -639,6 +639,12 @@
   (let [view-proj (doto (Matrix4d. projection) (.mul view))
         world-view (doto (Matrix4d. view) (.mul world))
         world-view-proj (doto (Matrix4d. view-proj) (.mul world))
+        world-inv (inverse world)
+        view-inv (inverse view)
+        projection-inv (inverse projection)
+        view-proj-inv (inverse view-proj)
+        world-view-inv (inverse world-view)
+        world-view-proj-inv (inverse world-view-proj)
         normal (derive-normal-transform world-view)]
     ;; Some of these may be overwritten by the rederive-render-transforms
     ;; function, so we include the actually derived transforms for all world
@@ -648,13 +654,19 @@
      :actual/world-view-proj world-view-proj
      :actual/normal normal
      :world world
+     :world-inv world-inv
      :view view
+     :view-inv view-inv
      :projection projection
+     :projection-inv projection-inv
      :texture texture
      :normal normal
      :view-proj view-proj
+     :view-proj-inv view-proj-inv
      :world-view world-view
-     :world-view-proj world-view-proj}))
+     :world-view-inv world-view-inv
+     :world-view-proj world-view-proj
+     :world-view-proj-inv world-view-proj-inv}))
 
 (defn rederive-render-transforms
   "Given a result from the derive-render-transforms function, returns a new
@@ -674,13 +686,16 @@
         has-world-space-normal (contains? world-space-semantic-types :semantic-type-normal)
         has-local-space-position (contains? local-space-semantic-types :semantic-type-position)
         has-local-space-normal (contains? local-space-semantic-types :semantic-type-normal)
-        {:keys [view view-proj]} derived-render-transforms]
+        {:keys [view view-inv view-proj view-proj-inv]} derived-render-transforms]
     (cond-> derived-render-transforms
 
             (and has-world-space-position (not has-local-space-position))
             (assoc :world identity-mat4
+                   :world-inv identity-mat4
                    :world-view view
-                   :world-view-proj view-proj)
+                   :world-view-inv view-inv
+                   :world-view-proj view-proj
+                   :world-view-proj-inv view-proj-inv)
 
             (and has-world-space-normal (not has-local-space-normal))
             (assoc :normal (derive-normal-transform view)
@@ -694,13 +709,19 @@
     :actual/world-view-proj
     :normal
     :projection
+    :projection-inv
     :texture
     :view
+    :view-inv
     :view-proj
+    :view-proj-inv
     :world
+    :world-inv
     :world-rotation
     :world-view
-    :world-view-proj})
+    :world-view-inv
+    :world-view-proj
+    :world-view-proj-inv})
 
 (fn/defamong render-transform-key? render-transform-keys)
 
