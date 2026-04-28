@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -31,7 +32,9 @@
 
 //static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
 
+#if defined(FONT_USE_SKRIBIDI)
 static const char* g_TextArabic = "دينيس ريتشي فاش كان خدام ف مختبرات بيل، مابين 1972 و 1973";
+#endif
 
 class FontTest : public jc_test_base_class
 {
@@ -400,6 +403,36 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
     TextLayoutRelease(layout);
 }
 
+TEST_F(FontTest, LegacyLayoutMultilineHeightUsesFontDescent)
+{
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints("A\nA", codepoints);
+
+    TextLayoutSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0.0f;
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Tracking = 0.0f;
+
+    HTextLayout layout = 0;
+    TextResult r = TextLayoutLegacyCreate(m_FontCollection, codepoints.Begin(), codepoints.Size(), &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((HTextLayout)0, layout);
+    ASSERT_EQ(2u, layout->m_Lines.Size());
+
+    float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    uint32_t ascent = (uint32_t)FontGetAscent(m_Font, 1.0f);
+    uint32_t descent = (uint32_t)fabsf(FontGetDescent(m_Font, 1.0f));
+    ASSERT_GT(descent, 0u);
+
+    float expected_line_height = (ascent + descent) * scale;
+    float expected_height = expected_line_height * layout->m_Lines.Size();
+    ASSERT_NEAR(expected_height, layout->m_Height, 0.01f);
+
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, LayoutTrackingAndLeading)
 {
     dmArray<uint32_t> codepoints;
@@ -448,7 +481,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
 #else
     float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
     uint32_t ascent = (uint32_t)FontGetAscent(m_Font, 1.0f);
-    uint32_t descent = (uint32_t)FontGetDescent(m_Font, 1.0f);
+    uint32_t descent = (uint32_t)fabsf(FontGetDescent(m_Font, 1.0f));
     float tracking_line_height = (ascent + descent) * scale;
     expected_tracking = tracking_value * tracking_line_height;
 #endif
@@ -508,10 +541,10 @@ TEST_F(FontTest, FontTracking)
     HTextLayout layout = 0;
 
     // Match the legacy tracking unit:
-    // tracking_px = tracking * ((uint32_t)ascent + (uint32_t)descent) * scale
+    // tracking_px = tracking * ((uint32_t)ascent + (uint32_t)abs(descent)) * scale
     float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
     uint32_t ascent = (uint32_t)FontGetAscent(m_Font, 1.0f);
-    uint32_t descent = (uint32_t)FontGetDescent(m_Font, 1.0f);
+    uint32_t descent = (uint32_t)fabsf(FontGetDescent(m_Font, 1.0f));
     const float line_height = (ascent + descent) * scale;
     ASSERT_GT(line_height, 0.0f);
 
@@ -521,7 +554,9 @@ TEST_F(FontTest, FontTracking)
 
     float baseline_spacing[max_glyphs];
     float baseline_prev_advance[max_glyphs];
+#if !defined(FONT_USE_SKRIBIDI)
     uint32_t baseline_tracking_pair_count = 0;
+#endif
     for (uint32_t i = 0; i < max_glyphs; ++i)
     {
         baseline_spacing[i] = 0.0f;
@@ -550,8 +585,10 @@ TEST_F(FontTest, FontTracking)
                 TextGlyph& prev_glyph = layout->m_Glyphs[i - 1];
                 baseline_spacing[i] = glyph.m_X - prev_glyph.m_X;
                 baseline_prev_advance[i] = prev_glyph.m_Advance;
+#if !defined(FONT_USE_SKRIBIDI)
                 if (baseline_prev_advance[i] > 0.0f)
                     ++baseline_tracking_pair_count;
+#endif
             }
         }
 
