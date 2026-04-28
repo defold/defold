@@ -2142,7 +2142,7 @@ emitters: 1
   modifiers: 1
     type: modifier-type-acceleration
     magnitude: {0, 1, 1, 0}
-    rotation: {0, 0, -180}
+    rotation: {0, 0, 180}
 Expected errors:
   empty points => {points = {}} does not satisfy any of its requirements:
     - {points = {}} is not a number
