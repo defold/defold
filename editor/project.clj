@@ -170,41 +170,9 @@
   ;; Skip native extensions tests:
   ;; lein test :no-native-extensions
   ;;
-  ;; Skip tests that depend on external services or extension packages:
-  ;; lein test :no-external-dependency
-  ;;
-  ;; Only run tests that depend on external services or extension packages:
-  ;; lein test :external-dependency
-  ;;
   ;; Skip specific tests or test namespaces:
   ;; lein test :skip integration.lsp-test integration.library-test/fetch-libraries
   :test-selectors {:no-native-extensions (complement :native-extensions)
-                   :external-dependency [(fn [test-ns-symbol & _symbol-args]
-                                           (contains? '#{integration.engine.native-extensions-test
-                                                        integration.editor-extensions-test
-                                                        integration.extension-lua-preprocessor-test
-                                                        integration.extension-rive-test
-                                                        integration.extension-simpledata-test
-                                                        integration.extension-spine-test
-                                                        integration.extension-teal-test
-                                                        integration.extension-texturepacker-test}
-                                                     test-ns-symbol))
-                                         (fn [test-var-metadata & _symbol-args]
-                                           (or (:external-dependency test-var-metadata)
-                                               (:external-dependency (meta (:ns test-var-metadata)))))]
-                   :no-external-dependency [(fn [test-ns-symbol & _symbol-args]
-                                              (not (contains? '#{integration.engine.native-extensions-test
-                                                                 integration.editor-extensions-test
-                                                                 integration.extension-lua-preprocessor-test
-                                                                 integration.extension-rive-test
-                                                                 integration.extension-simpledata-test
-                                                                 integration.extension-spine-test
-                                                                 integration.extension-teal-test
-                                                                 integration.extension-texturepacker-test}
-                                                              test-ns-symbol)))
-                                            (fn [test-var-metadata & _symbol-args]
-                                              (not (or (:external-dependency test-var-metadata)
-                                                       (:external-dependency (meta (:ns test-var-metadata))))))]
                    :skip [(fn [test-ns-symbol & symbol-args]
                             ;; Returning false from this first predicate allows
                             ;; the test runner to completely skip loading a

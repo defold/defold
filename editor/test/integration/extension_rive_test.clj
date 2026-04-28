@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns ^:external-dependency integration.extension-rive-test
+(ns integration.extension-rive-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [integration.test-util :as test-util]))

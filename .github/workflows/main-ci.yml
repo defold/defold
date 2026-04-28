@@ -451,7 +451,7 @@ jobs:
       {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
-        run: 'ci/ci.sh build-editor --platform=x86_64-linux --skip-external-dependency-tests'
+        run: 'ci/ci.sh build-editor --platform=x86_64-linux --skip-tests'
       },
       {
         name: 'Archive editor',
@@ -467,7 +467,7 @@ jobs:
       }
     ]
 
-  test-editor-external-dependencies-linux:
+  test-editor-linux:
     needs: [build-bob, build-sdk]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -485,9 +485,9 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} }, # v5.2.0
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
-        name: 'Test editor external dependencies',
+        name: 'Test editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
-        run: 'ci/ci.sh test-editor-external-dependencies --platform=x86_64-linux'
+        run: 'ci/ci.sh test-editor --platform=x86_64-linux'
       },
       {
         name: 'Notify if build status changed',
@@ -595,7 +595,7 @@ jobs:
   # ---- RELEASE ------------------
 
   release:
-    needs: [build-editor-macos, build-editor-windows, build-editor-linux, test-editor-external-dependencies-linux, test-bob]
+    needs: [build-editor-macos, build-editor-windows, build-editor-linux, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
     steps: [
       {

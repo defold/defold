@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns ^:external-dependency integration.extension-lua-preprocessor-test
+(ns integration.extension-lua-preprocessor-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]

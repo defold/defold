@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns ^:external-dependency integration.editor-extensions-test
+(ns integration.editor-extensions-test
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]

@@ -514,7 +514,6 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
-                 skip_external_dependency_tests = False,
                  test_device = None,
                  keep_bob_uncompressed = False,
                  skip_codesign = False,
@@ -565,7 +564,6 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
-        self.skip_external_dependency_tests = skip_external_dependency_tests
         self.test_device = test_device
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
@@ -2105,8 +2103,6 @@ class Configuration(object):
 
         if self.skip_tests:
             cmd.append("--skip-tests")
-        if self.skip_external_dependency_tests:
-            cmd.append("--skip-external-dependency-tests")
 
         if self.skip_codesign:
             cmd.append('--skip-codesign')
@@ -2136,7 +2132,7 @@ class Configuration(object):
 
         self.run_editor_script(cmd)
 
-    def test_editor_external_dependencies(self):
+    def test_editor2(self):
         cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
@@ -2145,7 +2141,7 @@ class Configuration(object):
         if self.channel:
             cmd.append('--channel=%s' % self.channel)
 
-        cmd.append('test-external-dependencies')
+        cmd.append('test')
 
         self.run_editor_script(cmd)
 
@@ -2902,7 +2898,7 @@ sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
-test_editor_external_dependencies - Test editor external dependency tests
+test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 build_bob        - Build bob with native libraries included for cross platform deployment
@@ -2933,11 +2929,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
-
-    parser.add_option('--skip-external-dependency-tests', dest='skip_external_dependency_tests',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Skip tests that depend on external services or extension packages. Default is false')
 
     parser.add_option('--test-device', dest='test_device',
                       default = None,
@@ -3098,7 +3089,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
-                      skip_external_dependency_tests = options.skip_external_dependency_tests,
                       test_device = options.test_device,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
