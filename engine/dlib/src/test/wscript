@@ -77,7 +77,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     use_lib_list = '%s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
-        'source': extra_source + (name + '.cpp').split() + platform_source + bld.path.ant_glob('../dlib/testutil.cpp'),
+        'source': extra_source + (name + '.cpp').split() + platform_source,
         'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
