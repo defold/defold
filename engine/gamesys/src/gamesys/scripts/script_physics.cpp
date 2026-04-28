@@ -1713,7 +1713,7 @@ namespace dmGameSystem
      *
      * ```lua
      * local function physics_world_listener(self, events)
-     *   for _,event in ipairs(events):
+     *   for _,event in ipairs(events) do
      *       local event_type = event['type']
      *       if event_type == hash("contact_point_event") then
      *           pprint(event)
