@@ -19,7 +19,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
-#include <dlib/crypt.h>
+#include <dlib/crypt/crypt.h>
 #include "script_private.h"
 
 #include <dmsdk/dlib/hash.h>

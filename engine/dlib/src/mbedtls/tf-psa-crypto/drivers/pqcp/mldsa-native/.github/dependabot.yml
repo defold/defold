@@ -1,0 +1,9 @@
+# Copyright (c) The mldsa-native project authors
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  
