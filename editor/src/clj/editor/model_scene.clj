@@ -47,8 +47,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
-(def model-file-types ["dae" "gltf" "glb"])
-(def animation-file-types ["animationset" "dae" "gltf" "glb"])
+(def model-file-types ["gltf" "glb"])
+(def animation-file-types ["animationset" "gltf" "glb"])
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -462,7 +462,6 @@
             aabb (geom/coords->aabb aabb-min aabb-max)
             material-name (mesh-material-index->material-name material-index)
             ;; TODO(instancing): These doesn't appear to actually be per-mesh? Replace model-loader :material-ids with list of Rig$Material in map format.
-            ;; TODO(instancing): Do we even have Rig$Materials in the :mesh-set for Collada scenes?
             mesh-material-data (nth (:materials mesh-set) material-index)
             material-data (make-renderable-material-data mesh-material-data)]
         {:aabb aabb

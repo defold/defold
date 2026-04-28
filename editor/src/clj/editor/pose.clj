@@ -14,7 +14,8 @@
 
 (ns editor.pose
   (:require [clojure.spec.alpha :as s]
-            [editor.math :as math])
+            [editor.math :as math]
+            [util.defonce :as defonce])
   (:import [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -28,7 +29,7 @@
 (s/def ::scale ::num3)
 (s/def ::euler-rotation ::num3)
 
-(defrecord Pose [translation rotation scale])
+(defonce/record Pose [translation rotation scale])
 
 (defn pose? [value]
   (instance? Pose value))
@@ -107,8 +108,9 @@
   ;; Implementation based on:
   ;; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ;; Rotation sequence: 231 (YZX)
-  (if (= 0.0 x-deg y-deg)
-    (if (= 0.0 z-deg)
+  (if (and (zero? x-deg)
+           (zero? y-deg))
+    (if (zero? z-deg)
       default-rotation
       (let [ha (* 0.5 (math/deg->rad z-deg))
             s (Math/sin ha)
@@ -134,7 +136,7 @@
           qw (+ (- (* s1 s2s3))
                 (* c1c2 c3))
           dp (+ (* qx qx) (* qy qy) (* qz qz) (* qw qw))]
-      (if (> dp 0.0)
+      (if (pos? dp)
         (let [r (/ 1.0 (Math/sqrt dp))]
           (vector-of :double (* qx r) (* qy r) (* qz r) (* qw r)))
         num4-zero))))

@@ -445,6 +445,8 @@ public class ArchiveBuilder {
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
         Project project = new Project(new DefaultFileSystem());
+        // Keep builtins archives deterministic; parallel writes make .arcd offsets depend on thread scheduling.
+        project.setOption("max-cpu-threads", "1");
         ResourceGraph resourceGraph = new ResourceGraph(project);
         manifestBuilder.setResourceGraph(resourceGraph);
 
