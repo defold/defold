@@ -432,7 +432,7 @@ jobs:
   # ---- BUILD EDITOR ------------------
 
   build-editor-linux:
-    needs: [build-bob, build-sdk]
+    needs: [build-bob]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps: [
@@ -499,7 +499,7 @@ jobs:
     ]
 
   build-editor-macos:
-    needs: [build-bob, build-sdk]
+    needs: [build-bob]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -546,7 +546,7 @@ jobs:
     ]
 
   build-editor-windows:
-    needs: [build-bob, build-sdk]
+    needs: [build-bob]
     runs-on: windows-2025
     timeout-minutes: 60
     strategy:
