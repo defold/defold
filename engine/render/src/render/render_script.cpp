@@ -1885,11 +1885,7 @@ namespace dmRender
                 {
                     AddConstantBufferRef(L, i);
                 }
-                else
-                {
-                    lua_pop(L, 1);
-                }
-                lua_pop(L, 1);
+                lua_pop(L, 2);
             }
             else if (lua_isuserdata(L, 2)) // Deprecated
             {
@@ -3110,11 +3106,7 @@ namespace dmRender
                 {
                     AddConstantBufferRef(L, i);
                 }
-                else
-                {
-                    lua_pop(L, 1);
-                }
-                lua_pop(L, 1);
+                lua_pop(L, 2);
             }
             return 0;
         }
