@@ -1736,6 +1736,20 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    // Take a Lua registry reference to prevent the constant buffer
+    // userdata from being garbage collected while the draw command
+    // is queued. The reference is released after ParseCommands.
+    static void AddConstantBufferRef(lua_State* L, RenderScriptInstance* instance)
+    {
+        lua_pushvalue(L, -1);
+        int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        if (instance->m_ConstantBufferLuaRefs.Full())
+        {
+            instance->m_ConstantBufferLuaRefs.OffsetCapacity(16);
+        }
+        instance->m_ConstantBufferLuaRefs.Push(ref);
+    }
+
     /*# draws all objects matching a predicate
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
@@ -1833,16 +1847,7 @@ namespace dmRender
             if (!lua_isnil(L, -1))
             {
                 constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
-                // Take a Lua registry reference to prevent the constant buffer
-                // userdata from being garbage collected while the draw command
-                // is queued. The reference is released after ParseCommands.
-                lua_pushvalue(L, -1);
-                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-                if (i->m_ConstantBufferLuaRefs.Full())
-                {
-                    i->m_ConstantBufferLuaRefs.OffsetCapacity(16);
-                }
-                i->m_ConstantBufferLuaRefs.Push(ref);
+                AddConstantBufferRef(L, i);
             }
             lua_pop(L, 1);
 
@@ -1862,12 +1867,7 @@ namespace dmRender
             constant_buffer = *tmp;
             // Take a Lua registry reference (same reason as the options table path above).
             lua_pushvalue(L, 2);
-            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-            if (i->m_ConstantBufferLuaRefs.Full())
-            {
-                i->m_ConstantBufferLuaRefs.OffsetCapacity(16);
-            }
-            i->m_ConstantBufferLuaRefs.Push(ref);
+            AddConstantBufferRef(L, i);
         }
 
         // we need to pass ownership to the command queue
@@ -3072,13 +3072,7 @@ namespace dmRender
             if (!lua_isnil(L, -1))
             {
                 constant_buffer = *RenderScriptConstantBuffer_Check(L, -1);
-                lua_pushvalue(L, -1);
-                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-                if (i->m_ConstantBufferLuaRefs.Full())
-                {
-                    i->m_ConstantBufferLuaRefs.OffsetCapacity(16);
-                }
-                i->m_ConstantBufferLuaRefs.Push(ref);
+                AddConstantBufferRef(L, i);
             }
             lua_pop(L, 1);
 
@@ -3603,12 +3597,12 @@ bail:
         return i;
     }
 
-    static void ReleaseConstantBufferLuaRefs(HRenderScriptInstance instance)
+    static void ReleaseConstantBufferLuaRefs(lua_State* L, HRenderScriptInstance instance)
     {
-        if (instance->m_ConstantBufferLuaRefs.Size() > 0)
+        uint32_t num_refs = instance->m_ConstantBufferLuaRefs.Size();
+        if (num_refs > 0)
         {
-            lua_State* L = instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
-            for (uint32_t i = 0; i < instance->m_ConstantBufferLuaRefs.Size(); ++i)
+            for (uint32_t i = 0; i < num_refs; ++i)
             {
                 dmScript::Unref(L, LUA_REGISTRYINDEX, instance->m_ConstantBufferLuaRefs[i]);
             }
@@ -3633,7 +3627,7 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
 
-        ReleaseConstantBufferLuaRefs(render_script_instance);
+        ReleaseConstantBufferLuaRefs(L, render_script_instance);
 
         assert(top == lua_gettop(L));
 
@@ -3826,7 +3820,8 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
-        ReleaseConstantBufferLuaRefs(instance);
+
+        ReleaseConstantBufferLuaRefs(instance->m_RenderContext->m_RenderScriptContext.m_LuaState, instance);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
