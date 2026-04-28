@@ -16,7 +16,7 @@
   (:require [clojure.spec.alpha :as s]
             [editor.math :as math]
             [util.defonce :as defonce])
-  (:import [javax.vecmath Matrix4d]))
+  (:import [javax.vecmath Matrix4d Quat4d Tuple3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -39,7 +39,6 @@
 (def default-scale (vector-of :double 1.0 1.0 1.0))
 (def ^Pose default (->Pose default-translation default-rotation default-scale))
 
-(def ^:private mat4-identity (doto (Matrix4d.) (.setIdentity)))
 (def ^:private num4-zero (vector-of :double 0.0 0.0 0.0 0.0))
 
 (defn- add-vector [[^double ax ^double ay ^double az] [^double bx ^double by ^double bz]]
@@ -296,7 +295,7 @@
   ^Matrix4d [^Pose pose]
   {:pre [(pose? pose)]}
   (if (identical? default pose)
-    mat4-identity
+    math/identity-mat4
     (math/clj->mat4 (.-translation pose) (.-rotation pose) (.-scale pose))))
 
 (defmacro translation-v3 [pose-expr]
@@ -328,3 +327,14 @@
 
 (defmacro scaled? [pose-expr]
   `(not= default-scale (scale-v3 ~pose-expr)))
+
+(defn assign-to-vecmath! [^Pose pose ^Tuple3d out-translation ^Quat4d out-rotation ^Tuple3d out-scale]
+  (if-let [[^double x ^double y ^double z] (translation-v3 pose)]
+    (.set out-translation x y z)
+    (.set out-translation math/zero-v3))
+  (if-let [[^double x ^double y ^double z ^double w] (rotation-q4 pose)]
+    (.set out-rotation x y z w)
+    (.set out-rotation math/identity-quat))
+  (if-let [[^double x ^double y ^double z] (scale-v3 pose)]
+    (.set out-scale x y z)
+    (.set out-scale math/one-v3)))

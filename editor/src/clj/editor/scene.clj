@@ -76,7 +76,7 @@
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage Window]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
+           [javax.vecmath Matrix4d Point3d Quat4d Tuple3d Vector3d]
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
@@ -382,6 +382,12 @@
           pass-renderables
           passes))
 
+(defn- assign-transform-to-vecmath! [scene ^Tuple3d translation ^Quat4d rotation ^Tuple3d scale]
+  (if-some [pose (:pose scene)]
+    (pose/assign-to-vecmath! pose translation rotation scale)
+    (when-some [local-transform (:transform scene)]
+      (math/split-mat4 local-transform translation rotation scale))))
+
 (defn- flatten-scene-renderables! [flattened-scene
                                    parent-shows-children
                                    apply-transform-preview-overrides
@@ -416,8 +422,7 @@
               ;; No need to extract non-overridden values from the local
               ;; transform if all the transform properties are overridden.
               (when-not (and position-override rotation-override scale-override)
-                (when-some [local-transform (:transform scene)]
-                  (math/split-mat4 local-transform local-translation local-rotation local-scale)))
+                (assign-transform-to-vecmath! scene local-translation local-rotation local-scale))
 
               ;; Apply transform property overrides. The clj->vecmath function
               ;; writes directly to the supplied vecmath object.
@@ -430,8 +435,7 @@
 
             ;; We're not applying transform property preview overrides. Simply
             ;; use the local transform, if present.
-            (when-some [local-transform (:transform scene)]
-              (math/split-mat4 local-transform local-translation local-rotation local-scale)))
+            (assign-transform-to-vecmath! scene local-translation local-rotation local-scale))
 
           ;; Consume the transform properties to determine if there are
           ;; additional non-transform preview overrides, and we need to invoke
