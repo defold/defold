@@ -1958,7 +1958,8 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STLIB_LUA'] = 'lua'
+        conf.env['STLIB_LUA']   = 'lua'
+        conf.env['DEFINES_LUA'] = ['DM_LUA_USE_LUA51']
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
 
