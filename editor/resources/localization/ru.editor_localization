@@ -351,6 +351,11 @@ notification.fetch-libraries.problem.install-failed = не удалось уст
 notification.fetch-libraries.problem.unknown = неизвестная проблема — {problem}
 notification.fetch-libraries.dependency-problem = {uri}: {problem}
 
+# Open custom editor notifications
+
+notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС:\n{error}
+notification.open-custom-editor-failed.action.open-preferences = Открыть настройки…
+
 # Settings notifications
 
 notification.liveupdate-settings.action.open-game-project = Открыть game.project
