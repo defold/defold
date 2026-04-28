@@ -203,6 +203,17 @@ void ParticleTest::VerifyVertexDims(TestVertex* vertex_buffer, uint32_t particle
     }
 }
 
+static float MaxVertexDistanceSq(const TestVertex* vertex_buffer, uint32_t vertex_count, const Point3& center)
+{
+    float max_distance_sq = 0.0f;
+    for (uint32_t i = 0; i < vertex_count; ++i)
+    {
+        Vector3 delta(vertex_buffer[i].m_X - center.getX(), vertex_buffer[i].m_Y - center.getY(), vertex_buffer[i].m_Z - center.getZ());
+        max_distance_sq = dmMath::Max(max_distance_sq, LengthSqr(delta));
+    }
+    return max_distance_sq;
+}
+
 dmParticle::Emitter* GetEmitter(dmParticle::HParticleContext context, dmParticle::HInstance instance, uint32_t index)
 {
     return &context->m_Instances[instance & 0xffff]->m_Emitters[index];
@@ -2223,6 +2234,74 @@ TEST_F(ParticleTest, Pivot)
     ASSERT_NEAR(0.0f, vertex_buffer[5].m_Y, EPSILON); // bottom left
 
     dmParticle::DestroyInstance(m_Context, instance);
+}
+
+TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
+{
+    {
+        const float dt = 0.25f;
+        ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+        TileSource tile_source;
+        for (uint32_t emitter_i = 0; emitter_i < 7; ++emitter_i)
+        {
+            dmParticle::SetTileSource(m_Prototype, emitter_i, &tile_source);
+        }
+        dmParticle::StartInstance(m_Context, instance);
+
+        dmParticle::Update(m_Context, dt, FetchAnimationCallback);
+
+        TestVertex vertex_buffer[6];
+        uint32_t out_vertex_buffer_size = 0;
+        const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
+        dmParticle::GenerateVertexData(m_Context, dt, instance, 1, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
+        dmParticle::UpdateRenderData(m_Context, instance, 1);
+        ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
+
+        dmParticle::EmitterRenderData* render_data = 0x0;
+        dmParticle::GetEmitterRenderData(m_Context, instance, 1, &render_data);
+        ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data);
+
+        const float max_vertex_distance_sq = MaxVertexDistanceSq(vertex_buffer, 6, render_data->m_FrustumCullingCenter);
+        ASSERT_GE(render_data->m_FrustumCullingRadiusSq + EPSILON, max_vertex_distance_sq);
+
+        dmParticle::DestroyInstance(m_Context, instance);
+        dmParticle::Particle_DeletePrototype(m_Prototype);
+        m_Prototype = 0x0;
+    }
+
+    {
+        const float dt = 1.0f;
+        ASSERT_TRUE(LoadPrototype("pivot.particlefxc", &m_Prototype));
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+        TileSource tile_source;
+        tile_source.m_TileWidth  = 1;
+        tile_source.m_TileHeight = 2;
+
+        dmParticle::SetTileSource(m_Prototype, 0, &tile_source);
+        dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+        dmParticle::StartInstance(m_Context, instance);
+
+        dmParticle::Update(m_Context, dt, FetchPivotAnimationCallback);
+
+        TestVertex vertex_buffer[6];
+        uint32_t out_vertex_buffer_size = 0;
+        const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
+        dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
+        dmParticle::UpdateRenderData(m_Context, instance, 0);
+        ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
+
+        dmParticle::EmitterRenderData* render_data = 0x0;
+        dmParticle::GetEmitterRenderData(m_Context, instance, 0, &render_data);
+        ASSERT_NE((dmParticle::EmitterRenderData*)0x0, render_data);
+
+        const float max_vertex_distance_sq = MaxVertexDistanceSq(vertex_buffer, 6, render_data->m_FrustumCullingCenter);
+        ASSERT_GE(render_data->m_FrustumCullingRadiusSq + EPSILON, max_vertex_distance_sq);
+
+        dmParticle::DestroyInstance(m_Context, instance);
+    }
 }
 
 /**
