@@ -1,0 +1,35 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Setup libOQS
+description: Setup libOQS
+
+inputs:
+  dir:
+    description: Directory to fetch libOQS into
+    default: 'libOQS'
+  repository:
+    description: Repository to fetch from
+    default: 'open-quantum-safe/libOQS'
+  commit:
+    description: Commit to fetch
+    default: 'HEAD'
+  gh_token:
+    description: Github access token to use
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch libOQS
+      shell: bash
+      run: |
+        mkdir ${{ inputs.dir }} && cd ${{ inputs.dir }}
+        git config --global --add safe.directory $GITHUB_WORKSPACE/${{ inputs.dir }}
+        git init
+        git remote add origin $GITHUB_SERVER_URL/${{ inputs.repository }}
+        git fetch origin --depth 1 ${{ inputs.commit }}
+        git checkout FETCH_HEAD
+
+        # Remember libOQS directory
+        echo LIBOQS_DIR="$GITHUB_WORKSPACE/${{ inputs.dir }}" >> $GITHUB_ENV

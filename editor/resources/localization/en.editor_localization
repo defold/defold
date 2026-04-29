@@ -351,6 +351,11 @@ notification.fetch-libraries.problem.install-failed = failed to install
 notification.fetch-libraries.problem.unknown = unknown problem — {problem}
 notification.fetch-libraries.dependency-problem = {uri}: {problem}
 
+# Open custom editor notifications
+
+notification.open-custom-editor-failed.error = Could not run external editor "{editor}".\n\nUnderlying error from the OS:\n{error}
+notification.open-custom-editor-failed.action.open-preferences = Open Preferences…
+
 # Settings notifications
 
 notification.liveupdate-settings.action.open-game-project = Open game.project

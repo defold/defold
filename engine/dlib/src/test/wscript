@@ -2,7 +2,7 @@
 import os, re, sys
 import sdk
 import waf_dynamo
-from waf_dynamo import is_platform_private, platform_supports_feature
+from waf_dynamo import feature_enabled, is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
@@ -53,7 +53,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_defines != None:
         req_defines.extend(extra_defines)
 
-    local_libs = 'dlib mbedtls zip'.split()
+    local_libs = 'dlib zip'.split()
+    if feature_enabled('mbedtls') or target_os not in ['macos', 'ios']:
+        local_libs.append('mbedtls')
 
     use_profile_null = bld.env.PLATFORM in ('wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
     if use_profile_null:
@@ -90,6 +92,8 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     test = bld(**task_args)
     test.install_path = None
+    if target_os in ['macos', 'ios']:
+        test.env.append_value('LINKFLAGS', ['-framework', 'CFNetwork', '-framework', 'Security'])
 
     js_lib_paths = {}
     js_lib_paths['library_sys.js'] = '../src/dlib/js'
@@ -234,6 +238,7 @@ def build(bld):
                                 'data/gray_alpha_check_2x2.png',
                                 'data/defold_64.jpg',
                                 'data/defold_64_progressive.jpg'],
+                extra_local_libs = ['image'],
                 extra_includes = ['.']
                 )
 
