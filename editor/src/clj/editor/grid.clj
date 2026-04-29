@@ -276,24 +276,23 @@
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
         ignore-options (g/node-value grid :options)
+        value-changed-fn (fn [k v]
+                           (prefs/set! prefs [:scene :grid k] v)
+                           (invalidate-grids! app-view))
         descriptors
         [{:type :reset-all}
          {:key :size :type :vec3-floats
           :value (prefs/get prefs [:scene :grid :size])
-          :on-value-changed (fn [v]
-                              (prefs/set! prefs [:scene :grid :size] v)
-                              (invalidate-grids! app-view))}
-         {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"}
+          :on-value-changed (partial value-changed-fn :size)}
+         {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
+          :value (prefs/get prefs [:scene :grid :active-plane])
+          :on-value-changed (partial value-changed-fn :active-plane)}
          {:key :color :type :color :label "scene-popup.grid.color"
           :value (prefs/get prefs [:scene :grid :color])
-          :on-value-changed (fn [v]
-                              (prefs/set! prefs [:scene :grid :color] v)
-                              (invalidate-grids! app-view))}
+          :on-value-changed (partial value-changed-fn :color)}
          {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
           :value (prefs/get prefs [:scene :grid :opacity])
-          :on-value-changed (fn [v]
-                              (prefs/set! prefs [:scene :grid :opacity] v)
-                              (invalidate-grids! app-view))
+          :on-value-changed (partial value-changed-fn :opacity)
           :slider-value->string (fn [^double v]
                                   (str (Math/round (* v 100)) "%"))}]
         initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]

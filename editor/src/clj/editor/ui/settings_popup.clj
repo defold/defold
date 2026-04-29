@@ -395,7 +395,7 @@
                                                         (on-value-changed new-vec3))))}}]))
                    axes)})
 
-(defn- make-vec3-toggle-row-fx [{:keys [label value on-value-changed]}]
+(defn- make-vec3-toggle-row-fx [{:keys [key label state swap-state on-value-changed]}]
   {:fx/type fxui/horizontal
    :children (into [{:fx/type fxui/label
                      :text (or label "")
@@ -407,10 +407,12 @@
                            {:fx/type fxui/toggle-button
                             :style-class ["toggle-button" "plane-toggle"]
                             :text (string/upper-case (name axis))
-                            :selected (= axis value)
-                            :on-action {:event-type :set-value
-                                        :key nil ;; filled in by caller
-                                        :fx/event axis}}}))
+                            :selected (= axis (key state))
+                            :on-selected-changed (fn [selected?]
+                                                   (when selected?
+                                                     (swap-state assoc key axis)
+                                                     (when on-value-changed
+                                                       (on-value-changed axis))))}}))
                    axes)})
 
 (defn- make-row-fx [keymap localization-state state swap-state descriptor]
@@ -456,9 +458,10 @@
     {:fx/type make-vec3-toggle-row-fx
      :label (when-let [l (:label descriptor)]
               (localization-state (localization/message (:label descriptor))))
-     :value (get state (:key descriptor))
-     :on-value-changed {:event-type :set-value
-                        :key (:key descriptor)}}
+     :key (:key descriptor)
+     :state state
+     :swap-state swap-state
+     :on-value-changed #((:on-value-changed descriptor) %)}
 
     nil))
 
@@ -482,7 +485,7 @@
   ^Point2D [^Parent container width x-offset]
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM x-offset 10.0 true))
 
-;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `show!` below). PopupWindow has
+;; NOTE: This settings UI is shown inside a JavaFX PopupWindow (see `make-popup` above). PopupWindow has
 ;; its own focus-traversal behavior that tends to set `focusTraversable` to false on child controls,
 ;; breaking Tab navigation inside the popup. For the simple controls we own (toggles, sliders, value
 ;; fields), we wrap them in `fxui/ext-ensure-focus-traversable`, which observes the property and
