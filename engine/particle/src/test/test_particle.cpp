@@ -206,9 +206,12 @@ void ParticleTest::VerifyVertexDims(TestVertex* vertex_buffer, uint32_t particle
 static float MaxVertexDistanceSq(const TestVertex* vertex_buffer, uint32_t vertex_count, const Point3& center)
 {
     float max_distance_sq = 0.0f;
+    const float center_x = center.getX();
+    const float center_y = center.getY();
+    const float center_z = center.getZ();
     for (uint32_t i = 0; i < vertex_count; ++i)
     {
-        Vector3 delta(vertex_buffer[i].m_X - center.getX(), vertex_buffer[i].m_Y - center.getY(), vertex_buffer[i].m_Z - center.getZ());
+        Vector3 delta(vertex_buffer[i].m_X - center_x, vertex_buffer[i].m_Y - center_y, vertex_buffer[i].m_Z - center_z);
         max_distance_sq = dmMath::Max(max_distance_sq, LengthSqr(delta));
     }
     return max_distance_sq;
@@ -477,8 +480,8 @@ TEST_F(ParticleTest, IncompleteParticleFX)
 
         if (has_emitter[i])
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*) vertex_buffer, max_vb_size, &out_vertex_buffer_size);
             dmParticle::UpdateRenderData(m_Context, instance, 0);
+            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*) vertex_buffer, max_vb_size, &out_vertex_buffer_size);
             ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
             dmParticle::EmitterRenderData* emitter_render_data;
@@ -490,8 +493,8 @@ TEST_F(ParticleTest, IncompleteParticleFX)
         }
         else
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
             dmParticle::UpdateRenderData(m_Context, instance, 0);
+            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
             dmParticle::EmitterRenderData* emitter_render_data = 0x0;
             dmParticle::GetEmitterRenderData(m_Context, instance, 0, &emitter_render_data);
             ASSERT_EQ(0x0, emitter_render_data);
@@ -1517,8 +1520,8 @@ TEST_F(ParticleTest, Animation)
         uint32_t vertex_buffer_size = 0;
         for (uint32_t type = 0; type < type_count; ++type)
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, type, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(TestVertex), &vertex_buffer_size);
             dmParticle::UpdateRenderData(m_Context, instance, type);
+            dmParticle::GenerateVertexData(m_Context, dt, instance, type, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(TestVertex), &vertex_buffer_size);
             uint32_t tile = tiles[type][it];
             if (tile > 0)
             {
@@ -2217,8 +2220,8 @@ TEST_F(ParticleTest, Pivot)
     uint32_t out_vertex_buffer_size = 0;
     uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
     TestVertex vertex_buffer[6];
-    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
     dmParticle::UpdateRenderData(m_Context, instance, 0);
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
     ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
     dmParticle::EmitterRenderData* emitter_render_data;
@@ -2255,8 +2258,8 @@ TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
         TestVertex vertex_buffer[6];
         uint32_t out_vertex_buffer_size = 0;
         const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
-        dmParticle::GenerateVertexData(m_Context, dt, instance, 1, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
         dmParticle::UpdateRenderData(m_Context, instance, 1);
+        dmParticle::GenerateVertexData(m_Context, dt, instance, 1, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
         ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
         dmParticle::EmitterRenderData* render_data = 0x0;
@@ -2289,8 +2292,8 @@ TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
         TestVertex vertex_buffer[6];
         uint32_t out_vertex_buffer_size = 0;
         const uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, sizeof(TestVertex));
-        dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
         dmParticle::UpdateRenderData(m_Context, instance, 0);
+        dmParticle::GenerateVertexData(m_Context, dt, instance, 0, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size);
         ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
         dmParticle::EmitterRenderData* render_data = 0x0;

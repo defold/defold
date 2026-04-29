@@ -102,6 +102,19 @@ namespace dmParticle
         float       m_SourceAngularVelocity;
     };
 
+    struct ParticleRenderState
+    {
+        ParticleRenderState()
+        {
+            memset(this, 0, sizeof(ParticleRenderState));
+        }
+
+        dmTransform::TransformS1 m_WorldTransform;
+        float                    m_HalfWidth;
+        float                    m_HalfHeight;
+        uint32_t                 m_Tile;
+    };
+
     /**
      * Representation of an emitter.
      */
@@ -115,6 +128,7 @@ namespace dmParticle
         AnimationData           m_AnimationData;
         /// Particle buffer.
         dmArray<Particle>       m_Particles;
+        dmArray<ParticleRenderState> m_RenderState;
         dmArray<RenderConstant> m_RenderConstants;
         dmVMath::Vector3        m_Velocity;
         dmVMath::Point3         m_LastPosition;
@@ -187,6 +201,7 @@ namespace dmParticle
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
         : m_AttributeDataPtrIndex(0)
         , m_MaxParticleCount(max_particle_count)
+        , m_LastDT(0.0f)
         , m_NextVersionNumber(1)
         , m_InstanceSeeding(0)
         {
@@ -215,6 +230,8 @@ namespace dmParticle
         uint32_t            m_AttributeDataPtrIndex;
         /// Maximum number of particles allowed
         uint32_t            m_MaxParticleCount;
+        /// Latest update delta time, used when refreshing cached render data outside the main update loop.
+        float               m_LastDT;
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
         /// Instance seeding to avoid same frame instances to look the same.
